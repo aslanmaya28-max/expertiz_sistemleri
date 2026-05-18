@@ -295,6 +295,32 @@ function EmptyState({ text }: { text: string }) {
   return <div className="rounded-lg bg-gray-50 px-4 py-8 text-center text-sm text-metin-ikincil">{text}</div>;
 }
 
+function sourceBadge(source?: string): { text: string; cls: string } {
+  switch (source) {
+    case "mobile_share":
+      return { text: "Mobil Paylasim", cls: "bg-purple-100 text-purple-700" };
+    case "manual_paste":
+      return { text: "Link Girisi", cls: "bg-indigo-100 text-indigo-700" };
+    case "chrome_extension":
+      return { text: "Chrome Eklentisi", cls: "bg-cyan-100 text-cyan-700" };
+    default:
+      return { text: "Panel", cls: "bg-gray-100 text-gray-700" };
+  }
+}
+
+function statusBadge(status?: string): { text: string; cls: string } {
+  switch (status) {
+    case "queued":
+      return { text: "Kuyrukta", cls: "bg-yellow-100 text-yellow-700" };
+    case "completed":
+      return { text: "Tamamlandi", cls: "bg-green-100 text-green-700" };
+    case "failed":
+      return { text: "Hata", cls: "bg-red-100 text-red-700" };
+    default:
+      return { text: status || "-", cls: "bg-gray-100 text-gray-700" };
+  }
+}
+
 function AnalysisRow({ item }: { item: AnalysisHistoryItem }) {
   const vehicle = parseJsonField(item.vehicle_json);
   const valuation = parseJsonField(item.valuation_json);
@@ -306,15 +332,23 @@ function AnalysisRow({ item }: { item: AnalysisHistoryItem }) {
   const marketPrice = typeof vehicle.market_price_avg === "number" ? vehicle.market_price_avg : undefined;
   const decision = textValue(valuation.decision, "Analiz");
   const score = typeof valuation.opportunity_score === "number" ? Math.round(valuation.opportunity_score) : null;
+  const source = textValue(vehicle.source as string | undefined, "panel");
+  const status = textValue(vehicle.status as string | undefined, (valuation.status as string | undefined) || "completed");
+  const sourceInfo = sourceBadge(source);
+  const statusInfo = statusBadge(status);
 
   return (
     <div className="rounded-lg border border-kenarlik-acik p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="font-semibold text-metin-birincil">{title}</div>
-          <div className="mt-1 text-sm text-metin-ikincil">{textValue(vehicle.source, "panel")} / {formatDate(item.created_at)}</div>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-metin-birincil truncate">{title}</div>
+          <div className="mt-1 text-sm text-metin-ikincil">{formatDate(item.created_at)}</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${sourceInfo.cls}`}>{sourceInfo.text}</span>
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusInfo.cls}`}>{statusInfo.text}</span>
+          </div>
         </div>
-        <span className="w-fit rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">{decision}{score !== null ? ` / ${score}` : ""}</span>
+        <span className="w-fit shrink-0 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">{decision}{score !== null ? ` / ${score}` : ""}</span>
       </div>
       <div className="mt-3 grid gap-2 text-xs text-metin-ikincil sm:grid-cols-3">
         <span>Fiyat: {formatPrice(listedPrice)}</span>
@@ -323,6 +357,7 @@ function AnalysisRow({ item }: { item: AnalysisHistoryItem }) {
       </div>
     </div>
   );
+
 }
 
 function RequestRow({ request }: { request: ExpertizRequestSummary }) {

@@ -85,6 +85,10 @@ dependencies:
   
   # UUID Generation (OperationIntent için ZORUNLU)
   uuid: ^4.3.3
+  
+  # Mobil Paylasim / Intents
+  receive_sharing_intent: ^1.8.1
+
   flutter_localizations:
     sdk: flutter
   supabase_flutter: ^2.12.0

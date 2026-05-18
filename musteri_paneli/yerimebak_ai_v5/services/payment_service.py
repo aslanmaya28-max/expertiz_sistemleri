@@ -311,6 +311,105 @@ class PaymentService:
         finally:
             DatabaseConfig.return_connection(conn)
 
+    def record_queued_analysis(self, user_id: int, intake_payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Kuyruktaki bir URL analizi icin on kayit olusturur (kredi dusmez).
+
+        Args:
+            user_id: Kullanici ID.
+            intake_payload: {'url': ..., 'source': ..., 'status': 'queued'}
+
+        Returns:
+            Dict: {'success': True, 'history_id': ...}
+        """
+        history_id = str(uuid.uuid4())
+        vehicle_json = {
+            "url": intake_payload.get("url", ""),
+            "source": intake_payload.get("source", ""),
+            "status": intake_payload.get("status", "queued"),
+        }
+        valuation_json = {"credits_deducted": 0, "status": "queued"}
+
+        conn = DatabaseConfig.get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                INSERT INTO analysis_history (id, user_id, vehicle_json, valuation_json)
+                VALUES ({self._p}, {self._p}, {self._p}, {self._p})
+            """, (
+                history_id,
+                user_id,
+                json.dumps(vehicle_json, ensure_ascii=False, default=str),
+                json.dumps(valuation_json, ensure_ascii=False, default=str),
+            ))
+            conn.commit()
+            return {"success": True, "history_id": history_id}
+        except Exception as e:
+            logger.error(f"record_queued_analysis failed: {e}")
+            return {"success": False, "error": str(e)}
+        finally:
+            DatabaseConfig.return_connection(conn)
+
+    def mark_queued_analysis_failed(self, user_id: int, history_id: str, error_message: str) -> Dict[str, Any]:
+        """Kuyruktaki analizi basarisiz olarak isaretler.
+
+        Args:
+            user_id: Kullanici ID.
+            history_id: analysis_history ID.
+            error_message: Hata mesaji.
+
+        Returns:
+            Dict: {'success': True, ...} veya hata mesaji.
+        """
+        conn = DatabaseConfig.get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                UPDATE analysis_history
+                SET valuation_json = jsonb_set(
+                    COALESCE(valuation_json::jsonb, '{{}}'::jsonb),
+                    '{{status}}',
+                    {self._p}
+                ),
+                vehicle_json = jsonb_set(
+                    COALESCE(vehicle_json::jsonb, '{{}}'::jsonb),
+                    '{{status}}',
+                    {self._p}
+                )
+                WHERE id = {self._p} AND user_id = {self._p}
+            """, (
+                json.dumps("failed"),
+                json.dumps("failed"),
+                history_id,
+                user_id,
+            ))
+            conn.commit()
+            return {"success": True, "history_id": history_id, "status": "failed"}
+        except Exception as e:
+            logger.error(f"mark_queued_analysis_failed failed: {e}")
+            return {"success": False, "error": str(e)}
+        finally:
+            DatabaseConfig.return_connection(conn)
+
+    def complete_queued_analysis(self, user_id: int, history_id: str, analysis_result: Dict[str, Any]) -> Dict[str, Any]:
+
+        """Kuyruktaki analizi tamamlar ve kredi duser.
+
+        Args:
+            user_id: Kullanici ID.
+            history_id: analysis_history ID.
+            analysis_result: Analiz sonucu verisi.
+
+        Returns:
+            Dict: {'success': True, ...} veya hata mesaji.
+        """
+        return self.deduct_credits(
+            user_id=user_id,
+            amount=ANALYSIS_CREDIT_COST,
+            description="URL analizi",
+            vehicle_data=analysis_result.get("vehicle", analysis_result),
+            valuation_data={**analysis_result.get("valuation", {}), "status": "completed"},
+        )
+
     def get_packages(self) -> Dict[str, Any]:
         return {
             "packages": CREDIT_PACKAGES,

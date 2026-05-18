@@ -4,16 +4,20 @@
 /// AuthServicePro TAMAMEN KALDIRILDI - AuthRepository + UserProvider kullanılır
 library;
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart' as legacy_provider;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart' as sharing;
 
 import 'core/theme/futuristic_theme.dart';
 import 'core/services/service_orchestrator.dart';
 import 'core/lifecycle/app_lifecycle_observer.dart';
 import 'providers/theme_provider.dart';
+import 'services/shared_listing_intake_service.dart';
+
 import 'providers/clock_provider.dart';
 import 'providers/admin_provider.dart';
 import 'providers/user_provider.dart';
@@ -72,10 +76,59 @@ void main() async {
       AppLifecycleHandler(authRepository: authRepository);
   WidgetsBinding.instance.addObserver(lifecycleHandler);
 
+  // Mobil paylasim intent listener'ini baslat
+  _initShareListener(authRepository);
+
   runApp(const ProviderScope(child: ExpertizSistemiApp()));
+
+}
+
+/// Mobil paylasim intent'lerini dinler ve ilan analiz kuyruguna yonlendirir.
+void _initShareListener(AuthRepository authRepository) {
+  // Platform tarafindan paylasilan metinleri dinle
+  sharing.ReceiveSharingIntent.instance.getMediaStream().listen((List<sharing.SharedMediaFile> value) {
+    _handleSharedContent(value, authRepository);
+  }, onError: (Object error) {
+    debugPrint('Share listener hatasi: $error');
+  });
+
+  // Uygulama kapaliyken gelen paylasimlari da isle
+  sharing.ReceiveSharingIntent.instance.getInitialMedia().then((List<sharing.SharedMediaFile> value) {
+    _handleSharedContent(value, authRepository);
+  });
+}
+
+/// Paylasilan medya dosyalarindan URL cikarir ve analiz kuyruguna ekler.
+void _handleSharedContent(List<sharing.SharedMediaFile> files, AuthRepository authRepository) async {
+  for (final file in files) {
+    final text = file.content;
+    if (text != null && text.isNotEmpty && (text.startsWith('http://') || text.startsWith('https://'))) {
+      debugPrint('Paylasilan URL yakalandi: $text');
+
+      // Kullanici auth token'ini al
+      String? token;
+      try {
+        final session = authRepository.supabase.auth.currentSession;
+        token = session?.accessToken;
+      } catch (e) {
+        debugPrint('Auth token alinamadi (muhtemelen giris yapilmamis): $e');
+      }
+
+      if (token != null) {
+        await SharedListingIntakeService.submitSharedUrl(
+          rawText: text,
+          authToken: token,
+        );
+        debugPrint('URL analiz kuyruguna eklendi: $text');
+      } else {
+        debugPrint('Kullanici giris yapmamis, paylasim atlandi: $text');
+      }
+    }
+  }
 }
 
 /// 🔒 DÜZELTİLDİ (B13): Config hatası durumunda gösterilecek basit uygulama
+
 class _ConfigErrorApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {

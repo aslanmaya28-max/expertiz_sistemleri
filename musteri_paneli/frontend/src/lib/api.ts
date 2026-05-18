@@ -335,9 +335,28 @@ export function searchVehicles(q: string, limit = 20): Promise<{ query: string; 
   return fetchAPI(`/vitrin/search?q=${encodeURIComponent(q)}&limit=${limit}`);
 }
 
+export interface CreateUrlAnalysisPayload {
+  url: string;
+  source?: "manual_paste" | "mobile_share" | "chrome_extension";
+}
+
+export interface CreateUrlAnalysisResponse {
+  success: boolean;
+  status: string;
+  history_id: string;
+}
+
+export function createUrlAnalysis(payload: CreateUrlAnalysisPayload): Promise<CreateUrlAnalysisResponse> {
+  return fetchAPI<CreateUrlAnalysisResponse>("/analysis-intake/url", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function analyzeVehicle(id: number): Promise<Record<string, unknown>> {
   return fetchAPI(`/vitrin/${id}/analyze`, { method: "POST" });
 }
+
 
 export function getExpertizPackages(): Promise<ExpertizPackagesResponse> {
   return fetchAPI<ExpertizPackagesResponse>("/expertiz/packages");

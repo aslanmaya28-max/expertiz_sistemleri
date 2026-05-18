@@ -2,11 +2,17 @@
 
 import { useState } from "react";
 import { getToken } from "@/lib/yetki";
+import { createUrlAnalysis } from "@/lib/api";
 
 export default function AracAnalizSayfasi() {
   const [form, setForm] = useState({ brand: "", model: "", year: "", km: "", price: "", fuel: "Benzin", gear: "Otomatik" });
   const [sonuc, setSonuc] = useState<Record<string, unknown> | null>(null);
   const [yukleniyor, setYukleniyor] = useState(false);
+
+  // Link yapistirma state
+  const [linkInput, setLinkInput] = useState("");
+  const [linkSonuc, setLinkSonuc] = useState<{ success: boolean; status: string; history_id: string } | null>(null);
+  const [linkYukleniyor, setLinkYukleniyor] = useState(false);
 
   const gonder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,12 +40,54 @@ export default function AracAnalizSayfasi() {
     }
   };
 
+  const linkGonder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!linkInput.trim()) return;
+    setLinkYukleniyor(true);
+    setLinkSonuc(null);
+    try {
+      const result = await createUrlAnalysis({ url: linkInput.trim(), source: "manual_paste" });
+      setLinkSonuc(result);
+      setLinkInput("");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Link analizi başlatılamadı");
+    } finally {
+      setLinkYukleniyor(false);
+    }
+  };
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-12">
       <h1 className="text-3xl font-bold text-metin-birincil mb-2">Araç Analiz</h1>
-      <p className="text-metin-ikincil mb-8">Araç bilgilerini girin, AI analiz yapsın</p>
+      <p className="text-metin-ikincil mb-8">Araç bilgilerini girin veya ilan linki yapıştırın</p>
 
+      {/* Link ile analiz bolumu */}
+      <div className="bg-white rounded-xl border border-kenarlik-acik p-6 mb-8">
+        <h2 className="text-lg font-bold text-metin-birincil mb-2">İlan Linki ile Analiz</h2>
+        <p className="text-sm text-metin-ikincil mb-4">Sahibinden, Arabam.com gibi sitelerden ilan linkini yapıştırın, analiz kuyruğa alınsın.</p>
+        <form onSubmit={linkGonder} className="space-y-3">
+          <input
+            required
+            value={linkInput}
+            onChange={(e) => setLinkInput(e.target.value)}
+            className="w-full px-3 py-2 border border-kenarlik-acik rounded-lg text-sm"
+            placeholder="https://www.sahibinden.com/ilan/vasita-otomobil-..."
+          />
+          <button type="submit" disabled={linkYukleniyor} className="w-full py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50">
+            {linkYukleniyor ? "Kuyruğa Alınıyor..." : "Linki Analiz Et (Kuyruğa Al)"}
+          </button>
+        </form>
+        {linkSonuc && (
+          <div className="mt-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800">
+            Analiz kuyruğa alındı. Panelinizdeki Analizlerim bölümünden takip edebilirsiniz.
+            {linkSonuc.history_id && <div className="mt-1 text-xs text-blue-600">ID: {linkSonuc.history_id}</div>}
+          </div>
+        )}
+      </div>
+
+      {/* Manuel form ile analiz bolumu */}
       <form onSubmit={gonder} className="bg-white rounded-xl border border-kenarlik-acik p-6 space-y-4">
+        <h2 className="text-lg font-bold text-metin-birincil">Araç Bilgileri ile Analiz</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-metin-birincil mb-1">Marka</label>
