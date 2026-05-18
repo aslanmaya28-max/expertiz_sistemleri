@@ -186,6 +186,75 @@ class PaymentService:
         finally:
             DatabaseConfig.return_connection(conn)
 
+    def complete_queued_analysis(
+        self,
+        history_id: str,
+        user_id: int,
+        analysis_data: Dict[str, Any],
+        amount: int = ANALYSIS_CREDIT_COST,
+    ) -> Dict[str, Any]:
+        conn = DatabaseConfig.get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                UPDATE users
+                SET credits = credits - {self._p}
+                WHERE id = {self._p} AND credits >= {self._p}
+                RETURNING credits
+            """, (amount, user_id, amount))
+            row = cursor.fetchone()
+            if not row:
+                return {"success": False, "error": "Yetersiz kredi"}
+
+            vehicle_payload = {**analysis_data, "status": "completed"}
+            cursor.execute(f"""
+                UPDATE analysis_history
+                SET vehicle_json = {self._p}, valuation_json = {self._p}
+                WHERE id = {self._p} AND user_id = {self._p}
+            """, (
+                json.dumps(vehicle_payload, ensure_ascii=False, default=str),
+                json.dumps({"credits_deducted": amount}, ensure_ascii=False, default=str),
+                history_id,
+                user_id,
+            ))
+
+            try:
+                cursor.execute(f"""
+                    INSERT INTO credit_usage_logs (user_id, action, credits_used, description)
+                    VALUES ({self._p}, {self._p}, {self._p}, {self._p})
+                """, (user_id, "analysis", amount, "URL analizi"))
+            except Exception:
+                logger.warning("credit_usage_logs insert skipped (table may not exist yet)")
+
+            conn.commit()
+            return {
+                "success": True,
+                "history_id": history_id,
+                "deducted": amount,
+                "credits_after": row["credits"],
+            }
+        finally:
+            DatabaseConfig.return_connection(conn)
+
+    def mark_queued_analysis_failed(self, history_id: str, user_id: int, error: str) -> Dict[str, Any]:
+        conn = DatabaseConfig.get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                UPDATE analysis_history
+                SET vehicle_json = {self._p}, valuation_json = {self._p}
+                WHERE id = {self._p} AND user_id = {self._p}
+            """, (
+                json.dumps({"status": "failed", "error": error}, ensure_ascii=False, default=str),
+                json.dumps({"credits_deducted": 0}, ensure_ascii=False, default=str),
+                history_id,
+                user_id,
+            ))
+            conn.commit()
+            return {"success": True, "history_id": history_id}
+        finally:
+            DatabaseConfig.return_connection(conn)
+
     def check_credits_before_analysis(self, user_id: int) -> bool:
         user = self.get_user_by_id(user_id)
         if not user:
