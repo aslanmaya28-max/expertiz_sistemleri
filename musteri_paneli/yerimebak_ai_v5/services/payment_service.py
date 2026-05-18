@@ -167,6 +167,25 @@ class PaymentService:
         finally:
             DatabaseConfig.return_connection(conn)
 
+    def record_queued_analysis(self, user_id: int, intake_payload: Dict[str, Any]) -> Dict[str, Any]:
+        conn = DatabaseConfig.get_connection()
+        try:
+            cursor = conn.cursor()
+            history_id = str(uuid.uuid4())
+            cursor.execute(f"""
+                INSERT INTO analysis_history (id, user_id, vehicle_json, valuation_json)
+                VALUES ({self._p}, {self._p}, {self._p}, {self._p})
+            """, (
+                history_id,
+                user_id,
+                json.dumps(intake_payload, ensure_ascii=False, default=str),
+                json.dumps({"status": intake_payload["status"]}, ensure_ascii=False, default=str),
+            ))
+            conn.commit()
+            return {"success": True, "history_id": history_id}
+        finally:
+            DatabaseConfig.return_connection(conn)
+
     def check_credits_before_analysis(self, user_id: int) -> bool:
         user = self.get_user_by_id(user_id)
         if not user:

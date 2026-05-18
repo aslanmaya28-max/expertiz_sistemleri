@@ -1,11 +1,12 @@
 from fastapi import APIRouter
-from yerimebak_ai_v5.api.v1.endpoints import cases, scrapers, listings, analysis, auth, payments, credits, extension, vitrin, expertiz, favorites, personnel, market_coverage
+from yerimebak_ai_v5.api.v1.endpoints import cases, scrapers, listings, analysis, analysis_intake, auth, payments, credits, extension, vitrin, expertiz, favorites, personnel, market_coverage
 
 api_router = APIRouter()
 api_router.include_router(cases.router, prefix="/cases", tags=["cases"])
 api_router.include_router(listings.router, prefix="/listings", tags=["listings"])
 api_router.include_router(scrapers.router, prefix="/scrapers", tags=["scrapers"])
 api_router.include_router(analysis.router, tags=["analysis"])
+api_router.include_router(analysis_intake.router, prefix="/analysis-intake", tags=["analysis-intake"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(payments.router, prefix="/payments", tags=["payments"])
 api_router.include_router(credits.router, prefix="/credits", tags=["credits"])
