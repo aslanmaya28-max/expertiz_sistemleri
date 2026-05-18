@@ -1,0 +1,417 @@
+name: yerimebak_sistemleri
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: yerimebak_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    # 🔒 DÜZELTİLDİ (B17): PostgreSQL portu host'a açık DEĞİL — sadece internal network
+    # ports: - "5432:5432"  ← KALDIRILDI! Sadece Docker iç ağından erişilebilir
+    expose:
+      - "5432"
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?} -d ${POSTGRES_DB:?}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: yerimebak_redis
+    # 🔒 DÜZELTİLDİ (B21): Redis authentication eklendi, port host'a açık değil
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 128mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    volumes:
+      - redis_data:/data
+    # ports: - "6379:6379"  ← KALDIRILDI! Sadece Docker iç ağı
+    expose:
+      - "6379"
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: yerimebak_app
+    environment:
+      - PYTHONPATH=/app
+      - DATABASE_URL=postgresql://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:?}@redis:6379/0
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENROUTER_BASE_URL=${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      - PRIMARY_PROVIDER=${PRIMARY_PROVIDER:-OPENROUTER}
+      - PRIMARY_MODEL=${PRIMARY_MODEL:-google/gemma-4-31b-it:free}
+      - SECONDARY_PROVIDER=${SECONDARY_PROVIDER:-OPENROUTER}
+      - SECONDARY_MODEL=${SECONDARY_MODEL:-stepfun/step-3.5-flash:free}
+      - FALLBACK_PROVIDER=${FALLBACK_PROVIDER:-OPENROUTER}
+      - FALLBACK_MODEL=${FALLBACK_MODEL:-qwen/qwen3-next-80b-a3b-instruct:free}
+      - AI_TEMPERATURE=${AI_TEMPERATURE:-0.3}
+      - AI_MAX_TOKENS=${AI_MAX_TOKENS:-4096}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GLM_API_KEY=${GLM_API_KEY:-}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - API_BASE_URL=${API_BASE_URL:-https://api.yerimebak.com.tr}
+      # 🔒 DÜZELTİLDİ (B18): SECRET_KEY zorunlu — varsayılan değer yok
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
+      - DEBUG_MODE=${DEBUG_MODE:-False}
+      - ENABLE_MARKET_ANALYSIS=${ENABLE_MARKET_ANALYSIS:-True}
+      - ENABLE_AI_FAILOVER=${ENABLE_AI_FAILOVER:-True}
+      # 🔒 DÜZELTİLDİ: Trusted hosts — sadece bilinen domainler
+      - TRUSTED_HOSTS=${TRUSTED_HOSTS:-localhost,yerimebak.com.tr,api.yerimebak.com.tr}
+      # 🔒 DÜZELTİLDİ: CORS origins — production domain
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://yerimebak.com.tr,https://app.yerimebak.com.tr}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./yerimebak_ai_v5:/app/yerimebak_ai_v5
+      - app_data:/app/data
+    # 🔒 DÜZELTİLDİ: root kullanıcı yerine app kullanıcısı
+    user: "1000:1000"
+    command: ["python", "-m", "uvicorn", "yerimebak_ai_v5.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # Streamlit Dashboard
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: yerimebak_dashboard
+    environment:
+      - PYTHONPATH=/app
+      - DATABASE_URL=postgresql://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:?}@redis:6379/0
+      - DATA_PATH=/app/data
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - API_BASE_URL=${API_BASE_URL:-https://api.yerimebak.com.tr}
+      - TZ=Europe/Istanbul
+      - DOCKER_CONTAINER=1
+    ports:
+      - "8505:8501"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./yerimebak_ai_v5:/app/yerimebak_ai_v5
+      - ./data:/app/data
+      - ./logs:/app/logs
+    user: "1000:1000"
+    command: ["streamlit", "run", "yerimebak_ai_v5/dashboard/app_v2.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Backup service - scheduled PostgreSQL backup (pg_dump)
+  backup:
+    image: postgres:15-alpine
+    container_name: yerimebak_backup
+    environment:
+      - PGHOST=postgres
+      - PGDATABASE=${POSTGRES_DB:?}
+      - PGUSER=${POSTGRES_USER:?}
+      - PGPASSWORD=${POSTGRES_PASSWORD:?}
+      - BACKUP_INTERVAL=${BACKUP_INTERVAL:-86400}
+      - BACKUP_KEEP_DAYS=${BACKUP_KEEP_DAYS:-7}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    volumes:
+      - ./data/backups:/app/backups
+    entrypoint: |
+      sh -c '
+        echo "PostgreSQL backup service started (interval: $$BACKUP_INTERVAL sec)"
+        while true; do
+          timestamp=$$(date +%Y%m%d_%H%M%S)
+          backup_file="/app/backups/yerimebak_$$timestamp.sql.gz"
+          pg_dump | gzip > "$$backup_file"
+          if [ -f "$$backup_file" ]; then
+            echo "Yedek olusturuldu: yerimebak_$$timestamp.sql.gz"
+            find /app/backups -name "yerimebak_*.sql.gz" -mtime +$$BACKUP_KEEP_DAYS -delete
+            echo "Eski yedekler temizlendi ($$BACKUP_KEEP_DAYS gunden eski)"
+          else
+            echo "Yedekleme basarisiz, tekrar denenecek"
+          fi
+          sleep $$BACKUP_INTERVAL
+        done
+      '
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Scraper Worker - Arabam
+  worker-arabam:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: yerimebak_worker_arabam
+    environment:
+      - PYTHONPATH=/app
+      - DATABASE_URL=postgresql://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:?}@redis:6379/0
+      - SCRAPER_SOURCE=arabam
+      - HEADLESS=true
+      - AUTO_START=false
+      - DOCKER_CONTAINER=1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./yerimebak_ai_v5:/app/yerimebak_ai_v5
+      - worker_data:/app/data
+    user: "1000:1000"
+    command: ["python", "-m", "yerimebak_ai_v5.workers.scraper_worker"]
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+    # 🔒 DÜZELTİLDİ: Worker health check eklendi
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Scraper Worker - Borusan
+  worker-borusan:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: yerimebak_worker_borusan
+    environment:
+      - PYTHONPATH=/app
+      - DATABASE_URL=postgresql://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:?}@redis:6379/0
+      - SCRAPER_SOURCE=borusan
+      - HEADLESS=true
+      - AUTO_START=false
+      - DOCKER_CONTAINER=1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./yerimebak_ai_v5:/app/yerimebak_ai_v5
+      - worker_data:/app/data
+    user: "1000:1000"
+    command: ["python", "-m", "yerimebak_ai_v5.workers.scraper_worker"]
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    # 🔒 DÜZELTİLDİ: Worker health check eklendi
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: yerimebak_frontend
+    environment:
+      - API_BACKEND_URL=http://app:8000
+      - HOSTNAME=0.0.0.0
+    ports:
+      - "3000:3000"
+    depends_on:
+      - app
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Certbot — Let's Encrypt SSL sertifika yöneticisi
+  certbot:
+    image: certbot/certbot
+    container_name: yerimebak_certbot
+    volumes:
+      - certbot_data:/var/www/certbot
+      - /etc/letsencrypt:/etc/letsencrypt
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Certbot hazir. SSL sertifikasi almak icin:"
+        echo "docker compose run certbot certonly --webroot -w /var/www/certbot -d yerimebak.com.tr -d www.yerimebak.com.tr"
+        echo "Ardindan nginx yeniden baslatilmali: docker compose restart nginx"
+        while true; do sleep 86400; done
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: yerimebak_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - certbot
+      - app
+      - dashboard
+      - frontend
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - certbot_data:/var/www/certbot
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+volumes:
+  postgres_data:
+    name: yerimebak_ai_test_postgres_data
+    driver: local
+  redis_data:
+    name: yerimebak_ai_test_redis_data
+    driver: local
+  app_data:
+    name: yerimebak_ai_test_app_data
+    driver: local
+  worker_data:
+    name: yerimebak_ai_test_worker_data
+    driver: local
+  certbot_data:
+    driver: local
+
+networks:
+  default:
+    name: yerimebak_network

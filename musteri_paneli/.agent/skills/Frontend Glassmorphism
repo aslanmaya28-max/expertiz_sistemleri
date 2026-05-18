@@ -1,0 +1,75 @@
+---
+name: Frontend Glassmorphism
+description: A comprehensive design system for creating high-end, futuristic Glassmorphism interfaces.
+---
+
+# Quantum Glassmorphism Design System
+
+This skill provides the core principles and utility classes for the "Quantum" design aesthetic, characterized by deep space backgrounds, neon accents, and frosted glass interfaces.
+
+## 1. Core Principles
+
+- **Depth**: Use multiple layers of transparency and blur (`backdrop-filter`) to create a sense of depth.
+- **Neon Glow**: Use distinct neon colors (Cyan, Gold, Purple, Danger Red) for text, borders, and shadows to make elements "pop".
+- **Geometry**: Mix sharp edges with rounded corners (12px-16px) for a tech-organic feel.
+- **Typography**: Use `Orbitron` for headers (futuristic) and `JetBrains Mono` for data (technical).
+
+## 2. CSS Variables (Theming)
+
+Implementing this system requires the following `root` variables:
+
+```css
+:root {
+    --void-bg: #050510;
+    --glass-border: rgba(255, 255, 255, 0.08); /* Subtle white border */
+    
+    /* Neons */
+    --neon-cyan: #00f3ff;
+    --neon-gold: #ffd700;
+    --neon-danger: #ff2a6d; /* Red/Pink */
+    
+    /* Surfaces */
+    --glass-surface-1: rgba(13, 16, 33, 0.6); /* Darker, for containers */
+    --glass-surface-2: rgba(20, 24, 48, 0.5); /* Lighter, for cards */
+    
+    /* Shadows */
+    --glow-cyan: 0 0 10px rgba(0, 243, 255, 0.5);
+}
+```
+
+## 3. Utility Classes
+
+### Layout
+- `.app-shell`: Main grid container with sidebar and content area.
+- `.sidebar`: Sticky glass sidebar with navigation.
+- `.main-content`: Scrollable content area.
+- `.stats-grid`: Responsive grid for metric cards.
+
+### Components
+- `.glass-panel`: Standard container with blur and border. 
+  - *Usage*: `<div class="glass-panel">...</div>`
+- `.glass-card`: Interactive card with hover lift and glow effects.
+  - *Usage*: `<a href="..." class="glass-card">...</a>`
+- `.glass-input` / `.glass-select`: Form elements with glass styling.
+- `.btn-neon`: Glowing action button.
+- `.badge`: Small status indicator.
+
+### Typography
+- `.text-cyan`, `.text-gold`, `.text-danger`: Neon colored text with optional text-shadow.
+- `.font-orbitron`: For headings.
+- `.font-mono`: For data/specs.
+
+## 4. Implementation Example
+
+```html
+<div class="glass-card group">
+    <div class="card-glow"></div> <!-- Animated background blob -->
+    
+    <div class="flex justify-between items-start mb-4 relative z-10">
+        <h3 class="text-xl text-white group-hover:text-cyan transition-colors">
+            ITEM_NAME
+        </h3>
+        <span class="badge badge-gold">STATUS</span>
+    </div>
+</div>
+```

@@ -1,0 +1,150 @@
+/*
+YERİMEBAK – ANTIGRAVITY v5.2+
+QUANTUM ARMOR CSS (Master Chief Edition)
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@300;700&display=swap');
+
+:root {
+    --bg-deep: #05070d;
+    --bg-glow: #0a192f;
+    --gold: #D4AF37;
+    --neon-blue: #00f3ff;
+    --neon-red: #ff0033;
+    --glass-blur: 12px;
+    --border: rgba(255, 255, 255, 0.05);
+}
+
+body {
+    background: radial-gradient(circle at top, var(--bg-glow) 0%, var(--bg-deep) 70%);
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    overflow-x: hidden;
+    min-height: 100vh;
+}
+
+h1, h2, h3, .mono {
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+/* Neural Network Background Animation */
+#neural-bg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    opacity: 0.15;
+    pointer-events: none;
+}
+
+.sidebar {
+    width: 280px;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(var(--glass-blur));
+    position: fixed;
+    padding: 40px 20px;
+    border-right: 1px solid var(--border);
+    z-index: 100;
+}
+
+.main-content {
+    margin-left: 320px;
+    padding: 60px;
+    width: calc(100% - 320px);
+}
+
+.glass-panel {
+    background: rgba(21, 25, 33, 0.4);
+    backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 24px;
+    transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.glass-panel:hover {
+    border-color: var(--gold);
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.1);
+}
+
+.badge {
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.gold-text { color: var(--gold); }
+.neon-blue { color: var(--neon-blue); }
+.neon-red { color: var(--neon-red); }
+
+/* Glitch Effect */
+@keyframes glitch {
+    0% { transform: translate(0); }
+    20% { transform: translate(-2px, 2px); }
+    40% { transform: translate(-2px, -2px); }
+    60% { transform: translate(2px, 2px); }
+    80% { transform: translate(2px, -2px); }
+    100% { transform: translate(0); }
+}
+
+.glitch-active {
+    animation: glitch 0.2s infinite;
+    color: var(--neon-red) !important;
+}
+
+/* Strobe Failure */
+@keyframes strobe {
+    from { opacity: 0.1; background: rgba(255,0,0,0.05); }
+    to { opacity: 0.8; background: rgba(255,0,0,0.2); }
+}
+
+.failure-mode {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+    animation: strobe 0.5s infinite alternate;
+}
+
+/* Ritual Inputs */
+.quantum-input {
+    background: rgba(255,255,255,0.02);
+    border: none;
+    border-bottom: 1px solid var(--border);
+    color: #fff;
+    padding: 12px 0;
+    width: 100%;
+    outline: none;
+    transition: 0.3s;
+    font-family: inherit;
+}
+
+.quantum-input:focus {
+    border-bottom-color: var(--neon-blue);
+    box-shadow: 0 10px 20px -10px rgba(0, 243, 255, 0.1);
+}
+
+/* Scanning Effect */
+@keyframes scan {
+    0% { top: 0; opacity: 0; }
+    50% { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+}
+
+.scanner-line {
+    position: absolute;
+    width: 100%;
+    height: 2px;
+    background: var(--neon-blue);
+    box-shadow: 0 0 15px var(--neon-blue);
+    animation: scan 1.5s infinite;
+}

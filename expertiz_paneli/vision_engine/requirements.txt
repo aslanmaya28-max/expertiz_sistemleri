@@ -1,0 +1,47 @@
+# Vision Engine - Python Dependencies
+# YerimeBak Expertiz System
+
+# Core Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Web Scraping
+playwright==1.41.0
+browser-use==0.1.0
+
+# AI/LLM
+langchain-google-genai==1.0.1
+google-generativeai==0.3.2
+langchain-community==0.2.0
+
+# Data Processing
+numpy==1.26.3
+pandas==2.2.0
+
+# Async Support
+httpx==0.26.0
+aiofiles==23.2.1
+
+# Environment & Config
+python-dotenv==1.0.0
+
+# Logging & Monitoring
+loguru==0.7.2
+
+# Image Analysis (Optional - for future YOLOv8 integration)
+# ultralytics==8.1.0
+# opencv-python==4.9.0.80
+
+# Development Dependencies
+pytest==7.4.4
+pytest-asyncio==0.23.3
+black==24.1.1
+isort==5.13.2
+flake8==7.0.0
+mypy==1.8.0
+
+# Documentation
+mkdocs==1.5.3
+mkdocs-material==9.5.3

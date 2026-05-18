@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "YERİMEBAK AI - Galeri Analiz",
+  "version": "1.0.0",
+  "description": "Sahibinden, Arabam ve Letgo üzerinde araç ilanlarını AI ile analiz edin.",
+  "permissions": ["activeTab", "storage", "scripting"],
+  "host_permissions": [
+    "https://www.sahibinden.com/*",
+    "https://sahibinden.com/*",
+    "https://www.arabam.com/*",
+    "https://arabam.com/*",
+    "https://www.letgo.com/*",
+    "https://letgo.com/*",
+    "https://www.sahibinden.com.tr/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.sahibinden.com/*",
+        "https://sahibinden.com/*"
+      ],
+      "js": ["content_scripts/sahibinden.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.arabam.com/*",
+        "https://arabam.com/*"
+      ],
+      "js": ["content_scripts/arabam.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.letgo.com/*",
+        "https://letgo.com/*"
+      ],
+      "js": ["content_scripts/letgo.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

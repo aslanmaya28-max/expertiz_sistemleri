@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YERİMEBAK AI</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- LOGIN SCREEN -->
+  <div id="login-screen" class="screen">
+    <div class="header">
+      <div class="logo">🏛️</div>
+      <h1>YERİMEBAK AI</h1>
+      <p class="subtitle">Galeri Analiz Sistemi</p>
+    </div>
+    <div class="form-group">
+      <label for="api-url">Sunucu Adresi</label>
+      <input type="url" id="api-url" placeholder="http://localhost:8000" value="http://localhost:8000">
+    </div>
+    <div class="form-group">
+      <label for="api-key">API Anahtarı</label>
+      <input type="password" id="api-key" placeholder="API anahtarınızı girin...">
+    </div>
+    <button id="login-btn" class="btn-primary">
+      <span class="btn-text">Giriş Yap</span>
+      <span class="btn-loader" style="display:none;">⏳</span>
+    </button>
+    <div id="login-error" class="error-msg" style="display:none;"></div>
+  </div>
+
+  <!-- MAIN SCREEN -->
+  <div id="main-screen" class="screen" style="display:none;">
+    <div class="header-bar">
+      <div class="header-left">
+        <span class="logo-sm">🏛️</span>
+        <span class="app-name">YERİMEBAK AI</span>
+      </div>
+      <div class="header-right">
+        <span id="credits-display" class="credits-badge">⭐ 0 Kredi</span>
+        <button id="logout-btn" class="btn-icon" title="Çıkış">🚪</button>
+      </div>
+    </div>
+
+    <!-- PLATFORM DETECTOR -->
+    <div id="platform-info" class="platform-info">
+      <span id="platform-icon">🔍</span>
+      <span id="platform-name">Sayfa algılanıyor...</span>
+    </div>
+
+    <!-- ANALYZE BUTTON -->
+    <button id="analyze-btn" class="btn-analyze" disabled>
+      <span class="analyze-icon">🔬</span>
+      <span class="analyze-text">Araçı Analiz Et</span>
+      <span class="analyze-cost">(1 Kredi)</span>
+    </button>
+
+    <!-- LOADING -->
+    <div id="loading" class="loading" style="display:none;">
+      <div class="spinner"></div>
+      <p>AI analiz yapılıyor...</p>
+      <p class="loading-sub">v8.0 Dealer Master Engine</p>
+    </div>
+
+    <!-- RESULTS -->
+    <div id="results" class="results" style="display:none;">
+      <!-- VERDICT -->
+      <div id="verdict-card" class="verdict-card">
+        <div id="verdict-icon" class="verdict-icon">🎯</div>
+        <div id="verdict-decision" class="verdict-decision">—</div>
+        <div id="verdict-note" class="verdict-note"></div>
+      </div>
+
+      <!-- GAUGE -->
+      <div class="gauge-container">
+        <div id="gauge-score" class="gauge-value">0</div>
+        <div class="gauge-label">AI SKORU</div>
+        <div class="gauge-bar">
+          <div id="gauge-fill" class="gauge-fill" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- METRICS GRID -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">NET KAR</div>
+          <div id="metric-profit" class="metric-value">— ₺</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">MARJ</div>
+          <div id="metric-margin" class="metric-value">—%</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">FIRSAT</div>
+          <div id="metric-opp" class="metric-value">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">RİSK</div>
+          <div id="metric-risk" class="metric-value">—%</div>
+        </div>
+      </div>
+
+      <!-- RISK BREAKDOWN -->
+      <div class="section-title">🛡️ Risk Detayı</div>
+      <div class="risk-bars">
+        <div class="risk-row">
+          <span class="risk-label">KM Riski</span>
+          <div class="risk-bar"><div id="risk-km" class="risk-fill" style="width:0%"></div></div>
+          <span id="risk-km-val" class="risk-val">0%</span>
+        </div>
+        <div class="risk-row">
+          <span class="risk-label">Boya Riski</span>
+          <div class="risk-bar"><div id="risk-paint" class="risk-fill" style="width:0%"></div></div>
+          <span id="risk-paint-val" class="risk-val">0%</span>
+        </div>
+        <div class="risk-row">
+          <span class="risk-label">Değişen Riski</span>
+          <div class="risk-bar"><div id="risk-change" class="risk-fill" style="width:0%"></div></div>
+          <span id="risk-change-val" class="risk-val">0%</span>
+        </div>
+      </div>
+
+      <!-- COMMERCIAL DETAILS -->
+      <div class="section-title">💰 Ticari Analiz</div>
+      <div class="detail-rows">
+        <div class="detail-row">
+          <span>Optimum Alış</span>
+          <span id="detail-optimal" class="detail-val">— ₺</span>
+        </div>
+        <div class="detail-row">
+          <span>Maks. Teklif</span>
+          <span id="detail-max" class="detail-val">— ₺</span>
+        </div>
+        <div class="detail-row">
+          <span>Çıkış Fiyatı</span>
+          <span id="detail-exit" class="detail-val">— ₺</span>
+        </div>
+        <div class="detail-row">
+          <span>Tahmini Satış</span>
+          <span id="detail-days" class="detail-val">— Gün</span>
+        </div>
+      </div>
+
+      <!-- VEHICLE INFO -->
+      <div class="section-title">🚗 Araç Bilgileri</div>
+      <div id="vehicle-info" class="vehicle-info"></div>
+
+      <!-- OPEN DASHBOARD -->
+      <button id="open-dashboard-btn" class="btn-secondary">📊 Dashboard'da Aç</button>
+    </div>
+
+    <!-- ERROR -->
+    <div id="error-display" class="error-display" style="display:none;">
+      <div class="error-icon">⚠️</div>
+      <p id="error-message">Bir hata oluştu.</p>
+      <button id="retry-btn" class="btn-secondary">Tekrar Dene</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic",
+    "ANTHROPIC_AUTH_TOKEN": "b17cc390a2614d90bca37aa2bbd028d6.EUeInR6OwAIayVYD",
+    "API_TIMEOUT_MS": "3000000",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "ANTHROPIC_MODEL": "GLM-4.7",
+    "ANTHROPIC_SMALL_FAST_MODEL": "GLM-4.7",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "GLM-4.7",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "GLM-4.7",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "GLM-4.7"
+  },
+  "alwaysThinkingEnabled": true,
+  "language": "tr",
+  "preferredEditor": "vscode",
+  "autoAcceptEdits": false,
+  "thinkingMode": "auto",
+  "defaultModel": "claude-3-5-sonnet-20241022",
+  "permissionMode": "ask",
+  "allowedTools": [
+    "Read",
+    "LS",
+    "Bash",
+    "Search",
+    "Glob",
+    "Edit",
+    "Fetch",
+    "Flutter",
+    "Dart"
+  ],
+  "theme": "dark",
+  "verbose": false,
+  "compactThreshold": 0.8,
+  "maxContextTokens": 200000,
+  "disableSlashCommands": false,
+  "enablePlugins": true,
+  "pluginMarketplaces": [
+    "https://claude-code-marketplace.anthropic.com"
+  ],
+  "trustedProjects": [
+    "C:\\Users\\Administrator\\Desktop\\yerimebak\\expertiz_sistemi"
+  ],
+  "flutterSettings": {
+    "sdkPath": "C:\\Users\\Administrator\\DEV\\flutter",
+    "autoAnalyze": true,
+    "autoFormat": false,
+    "enableHotReload": true
+  }
+}

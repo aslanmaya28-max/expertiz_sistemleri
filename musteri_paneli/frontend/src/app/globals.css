@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+:root {
+  --birincil: #14b8a6;
+  --birincil-koyu: #0f766e;
+  --birincil-acik: #99f6e4;
+  --metin-birincil: #0F172A;
+  --metin-ikincil: #475569;
+  --arkaplan-acik: #FAFAFB;
+  --kenarlik-acik: #E2E8F0;
+  --basarili: #22c55e;
+  --tehlike: #ef4444;
+  --uyari: #f59e0b;
+  --background: #ffffff;
+  --foreground: var(--metin-birincil);
+}
+
+@theme inline {
+  --color-birincil: var(--birincil);
+  --color-birincil-koyu: var(--birincil-koyu);
+  --color-birincil-acik: var(--birincil-acik);
+  --color-metin-birincil: var(--metin-birincil);
+  --color-metin-ikincil: var(--metin-ikincil);
+  --color-arkaplan-acik: var(--arkaplan-acik);
+  --color-kenarlik-acik: var(--kenarlik-acik);
+  --color-basarili: var(--basarili);
+  --color-tehlike: var(--tehlike);
+  --color-uyari: var(--uyari);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-teal {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(20, 184, 166, 0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.animate-pulse-teal {
+  animation: pulse-teal 2s infinite;
+}
+
+.score-ring {
+  background: conic-gradient(
+    var(--birincil) calc(var(--score) * 1%),
+    #e2e8f0 calc(var(--score) * 1%)
+  );
+}

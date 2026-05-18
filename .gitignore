@@ -1,0 +1,84 @@
+# ═══════════════════════════════════════════════════════════════
+# YERIMEBAK SISTEMLERI — ROOT .gitignore
+# ═══════════════════════════════════════════════════════════════
+
+# ── Python ─────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+*.mo
+
+# ── Virtual Environments ───────────────────────────────────────
+venv/
+.venv/
+env/
+.venv_*/
+virtualenv/
+
+# ── IDE & Editors ─────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Environment ───────────────────────────────────────────────
+.env
+.env.local
+.env.production
+.env.development
+*.env.local
+
+# ── Node.js / Frontend ────────────────────────────────────────
+node_modules/
+.next/
+.nuxt/
+out/
+dist/
+.cache/
+*.tsbuildinfo
+
+# ── Docker ────────────────────────────────────────────────────
+docker-compose.override.yml
+
+# ── Logs ──────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Flutter ──────────────────────────────────────────────────
+.pub-cache/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+*.iml
+.idea/libraries/
+.idea/workspace.xml
+
+# ── Data ──────────────────────────────────────────────────────
+data/*.db
+data/*.sqlite3
+data/backups/
+
+# ── SSL ───────────────────────────────────────────────────────
+ssl/*.pem
+ssl/*.key
+ssl/*.crt
+
+# ── Migrations backup ────────────────────────────────────────
+*.bak
+*.sql.bak
+
+# ── OS ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini

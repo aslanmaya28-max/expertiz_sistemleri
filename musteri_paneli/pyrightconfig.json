@@ -1,0 +1,27 @@
+{
+  "include": [
+    "yerimebak_ai_v5"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/archive_backup_*",
+    "venv",
+    ".venv",
+    "data",
+    "scripts"
+  ],
+  "venvPath": ".",
+  "venv": "venv",
+  "pythonVersion": "3.13",
+  "typeCheckingMode": "off",
+  "reportMissingImports": false,
+  "reportMissingTypeStubs": false,
+  "reportUndefinedVariable": "warning",
+  "reportCallIssue": "warning",
+  "reportArgumentType": "warning",
+  "reportAttributeAccessIssue": "warning",
+  "reportReturnType": "warning",
+  "reportOptionalMemberAccess": "warning",
+  "reportGeneralTypeIssues": "warning"
+}

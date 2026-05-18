@@ -1,0 +1,156 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 380px;
+  min-height: 500px;
+  font-family: 'Segoe UI', -apple-system, sans-serif;
+  background: #0b1120;
+  color: #e2e8f0;
+}
+
+.screen { padding: 20px; }
+
+/* LOGIN */
+.header { text-align: center; margin-bottom: 24px; }
+.logo { font-size: 48px; margin-bottom: 8px; }
+.header h1 { font-size: 22px; color: #60a5fa; letter-spacing: 1px; }
+.subtitle { color: #64748b; font-size: 12px; margin-top: 4px; }
+
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 11px; color: #94a3b8; margin-bottom: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.form-group input {
+  width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #334155;
+  border-radius: 8px; color: #f1f5f9; font-size: 13px; outline: none;
+}
+.form-group input:focus { border-color: #60a5fa; }
+
+.btn-primary {
+  width: 100%; padding: 12px; background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: opacity 0.2s;
+}
+.btn-primary:hover { opacity: 0.9; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.error-msg { color: #f87171; font-size: 12px; margin-top: 10px; text-align: center; }
+
+/* HEADER BAR */
+.header-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-bottom: 12px; border-bottom: 1px solid #1e293b; margin-bottom: 14px;
+}
+.header-left { display: flex; align-items: center; gap: 6px; }
+.logo-sm { font-size: 20px; }
+.app-name { font-size: 14px; font-weight: 800; color: #60a5fa; letter-spacing: 0.5px; }
+.header-right { display: flex; align-items: center; gap: 8px; }
+.credits-badge {
+  background: #1e293b; padding: 4px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; color: #fbbf24;
+}
+.btn-icon { background: none; border: none; cursor: pointer; font-size: 16px; }
+
+/* PLATFORM INFO */
+.platform-info {
+  display: flex; align-items: center; gap: 8px;
+  background: #1e293b; padding: 10px 14px; border-radius: 10px;
+  margin-bottom: 14px; font-size: 13px;
+}
+.platform-info.unsupported { border: 1px solid #f8717144; color: #f87171; }
+.platform-info.supported { border: 1px solid #4ade8044; color: #4ade80; }
+
+/* ANALYZE BUTTON */
+.btn-analyze {
+  width: 100%; padding: 14px; background: linear-gradient(135deg, #059669, #047857);
+  color: white; border: none; border-radius: 12px; font-size: 15px; font-weight: 800;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: opacity 0.2s, transform 0.1s; margin-bottom: 16px;
+}
+.btn-analyze:hover:not(:disabled) { opacity: 0.9; transform: scale(1.01); }
+.btn-analyze:disabled { opacity: 0.4; cursor: not-allowed; }
+.analyze-cost { font-size: 11px; opacity: 0.8; }
+
+/* LOADING */
+.loading { text-align: center; padding: 30px 0; }
+.spinner {
+  width: 40px; height: 40px; border: 3px solid #1e293b; border-top-color: #60a5fa;
+  border-radius: 50%; margin: 0 auto 12px; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading p { font-size: 13px; color: #94a3b8; }
+.loading-sub { font-size: 11px; color: #475569; margin-top: 4px; }
+
+/* VERDICT CARD */
+.verdict-card {
+  text-align: center; padding: 16px; border-radius: 12px; margin-bottom: 14px;
+  border: 2px solid #334155;
+}
+.verdict-card.buy { background: #052e16; border-color: #4ade80; }
+.verdict-card.hold { background: #1e1e05; border-color: #fbbf24; }
+.verdict-card.pass { background: #2e0505; border-color: #f87171; }
+.verdict-icon { font-size: 32px; margin-bottom: 6px; }
+.verdict-decision { font-size: 20px; font-weight: 900; color: #fff; }
+.verdict-note { font-size: 11px; color: #94a3b8; margin-top: 6px; line-height: 1.4; }
+
+/* GAUGE */
+.gauge-container { text-align: center; margin-bottom: 16px; }
+.gauge-value { font-size: 44px; font-weight: 900; }
+.gauge-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 2px; }
+.gauge-bar { width: 100%; height: 6px; background: #1e293b; border-radius: 3px; margin-top: 8px; }
+.gauge-fill { height: 100%; border-radius: 3px; transition: width 1s ease; }
+
+/* METRICS GRID */
+.metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+.metric-card {
+  background: #1e293b; border-radius: 10px; padding: 12px; text-align: center;
+}
+.metric-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+.metric-value { font-size: 16px; font-weight: 800; }
+
+/* RISK BARS */
+.section-title { font-size: 12px; font-weight: 700; color: #94a3b8; margin: 14px 0 8px; text-transform: uppercase; letter-spacing: 1px; }
+.risk-bars { margin-bottom: 14px; }
+.risk-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.risk-label { font-size: 11px; color: #94a3b8; width: 80px; flex-shrink: 0; }
+.risk-bar { flex: 1; height: 6px; background: #1e293b; border-radius: 3px; overflow: hidden; }
+.risk-fill { height: 100%; border-radius: 3px; transition: width 0.8s ease; background: #f87171; }
+.risk-val { font-size: 11px; font-weight: 700; width: 30px; text-align: right; }
+
+/* DETAIL ROWS */
+.detail-rows { margin-bottom: 14px; }
+.detail-row {
+  display: flex; justify-content: space-between; padding: 8px 0;
+  border-bottom: 1px solid #1e293b22; font-size: 12px;
+}
+.detail-row span:first-child { color: #94a3b8; }
+.detail-val { font-weight: 700; color: #f1f5f9; }
+
+/* VEHICLE INFO */
+.vehicle-info {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px;
+}
+.v-tag {
+  background: #1e293b; padding: 3px 8px; border-radius: 6px;
+  font-size: 10px; color: #94a3b8;
+}
+
+/* BUTTONS */
+.btn-secondary {
+  width: 100%; padding: 10px; background: #1e293b; color: #60a5fa;
+  border: 1px solid #334155; border-radius: 10px; font-size: 13px;
+  font-weight: 600; cursor: pointer; transition: background 0.2s;
+}
+.btn-secondary:hover { background: #334155; }
+
+/* ERROR */
+.error-display { text-align: center; padding: 20px; }
+.error-icon { font-size: 36px; margin-bottom: 8px; }
+.error-display p { font-size: 12px; color: #f87171; margin-bottom: 12px; line-height: 1.4; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: #0b1120; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }

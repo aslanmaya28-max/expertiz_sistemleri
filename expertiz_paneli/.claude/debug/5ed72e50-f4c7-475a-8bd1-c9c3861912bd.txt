@@ -1,0 +1,130 @@
+2025-12-30T22:39:06.176Z [ERROR] Failed to save config with lock: Error: ENOENT: no such file or directory, lstat 'C:\Users\Administrator\.claude.json'
+2025-12-30T22:39:06.177Z [DEBUG] Writing to temp file: C:\Users\Administrator\.claude.json.tmp.11740.1767134346177
+2025-12-30T22:39:06.177Z [DEBUG] Setting permissions for new file: 600
+2025-12-30T22:39:06.179Z [DEBUG] Temp file written successfully, size: 82 bytes
+2025-12-30T22:39:06.179Z [DEBUG] Renaming C:\Users\Administrator\.claude.json.tmp.11740.1767134346177 to C:\Users\Administrator\.claude.json
+2025-12-30T22:39:06.180Z [DEBUG] File C:\Users\Administrator\.claude.json written atomically
+2025-12-30T22:39:06.196Z [DEBUG] Writing to temp file: C:\Users\Administrator\.claude.json.tmp.11740.1767134346196
+2025-12-30T22:39:06.196Z [DEBUG] Preserving file permissions: 100666
+2025-12-30T22:39:06.199Z [DEBUG] Temp file written successfully, size: 130 bytes
+2025-12-30T22:39:06.200Z [DEBUG] Applied original permissions to temp file
+2025-12-30T22:39:06.200Z [DEBUG] Renaming C:\Users\Administrator\.claude.json.tmp.11740.1767134346196 to C:\Users\Administrator\.claude.json
+2025-12-30T22:39:06.200Z [DEBUG] File C:\Users\Administrator\.claude.json written atomically
+2025-12-30T22:39:06.242Z [DEBUG] Using bash path: "C:\Program Files\Git\bin\bash.exe"
+2025-12-30T22:39:06.271Z [DEBUG] Writing to temp file: C:\Users\Administrator\.claude.json.tmp.11740.1767134346271
+2025-12-30T22:39:06.272Z [DEBUG] Preserving file permissions: 100666
+2025-12-30T22:39:06.274Z [DEBUG] Temp file written successfully, size: 167 bytes
+2025-12-30T22:39:06.274Z [DEBUG] Applied original permissions to temp file
+2025-12-30T22:39:06.274Z [DEBUG] Renaming C:\Users\Administrator\.claude.json.tmp.11740.1767134346271 to C:\Users\Administrator\.claude.json
+2025-12-30T22:39:06.275Z [DEBUG] File C:\Users\Administrator\.claude.json written atomically
+2025-12-30T22:39:06.281Z [DEBUG] Writing to temp file: C:\Users\Administrator\.claude.json.tmp.11740.1767134346281
+2025-12-30T22:39:06.281Z [DEBUG] Preserving file permissions: 100666
+2025-12-30T22:39:06.284Z [DEBUG] Temp file written successfully, size: 202 bytes
+2025-12-30T22:39:06.284Z [DEBUG] Applied original permissions to temp file
+2025-12-30T22:39:06.284Z [DEBUG] Renaming C:\Users\Administrator\.claude.json.tmp.11740.1767134346281 to C:\Users\Administrator\.claude.json
+2025-12-30T22:39:06.285Z [DEBUG] File C:\Users\Administrator\.claude.json written atomically
+2025-12-30T22:39:06.292Z [DEBUG] Writing to temp file: C:\Users\Administrator\.claude.json.tmp.11740.1767134346292
+2025-12-30T22:39:06.292Z [DEBUG] Preserving file permissions: 100666
+2025-12-30T22:39:06.294Z [DEBUG] Temp file written successfully, size: 239 bytes
+2025-12-30T22:39:06.294Z [DEBUG] Applied original permissions to temp file
+2025-12-30T22:39:06.294Z [DEBUG] Renaming C:\Users\Administrator\.claude.json.tmp.11740.1767134346292 to C:\Users\Administrator\.claude.json
+2025-12-30T22:39:06.295Z [DEBUG] File C:\Users\Administrator\.claude.json written atomically
+2025-12-30T22:39:06.310Z [DEBUG] [LSP MANAGER] initializeLspServerManager() called
+2025-12-30T22:39:06.310Z [DEBUG] [LSP MANAGER] Created manager instance, state=pending
+2025-12-30T22:39:06.310Z [DEBUG] [LSP MANAGER] Starting async initialization (generation 1)
+2025-12-30T22:39:06.342Z [DEBUG] LSP server manager initialized successfully
+2025-12-30T22:39:06.342Z [DEBUG] LSP notification handlers registered successfully for all 0 server(s)
+2025-12-30T22:39:06.343Z [DEBUG] Found 0 plugins (0 enabled, 0 disabled)
+2025-12-30T22:39:06.355Z [DEBUG] Loading skills from: managed=C:\ProgramData\ClaudeCode\.claude\skills, user=C:\Users\Administrator\.claude\skills, project=[]
+2025-12-30T22:39:06.633Z [DEBUG] [SLOW OPERATION DETECTED] execSyncWithDefaults_DEPRECATED (262.7ms): tasklist | findstr /I "Code.exe Cursor.exe Windsurf.exe idea64.exe pycharm64.exe webstorm64.exe phps
+2025-12-30T22:39:06.634Z [DEBUG] installed_plugins.json doesn't exist, returning empty V2 object
+2025-12-30T22:39:06.672Z [DEBUG] Creating shell snapshot for bash (C:\Program Files\Git\bin\bash.exe)
+2025-12-30T22:39:06.672Z [DEBUG] Looking for shell config file: C:\Users\Administrator\.bashrc
+2025-12-30T22:39:06.672Z [DEBUG] Shell config file not found: C:\Users\Administrator\.bashrc, creating snapshot with Claude Code defaults only
+2025-12-30T22:39:06.672Z [DEBUG] Snapshots directory: C:\Users\Administrator\.claude\shell-snapshots
+2025-12-30T22:39:06.690Z [DEBUG] Creating snapshot at: C:\Users\Administrator\.claude\shell-snapshots\snapshot-bash-1767134346672-fll6qh.sh
+2025-12-30T22:39:06.690Z [DEBUG] Shell binary exists: true
+2025-12-30T22:39:06.690Z [DEBUG] Execution timeout: 10000ms
+2025-12-30T22:39:06.704Z [DEBUG] Writing to temp file: C:\Users\Administrator\.claude\todos\5ed72e50-f4c7-475a-8bd1-c9c3861912bd-agent-5ed72e50-f4c7-475a-8bd1-c9c3861912bd.json.tmp.11740.1767134346704
+2025-12-30T22:39:06.706Z [DEBUG] Temp file written successfully, size: 2 bytes
+2025-12-30T22:39:06.706Z [DEBUG] Renaming C:\Users\Administrator\.claude\todos\5ed72e50-f4c7-475a-8bd1-c9c3861912bd-agent-5ed72e50-f4c7-475a-8bd1-c9c3861912bd.json.tmp.11740.1767134346704 to C:\Users\Administrator\.claude\todos\5ed72e50-f4c7-475a-8bd1-c9c3861912bd-agent-5ed72e50-f4c7-475a-8bd1-c9c3861912bd.json
+2025-12-30T22:39:06.707Z [DEBUG] File C:\Users\Administrator\.claude\todos\5ed72e50-f4c7-475a-8bd1-c9c3861912bd-agent-5ed72e50-f4c7-475a-8bd1-c9c3861912bd.json written atomically
+2025-12-30T22:39:06.719Z [DEBUG] getPluginSkills: Processing 0 enabled plugins
+2025-12-30T22:39:06.720Z [DEBUG] Total plugin skills loaded: 0
+2025-12-30T22:39:06.720Z [DEBUG] Total plugin commands loaded: 0
+2025-12-30T22:39:06.720Z [DEBUG] Registered 0 hooks from 0 plugins
+2025-12-30T22:39:06.953Z [DEBUG] Total plugin agents loaded: 0
+2025-12-30T22:39:06.953Z [DEBUG] Loaded 0 unique skills (managed: 0, user: 0, project: 0, legacy commands: 0)
+2025-12-30T22:39:06.956Z [DEBUG] getSkills returning: 0 skill dir commands, 0 plugin skills
+2025-12-30T22:39:06.978Z [DEBUG] Git remote URL: https://github.com/kullanici_adiniz/yerimebak_app.git
+2025-12-30T22:39:06.978Z [DEBUG] Parsed repository: kullanici_adiniz/yerimebak_app from https://github.com/kullanici_adiniz/yerimebak_app.git
+2025-12-30T22:39:06.978Z [DEBUG] Parsed repository: kullanici_adiniz/yerimebak_app from URL: https://github.com/kullanici_adiniz/yerimebak_app.git
+2025-12-30T22:39:06.986Z [DEBUG] Writing to temp file: C:\Users\Administrator\.claude.json.tmp.11740.1767134346986
+2025-12-30T22:39:06.986Z [DEBUG] Preserving file permissions: 100666
+2025-12-30T22:39:06.989Z [DEBUG] Temp file written successfully, size: 384 bytes
+2025-12-30T22:39:06.989Z [DEBUG] Applied original permissions to temp file
+2025-12-30T22:39:06.989Z [DEBUG] Renaming C:\Users\Administrator\.claude.json.tmp.11740.1767134346986 to C:\Users\Administrator\.claude.json
+2025-12-30T22:39:06.990Z [DEBUG] File C:\Users\Administrator\.claude.json written atomically
+2025-12-30T22:39:06.990Z [DEBUG] Added C:\Users\Administrator\Desktop\yerimebak\expertiz_sistemi to tracked paths for repo kullanici_adiniz/yerimebak_app
+2025-12-30T22:39:06.996Z [DEBUG] Ripgrep first use test: PASSED (mode=builtin, path=C:\Users\Administrator\AppData\Roaming\npm\node_modules\@anthropic-ai\claude-code\vendor\ripgrep\x64-win32\rg.exe)
+2025-12-30T22:39:07.251Z [DEBUG] Writing to temp file: C:\Users\Administrator\.claude.json.tmp.11740.1767134347251
+2025-12-30T22:39:07.251Z [DEBUG] Preserving file permissions: 100666
+2025-12-30T22:39:07.253Z [DEBUG] Temp file written successfully, size: 556 bytes
+2025-12-30T22:39:07.253Z [DEBUG] Applied original permissions to temp file
+2025-12-30T22:39:07.253Z [DEBUG] Renaming C:\Users\Administrator\.claude.json.tmp.11740.1767134347251 to C:\Users\Administrator\.claude.json
+2025-12-30T22:39:07.254Z [DEBUG] File C:\Users\Administrator\.claude.json written atomically
+2025-12-30T22:39:07.260Z [DEBUG] Writing to temp file: C:\Users\Administrator\.claude.json.tmp.11740.1767134347260
+2025-12-30T22:39:07.260Z [DEBUG] Preserving file permissions: 100666
+2025-12-30T22:39:07.262Z [DEBUG] Temp file written successfully, size: 623 bytes
+2025-12-30T22:39:07.262Z [DEBUG] Applied original permissions to temp file
+2025-12-30T22:39:07.262Z [DEBUG] Renaming C:\Users\Administrator\.claude.json.tmp.11740.1767134347260 to C:\Users\Administrator\.claude.json
+2025-12-30T22:39:07.263Z [DEBUG] File C:\Users\Administrator\.claude.json written atomically
+2025-12-30T22:39:07.302Z [DEBUG] Writing to temp file: C:\Users\Administrator\.claude.json.tmp.11740.1767134347302
+2025-12-30T22:39:07.303Z [DEBUG] Preserving file permissions: 100666
+2025-12-30T22:39:07.304Z [DEBUG] Temp file written successfully, size: 695 bytes
+2025-12-30T22:39:07.304Z [DEBUG] Applied original permissions to temp file
+2025-12-30T22:39:07.304Z [DEBUG] Renaming C:\Users\Administrator\.claude.json.tmp.11740.1767134347302 to C:\Users\Administrator\.claude.json
+2025-12-30T22:39:07.305Z [DEBUG] File C:\Users\Administrator\.claude.json written atomically
+2025-12-30T22:39:07.309Z [DEBUG] Writing to temp file: C:\Users\Administrator\.claude.json.tmp.11740.1767134347309
+2025-12-30T22:39:07.309Z [DEBUG] Preserving file permissions: 100666
+2025-12-30T22:39:07.310Z [DEBUG] Temp file written successfully, size: 747 bytes
+2025-12-30T22:39:07.311Z [DEBUG] Applied original permissions to temp file
+2025-12-30T22:39:07.311Z [DEBUG] Renaming C:\Users\Administrator\.claude.json.tmp.11740.1767134347309 to C:\Users\Administrator\.claude.json
+2025-12-30T22:39:07.311Z [DEBUG] File C:\Users\Administrator\.claude.json written atomically
+2025-12-30T22:39:07.315Z [DEBUG] Writing to temp file: C:\Users\Administrator\.claude.json.tmp.11740.1767134347315
+2025-12-30T22:39:07.315Z [DEBUG] Preserving file permissions: 100666
+2025-12-30T22:39:07.316Z [DEBUG] Temp file written successfully, size: 785 bytes
+2025-12-30T22:39:07.317Z [DEBUG] Applied original permissions to temp file
+2025-12-30T22:39:07.317Z [DEBUG] Renaming C:\Users\Administrator\.claude.json.tmp.11740.1767134347315 to C:\Users\Administrator\.claude.json
+2025-12-30T22:39:07.317Z [DEBUG] File C:\Users\Administrator\.claude.json written atomically
+2025-12-30T22:39:07.321Z [DEBUG] Writing to temp file: C:\Users\Administrator\.claude.json.tmp.11740.1767134347321
+2025-12-30T22:39:07.321Z [DEBUG] Preserving file permissions: 100666
+2025-12-30T22:39:07.322Z [DEBUG] Temp file written successfully, size: 821 bytes
+2025-12-30T22:39:07.322Z [DEBUG] Applied original permissions to temp file
+2025-12-30T22:39:07.322Z [DEBUG] Renaming C:\Users\Administrator\.claude.json.tmp.11740.1767134347321 to C:\Users\Administrator\.claude.json
+2025-12-30T22:39:07.323Z [DEBUG] File C:\Users\Administrator\.claude.json written atomically
+2025-12-30T22:39:07.327Z [DEBUG] Writing to temp file: C:\Users\Administrator\.claude.json.tmp.11740.1767134347327
+2025-12-30T22:39:07.327Z [DEBUG] Preserving file permissions: 100666
+2025-12-30T22:39:07.328Z [DEBUG] Temp file written successfully, size: 851 bytes
+2025-12-30T22:39:07.328Z [DEBUG] Applied original permissions to temp file
+2025-12-30T22:39:07.328Z [DEBUG] Renaming C:\Users\Administrator\.claude.json.tmp.11740.1767134347327 to C:\Users\Administrator\.claude.json
+2025-12-30T22:39:07.329Z [DEBUG] File C:\Users\Administrator\.claude.json written atomically
+2025-12-30T22:39:07.333Z [DEBUG] Writing to temp file: C:\Users\Administrator\.claude.json.tmp.11740.1767134347333
+2025-12-30T22:39:07.333Z [DEBUG] Preserving file permissions: 100666
+2025-12-30T22:39:07.334Z [DEBUG] Temp file written successfully, size: 881 bytes
+2025-12-30T22:39:07.334Z [DEBUG] Applied original permissions to temp file
+2025-12-30T22:39:07.334Z [DEBUG] Renaming C:\Users\Administrator\.claude.json.tmp.11740.1767134347333 to C:\Users\Administrator\.claude.json
+2025-12-30T22:39:07.335Z [DEBUG] File C:\Users\Administrator\.claude.json written atomically
+2025-12-30T22:39:07.338Z [DEBUG] Writing to temp file: C:\Users\Administrator\.claude.json.tmp.11740.1767134347338
+2025-12-30T22:39:07.339Z [DEBUG] Preserving file permissions: 100666
+2025-12-30T22:39:07.340Z [DEBUG] Temp file written successfully, size: 906 bytes
+2025-12-30T22:39:07.340Z [DEBUG] Applied original permissions to temp file
+2025-12-30T22:39:07.340Z [DEBUG] Renaming C:\Users\Administrator\.claude.json.tmp.11740.1767134347338 to C:\Users\Administrator\.claude.json
+2025-12-30T22:39:07.341Z [DEBUG] File C:\Users\Administrator\.claude.json written atomically
+2025-12-30T22:39:07.391Z [DEBUG] Writing to temp file: C:\Users\Administrator\.claude.json.tmp.11740.1767134347391
+2025-12-30T22:39:07.391Z [DEBUG] Preserving file permissions: 100666
+2025-12-30T22:39:07.393Z [DEBUG] Temp file written successfully, size: 52554 bytes
+2025-12-30T22:39:07.393Z [DEBUG] Applied original permissions to temp file
+2025-12-30T22:39:07.393Z [DEBUG] Renaming C:\Users\Administrator\.claude.json.tmp.11740.1767134347391 to C:\Users\Administrator\.claude.json
+2025-12-30T22:39:07.394Z [DEBUG] File C:\Users\Administrator\.claude.json written atomically
+2025-12-30T22:39:07.711Z [DEBUG] Shell snapshot created successfully (350 bytes)
