@@ -191,6 +191,17 @@ export interface CreateExpertizRequestPayload {
   note?: string;
 }
 
+export interface CreateUrlAnalysisPayload {
+  url: string;
+  source?: "manual_paste" | "mobile_share";
+}
+
+export interface CreateUrlAnalysisResponse {
+  success: boolean;
+  status: string;
+  history_id: string;
+}
+
 export interface VitrinStats {
   total_listings: number;
   analyzed_listings: number;
@@ -345,6 +356,13 @@ export function getExpertizPackages(): Promise<ExpertizPackagesResponse> {
 
 export function createExpertizRequest(payload: CreateExpertizRequestPayload): Promise<Record<string, unknown>> {
   return fetchAPI<Record<string, unknown>>("/expertiz/requests", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createUrlAnalysis(payload: CreateUrlAnalysisPayload): Promise<CreateUrlAnalysisResponse> {
+  return fetchAPI<CreateUrlAnalysisResponse>("/analysis-intake/url", {
     method: "POST",
     body: JSON.stringify(payload),
   });

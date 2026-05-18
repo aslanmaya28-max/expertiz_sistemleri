@@ -83,6 +83,30 @@ function textValue(value: unknown, fallback = "-"): string {
   return typeof value === "string" && value.trim() ? value : fallback;
 }
 
+function analysisSourceLabel(source: unknown): string {
+  switch (source) {
+    case "manual_paste":
+      return "Manuel link";
+    case "mobile_share":
+      return "Mobil paylasim";
+    case "chrome_extension":
+      return "Chrome uzantisi";
+    default:
+      return textValue(source, "Panel");
+  }
+}
+
+function analysisStatusLabel(status: unknown): { text: string; cls: string } {
+  switch (status) {
+    case "queued":
+      return { text: "Kuyrukta", cls: "bg-orange-100 text-orange-700" };
+    case "completed":
+      return { text: "Tamamlandi", cls: "bg-green-100 text-green-700" };
+    default:
+      return { text: textValue(status, "Tamamlandi"), cls: "bg-blue-100 text-blue-700" };
+  }
+}
+
 export default function MusteriPaneli() {
   const { user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState<PanelTab>("ozet");
@@ -306,15 +330,20 @@ function AnalysisRow({ item }: { item: AnalysisHistoryItem }) {
   const marketPrice = typeof vehicle.market_price_avg === "number" ? vehicle.market_price_avg : undefined;
   const decision = textValue(valuation.decision, "Analiz");
   const score = typeof valuation.opportunity_score === "number" ? Math.round(valuation.opportunity_score) : null;
+  const source = analysisSourceLabel(vehicle.source);
+  const status = analysisStatusLabel(vehicle.status);
 
   return (
     <div className="rounded-lg border border-kenarlik-acik p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="font-semibold text-metin-birincil">{title}</div>
-          <div className="mt-1 text-sm text-metin-ikincil">{textValue(vehicle.source, "panel")} / {formatDate(item.created_at)}</div>
+          <div className="mt-1 text-sm text-metin-ikincil">{source} / {formatDate(item.created_at)}</div>
         </div>
-        <span className="w-fit rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">{decision}{score !== null ? ` / ${score}` : ""}</span>
+        <div className="flex flex-wrap gap-2">
+          <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${status.cls}`}>{status.text}</span>
+          <span className="w-fit rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">{decision}{score !== null ? ` / ${score}` : ""}</span>
+        </div>
       </div>
       <div className="mt-3 grid gap-2 text-xs text-metin-ikincil sm:grid-cols-3">
         <span>Fiyat: {formatPrice(listedPrice)}</span>
