@@ -82,3 +82,6 @@ ssl/*.crt
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Local worktrees
+.worktrees/
