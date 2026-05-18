@@ -179,7 +179,7 @@ class PaymentService:
                 history_id,
                 user_id,
                 json.dumps(intake_payload, ensure_ascii=False, default=str),
-                json.dumps({"status": intake_payload["status"]}, ensure_ascii=False, default=str),
+                json.dumps({"credits_deducted": 0}, ensure_ascii=False, default=str),
             ))
             conn.commit()
             return {"success": True, "history_id": history_id}

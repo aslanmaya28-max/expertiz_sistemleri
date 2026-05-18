@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import sys
 import types
@@ -116,6 +117,10 @@ class AnalysisIntakeApiTests(unittest.TestCase):
         self.assertEqual(len(executed_sql), 1)
         self.assertIn("insert into analysis_history", executed_sql[0])
         self.assertNotIn("update users", executed_sql[0])
+        self.assertEqual(
+            json.loads(conn.cursor_instance.executed[0][1][3]),
+            {"credits_deducted": 0},
+        )
         self.assertEqual(result["success"], True)
         self.assertIn("history_id", result)
 
