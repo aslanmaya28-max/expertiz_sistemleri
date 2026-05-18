@@ -8,7 +8,7 @@ class AnalysisIntakeService:
         normalized_url = url.strip()
         parsed_url = urlparse(normalized_url)
 
-        if not parsed_url.scheme or not parsed_url.netloc:
+        if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
             raise ValueError("Gecersiz URL")
         if source not in self.allowed_sources:
             raise ValueError("Gecersiz kaynak")

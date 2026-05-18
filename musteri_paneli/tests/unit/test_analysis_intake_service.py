@@ -49,6 +49,13 @@ class AnalysisIntakeServiceTests(unittest.TestCase):
                 source="manual_paste",
             )
 
+    def test_rejects_non_web_scheme(self):
+        with self.assertRaises(ValueError):
+            AnalysisIntakeService().build_url_intake(
+                url="ftp://example.com/car",
+                source="manual_paste",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
