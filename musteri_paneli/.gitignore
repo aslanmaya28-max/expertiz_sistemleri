@@ -1,0 +1,130 @@
+# ===========================================
+# YERIMEBAK AI — .gitignore
+# ===========================================
+
+# Environment dosyaları
+.env
+.env.local
+.env.*.local
+.env.production
+**/.env
+!**/.env.example
+!**/.env.docker.example
+
+# Veritabanı & yedekler
+data/*.db
+data/*.db-journal
+data/backups/
+*.db
+*.db-journal
+
+# Loglar
+logs/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+.venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/settings.json
+.vscode/*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.tar
+
+# Test raporları
+*.log
+*.report
+.pytest_cache/
+
+# Chrome Browser Profiles (playwright, selenium için)
+chrome_profile*/
+browser_profile*/
+**/chrome_profile_*/
+**/chrome_profile*/
+**/browser_profile_*/
+
+# Runtime DB files
+*.db-shm
+*.db-wal
+
+# Session data (auth tokens)
+**/session_data/*.json
+
+# Hata ayıklama ve geçici dosyalar
+debug_*.html
+debug_*.png
+survival_*.html
+survival_*.png
+*.html.report
+*.png.report
+
+# Diagnostic / screenshot images
+arabam_diag_*.png
+bot_detected_*.png
+volvo_*.png
+*_debug.png
+*_screenshot.png
+
+# Root-level ad-hoc test scripts (only at root, not in tests/)
+/test_*.py
+/check_*.py
+/debug_*.py
+/clear_*.py
+/daily_*.py
+
+# Root-level one-off batch files (except baslat.bat)
+clean_*.bat
+
+# Temporary / runtime directories
+tmp/
+temp/
+scratch/
+.playwright-mcp/
+yerimebak_ai_v5/scratch/
+
+# Data subdirectories with runtime/generated content
+data/exports/
+data/reports/
+data/logs/
+data/backups/
+data/session_data/
+
+# Vault & cache inside yerimebak_ai_v5
+yerimebak_ai_v5/data/cache/
+yerimebak_ai_v5/data/vault/
+
+# Proxy config (environment-specific)
+**/proxy_config.json
+
+# Plans & outdated docs (keep in wiki instead)
+plans/
+
+# SSL certificates (regenerate per environment)
+ssl/
+
+# AI agent configs (environment-specific)
+_agents/
+.kilocode/
+
+# 🔒 DÜZELTİLDİ (Bug #10): Frontend bağımlılıkları
+node_modules/
