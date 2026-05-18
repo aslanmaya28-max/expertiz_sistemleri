@@ -108,11 +108,12 @@ void _handleSharedContent(List<sharing.SharedMediaFile> files, AuthRepository au
       // Kullanici auth token'ini al
       String? token;
       try {
-        final session = authRepository.supabase.auth.currentSession;
+        final session = authRepository.currentSession;
         token = session?.accessToken;
       } catch (e) {
         debugPrint('Auth token alinamadi (muhtemelen giris yapilmamis): $e');
       }
+
 
       if (token != null) {
         await SharedListingIntakeService.submitSharedUrl(

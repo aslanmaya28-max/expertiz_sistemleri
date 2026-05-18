@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { getToken } from "@/lib/yetki";
-import { createUrlAnalysis } from "@/lib/api";
+import { createUrlAnalysis, type CreateUrlAnalysisResponse } from "@/lib/api";
+
 
 export default function AracAnalizSayfasi() {
   const [form, setForm] = useState({ brand: "", model: "", year: "", km: "", price: "", fuel: "Benzin", gear: "Otomatik" });
@@ -11,7 +12,8 @@ export default function AracAnalizSayfasi() {
 
   // Link yapistirma state
   const [linkInput, setLinkInput] = useState("");
-  const [linkSonuc, setLinkSonuc] = useState<{ success: boolean; status: string; history_id: string } | null>(null);
+  const [linkSonuc, setLinkSonuc] = useState<CreateUrlAnalysisResponse | null>(null);
+
   const [linkYukleniyor, setLinkYukleniyor] = useState(false);
 
   const gonder = async (e: React.FormEvent) => {
