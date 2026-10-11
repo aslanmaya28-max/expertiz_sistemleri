@@ -54,6 +54,9 @@ async def lifespan(app: FastAPI):
     try:
         DatabaseConfig.bootstrap()
         DatabaseConfig.alignment()
+        # Personel / talep / atama tablolarini commit ederek hazirla
+        from yerimebak_ai_v5.services.dispatch_service import ensure_workflow_schema_once
+        ensure_workflow_schema_once()
         logger.info("[STARTUP] Database ready.")
     except Exception as e:
         logger.error(f"[STARTUP] Database init failed")

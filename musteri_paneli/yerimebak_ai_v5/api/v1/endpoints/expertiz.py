@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from yerimebak_ai_v5.api.v1.endpoints.auth import get_admin_user, get_authenticated_user
+from yerimebak_ai_v5.services import dispatch_service
 from yerimebak_ai_v5.services.expertiz_service import (
     create_expertiz_request,
     get_admin_report,
@@ -35,6 +36,27 @@ class CreateExpertizRequest(BaseModel):
 
 class RejectReportRequest(BaseModel):
     reason: str
+
+
+class AssignRequest(BaseModel):
+    personnel_id: str
+    note: Optional[str] = None
+
+
+class UnassignRequest(BaseModel):
+    reason: Optional[str] = None
+
+
+def _raise_if_error(result: Dict[str, Any]) -> Dict[str, Any]:
+    if "error" in result:
+        raise HTTPException(status_code=int(result.get("http_status") or 400), detail=result["error"])
+    return result
+
+
+def get_personnel_user(user: Dict[str, Any] = Depends(get_authenticated_user)) -> Dict[str, Any]:
+    if not dispatch_service.is_personnel(user):
+        raise HTTPException(status_code=403, detail="Bu islem sadece saha personeli icindir")
+    return user
 
 
 @router.get("/packages")
@@ -119,3 +141,71 @@ async def my_published_report_detail(
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
     return result
+
+
+# ---------------------------------------------------------------------------
+# Admin: talep kuyrugu ve personel atama
+# ---------------------------------------------------------------------------
+
+@router.get("/admin/requests")
+async def admin_list_requests(
+    bucket: Optional[str] = None,
+    region_id: Optional[int] = None,
+    il_id: Optional[int] = None,
+    limit: int = 300,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    return _raise_if_error(dispatch_service.list_admin_requests(bucket=bucket, region_id=region_id, il_id=il_id, limit=limit))
+
+
+@router.get("/admin/requests/{report_id}")
+async def admin_request_detail(
+    report_id: str,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    return _raise_if_error(dispatch_service.get_admin_request(report_id))
+
+
+@router.get("/admin/requests/{report_id}/candidates")
+async def admin_request_candidates(
+    report_id: str,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    return _raise_if_error(dispatch_service.list_candidates(report_id))
+
+
+@router.post("/admin/requests/{report_id}/assign")
+async def admin_assign_request(
+    report_id: str,
+    request: AssignRequest,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    return _raise_if_error(dispatch_service.assign_request(report_id, request.personnel_id, admin, request.note))
+
+
+@router.post("/admin/requests/{report_id}/unassign")
+async def admin_unassign_request(
+    report_id: str,
+    request: Optional[UnassignRequest] = None,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    return _raise_if_error(dispatch_service.unassign_request(report_id, admin, request.reason if request else None))
+
+
+# ---------------------------------------------------------------------------
+# Personel: bana atanan gorevler
+# ---------------------------------------------------------------------------
+
+@router.get("/personnel/tasks")
+async def personnel_tasks(user: Dict[str, Any] = Depends(get_personnel_user)) -> Dict[str, Any]:
+    return dispatch_service.list_personnel_tasks(user)
+
+
+@router.post("/personnel/tasks/{report_id}/accept")
+async def personnel_accept_task(report_id: str, user: Dict[str, Any] = Depends(get_personnel_user)) -> Dict[str, Any]:
+    return _raise_if_error(dispatch_service.update_task_progress(report_id, user, "accept"))
+
+
+@router.post("/personnel/tasks/{report_id}/start")
+async def personnel_start_task(report_id: str, user: Dict[str, Any] = Depends(get_personnel_user)) -> Dict[str, Any]:
+    return _raise_if_error(dispatch_service.update_task_progress(report_id, user, "start"))

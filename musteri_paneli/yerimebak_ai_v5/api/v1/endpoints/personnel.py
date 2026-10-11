@@ -36,6 +36,10 @@ class ResetPasswordRequest(BaseModel):
     temporary_password: str
 
 
+class RemovePersonnelRequest(BaseModel):
+    reason: Optional[str] = None
+
+
 def _raise_if_error(result: Dict[str, Any]) -> Dict[str, Any]:
     if "error" in result:
         raise HTTPException(status_code=int(result.get("http_status") or 400), detail=result["error"])
@@ -45,9 +49,11 @@ def _raise_if_error(result: Dict[str, Any]) -> Dict[str, Any]:
 @router.get("/admin/personnel")
 async def admin_list_personnel(
     active: Optional[bool] = None,
+    region_id: Optional[int] = None,
+    il_id: Optional[int] = None,
     admin: Dict[str, Any] = Depends(get_admin_user),
 ) -> Dict[str, Any]:
-    return personnel_service.list_personnel(active=active)
+    return personnel_service.list_personnel(active=active, region_id=region_id, il_id=il_id)
 
 
 @router.post("/admin/personnel")
@@ -76,6 +82,17 @@ async def admin_deactivate_personnel(
     admin: Dict[str, Any] = Depends(get_admin_user),
 ) -> Dict[str, Any]:
     result = personnel_service.deactivate_personnel(personnel_id, request.reason, admin)
+    return _raise_if_error(result)
+
+
+@router.delete("/admin/personnel/{personnel_id}")
+async def admin_remove_personnel(
+    personnel_id: str,
+    request: Optional[RemovePersonnelRequest] = None,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    """Personeli sistemden cikarir; acik gorevleri admin kuyruguna geri doner."""
+    result = personnel_service.delete_personnel(personnel_id, admin, request.reason if request else None)
     return _raise_if_error(result)
 
 

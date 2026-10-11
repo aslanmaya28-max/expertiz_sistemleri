@@ -170,8 +170,10 @@ def _public_profile(user: Dict[str, Any]) -> Dict[str, Any]:
 
 def _public_role(value: Any) -> str:
     role = str(value or "user").lower().strip()
-    if role == "user":
+    if role in ("user", "musteri"):
         return "customer"
+    if role in ("personel", "personnel", "staff", "field_staff"):
+        return "field_staff"
     return role
 
 

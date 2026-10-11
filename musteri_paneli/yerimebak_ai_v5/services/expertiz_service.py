@@ -150,6 +150,14 @@ def _normalize_city(city: Optional[str]) -> str:
     return (city or "").split("/")[0].strip()
 
 
+def _canonical_city(city: Optional[str]) -> str:
+    """Taniyabildigi il adini resmi yazimina cevirir (ör. 'istanbul kadikoy' -> 'İstanbul')."""
+    from yerimebak_ai_v5.core import turkey_regions
+
+    plate = turkey_regions.province_plate(city)
+    return turkey_regions.province_name(plate) if plate else _normalize_city(city)
+
+
 def _get_listing_snapshot(cursor: Any, listing_id: Any) -> Dict[str, Any]:
     if not listing_id:
         return {}
@@ -179,8 +187,13 @@ def _ensure_reports_schema(cursor: Any) -> None:
     global _reports_schema_ensured
     if _reports_schema_ensured:
         return
+    # Not: Kalici sema kurulumu uygulama acilisinda
+    # dispatch_service.ensure_workflow_schema_once() ile commit edilerek yapilir.
     _reports_schema_ensured = True
+    _create_reports_schema(cursor)
 
+
+def _create_reports_schema(cursor: Any) -> None:
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS profiles (
@@ -412,7 +425,7 @@ def _upsert_report_from_request(
         "ilan_linki": payload.get("listing_url") or listing.get("url") or "",
         "plaka": payload.get("plate") or "",
         "firma": selected["firm"]["name"],
-        "sehir": _normalize_city(payload.get("city") or listing.get("location")),
+        "sehir": _canonical_city(payload.get("city") or listing.get("location")),
         "ekspertiz_firmasi": selected["firm"]["name"],
         "secilen_paket": selected["package"]["id"],
         "hizmet_bedeli": totals["service_fee_tl"],
@@ -646,7 +659,22 @@ def get_admin_report(report_id: str) -> Dict[str, Any]:
 
 def _write_audit(cursor: Any, action: str, entity_type: str, entity_id: str,
                   admin: Dict[str, Any], metadata: Optional[Dict[str, Any]] = None) -> None:
-    # 🔒 DÜZELTİLDİ: audit_logs CREATE TABLE kaldirildi (personnel_service.py'de zaten var)
+    # Bos bir veritabaninda da yayinlama/ret calissin diye tablo garanti edilir.
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id UUID,
+            user_email TEXT,
+            user_name TEXT,
+            action TEXT NOT NULL,
+            entity_type TEXT NOT NULL,
+            entity_id TEXT NOT NULL,
+            metadata JSONB DEFAULT '{}'::jsonb,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+        """
+    )
     cursor.execute(
         """
         INSERT INTO audit_logs (user_email, user_name, action, entity_type, entity_id, metadata)
