@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import os
 import re
@@ -60,8 +61,27 @@ async def lifespan(app: FastAPI):
         logger.info("[STARTUP] Database ready.")
     except Exception as e:
         logger.error(f"[STARTUP] Database init failed")
+
+    # Merkezi AI analiz robotu: gonderimde arka planda hemen calisir; bu dongu
+    # basarisiz olan / sunucu yeniden baslarken yarim kalan pending_ai raporlarini toplar.
+    ai_worker = None
+    ai_task = None
+    if os.getenv("AI_WORKER_ENABLED", "true").lower() in ("1", "true", "yes"):
+        try:
+            from yerimebak_ai_v5.workers.ai_analysis_worker import get_ai_analysis_worker
+            ai_worker = get_ai_analysis_worker()
+            ai_task = asyncio.create_task(
+                ai_worker.run_loop(int(os.getenv("AI_WORKER_INTERVAL", "30")))
+            )
+            logger.info("[STARTUP] AI analysis worker loop started.")
+        except Exception as e:
+            logger.error(f"[STARTUP] AI worker could not start: {e}")
     yield
     logger.info("[SHUTDOWN] Cleaning up...")
+    if ai_worker is not None:
+        ai_worker.stop()
+    if ai_task is not None:
+        ai_task.cancel()
 
 
 # 🔒 GÜVENLİK: CORS - Sadece izin verilen originler

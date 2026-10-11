@@ -142,14 +142,93 @@ export interface ExpertizReportSummary {
   vehicle?: Record<string, unknown>;
   summary?: {
     ai_analysis_ready?: boolean;
+    /** Ekspertiz düzeltmeli AI değeri (piyasa değeri − bulguların değer kaybı) */
     market_value?: number | null;
+    clean_market_value?: number | null;
+    value_loss_pct?: number | null;
+    fair_price_min?: number | null;
+    fair_price_max?: number | null;
+    overall_score?: number | null;
+    recommendation?: string | null;
     ai_comment?: string | null;
     damage_amount?: number | null;
     total_tl?: number | null;
   };
+  admin_note?: string | null;
   media?: ReportMedia[];
   photos?: ReportMedia[];
   corporate_reports?: ReportMedia[];
+}
+
+/** AI değerlemesinde tek bir değer kaybı kalemi (ör. "Sol Ön Kapı – Değişen") */
+export interface ValuationLossItem {
+  kategori: "kaporta" | "yapisal" | "dis" | "ic" | "mekanik" | "tramer" | "hasar_kaydi" | string;
+  anahtar: string;
+  baslik: string;
+  durum: string;
+  yuzde: number;
+  hamYuzde: number;
+  tutar: number;
+  aciklama?: string;
+}
+
+export interface InspectionValuation {
+  modelVersiyonu?: string;
+  degerlemeYapildi: boolean;
+  piyasaDegeri?: number | null;
+  temizPiyasaDegeri?: number | null;
+  piyasaYontemi?: string;
+  piyasaDuzeltmeleri?: { baslik: string; yuzde: number; tutar: number; aciklama?: string }[];
+  kalemler: ValuationLossItem[];
+  toplamDegerKaybiYuzde: number;
+  toplamDegerKaybiTutar?: number;
+  aiDegeri?: number | null;
+  adilFiyatAraligi?: { min: number; max: number };
+  onerilenAlimFiyati?: number;
+  ilanFiyati?: number | null;
+  fiyatYorumu?: { karar: "AVANTAJLI" | "MAKUL" | "PAZARLIK" | "YUKSEK" | string; aciklama: string; farkYuzde: number; farkTutar: number };
+  guvenSkoru?: number;
+  eskiPiyasaVerisi?: boolean;
+  hasarSeviyesi?: string;
+  agirHasar?: boolean;
+  boyaliParcaSayisi?: number;
+  degisenParcaSayisi?: number;
+  yapisalIslemSayisi?: number;
+  ozet?: string;
+}
+
+export interface CustomerAiAnalysis {
+  analizZamani?: string;
+  skorlar?: {
+    aracDurumuPuan: number;
+    motorMekanikPuan: number;
+    hasarPuan: number;
+    genelPuan: number;
+    puanDegerlendirmesi?: string;
+    detayliPuanlar?: Record<string, number>;
+  };
+  raporOzeti?: {
+    genelSonuc?: string;
+    anahtarBulgular?: string[];
+    ozetAciklama?: string;
+    onayRedOnerisi?: string;
+    tahminiDeger?: number;
+    degerKaybiYuzde?: number;
+  };
+  oneriler?: { kategori: string; baslik: string; aciklama: string; onerilenEylem?: string | null; oncelik: number }[];
+  kritikSorunlar?: string[];
+  ekspertizDegerleme?: InspectionValuation;
+  piyasaReferansi?: {
+    bulundu: boolean;
+    emsalSayisi: number;
+    hasarsizEmsalSayisi: number;
+    medyan: number;
+    min: number;
+    max: number;
+    guncelGun?: number;
+    emsaller: { price?: number; km?: number; year?: number; title?: string; condition?: string }[];
+  };
+  likidite?: { liquidity_score?: number; estimated_days_to_sell?: number };
 }
 
 export interface ExpertizRequestsResponse {
@@ -165,7 +244,7 @@ export interface ExpertizReportsResponse {
 export interface ExpertizReportDetailResponse {
   success: boolean;
   report: ExpertizReportSummary & {
-    ai?: Record<string, unknown> | null;
+    ai?: CustomerAiAnalysis | null;
     report?: Record<string, unknown> | null;
   };
 }

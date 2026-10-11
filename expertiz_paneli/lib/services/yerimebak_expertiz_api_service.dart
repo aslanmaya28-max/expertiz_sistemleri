@@ -23,8 +23,19 @@ class YerimebakExpertizApiService {
   final String? _accessToken;
   final SupabaseClient? _supabase;
 
-  Future<Map<String, dynamic>> publishReport(String reportId) {
-    return _post('/expertiz/admin/reports/$reportId/publish');
+  /// Admin onayı: personel raporu + kurumsal rapor + AI değerlemesi müşteriye yayınlanır.
+  /// [adminNote] müşteri raporunda "Admin notu" olarak görünür (opsiyonel).
+  Future<Map<String, dynamic>> publishReport(String reportId, {String? adminNote}) {
+    final note = adminNote?.trim() ?? '';
+    return _post(
+      '/expertiz/admin/reports/$reportId/publish',
+      body: note.isEmpty ? null : {'admin_note': note},
+    );
+  }
+
+  /// Merkezi AI değerlemesini (piyasa fiyatı − ekspertiz değer kayıpları) yeniden çalıştırır.
+  Future<Map<String, dynamic>> reanalyzeReport(String reportId) {
+    return _post('/expertiz/admin/reports/$reportId/reanalyze');
   }
 
   Future<Map<String, dynamic>> rejectReport(String reportId, String reason) {
@@ -45,7 +56,7 @@ class YerimebakExpertizApiService {
   }
 
   Future<Map<String, dynamic>> triggerCentralAnalysis(String reportId) {
-    return _post('/trigger', body: {'report_id': reportId});
+    return reanalyzeReport(reportId);
   }
 
   Future<Map<String, dynamic>> getAnalysisStatus(String reportId) {
