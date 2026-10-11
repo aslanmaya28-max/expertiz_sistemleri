@@ -4,7 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../../core/constants/location_data.dart';
 import '../../core/constants/expertiz_packages.dart';
 import '../../models/talep_model.dart';
-import '../../services/talep_service.dart';
+import '../../services/yerimebak_expertiz_api_service.dart';
 import '../../providers/user_provider.dart';
 
 /// Müşteri Talep Oluşturma Ekranı
@@ -1062,41 +1062,38 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
     });
 
     try {
-      // Talep Modeli Oluştur
+      // Talep merkezi API'ye yazılır → admin panelinde "Atama Bekleyen" listesine düşer
+      final response = await YerimebakExpertizApiService().createExpertizRequest(
+        firmId: _secilenFirma!.id,
+        packageId: _secilenPaket!.id,
+        plate: _plakaController.text.trim().toUpperCase(),
+        city: _secilenSehir,
+        listingUrl: _ilanLinkController.text.trim(),
+        note: 'Mobil uygulama talebi',
+      );
+
       final talep = TalepModel(
-        id: const Uuid().v4(),
+        id: response['report_id']?.toString() ?? response['request_id']?.toString() ?? const Uuid().v4(),
         musteriAdi: _userName,
         musteriId: _userId ?? _userName,
-        telefon: '', // Eksik: Telefon
+        telefon: '',
         aracPlaka: _plakaController.text.toUpperCase(),
-        aracMarka: 'Belirtilmedi', // Eksik: Marka
-        aracModel: 'Belirtilmedi', // Eksik: Model
+        aracMarka: 'Belirtilmedi',
+        aracModel: 'Belirtilmedi',
         durum: 'Beklemede',
         olusturulma: DateTime.now(),
-        aciklama: 'Mobil uygulama talebi. Hizmet Bedeli: $_hizmetBedeli TL, İlan: ${_ilanLinkController.text}',
+        aciklama: 'Mobil uygulama talebi. İlan: ${_ilanLinkController.text}',
         sehir: _secilenSehir!,
         expertizFirmasi: _secilenFirma!.name,
         expertizPaketi: _secilenPaket!.name,
         paketFiyati: _secilenPaket!.price,
         hizmetBedeli: _hizmetBedeli,
-        toplamTutar: _toplamTutar,
+        toplamTutar: (response['total_tl'] as num?)?.toDouble() ?? _toplamTutar,
         isPaid: true,
       );
 
-      // Talebi Kaydet
-      final success = await TalepService().talepEkle(talep);
-
-      if (success) {
-        // Personel Atama (Opsiyonel - Backend entegrasyonu gerekli)
-        // final assignedStaff = await AssignmentService.autoAssignBestStaff(_secilenSehir!);
-        
-        if (mounted) {
-          _showSuccessDialog(talep);
-        }
-      } else {
-        if (mounted) {
-          _showErrorSnackBar('Talep oluşturulurken bir hata oluştu.');
-        }
+      if (mounted) {
+        _showSuccessDialog(talep);
       }
     } catch (e) {
       if (mounted) {

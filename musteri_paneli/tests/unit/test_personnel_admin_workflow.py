@@ -50,6 +50,14 @@ class FakeConnection:
 
 
 class PersonnelAdminWorkflowTests(unittest.TestCase):
+    def setUp(self):
+        # Sema hazirlama gercek veritabani ister; birim testlerde atlanir.
+        from yerimebak_ai_v5.services import dispatch_service
+
+        patcher = patch.object(dispatch_service, "ensure_workflow_schema_once", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_personnel_admin_routes_are_registered(self):
         paths = {route.path for route in api_router.routes}
 
@@ -60,7 +68,8 @@ class PersonnelAdminWorkflowTests(unittest.TestCase):
         self.assertIn("/personnel/admin/coverage", paths)
 
     def test_create_personnel_writes_user_and_profile(self):
-        conn = FakeConnection(rows=[None])
+        # sirasiyla: e-posta kontrolu, telefon kontrolu, INSERT ... RETURNING, profil arama
+        conn = FakeConnection(rows=[None, None, {"id": 7, "created_at": None}, None])
         payload = {
             "full_name": "Ayse Yilmaz",
             "email": "ayse@yerimebak.ai",
@@ -77,7 +86,11 @@ class PersonnelAdminWorkflowTests(unittest.TestCase):
 
         self.assertTrue(result["success"])
         self.assertEqual(result["personnel"]["email"], "ayse@yerimebak.ai")
-        self.assertEqual(result["personnel"]["role"], "personel")
+        self.assertEqual(result["personnel"]["id"], "7")
+        self.assertEqual(result["personnel"]["role"], "field_staff")
+        self.assertEqual(result["personnel"]["city"], "İstanbul")
+        self.assertEqual(result["personnel"]["il_id"], 34)
+        self.assertEqual(result["personnel"]["region"], "Marmara")
         self.assertTrue(result["personnel"]["active"])
         self.assertIsNotNone(conn.cursor_instance.inserted_user)
         self.assertIsNotNone(conn.cursor_instance.inserted_profile)
@@ -101,7 +114,7 @@ class PersonnelAdminWorkflowTests(unittest.TestCase):
                 {"email": "admin@yerimebak.ai"},
             )
 
-        self.assertEqual(result["error"], "Bu e-posta ile personel zaten var")
+        self.assertEqual(result["error"], "Bu e-posta ile kayitli bir kullanici zaten var")
         self.assertEqual(result["http_status"], 409)
         self.assertFalse(conn.committed)
 
@@ -172,26 +185,42 @@ class PersonnelAdminWorkflowTests(unittest.TestCase):
         self.assertTrue(conn.committed)
 
     def test_coverage_marks_missing_and_understaffed_cities(self):
-        rows = [
-            {"city": "Istanbul", "active_count": 2, "passive_count": 1},
-            {"city": "Ankara", "active_count": 0, "passive_count": 1},
-            {"city": "Izmir", "active_count": 1, "passive_count": 0},
-            {"city": "Ankara", "open_request_count": 3},
-            {"city": "Bursa", "open_request_count": 1},
+        from yerimebak_ai_v5.services import dispatch_service
+
+        personnel_rows = [
+            {"id": 1, "city": "Istanbul", "is_active": 1},
+            {"id": 2, "city": "Istanbul", "is_active": 1},
+            {"id": 3, "city": "Istanbul", "is_active": 0},
+            {"id": 4, "city": "Ankara", "is_active": 0},
+            {"id": 5, "city": "Izmir", "is_active": 1},
         ]
-        conn = FakeConnection(rows=rows)
+        open_requests = [
+            {"id": "a", "il_id": 6, "assigned": False},
+            {"id": "b", "il_id": 6, "assigned": False},
+            {"id": "c", "il_id": 6, "assigned": True},
+            {"id": "d", "il_id": 16, "assigned": False},
+        ]
+        conn = FakeConnection()
 
         with patch.object(personnel_service.DatabaseConfig, "get_connection", return_value=conn), \
-             patch.object(personnel_service.DatabaseConfig, "return_connection"):
+             patch.object(personnel_service.DatabaseConfig, "return_connection"), \
+             patch.object(personnel_service, "_personnel_rows", return_value=personnel_rows), \
+             patch.object(dispatch_service, "open_request_locations", return_value=open_requests):
             result = personnel_service.get_personnel_coverage()
 
         self.assertTrue(result["success"])
         self.assertEqual(result["summary"]["active_personnel"], 3)
+        self.assertEqual(result["summary"]["unassigned_request_count"], 3)
         self.assertIn("Ankara", result["missing_cities"])
         self.assertIn("Bursa", result["missing_cities"])
-        self.assertIn("Istanbul", result["understaffed_cities"])
+        self.assertEqual(result["critical_cities"][:2], ["Ankara", "Bursa"])
+        self.assertIn("İstanbul", result["understaffed_cities"])
         self.assertEqual(result["cities"]["Ankara"]["open_request_count"], 3)
-
+        self.assertEqual(result["cities"]["Ankara"]["status"], "critical")
+        marmara = next(r for r in result["regions"] if r["region"] == "Marmara")
+        self.assertEqual(marmara["active_personnel"], 2)
+        self.assertEqual(marmara["unassigned_request_count"], 1)
+        self.assertEqual(sum(r["province_count"] for r in result["regions"]), 81)
 
 if __name__ == "__main__":
     unittest.main()

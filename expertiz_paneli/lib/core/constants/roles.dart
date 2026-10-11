@@ -15,9 +15,24 @@ enum UserRole {
   customer,
   unauthorized;
 
+  /// Merkezi API ve eski veritabanı kayıtlarında kullanılan alternatif rol adları.
+  /// Örn. admin panelinden eklenen personel backend'de 'personel' rolüyle tutulur.
+  static const Map<String, UserRole> _aliases = {
+    'personel': UserRole.fieldStaff,
+    'personnel': UserRole.fieldStaff,
+    'staff': UserRole.fieldStaff,
+    'saha_personeli': UserRole.fieldStaff,
+    'user': UserRole.customer,
+    'musteri': UserRole.customer,
+    'müşteri': UserRole.customer,
+    'yonetici': UserRole.admin,
+  };
+
   static UserRole fromString(String? role) {
     if (role == null) return UserRole.unauthorized;
     final normalized = role.toLowerCase().trim();
+    final alias = _aliases[normalized];
+    if (alias != null) return alias;
     return UserRole.values.firstWhere(
       (e) => e.name.toLowerCase() == normalized ||
              e.toDatabaseValue == normalized,

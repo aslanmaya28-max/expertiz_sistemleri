@@ -13,6 +13,8 @@ import "../../providers/expertiz_provider.dart";
 import "../../providers/admin_provider.dart";
 import "../../providers/user_provider.dart";
 import "../../models/talep_model.dart";
+import "../../services/talep_service.dart";
+import "../../services/yerimebak_expertiz_api_service.dart";
 import "../../screens/personel/expertiz_sihirbazi.dart";
 
 // ANA PERSONEL DASHBOARD SINIFI
@@ -26,8 +28,14 @@ class PersonnelDashboard extends StatefulWidget {
 class _PersonnelDashboardState extends State<PersonnelDashboard> {
   final int _currentIndex = 0;
   UserModel? _currentUser;
-  List<TalepModel> _supabaseGorevler = [];
-  StreamSubscription? _gorevSubscription;
+  /// Admin tarafından bu personele atanan görevler (merkezi API).
+  List<TalepModel> _apiGorevler = [];
+  /// Görev id → atama durumu (assigned | accepted | in_progress)
+  final Map<String, String> _assignmentStatus = {};
+  final YerimebakExpertizApiService _api = YerimebakExpertizApiService();
+  Timer? _refreshTimer;
+  String? _gorevHata;
+  final Set<String> _busyTasks = {};
 
   @override
   void initState() {
@@ -37,7 +45,7 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
 
   @override
   void dispose() {
-    _gorevSubscription?.cancel();
+    _refreshTimer?.cancel();
     super.dispose();
   }
 
@@ -49,130 +57,60 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
         setState(() {
           _currentUser = user;
         });
-        context.read<AdminProvider>().loadTalepler();
-        _loadSupabaseGorevler();
-        _subscribeGorevler();
+        _loadGorevler();
+        // Admin yeni görev atadığında panel kendiliğinden güncellensin
+        _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) => _loadGorevler());
       } else {
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
       }
     }
   }
 
-  Future<void> _loadSupabaseGorevler() async {
+  Future<void> _loadGorevler() async {
     if (_currentUser == null) return;
     try {
-      final client = Supabase.instance.client;
-      final userId = _currentUser!.id;
-      final userName = _currentUser!.fullName;
-      final response = await client
-          .from('reports')
-          .select()
-          .or('assigned_personel_id.eq.$userId,data->assigned_personel_id.eq.$userId,data->assigned_personel_id.eq.$userName')
-          .order('created_at', ascending: false);
-      if (mounted) {
-        setState(() {
-          _supabaseGorevler = response
-              .whereType<Map<String, dynamic>>()
-              .map(_mapReportToTalep)
-              .whereType<TalepModel>()
-              .toList();
-        });
-      }
-    } catch (e) {
-      debugPrint('Supabase gorev yukleme hatasi: $e');
-    }
-  }
-
-  void _subscribeGorevler() {
-    if (_currentUser == null) return;
-    try {
-      final stream = Supabase.instance.client
-          .from('reports')
-          .stream(primaryKey: ['id']);
-      _gorevSubscription = stream.listen((data) {
-        if (mounted && _currentUser != null) {
-          final userId = _currentUser!.id;
-          final userName = _currentUser!.fullName;
-          setState(() {
-            _supabaseGorevler = data
-                .whereType<Map<String, dynamic>>()
-                .where((row) {
-                  final data = row['data'];
-                  final assignedInData = data is Map
-                      ? data['assigned_personel_id']?.toString()
-                      : null;
-                  return assignedInData == userId ||
-                      assignedInData == userName;
-                })
-                .map(_mapReportToTalep)
-                .whereType<TalepModel>()
-                .toList();
-          });
-        }
+      final response = await _api.getMyTasks();
+      final rows = (response['tasks'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      if (!mounted) return;
+      setState(() {
+        _assignmentStatus
+          ..clear()
+          ..addEntries(rows.map((row) {
+            final assignment = row['assignment'] is Map ? row['assignment'] as Map : const {};
+            return MapEntry(row['id']?.toString() ?? '', assignment['status']?.toString() ?? 'assigned');
+          }));
+        _apiGorevler = rows.map(TalepService.fromApiRequest).toList();
+        _gorevHata = null;
       });
     } catch (e) {
-      debugPrint('Gorev stream hatasi: $e');
+      debugPrint('Gorev yukleme hatasi: $e');
+      if (mounted) setState(() => _gorevHata = 'Görevler yüklenemedi: $e');
     }
   }
 
-  TalepModel? _mapReportToTalep(Map<String, dynamic> row) {
+  Future<bool> _gorevIlerlet(TalepModel gorev, String action) async {
+    if (_busyTasks.contains(gorev.id)) return false;
+    setState(() => _busyTasks.add(gorev.id));
     try {
-      final data = row['data'] is Map
-          ? Map<String, dynamic>.from(row['data'] as Map)
-          : <String, dynamic>{};
-      final assignedPersonel = data['assigned_personel_id']?.toString();
-      final status = row['status']?.toString();
-      String durum;
-      switch (status) {
-        case 'published':
-          durum = 'Tamamlandi';
-          break;
-        case 'rejected':
-          durum = 'Iptal';
-          break;
-        case 'pending_admin':
-          durum = 'Raporland\u0131';
-          break;
-        case 'pending_ai':
-          durum = 'Raporland\u0131';
-          break;
-        case 'draft':
-          durum = assignedPersonel != null && assignedPersonel.isNotEmpty
-              ? 'Islemde'
-              : 'Beklemede';
-          break;
-        default:
-          durum = row['durum']?.toString() ?? 'Beklemede';
-      }
-      return TalepModel(
-        id: row['id']?.toString() ?? '',
-        musteriAdi: data['customer_name']?.toString() ?? row['user_id']?.toString() ?? 'Musteri',
-        musteriId: row['user_id']?.toString() ?? '',
-        telefon: data['customer_phone']?.toString() ?? '',
-        aracPlaka: row['plaka']?.toString() ?? '',
-        aracMarka: data['vehicle_snapshot'] is Map
-            ? (data['vehicle_snapshot']['marka']?.toString() ?? 'Belirtilmedi')
-            : 'Belirtilmedi',
-        aracModel: data['vehicle_snapshot'] is Map
-            ? (data['vehicle_snapshot']['model']?.toString() ?? 'Belirtilmedi')
-            : 'Belirtilmedi',
-        durum: durum,
-        olusturulma: DateTime.tryParse(row['created_at']?.toString() ?? '') ?? DateTime.now(),
-        atananPersonel: assignedPersonel,
-        aciklama: row['ilan_linki']?.toString() ?? '',
-        sehir: row['sehir']?.toString() ?? '',
-        expertizFirmasi: row['ekspertiz_firmasi']?.toString() ?? '',
-        expertizPaketi: data['expertiz_paketi']?.toString() ?? 'Belirtilmedi',
-        paketFiyati: (row['paket_fiyati'] as num?)?.toDouble() ?? 0.0,
-        hizmetBedeli: (row['hizmet_bedeli'] as num?)?.toDouble() ?? 6500.0,
-        toplamTutar: (row['toplam_tutar'] as num?)?.toDouble() ?? 0.0,
-        isPaid: row['odendi_mi'] == true,
-      );
+      await _api.updateMyTask(gorev.id, action);
+      await _loadGorevler();
+      return true;
     } catch (e) {
-      debugPrint('Report->Talep map hatasi: $e');
-      return null;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('İşlem başarısız: $e'), backgroundColor: Colors.red.shade700),
+        );
+      }
+      return false;
+    } finally {
+      if (mounted) setState(() => _busyTasks.remove(gorev.id));
     }
   }
+
+  bool _isCompleted(TalepModel t) => t.durum == 'Raporlandı' || t.durum == 'Tamamlandı';
 
   @override
   Widget build(BuildContext context) {
@@ -192,20 +130,9 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
     );
   }
 
-  List<TalepModel> _getPersonelTalepleri(List<TalepModel> tumTalepler) {
+  List<TalepModel> _getPersonelTalepleri(List<TalepModel> _) {
     if (_currentUser == null) return [];
-    final merged = <String, TalepModel>{};
-    for (final t in tumTalepler) {
-      if (t.atananPersonel == _currentUser!.id ||
-          t.atananPersonel == _currentUser!.fullName) {
-        merged[t.id] = t;
-      }
-    }
-    for (final t in _supabaseGorevler) {
-      merged[t.id] = t;
-    }
-    return merged.values.toList()
-      ..sort((a, b) => b.olusturulma.compareTo(a.olusturulma));
+    return List<TalepModel>.from(_apiGorevler)..sort((a, b) => b.olusturulma.compareTo(a.olusturulma));
   }
 
   // ========== DASHBOARD ==========
@@ -213,8 +140,8 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
     return Consumer<AdminProvider>(
       builder: (context, adminProvider, child) {
         final myTasks = _getPersonelTalepleri(adminProvider.talepler);
-        final assignedTasks = myTasks.where((t) => t.durum != 'Raporlandı' && t.durum != 'Tamamlandı').toList();
-        final completedTasks = myTasks.where((t) => t.durum == 'Raporlandı' || t.durum == 'Tamamlandı').toList();
+        final assignedTasks = myTasks.where((t) => !_isCompleted(t)).toList();
+        final completedTasks = myTasks.where(_isCompleted).toList();
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -265,6 +192,20 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
               
               const SizedBox(height: 24),
               
+              if (_gorevHata != null) ...[
+                GlassCard(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.redAccent),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(_gorevHata!, style: const TextStyle(color: Colors.white70))),
+                      TextButton(onPressed: _loadGorevler, child: const Text('Tekrar dene')),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
               // İstatistikler - GlassCard ile
               Row(
                 children: [
@@ -336,8 +277,8 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
     return Consumer<AdminProvider>(
       builder: (context, adminProvider, child) {
         final myTasks = _getPersonelTalepleri(adminProvider.talepler);
-        final assignedTasks = myTasks.where((t) => t.durum != 'Raporlandı' && t.durum != 'Tamamlandı').toList();
-        final completedTasks = myTasks.where((t) => t.durum == 'Raporlandı' || t.durum == 'Tamamlandı').toList();
+        final assignedTasks = myTasks.where((t) => !_isCompleted(t)).toList();
+        final completedTasks = myTasks.where(_isCompleted).toList();
 
         return DefaultTabController(
           length: 2,
@@ -414,9 +355,21 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
         ),
       ).then((_) {
         if (mounted) {
-          context.read<AdminProvider>().loadTalepler();
+          _loadGorevler();
         }
       });
+    }
+
+    final atamaDurumu = _assignmentStatus[gorev.id] ?? 'assigned';
+    final busy = _busyTasks.contains(gorev.id);
+
+    Future<void> baslat() async {
+      // Görev başlatıldığında admin panelinde "İncelemede" olarak görünür
+      if (atamaDurumu != 'in_progress') {
+        final ok = await _gorevIlerlet(gorev, 'start');
+        if (!ok || !mounted) return;
+      }
+      navigateToWorkflow();
     }
 
     return GlassCard(
@@ -475,7 +428,7 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  gorev.sehir.isNotEmpty ? gorev.sehir : "İstanbul",
+                  gorev.sehir.isNotEmpty ? gorev.sehir : "Konum belirtilmedi",
                   style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.54)),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -495,16 +448,51 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
             ],
           ),
           
-          // Aksiyon Butonları
-          if (gorev.durum != 'Raporlandı' && gorev.durum != 'Tamamlandı') ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: NeonButton(
-                text: 'GÖREVİ BAŞLAT',
-                onTap: navigateToWorkflow,
-              ),
+          if (gorev.musteriAdi.isNotEmpty || gorev.telefon.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.person_outline, size: 14, color: Colors.white54),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    '${gorev.musteriAdi}${gorev.telefon.isNotEmpty ? ' • ${gorev.telefon}' : ''}',
+                    style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.54)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
+          ],
+
+          // Aksiyon Butonları
+          if (!_isCompleted(gorev)) ...[
+            const SizedBox(height: 12),
+            if (busy)
+              const Center(child: CircularProgressIndicator())
+            else if (atamaDurumu == 'assigned')
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _gorevIlerlet(gorev, 'accept'),
+                      icon: const Icon(Icons.check),
+                      label: const Text('KABUL ET'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: NeonButton(text: 'GÖREVİ BAŞLAT', onTap: baslat)),
+                ],
+              )
+            else
+              SizedBox(
+                width: double.infinity,
+                child: NeonButton(
+                  text: atamaDurumu == 'in_progress' ? 'RAPORA DEVAM ET' : 'GÖREVİ BAŞLAT',
+                  onTap: baslat,
+                ),
+              ),
           ],
         ],
       ),
@@ -513,6 +501,14 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
 
   Color _getDurumColor(String durum) {
     switch (durum) {
+      case 'Personele Atandı':
+        return Colors.orange;
+      case 'Kabul Edildi':
+        return Colors.tealAccent;
+      case 'İncelemede':
+        return Colors.lightBlueAccent;
+      case 'Düzeltme Gerekli':
+        return Colors.redAccent;
       case 'Onaylandı':
         return Colors.orange;
       case 'Raporlandı':

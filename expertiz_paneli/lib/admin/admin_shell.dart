@@ -429,13 +429,8 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
 
   /// Personel modülü - PersonelService'i inject et
   Widget _buildPersonelModule(BuildContext context) {
-    return PersonelBolgePaneli(
-      personeller: [], // Provider'dan çekilecek
-      onPersonelEkle: (p) => _showMessage('Personel eklendi'),
-      onPersonelDuzenle: (p) => _showMessage('Personel düzenlendi'),
-      onPersonelSil: (p) => _showMessage('Personel silindi'),
-      onPersonelAktiflikDegistir: (p) => _showMessage('Personel durumu değiştirildi'),
-    );
+    // Panel verisini merkezi API'den kendisi yükler ve kaydeder.
+    return const PersonelBolgePaneli();
   }
 
   /// =====================================================

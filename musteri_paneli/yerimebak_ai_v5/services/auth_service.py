@@ -65,6 +65,10 @@ def _verify_password(password: str, stored_hash: str) -> bool:
 
 def _create_jwt(payload: Dict[str, Any]) -> str:
     """🔒 PyJWT kutuphanesi ile guvenli JWT olusturma."""
+    # PyJWT >= 2.10 "sub" alaninin string olmasini zorunlu kilar; users.id SERIAL (int)
+    # oldugu icin aksi halde uretilen her token dogrulamada reddedilir.
+    if payload.get("sub") is not None:
+        payload["sub"] = str(payload["sub"])
     payload["exp"] = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRE_HOURS)
     payload["iat"] = datetime.now(timezone.utc)
     return pyjwt.encode(payload, SECRET_KEY, algorithm=JWT_ALGORITHM)

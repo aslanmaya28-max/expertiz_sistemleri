@@ -395,52 +395,10 @@ class AdminProvider with ChangeNotifier {
   Future<bool> atananPersonelGuncelle(String talepId, String personelId) async {
     _setLoading(true);
     try {
-      // Talebi bul - Safe: orElse kontrolü ile StateError önlenir
-      final talepIndex = _talepler.indexWhere((t) => t.id == talepId);
-      if (talepIndex == -1) {
-        _error = "Talep bulunamadı: $talepId";
-        debugPrint(_error);
-        return false;
-      }
-
-      // Talebi güncelle
-      final guncelTalep = TalepModel(
-        id: _talepler[talepIndex].id,
-        musteriAdi: _talepler[talepIndex].musteriAdi,
-        musteriId: _talepler[talepIndex].musteriId, // Yeni: musteriId
-        telefon: _talepler[talepIndex].telefon,
-        aracPlaka: _talepler[talepIndex].aracPlaka,
-        aracMarka: _talepler[talepIndex].aracMarka,
-        aracModel: _talepler[talepIndex].aracModel,
-        durum: "Personele Atandı",
-        olusturulma: _talepler[talepIndex].olusturulma,
-        atananPersonel: personelId,
-        aciklama: _talepler[talepIndex].aciklama,
-        sehir: _talepler[talepIndex].sehir,
-        expertizFirmasi: _talepler[talepIndex].expertizFirmasi,
-        expertizPaketi: _talepler[talepIndex].expertizPaketi,
-        paketFiyati: _talepler[talepIndex].paketFiyati,
-        motorNo: _talepler[talepIndex].motorNo,
-        hizmetBedeli: _talepler[talepIndex].hizmetBedeli, // Yeni
-        toplamTutar: _talepler[talepIndex].toplamTutar, // Yeni
-        hasarTutar: _talepler[talepIndex].hasarTutar, // Yeni
-        isPaid: _talepler[talepIndex].isPaid, // Yeni
-        // AI verileri: Henüz yapılmadı
-        aiAnaliziYapildiMi: false,
-        aiAnalizSonucu: null,
-      );
-
-      final updateSuccess = await _talepService.talepGuncelle(talepId, guncelTalep);
-      if (!updateSuccess) {
-        _error = "Personel atama güncellemesi başarısız";
-        debugPrint(_error);
-        return false;
-      }
-
-      // Listeyi yenile
+      // Atama merkezi API üzerinden yapılır; personel panelinde anında görünür.
+      await _talepService.personelAta(talepId, personelId);
       await loadTalepler();
       _bildirimEkle("PERSONEL ATANDI: Talep $talepId için personel $personelId atandı");
-      
       return true;
     } catch (e) {
       _error = "Personel atama hatası: $e";

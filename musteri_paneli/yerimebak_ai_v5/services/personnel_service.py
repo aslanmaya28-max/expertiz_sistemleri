@@ -1,41 +1,58 @@
 # -*- coding: utf-8 -*-
 """
-Admin personnel management service.
+Admin personel yonetimi servisi.
+
+Tek kaynak: merkezi PostgreSQL `users` tablosu (personel buradan giris yapar).
+`profiles` tablosu raporlarla uyumluluk icin senkron tutulur.
+
+Islevler:
+- Personel ekleme / guncelleme / pasife alma / aktif etme / sistemden cikarma
+- Il + cografi bolge (7 bolge, 81 il) bazli kapsama raporu
+- Pasife alinan ya da cikarilan personelin acik gorevleri otomatik olarak
+  admin kuyruguna geri dusurulur.
 """
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
+import psycopg2
 from psycopg2.extras import Json
 
 from yerimebak_ai_v5.core.database_config import DatabaseConfig
+from yerimebak_ai_v5.core import turkey_regions
 from yerimebak_ai_v5.services.auth_service import _hash_password
 
 
+PERSONNEL_ROLES = ("personel", "field_staff", "staff", "personnel")
+OPEN_TASK_STATUSES = ("draft", "rejected")
+DONE_TASK_STATUSES = ("pending_ai", "pending_admin", "published")
+MIN_PASSWORD_LENGTH = 8
+
+# Geriye donuk uyumluluk (eski testler / importlar)
 BIG_CITY_MIN_PERSONNEL = 3
 DEFAULT_MIN_PERSONNEL = 1
-BIG_CITIES = {
-    "istanbul",
-    "ankara",
-    "izmir",
-    "bursa",
-    "antalya",
-    "konya",
-    "adana",
-    "gaziantep",
-    "kocaeli",
-}
 
 
 def _normalize_city(city: Optional[str]) -> str:
     return (city or "").split("/")[0].strip()
 
 
-def _city_key(city: str) -> str:
-    return _normalize_city(city).lower()
-
-
 def _minimum_target(city: str) -> int:
-    return BIG_CITY_MIN_PERSONNEL if _city_key(city) in BIG_CITIES else DEFAULT_MIN_PERSONNEL
+    return turkey_regions.minimum_target(turkey_regions.province_plate(city))
+
+
+def _error(message: str, status: int) -> Dict[str, Any]:
+    return {"error": message, "http_status": status}
+
+
+def _ensure_schema() -> None:
+    """Semayi surec basina bir kez, ayri bir baglantida commit ederek hazirlar.
+
+    Her istekte ALTER TABLE calistirmak tablo kilitleri aldigi icin (ve okuma
+    yollarinda commit edilmedigi icin) kaldirildi.
+    """
+    from yerimebak_ai_v5.services import dispatch_service
+
+    dispatch_service.ensure_workflow_schema_once()
 
 
 def _ensure_personnel_schema(cursor: Any) -> None:
@@ -61,6 +78,7 @@ def _ensure_personnel_schema(cursor: Any) -> None:
     profile_columns = {
         "is_active": "BOOLEAN DEFAULT TRUE",
         "aktif": "BOOLEAN DEFAULT TRUE",
+        "bolge": "TEXT",
         "il": "TEXT",
         "ilce": "TEXT",
         "uzmanlik_alani": "TEXT",
@@ -74,6 +92,9 @@ def _ensure_personnel_schema(cursor: Any) -> None:
         "city": "TEXT",
         "district": "TEXT",
         "expertise": "TEXT",
+        "il_id": "INTEGER",
+        "region_id": "INTEGER",
+        "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
     }
     for column, column_type in user_columns.items():
         cursor.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {column} {column_type}")
@@ -112,98 +133,174 @@ def _write_audit(cursor: Any, action: str, personnel_id: str, admin: Dict[str, A
     )
 
 
+def _is_active_value(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, bool):
+        return value
+    try:
+        return int(value) == 1
+    except (TypeError, ValueError):
+        return str(value).lower() in {"true", "t", "yes", "aktif"}
+
+
 def _public_personnel(row: Dict[str, Any]) -> Dict[str, Any]:
+    city_raw = row.get("city") or row.get("il") or ""
+    location = turkey_regions.describe_city(city_raw)
+    il_id = row.get("il_id") or location["il_id"]
+    region_id = row.get("region_id") or location["region_id"] or turkey_regions.region_id_of(il_id)
+    active_raw = row.get("active", row.get("is_active", row.get("aktif_mi", True)))
+    created_at = row.get("created_at")
     return {
         "id": str(row.get("id") or ""),
         "full_name": row.get("full_name") or row.get("ad_soyad") or "",
         "email": row.get("email") or "",
         "phone": row.get("phone") or row.get("telefon"),
-        "role": row.get("role") or row.get("rol") or "personel",
-        "active": bool(row.get("active", row.get("is_active", row.get("aktif_mi", True)))),
-        "city": row.get("city") or row.get("il") or "",
+        "role": "field_staff",
+        "active": _is_active_value(active_raw),
+        "city": turkey_regions.province_name(il_id) or location["city"] or "",
         "district": row.get("district") or row.get("ilce") or "",
+        "il_id": il_id,
+        "region_id": region_id,
+        "region": turkey_regions.region_name(region_id),
         "expertise": row.get("expertise") or row.get("uzmanlik_alani") or "",
         "must_change_password": bool(row.get("must_change_password", False)),
+        "open_task_count": int(row.get("open_task_count") or 0),
+        "completed_task_count": int(row.get("completed_task_count") or 0),
+        "created_at": created_at.isoformat() if hasattr(created_at, "isoformat") else created_at,
     }
+
+
+def _resolve_location(city: Any) -> Optional[Dict[str, Any]]:
+    plate = turkey_regions.province_plate(city)
+    if not plate:
+        return None
+    region_id = turkey_regions.region_id_of(plate)
+    return {
+        "il_id": plate,
+        "city": turkey_regions.province_name(plate),
+        "region_id": region_id,
+        "region": turkey_regions.region_name(region_id),
+    }
+
+
+def _profile_id_for_user(user_id: Any) -> str:
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"yerimebak-personnel:{user_id}"))
+
+
+def _upsert_personnel_profile(cursor: Any, user_id: Any, values: Dict[str, Any]) -> None:
+    """profiles tablosunu users ile senkron tutar (e-posta uzerinden eslesir)."""
+    cursor.execute("SELECT id FROM profiles WHERE lower(email) = lower(%s) LIMIT 1", (values["email"],))
+    existing = cursor.fetchone()
+    params = (
+        values["full_name"],
+        values["email"],
+        values.get("phone"),
+        values.get("city"),
+        values.get("district"),
+        values.get("region"),
+        values.get("expertise"),
+    )
+    if existing:
+        cursor.execute(
+            """
+            UPDATE profiles SET
+                ad_soyad = %s, email = %s, telefon = %s, rol = 'personel',
+                il = %s, ilce = %s, bolge = %s, uzmanlik_alani = %s,
+                aktif_mi = TRUE, is_active = TRUE, aktif = TRUE,
+                must_change_password = TRUE, updated_at = NOW()
+            WHERE id = %s
+            """,
+            params + (existing["id"],),
+        )
+    else:
+        cursor.execute(
+            """
+            INSERT INTO profiles (
+                ad_soyad, email, telefon, rol, il, ilce, bolge, uzmanlik_alani,
+                aktif_mi, is_active, aktif, must_change_password, updated_at, id
+            )
+            VALUES (%s, %s, %s, 'personel', %s, %s, %s, %s, TRUE, TRUE, TRUE, TRUE, NOW(), %s)
+            """,
+            params + (_profile_id_for_user(user_id),),
+        )
 
 
 def create_personnel(payload: Dict[str, Any], admin: Dict[str, Any]) -> Dict[str, Any]:
     full_name = str(payload.get("full_name") or "").strip()
     email = str(payload.get("email") or "").strip().lower()
     temporary_password = str(payload.get("temporary_password") or "")
-    city = _normalize_city(payload.get("city"))
     district = str(payload.get("district") or "").strip()
-    if not full_name or not email or not temporary_password or not city or not district:
-        return {"error": "Ad soyad, e-posta, gecici sifre, il ve ilce zorunludur", "http_status": 400}
+    phone = str(payload.get("phone") or "").strip() or None
+    expertise = str(payload.get("expertise") or "").strip() or None
 
-    personnel_id = str(uuid.uuid4())
-    hashed_password = _hash_password(temporary_password)
+    if not full_name or not email or not temporary_password or not payload.get("city") or not district:
+        return _error("Ad soyad, e-posta, gecici sifre, il ve ilce zorunludur", 400)
+    if "@" not in email or "." not in email.split("@")[-1]:
+        return _error("Gecerli bir e-posta adresi girin", 400)
+    if len(temporary_password) < MIN_PASSWORD_LENGTH:
+        return _error(f"Gecici sifre en az {MIN_PASSWORD_LENGTH} karakter olmali", 400)
+
+    location = _resolve_location(payload.get("city"))
+    if not location:
+        return _error("Gecersiz il. Lutfen listeden bir il secin", 400)
+
+    _ensure_schema()
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
-        _ensure_personnel_schema(cursor)
         cursor.execute("SELECT id FROM users WHERE lower(email) = lower(%s) LIMIT 1", (email,))
         if cursor.fetchone():
-            return {"error": "Bu e-posta ile personel zaten var", "http_status": 409}
+            return _error("Bu e-posta ile kayitli bir kullanici zaten var", 409)
+        if phone:
+            cursor.execute("SELECT id FROM users WHERE phone = %s LIMIT 1", (phone,))
+            if cursor.fetchone():
+                return _error("Bu telefon numarasi baska bir kullanicida kayitli", 409)
 
-        # 🔒 DÜZELTİLDİ: users.id SERIAL olduğu için UUID eklenemez.
-        # users tablosu SERIAL kullanıyor, UUID yerine NULL gönderip otomatik atanmasını sağlıyoruz.
         cursor.execute(
             """
             INSERT INTO users (
                 email, password, full_name, phone, api_key, credits, tier, role,
-                is_active, must_change_password, city, district, expertise
+                is_active, must_change_password, city, district, expertise, il_id, region_id
             )
-            VALUES (%s, %s, %s, %s, %s, 0, 'staff', 'personel', 1, TRUE, %s, %s, %s)
-            RETURNING id
+            VALUES (%s, %s, %s, %s, %s, 0, 'staff', 'personel', 1, TRUE, %s, %s, %s, %s, %s)
+            RETURNING id, created_at
             """,
             (
                 email,
-                hashed_password,
+                _hash_password(temporary_password),
                 full_name,
-                payload.get("phone"),
+                phone,
                 f"yk-{uuid.uuid4().hex[:24]}",
-                city,
+                location["city"],
                 district,
-                payload.get("expertise"),
+                expertise,
+                location["il_id"],
+                location["region_id"],
             ),
         )
-        # 🔒 DÜZELTİLDİ: Otomatik atanan SERIAL id'yi al
         user_row = cursor.fetchone()
-        if user_row:
-            personnel_id = str(user_row['id'])
-        cursor.execute(
-            """
-            INSERT INTO profiles (
-                id, ad_soyad, email, telefon, rol, il, ilce, uzmanlik_alani,
-                aktif_mi, is_active, aktif, must_change_password, updated_at
-            )
-            VALUES (%s, %s, %s, %s, 'personel', %s, %s, %s, TRUE, TRUE, TRUE, TRUE, NOW())
-            ON CONFLICT (id) DO UPDATE SET
-                ad_soyad = EXCLUDED.ad_soyad,
-                email = EXCLUDED.email,
-                telefon = EXCLUDED.telefon,
-                rol = 'personel',
-                il = EXCLUDED.il,
-                ilce = EXCLUDED.ilce,
-                uzmanlik_alani = EXCLUDED.uzmanlik_alani,
-                aktif_mi = TRUE,
-                is_active = TRUE,
-                aktif = TRUE,
-                must_change_password = TRUE,
-                updated_at = NOW()
-            """,
-            (
-                personnel_id,
-                full_name,
-                email,
-                payload.get("phone"),
-                city,
-                district,
-                payload.get("expertise"),
-            ),
+        personnel_id = str(user_row["id"])
+        _upsert_personnel_profile(
+            cursor,
+            personnel_id,
+            {
+                "full_name": full_name,
+                "email": email,
+                "phone": phone,
+                "city": location["city"],
+                "district": district,
+                "region": location["region"],
+                "expertise": expertise,
+            },
         )
-        _write_audit(cursor, "PERSONNEL_CREATED", personnel_id, admin, {"email": email, "city": city, "district": district})
+        _write_audit(
+            cursor,
+            "PERSONNEL_CREATED",
+            personnel_id,
+            admin,
+            {"email": email, "city": location["city"], "district": district, "region": location["region"]},
+        )
         conn.commit()
         return {
             "success": True,
@@ -212,51 +309,68 @@ def create_personnel(payload: Dict[str, Any], admin: Dict[str, Any]) -> Dict[str
                     "id": personnel_id,
                     "full_name": full_name,
                     "email": email,
-                    "phone": payload.get("phone"),
-                    "role": "personel",
-                    "active": True,
-                    "city": city,
+                    "phone": phone,
+                    "is_active": 1,
+                    "city": location["city"],
                     "district": district,
-                    "expertise": payload.get("expertise"),
+                    "il_id": location["il_id"],
+                    "region_id": location["region_id"],
+                    "expertise": expertise,
                     "must_change_password": True,
+                    "created_at": user_row["created_at"],
                 }
             ),
         }
+    except psycopg2.IntegrityError:
+        conn.rollback()
+        return _error("E-posta veya telefon baska bir kullanicida kayitli", 409)
     finally:
         DatabaseConfig.return_connection(conn)
 
 
-def list_personnel(active: Optional[bool] = None) -> Dict[str, Any]:
+def _personnel_rows(cursor: Any, where_extra: str = "", params: tuple = ()) -> List[Dict[str, Any]]:
+    cursor.execute(
+        f"""
+        SELECT
+            u.id, u.full_name, u.email, u.phone, u.role, u.is_active, u.city, u.district,
+            u.expertise, u.il_id, u.region_id, u.must_change_password, u.created_at,
+            COALESCE(t.open_count, 0) AS open_task_count,
+            COALESCE(t.done_count, 0) AS completed_task_count
+        FROM users u
+        LEFT JOIN (
+            SELECT
+                data->>'assigned_personel_id' AS personnel_id,
+                COUNT(*) FILTER (WHERE status IN ('draft', 'rejected')) AS open_count,
+                COUNT(*) FILTER (WHERE status IN ('pending_ai', 'pending_admin', 'published')) AS done_count
+            FROM reports
+            WHERE COALESCE(data->>'assigned_personel_id', '') <> ''
+            GROUP BY data->>'assigned_personel_id'
+        ) t ON t.personnel_id = u.id::text
+        WHERE u.role IN %s {where_extra}
+        ORDER BY u.full_name ASC NULLS LAST, u.id ASC
+        """,
+        (PERSONNEL_ROLES,) + params,
+    )
+    return [dict(row) for row in cursor.fetchall()]
+
+
+def list_personnel(
+    active: Optional[bool] = None,
+    region_id: Optional[int] = None,
+    il_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    _ensure_schema()
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
-        _ensure_personnel_schema(cursor)
-        params = []
-        where = "WHERE COALESCE(u.role, p.rol) IN ('personel', 'field_staff', 'staff')"
+        personnel = [_public_personnel(row) for row in _personnel_rows(cursor)]
         if active is not None:
-            where += " AND COALESCE(u.is_active = 1, p.aktif_mi, TRUE) = %s"
-            params.append(active)
-        cursor.execute(
-            f"""
-            SELECT
-                COALESCE(u.id::text, p.id::text) AS id,
-                COALESCE(u.full_name, p.ad_soyad) AS full_name,
-                COALESCE(u.email, p.email) AS email,
-                COALESCE(u.phone, p.telefon) AS phone,
-                COALESCE(u.role, p.rol) AS role,
-                COALESCE(u.is_active = 1, p.aktif_mi, TRUE) AS active,
-                COALESCE(u.city, p.il) AS city,
-                COALESCE(u.district, p.ilce) AS district,
-                COALESCE(u.expertise, p.uzmanlik_alani) AS expertise,
-                COALESCE(u.must_change_password, p.must_change_password, FALSE) AS must_change_password
-            FROM profiles p
-            FULL OUTER JOIN users u ON lower(u.email) = lower(p.email)
-            {where}
-            ORDER BY full_name ASC
-            """,
-            tuple(params),
-        )
-        return {"success": True, "personnel": [_public_personnel(dict(row)) for row in cursor.fetchall()]}
+            personnel = [p for p in personnel if p["active"] == active]
+        if region_id:
+            personnel = [p for p in personnel if p["region_id"] == region_id]
+        if il_id:
+            personnel = [p for p in personnel if p["il_id"] == il_id]
+        return {"success": True, "personnel": personnel}
     finally:
         DatabaseConfig.return_connection(conn)
 
@@ -264,198 +378,331 @@ def list_personnel(active: Optional[bool] = None) -> Dict[str, Any]:
 def _get_personnel(cursor: Any, personnel_id: str) -> Optional[Dict[str, Any]]:
     cursor.execute(
         """
-        SELECT id, email, full_name, role, is_active
+        SELECT id, email, full_name, phone, role, is_active, city, district, expertise, il_id, region_id
         FROM users
-        WHERE id::text = %s OR lower(email) = lower(%s)
+        WHERE (id::text = %s OR lower(email) = lower(%s))
+          AND role IN %s
         LIMIT 1
         """,
-        (personnel_id, personnel_id),
+        (str(personnel_id), str(personnel_id), PERSONNEL_ROLES),
     )
     row = cursor.fetchone()
     return dict(row) if row else None
 
 
-def deactivate_personnel(personnel_id: str, reason: str, admin: Dict[str, Any]) -> Dict[str, Any]:
-    clean_reason = (reason or "").strip()
-    if not clean_reason:
-        return {"error": "Pasife alma nedeni zorunludur", "http_status": 400}
-
-    conn = DatabaseConfig.get_connection()
-    try:
-        cursor = conn.cursor()
-        _ensure_personnel_schema(cursor)
-        personnel = _get_personnel(cursor, personnel_id)
-        if not personnel:
-            return {"error": "Personel bulunamadi", "http_status": 404}
-        email = personnel.get("email")
-        cursor.execute("UPDATE users SET is_active = 0 WHERE id::text = %s OR lower(email) = lower(%s)", (personnel_id, email))
-        cursor.execute("UPDATE profiles SET aktif_mi = FALSE, is_active = FALSE, aktif = FALSE, updated_at = NOW() WHERE id::text = %s OR lower(email) = lower(%s)", (personnel_id, email))
-        _write_audit(cursor, "PERSONNEL_DEACTIVATED", personnel_id, admin, {"reason": clean_reason, "email": email})
-        conn.commit()
-        personnel["active"] = False
-        return {"success": True, "personnel": _public_personnel(personnel)}
-    finally:
-        DatabaseConfig.return_connection(conn)
-
-
 def update_personnel(personnel_id: str, payload: Dict[str, Any], admin: Dict[str, Any]) -> Dict[str, Any]:
-    allowed = {
-        "full_name": ("full_name", "ad_soyad"),
-        "phone": ("phone", "telefon"),
-        "city": ("city", "il"),
-        "district": ("district", "ilce"),
-        "expertise": ("expertise", "uzmanlik_alani"),
-    }
+    allowed = {"full_name", "phone", "city", "district", "expertise"}
     updates = {
         key: value.strip() if isinstance(value, str) else value
         for key, value in payload.items()
         if key in allowed and value is not None
     }
-    if "city" in updates:
-        updates["city"] = _normalize_city(updates["city"])
     if not updates:
-        return {"error": "Guncellenecek alan bulunamadi", "http_status": 400}
+        return _error("Guncellenecek alan bulunamadi", 400)
+    if updates.get("full_name") == "":
+        return _error("Ad soyad bos olamaz", 400)
     if updates.get("city") == "" or updates.get("district") == "":
-        return {"error": "Il ve ilce bos olamaz", "http_status": 400}
+        return _error("Il ve ilce bos olamaz", 400)
+    if "phone" in updates and updates["phone"] == "":
+        updates["phone"] = None
 
+    location = None
+    if "city" in updates:
+        location = _resolve_location(updates["city"])
+        if not location:
+            return _error("Gecersiz il. Lutfen listeden bir il secin", 400)
+        updates["city"] = location["city"]
+        updates["il_id"] = location["il_id"]
+        updates["region_id"] = location["region_id"]
+
+    _ensure_schema()
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
-        _ensure_personnel_schema(cursor)
         personnel = _get_personnel(cursor, personnel_id)
         if not personnel:
-            return {"error": "Personel bulunamadi", "http_status": 404}
+            return _error("Personel bulunamadi", 404)
+        user_id = personnel["id"]
         email = personnel.get("email")
 
-        user_assignments = ", ".join(f"{allowed[key][0]} = %s" for key in updates)
-        profile_assignments = ", ".join(f"{allowed[key][1]} = %s" for key in updates)
-        values = tuple(updates[key] for key in updates)
+        if updates.get("phone"):
+            cursor.execute("SELECT id FROM users WHERE phone = %s AND id <> %s LIMIT 1", (updates["phone"], user_id))
+            if cursor.fetchone():
+                return _error("Bu telefon numarasi baska bir kullanicida kayitli", 409)
+
+        assignments = ", ".join(f"{key} = %s" for key in updates)
         cursor.execute(
-            f"UPDATE users SET {user_assignments} WHERE id::text = %s OR lower(email) = lower(%s)",
-            values + (personnel_id, email),
+            f"UPDATE users SET {assignments} WHERE id = %s",
+            tuple(updates.values()) + (user_id,),
         )
-        cursor.execute(
-            f"UPDATE profiles SET {profile_assignments}, updated_at = NOW() WHERE id::text = %s OR lower(email) = lower(%s)",
-            values + (personnel_id, email),
-        )
-        _write_audit(cursor, "PERSONNEL_UPDATED", personnel_id, admin, {"email": email, "updates": updates})
+
+        profile_map = {
+            "full_name": "ad_soyad",
+            "phone": "telefon",
+            "city": "il",
+            "district": "ilce",
+            "expertise": "uzmanlik_alani",
+        }
+        profile_updates = {profile_map[k]: v for k, v in updates.items() if k in profile_map}
+        if location:
+            profile_updates["bolge"] = location["region"]
+        if profile_updates:
+            profile_assignments = ", ".join(f"{column} = %s" for column in profile_updates)
+            cursor.execute(
+                f"UPDATE profiles SET {profile_assignments}, updated_at = NOW() WHERE lower(email) = lower(%s)",
+                tuple(profile_updates.values()) + (email,),
+            )
+        _write_audit(cursor, "PERSONNEL_UPDATED", str(user_id), admin, {"email": email, "updates": updates})
         conn.commit()
-        public = _public_personnel({**personnel, **updates})
-        return {"success": True, "personnel": public}
+        return {"success": True, "personnel": _public_personnel({**personnel, **updates})}
+    except psycopg2.IntegrityError:
+        conn.rollback()
+        return _error("Telefon numarasi baska bir kullanicida kayitli", 409)
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
+def deactivate_personnel(personnel_id: str, reason: str, admin: Dict[str, Any]) -> Dict[str, Any]:
+    from yerimebak_ai_v5.services import dispatch_service
+
+    clean_reason = (reason or "").strip()
+    if not clean_reason:
+        return _error("Pasife alma nedeni zorunludur", 400)
+
+    _ensure_schema()
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        personnel = _get_personnel(cursor, personnel_id)
+        if not personnel:
+            return _error("Personel bulunamadi", 404)
+        user_id = personnel["id"]
+        email = personnel.get("email")
+        cursor.execute("UPDATE users SET is_active = 0 WHERE id = %s", (user_id,))
+        cursor.execute(
+            "UPDATE profiles SET aktif_mi = FALSE, is_active = FALSE, aktif = FALSE, updated_at = NOW() WHERE lower(email) = lower(%s)",
+            (email,),
+        )
+        released = dispatch_service.release_personnel_tasks(
+            cursor, str(user_id), admin, f"Personel pasife alindi: {clean_reason}"
+        )
+        _write_audit(
+            cursor,
+            "PERSONNEL_DEACTIVATED",
+            str(user_id),
+            admin,
+            {"reason": clean_reason, "email": email, "released_tasks": released},
+        )
+        conn.commit()
+        personnel["is_active"] = 0
+        return {
+            "success": True,
+            "personnel": _public_personnel(personnel),
+            "released_task_ids": released,
+            "released_task_count": len(released),
+        }
     finally:
         DatabaseConfig.return_connection(conn)
 
 
 def activate_personnel(personnel_id: str, admin: Dict[str, Any]) -> Dict[str, Any]:
+    _ensure_schema()
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
-        _ensure_personnel_schema(cursor)
         personnel = _get_personnel(cursor, personnel_id)
         if not personnel:
-            return {"error": "Personel bulunamadi", "http_status": 404}
+            return _error("Personel bulunamadi", 404)
+        user_id = personnel["id"]
         email = personnel.get("email")
-        cursor.execute("UPDATE users SET is_active = 1 WHERE id::text = %s OR lower(email) = lower(%s)", (personnel_id, email))
-        cursor.execute("UPDATE profiles SET aktif_mi = TRUE, is_active = TRUE, aktif = TRUE, updated_at = NOW() WHERE id::text = %s OR lower(email) = lower(%s)", (personnel_id, email))
-        _write_audit(cursor, "PERSONNEL_ACTIVATED", personnel_id, admin, {"email": email})
+        cursor.execute("UPDATE users SET is_active = 1 WHERE id = %s", (user_id,))
+        cursor.execute(
+            "UPDATE profiles SET aktif_mi = TRUE, is_active = TRUE, aktif = TRUE, updated_at = NOW() WHERE lower(email) = lower(%s)",
+            (email,),
+        )
+        _write_audit(cursor, "PERSONNEL_ACTIVATED", str(user_id), admin, {"email": email})
         conn.commit()
-        personnel["active"] = True
+        personnel["is_active"] = 1
         return {"success": True, "personnel": _public_personnel(personnel)}
     finally:
         DatabaseConfig.return_connection(conn)
 
 
-def reset_personnel_password(personnel_id: str, new_password: str, admin: Dict[str, Any]) -> Dict[str, Any]:
-    if len(new_password or "") < 8:
-        return {"error": "Yeni sifre en az 8 karakter olmali", "http_status": 400}
+def delete_personnel(personnel_id: str, admin: Dict[str, Any], reason: Optional[str] = None) -> Dict[str, Any]:
+    """Personeli sistemden cikarir. Acik gorevleri admin kuyruguna geri doner.
+
+    Tamamlanmis raporlar silinmez; raporlarda personelin adi saklandigi icin
+    gecmis kayitlar okunabilir kalir.
+    """
+    from yerimebak_ai_v5.services import dispatch_service
+
+    _ensure_schema()
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
-        _ensure_personnel_schema(cursor)
         personnel = _get_personnel(cursor, personnel_id)
         if not personnel:
-            return {"error": "Personel bulunamadi", "http_status": 404}
-        hashed_password = _hash_password(new_password)
+            return _error("Personel bulunamadi", 404)
+        user_id = personnel["id"]
+        email = personnel.get("email")
+        note = (reason or "").strip() or "Personel sistemden cikarildi"
+        released = dispatch_service.release_personnel_tasks(cursor, str(user_id), admin, note)
+        cursor.execute("DELETE FROM profiles WHERE lower(email) = lower(%s) AND rol IN %s", (email, PERSONNEL_ROLES))
+        cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        _write_audit(
+            cursor,
+            "PERSONNEL_REMOVED",
+            str(user_id),
+            admin,
+            {
+                "email": email,
+                "full_name": personnel.get("full_name"),
+                "reason": note,
+                "released_tasks": released,
+            },
+        )
+        conn.commit()
+        return {
+            "success": True,
+            "personnel_id": str(user_id),
+            "released_task_ids": released,
+            "released_task_count": len(released),
+        }
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
+def reset_personnel_password(personnel_id: str, new_password: str, admin: Dict[str, Any]) -> Dict[str, Any]:
+    if len(new_password or "") < MIN_PASSWORD_LENGTH:
+        return _error(f"Yeni sifre en az {MIN_PASSWORD_LENGTH} karakter olmali", 400)
+    _ensure_schema()
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        personnel = _get_personnel(cursor, personnel_id)
+        if not personnel:
+            return _error("Personel bulunamadi", 404)
+        user_id = personnel["id"]
         email = personnel.get("email")
         cursor.execute(
-            "UPDATE users SET password = %s, must_change_password = TRUE WHERE id::text = %s OR lower(email) = lower(%s)",
-            (hashed_password, personnel_id, email),
+            "UPDATE users SET password = %s, must_change_password = TRUE WHERE id = %s",
+            (_hash_password(new_password), user_id),
         )
         cursor.execute(
-            "UPDATE profiles SET must_change_password = TRUE, updated_at = NOW() WHERE id::text = %s OR lower(email) = lower(%s)",
-            (personnel_id, email),
+            "UPDATE profiles SET must_change_password = TRUE, updated_at = NOW() WHERE lower(email) = lower(%s)",
+            (email,),
         )
-        _write_audit(cursor, "PERSONNEL_PASSWORD_RESET", personnel_id, admin, {"email": email})
+        _write_audit(cursor, "PERSONNEL_PASSWORD_RESET", str(user_id), admin, {"email": email})
         conn.commit()
-        return {"success": True, "personnel_id": personnel_id, "must_change_password": True}
+        return {"success": True, "personnel_id": str(user_id), "must_change_password": True}
     finally:
         DatabaseConfig.return_connection(conn)
 
 
 def get_personnel_coverage() -> Dict[str, Any]:
+    """Il ve 7 cografi bolge bazli personel kapsama raporu."""
+    from yerimebak_ai_v5.services import dispatch_service
+
+    _ensure_schema()
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
-        _ensure_personnel_schema(cursor)
-        cursor.execute(
-            """
-            SELECT city, active_count, passive_count, open_request_count
-            FROM (
-                SELECT
-                    COALESCE(NULLIF(city, ''), 'Belirtilmedi') AS city,
-                    SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) AS active_count,
-                    SUM(CASE WHEN is_active = 1 THEN 0 ELSE 1 END) AS passive_count,
-                    0 AS open_request_count
-                FROM users
-                WHERE role IN ('personel', 'field_staff', 'staff')
-                GROUP BY COALESCE(NULLIF(city, ''), 'Belirtilmedi')
-                UNION ALL
-                SELECT
-                    COALESCE(NULLIF(sehir, ''), 'Belirtilmedi') AS city,
-                    0 AS active_count,
-                    0 AS passive_count,
-                    COUNT(*) AS open_request_count
-                FROM reports
-                WHERE status IN ('draft', 'pending_ai', 'pending_admin')
-                GROUP BY COALESCE(NULLIF(sehir, ''), 'Belirtilmedi')
-            ) coverage
-            ORDER BY city
-            """
-        )
-        cities: Dict[str, Dict[str, int]] = {}
-        for raw in cursor.fetchall():
-            row = dict(raw)
-            city = _normalize_city(row.get("city")) or "Belirtilmedi"
-            bucket = cities.setdefault(
-                city,
-                {
-                    "active_count": 0,
-                    "passive_count": 0,
-                    "open_request_count": 0,
-                    "minimum_target": _minimum_target(city),
-                },
-            )
-            bucket["active_count"] += int(row.get("active_count") or 0)
-            bucket["passive_count"] += int(row.get("passive_count") or 0)
-            bucket["open_request_count"] += int(row.get("open_request_count") or 0)
-
-        missing = sorted([city for city, item in cities.items() if item["active_count"] == 0])
-        understaffed = sorted(
-            [city for city, item in cities.items() if 0 < item["active_count"] < item["minimum_target"]]
-        )
-        return {
-            "success": True,
-            "summary": {
-                "total_personnel": sum(item["active_count"] + item["passive_count"] for item in cities.values()),
-                "active_personnel": sum(item["active_count"] for item in cities.values()),
-                "passive_personnel": sum(item["passive_count"] for item in cities.values()),
-                "covered_city_count": len([item for item in cities.values() if item["active_count"] > 0]),
-                "missing_city_count": len(missing),
-                "understaffed_city_count": len(understaffed),
-            },
-            "cities": cities,
-            "missing_cities": missing,
-            "understaffed_cities": understaffed,
-        }
+        personnel = [_public_personnel(row) for row in _personnel_rows(cursor)]
+        open_requests = dispatch_service.open_request_locations(cursor)
     finally:
         DatabaseConfig.return_connection(conn)
+
+    provinces: Dict[int, Dict[str, Any]] = {}
+    for plate, (name, region_id) in turkey_regions.PROVINCES.items():
+        provinces[plate] = {
+            "il_id": plate,
+            "city": name,
+            "region_id": region_id,
+            "region": turkey_regions.region_name(region_id),
+            "active_count": 0,
+            "passive_count": 0,
+            "open_request_count": 0,
+            "unassigned_request_count": 0,
+            "minimum_target": turkey_regions.minimum_target(plate),
+        }
+    unknown = {"active_count": 0, "passive_count": 0, "open_request_count": 0, "unassigned_request_count": 0}
+
+    for person in personnel:
+        bucket = provinces.get(person["il_id"]) if person["il_id"] else None
+        target = bucket if bucket is not None else unknown
+        target["active_count" if person["active"] else "passive_count"] += 1
+
+    for request in open_requests:
+        bucket = provinces.get(request["il_id"]) if request["il_id"] else None
+        target = bucket if bucket is not None else unknown
+        target["open_request_count"] += 1
+        if not request["assigned"]:
+            target["unassigned_request_count"] += 1
+
+    def _status(item: Dict[str, Any]) -> str:
+        if item["active_count"] == 0:
+            return "critical" if item["open_request_count"] else "missing"
+        if item["active_count"] < item["minimum_target"]:
+            return "understaffed"
+        return "ok"
+
+    for item in provinces.values():
+        item["status"] = _status(item)
+
+    missing = sorted(
+        (p for p in provinces.values() if p["active_count"] == 0),
+        key=lambda p: (-p["open_request_count"], p["city"]),
+    )
+    understaffed = sorted(
+        (p for p in provinces.values() if 0 < p["active_count"] < p["minimum_target"]),
+        key=lambda p: p["city"],
+    )
+
+    regions = []
+    for region_id, region_name in turkey_regions.REGIONS.items():
+        items = [p for p in provinces.values() if p["region_id"] == region_id]
+        covered = [p for p in items if p["active_count"] > 0]
+        regions.append(
+            {
+                "region_id": region_id,
+                "region": region_name,
+                "province_count": len(items),
+                "covered_province_count": len(covered),
+                "coverage_pct": round(100 * len(covered) / len(items)) if items else 0,
+                "active_personnel": sum(p["active_count"] for p in items),
+                "passive_personnel": sum(p["passive_count"] for p in items),
+                "open_request_count": sum(p["open_request_count"] for p in items),
+                "unassigned_request_count": sum(p["unassigned_request_count"] for p in items),
+                "critical_cities": [p["city"] for p in items if p["status"] == "critical"],
+                "provinces": sorted(items, key=lambda p: p["city"]),
+            }
+        )
+
+    # Tablo icin sadece hareketli illeri dondur (personeli veya talebi olanlar)
+    cities = {
+        p["city"]: p
+        for p in sorted(provinces.values(), key=lambda p: p["city"])
+        if p["active_count"] or p["passive_count"] or p["open_request_count"]
+    }
+    if any(unknown.values()):
+        cities["Belirtilmedi"] = {**unknown, "minimum_target": 0, "status": "unknown", "region": ""}
+
+    return {
+        "success": True,
+        "summary": {
+            "total_personnel": len(personnel),
+            "active_personnel": sum(1 for p in personnel if p["active"]),
+            "passive_personnel": sum(1 for p in personnel if not p["active"]),
+            "covered_city_count": sum(1 for p in provinces.values() if p["active_count"] > 0),
+            "missing_city_count": len(missing),
+            "understaffed_city_count": len(understaffed),
+            "critical_city_count": sum(1 for p in provinces.values() if p["status"] == "critical"),
+            "open_request_count": len(open_requests),
+            "unassigned_request_count": sum(1 for r in open_requests if not r["assigned"]),
+        },
+        "cities": cities,
+        "regions": regions,
+        "missing_cities": [p["city"] for p in missing],
+        "critical_cities": [p["city"] for p in missing if p["open_request_count"]],
+        "understaffed_cities": [p["city"] for p in understaffed],
+    }
