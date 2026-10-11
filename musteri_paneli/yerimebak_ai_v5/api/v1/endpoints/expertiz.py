@@ -39,6 +39,10 @@ class RejectReportRequest(BaseModel):
     reason: str
 
 
+class PublishReportRequest(BaseModel):
+    admin_note: Optional[str] = None
+
+
 class AssignRequest(BaseModel):
     personnel_id: str
     note: Optional[str] = None
@@ -114,12 +118,25 @@ async def admin_report_detail(
     return result
 
 
-@router.post("/admin/reports/{report_id}/publish")
-async def admin_publish_report(
+@router.post("/admin/reports/{report_id}/reanalyze")
+async def admin_reanalyze_report(
     report_id: str,
     admin: Dict[str, Any] = Depends(get_admin_user),
 ) -> Dict[str, Any]:
-    result = publish_admin_report(report_id, admin)
+    """Merkezi AI degerlemesini (piyasa + ekspertiz bulgulari) yeniden calistirir."""
+    result = await dispatch_service.reanalyze_report(report_id, admin)
+    if "error" in result:
+        raise HTTPException(status_code=result.get("http_status", 400), detail=result["error"])
+    return result
+
+
+@router.post("/admin/reports/{report_id}/publish")
+async def admin_publish_report(
+    report_id: str,
+    request: Optional[PublishReportRequest] = None,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    result = publish_admin_report(report_id, admin, admin_note=(request.admin_note if request else None))
     if "error" in result:
         raise HTTPException(status_code=result.get("http_status", 400), detail=result["error"])
     return result

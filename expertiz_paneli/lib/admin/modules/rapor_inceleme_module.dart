@@ -339,15 +339,105 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
     return preview is Map && preview['temporary'] == true;
   }
 
+  /// AI değerleme bloğu (piyasa değeri − ekspertiz değer kayıpları)
+  Map<String, dynamic>? get _degerleme {
+    final ai = _selectedReport?['ai_analiz_detay'] ?? _selectedReport?['ai_analysis_result'];
+    if (ai is Map && ai['ekspertizDegerleme'] is Map) {
+      return Map<String, dynamic>.from(ai['ekspertizDegerleme'] as Map);
+    }
+    return null;
+  }
+
+  static final NumberFormat _tlFormat = NumberFormat.decimalPattern('tr_TR');
+
+  String _tl(dynamic value) {
+    if (value is! num) return '-';
+    return '${_tlFormat.format(value.round())} TL';
+  }
+
+  String _yuzde(dynamic value) {
+    if (value is! num) return '-';
+    return '%${value.toStringAsFixed(1).replaceAll('.', ',')}';
+  }
+
+  Future<void> _reanalyze() async {
+    final report = _selectedReport;
+    if (report == null) return;
+    setState(() => _isProcessing = true);
+    try {
+      final result = await _expertizApi.reanalyzeReport(report['id'].toString());
+      final fresh = result['report'];
+      if (fresh is Map && mounted) {
+        _selectReport(Map<String, dynamic>.from(fresh));
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('AI değerlemesi güncellendi'),
+          backgroundColor: Colors.green,
+        ));
+      }
+      await _loadReports(silent: true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('AI analizi çalıştırılamadı: $e'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  /// Onay ekranı: müşteriye gidecek paketin özeti + opsiyonel müşteri notu
+  Future<String?> _yayinOnayDialog() {
+    final d = _degerleme;
+    final fotoSayisi = _medya(RaporMedya.kategoriFoto).length;
+    final kurumsalSayisi = _medya(RaporMedya.kategoriKurumsal).length;
+    final maddeler = <Widget>[
+      _onayMaddesi('Personel ekspertiz raporu (dış, iç, boya-kaporta)', _tamRapor != null),
+      _onayMaddesi('Hasar fotoğrafları ($fotoSayisi adet)', fotoSayisi > 0),
+      _onayMaddesi('Kurumsal ekspertiz raporu ($kurumsalSayisi dosya)', kurumsalSayisi > 0),
+      _onayMaddesi(
+        d == null
+            ? 'Yapay zeka analizi'
+            : d['aiDegeri'] != null
+                ? 'Yapay zeka değerlemesi: ${_tl(d['aiDegeri'])} (değer kaybı ${_yuzde(d['toplamDegerKaybiYuzde'])})'
+                : 'Yapay zeka analizi (piyasa verisi yetersiz, TL değeri yok)',
+        _aiSonucu != null,
+      ),
+    ];
+    return showDialog<String>(
+      context: context,
+      builder: (_) => _YayinOnayDialog(maddeler: maddeler),
+    );
+  }
+
+  Widget _onayMaddesi(String text, bool mevcut) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Icon(mevcut ? Icons.check_circle : Icons.remove_circle_outline,
+              size: 16, color: mevcut ? Colors.greenAccent : Colors.white30),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: TextStyle(color: mevcut ? Colors.white : Colors.white38, fontSize: 13))),
+        ],
+      ),
+    );
+  }
+
   Future<void> _approveAndPublish() async {
     if (_selectedReport == null) return;
+    final note = await _yayinOnayDialog();
+    if (note == null || !mounted) return;
     setState(() => _isProcessing = true);
     try {
       final reportId = _selectedReport!['id'] as String;
-      await _expertizApi.publishReport(reportId);
+      await _expertizApi.publishReport(reportId, adminNote: note);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Rapor yayinlandi: $reportId'),
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Rapor onaylandı ve müşteriye gönderildi'),
           backgroundColor: Colors.green,
         ));
       }
@@ -1048,16 +1138,133 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
     );
   }
 
+  Widget _yenidenAnalizButonu() {
+    final status = _selectedReport?['status'];
+    if (status != 'pending_ai' && status != 'pending_admin') return const SizedBox.shrink();
+    return Align(
+      alignment: Alignment.centerRight,
+      child: TextButton.icon(
+        onPressed: _isProcessing ? null : _reanalyze,
+        icon: _isProcessing
+            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.refresh, size: 18),
+        label: Text(_aiSonucu == null ? 'AI Analizini Çalıştır' : 'AI Değerlemesini Yeniden Çalıştır'),
+      ),
+    );
+  }
+
+  /// Piyasa değeri → ekspertiz bulgularının değer kaybı (kalem kalem) → AI fiyatı
+  Widget _degerlemeKarti(Map<String, dynamic> d) {
+    final kalemler = (d['kalemler'] as List? ?? const []).whereType<Map>().toList();
+    final duzeltmeler = (d['piyasaDuzeltmeleri'] as List? ?? const []).whereType<Map>().toList();
+    final aralik = d['adilFiyatAraligi'] is Map ? d['adilFiyatAraligi'] as Map : const {};
+    final yorum = d['fiyatYorumu'] is Map ? d['fiyatYorumu'] as Map : null;
+    final yapildi = d['degerlemeYapildi'] == true;
+    final agir = d['agirHasar'] == true;
+    final yorumRenk = switch (yorum?['karar']) {
+      'AVANTAJLI' => Colors.greenAccent,
+      'MAKUL' => Colors.lightGreenAccent,
+      'PAZARLIK' => Colors.orangeAccent,
+      'YUKSEK' => Colors.redAccent,
+      _ => Colors.white70,
+    };
+
+    Widget satir(String sol, String sag, {Color? renk, bool kalin = false, String? alt}) => Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(sol, style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: kalin ? FontWeight.bold : null)),
+                    if (alt != null && alt.isNotEmpty)
+                      Text(alt, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                  ],
+                ),
+              ),
+              Text(sag,
+                  style: TextStyle(
+                      color: renk ?? Colors.white, fontSize: kalin ? 15 : 13, fontWeight: kalin ? FontWeight.bold : FontWeight.w500)),
+            ],
+          ),
+        );
+
+    return _buildSectionCard(
+      title: 'Ekspertiz Bazlı AI Değerlemesi',
+      icon: Icons.price_check,
+      color: agir ? Colors.redAccent : null,
+      children: [
+        if (yapildi) ...[
+          satir('Piyasa değeri (emsal ilanlar)', _tl(d['piyasaDegeri']), alt: d['piyasaYontemi']?.toString()),
+          for (final a in duzeltmeler)
+            satir('${a['baslik']} (${_yuzde(a['yuzde'])})', '${(a['tutar'] as num? ?? 0) >= 0 ? '+' : ''}${_tl(a['tutar'])}',
+                alt: a['aciklama']?.toString()),
+          satir('Temiz (hasarsız) piyasa değeri', _tl(d['temizPiyasaDegeri']), kalin: true),
+          const Divider(color: Colors.white12),
+        ] else
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(d['piyasaYontemi']?.toString() ?? 'Piyasa verisi yetersiz',
+                style: const TextStyle(color: Colors.orangeAccent, fontSize: 12)),
+          ),
+        if (kalemler.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 6),
+            child: Text('Değer kaybettiren bulgu yok', style: TextStyle(color: Colors.greenAccent, fontSize: 13)),
+          ),
+        for (final k in kalemler)
+          satir('${k['baslik']} – ${k['durum']}', yapildi ? '−${_tl(k['tutar'])}' : '−${_yuzde(k['yuzde'])}',
+              renk: Colors.orangeAccent,
+              alt: [
+                if (yapildi) _yuzde(k['yuzde']),
+                if ((k['aciklama'] ?? '').toString().isNotEmpty) k['aciklama'].toString(),
+              ].join(' · ')),
+        satir('Toplam değer kaybı (${_yuzde(d['toplamDegerKaybiYuzde'])})',
+            yapildi ? '−${_tl(d['toplamDegerKaybiTutar'])}' : _yuzde(d['toplamDegerKaybiYuzde']),
+            renk: Colors.redAccent, kalin: true),
+        if (yapildi) ...[
+          const Divider(color: Colors.white12),
+          satir('AI DEĞERİ (ekspertiz düzeltmeli)', _tl(d['aiDegeri']), renk: FuturisticTheme.neon, kalin: true),
+          satir('Adil fiyat aralığı', '${_tl(aralik['min'])} – ${_tl(aralik['max'])}'),
+          satir('Önerilen alım / pazarlık fiyatı', _tl(d['onerilenAlimFiyati'])),
+          if (yorum != null)
+            satir('İlan fiyatı ${_tl(d['ilanFiyati'])}', '${yorum['farkYuzde'] is num && yorum['farkYuzde'] > 0 ? '+' : ''}${_yuzde(yorum['farkYuzde'])}',
+                renk: yorumRenk, alt: yorum['aciklama']?.toString()),
+          satir('Güven skoru', '${d['guvenSkoru'] ?? '-'} / 100',
+              alt: d['eskiPiyasaVerisi'] == true ? 'Emsal ilanların çoğu 90 günden eski' : null),
+        ],
+        satir('Hasar seviyesi', '${d['hasarSeviyesi'] ?? '-'}${agir ? ' (ağır hasar)' : ''}', renk: agir ? Colors.redAccent : null),
+      ],
+    );
+  }
+
   Widget _buildAiAnalizTab() {
     if (_aiSonucu == null) {
-      return _buildNoData('AI analiz sonucu mevcut degil');
+      final status = _selectedReport?['status'];
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _buildNoData(status == 'pending_ai'
+              ? 'AI değerlemesi çalışıyor / bekliyor. Birkaç saniye içinde düşmezse tekrar çalıştırın.'
+              : 'AI analiz sonucu mevcut değil'),
+          _yenidenAnalizButonu(),
+        ],
+      );
     }
     final ai = _aiSonucu!;
+    final degerleme = _degerleme;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _yenidenAnalizButonu(),
+          if (degerleme != null) ...[
+            _degerlemeKarti(degerleme),
+            const SizedBox(height: 16),
+          ],
           _buildSectionCard(
             title: 'AI Skorlari',
             icon: Icons.speed,
@@ -1075,10 +1282,9 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
             icon: Icons.assessment,
             children: [
               _buildInfoRow('Genel Sonuc', ai.raporOzeti.genelSonuc),
-              _buildInfoRow('Tahmini Deger', ai.raporOzeti.tahminiDegerFormatli),
-              _buildInfoRow('Deger Kaybi', ai.raporOzeti.degerKaybiFormatli),
-              _buildInfoRow('1 Yil Projeksiyon', ai.raporOzeti.degerProjeksiyonuFormatli),
-              _buildInfoRow('Onay Onerisi', ai.raporOzeti.onayRedOnerisi),
+              _buildInfoRow('AI Değeri', degerleme != null ? _tl(degerleme['aiDegeri']) : ai.raporOzeti.tahminiDegerFormatli),
+              _buildInfoRow('Değer Kaybı', ai.raporOzeti.degerKaybiFormatli),
+              _buildInfoRow('Öneri', ai.raporOzeti.onayRedOnerisi),
               _buildInfoRow('Ozet', ai.raporOzeti.ozetAciklama),
             ],
           ),
@@ -1179,6 +1385,13 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
                                     style: const TextStyle(
                                         color: Colors.white54, fontSize: 12)),
                               ),
+                            if ((o.onerilenEylem ?? '').isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 16, top: 2),
+                                child: Text('→ ${o.onerilenEylem}',
+                                    style: const TextStyle(
+                                        color: Colors.white38, fontSize: 12)),
+                              ),
                           ],
                         ),
                       ))
@@ -1195,6 +1408,7 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
       case 'Kritik':
         return Colors.red;
       case 'Onemli':
+      case 'Önemli':
         return Colors.orange;
       default:
         return FuturisticTheme.neon;
@@ -1218,6 +1432,23 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (status == 'pending_ai')
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  const Icon(Icons.hourglass_top, color: Colors.lightBlueAccent, size: 18),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Personel raporu geldi; merkezi AI değerlemesi bekleniyor. Tamamlanınca onaya açılır.',
+                      style: TextStyle(color: Colors.lightBlueAccent, fontSize: 12),
+                    ),
+                  ),
+                  TextButton(onPressed: _isProcessing ? null : _reanalyze, child: const Text('Şimdi çalıştır')),
+                ],
+              ),
+            ),
           if (status == 'pending_admin' && !hasOfficialAi)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -1447,3 +1678,67 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
   }
 }
 
+
+/// Yayın onay penceresi; not alanının controller'ı pencereyle birlikte yaşar
+/// (kapanış animasyonu sırasında dispose edilmiş controller kullanılmaz).
+class _YayinOnayDialog extends StatefulWidget {
+  final List<Widget> maddeler;
+  const _YayinOnayDialog({required this.maddeler});
+
+  @override
+  State<_YayinOnayDialog> createState() => _YayinOnayDialogState();
+}
+
+class _YayinOnayDialogState extends State<_YayinOnayDialog> {
+  final TextEditingController _not = TextEditingController();
+
+  @override
+  void dispose() {
+    _not.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF1A1A2E),
+      title: const Text('Raporu Onayla ve Müşteriye Gönder', style: TextStyle(color: Colors.white)),
+      content: SizedBox(
+        width: 460,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Müşteriye gidecekler:', style: TextStyle(color: Colors.white70)),
+            const SizedBox(height: 8),
+            ...widget.maddeler,
+            const SizedBox(height: 12),
+            TextField(
+              controller: _not,
+              maxLines: 3,
+              maxLength: 2000,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: 'Müşteriye not (opsiyonel)',
+                labelStyle: TextStyle(color: Colors.white54),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('İptal', style: TextStyle(color: Colors.white54)),
+        ),
+        ElevatedButton.icon(
+          onPressed: () => Navigator.of(context).pop(_not.text),
+          icon: const Icon(Icons.verified),
+          label: const Text('Onayla & Yayınla'),
+          style: ElevatedButton.styleFrom(backgroundColor: FuturisticTheme.neon, foregroundColor: Colors.white),
+        ),
+      ],
+    );
+  }
+}

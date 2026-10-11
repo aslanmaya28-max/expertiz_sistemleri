@@ -825,12 +825,16 @@ def submit_task_report(report_id: str, user: Dict[str, Any], tam_rapor: Any) -> 
             if adim1.get(source) not in (None, ""):
                 snapshot[target] = adim1.get(source)
         data["vehicle_snapshot"] = snapshot
+        # Rapor (yeniden) gonderildi: onceki AI sonucu artik gecerli degil, merkezi AI
+        # analizi yeni rapor uzerinden tekrar calisacak.
+        data.pop("ai_meta", None)
 
         cursor.execute(
             """
             UPDATE reports
             SET data = %s,
                 status = 'pending_ai',
+                ai_analizi_yapildi_mi = FALSE,
                 durum = %s,
                 plaka = COALESCE(NULLIF(%s, ''), plaka),
                 status_updated_at = NOW(),
@@ -856,6 +860,26 @@ def submit_task_report(report_id: str, user: Dict[str, Any], tam_rapor: Any) -> 
         return {"success": True, "task": _admin_request(_fetch_report(cursor, report_id))}
     finally:
         DatabaseConfig.return_connection(conn)
+
+
+async def reanalyze_report(report_id: str, admin: Dict[str, Any]) -> Dict[str, Any]:
+    """Admin: gonderilmis rapor icin merkezi AI degerlemesini yeniden calistirir."""
+    from yerimebak_ai_v5.services.expertiz_service import get_admin_report
+
+    current = get_admin_report(report_id)
+    if "error" in current:
+        return {"error": current["error"], "http_status": 404}
+    status = current["report"].get("status")
+    if status not in APPROVAL_STATUSES:
+        return {
+            "error": "Yalnizca onay bekleyen (pending_ai / pending_admin) raporlar yeniden analiz edilebilir",
+            "http_status": 400,
+        }
+    ok = await run_central_ai(report_id)
+    refreshed = get_admin_report(report_id)
+    if not ok:
+        return {"error": "AI analizi tamamlanamadi; rapor verisini kontrol edip tekrar deneyin", "http_status": 502}
+    return {"success": True, "report": refreshed.get("report")}
 
 
 async def run_central_ai(report_id: str) -> bool:

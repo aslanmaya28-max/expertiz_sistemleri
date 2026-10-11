@@ -22,6 +22,8 @@ def client():
     os.environ["DATABASE_URL"] = TEST_DB
     os.environ.setdefault("SECRET_KEY", "test-secret")
     os.environ["ADMIN_SECRET_KEY"] = ADMIN_KEY
+    # Polling dongusu testte kapali: AI, gonderimdeki arka plan gorevi ile deterministik calisir
+    os.environ["AI_WORKER_ENABLED"] = "false"
 
     import psycopg2
 
@@ -377,3 +379,130 @@ def test_inspection_report_photos_and_submit(client, admin_token, customer_token
         assert client.get(customer_view["photos"][0]["url"]).status_code == 200
     else:
         pytest.fail(f"AI analizi raporu admin onayina tasimadi: {admin_report['status']} / {admin_report.get('ai_meta')}")
+
+
+def _seed_listings(count=12, base_price=900_000):
+    import psycopg2
+
+    conn = psycopg2.connect(TEST_DB)
+    with conn, conn.cursor() as cur:
+        for i in range(count):
+            cur.execute(
+                """
+                INSERT INTO listings (brand, model, year, km, price, fuel, transmission, source, url, paint_info, updated_at)
+                VALUES ('Fiat', 'Egea', 2021, %s, %s, 'Benzin', 'Manuel', 'test', %s, %s, NOW())
+                """,
+                (40_000 + i * 2_000, base_price + (i - count // 2) * 5_000, f"https://test/egea/{uuid.uuid4()}",
+                 "Boyasız/Değişensiz" if i % 2 == 0 else ""),
+            )
+    conn.close()
+
+
+def test_ai_valuation_admin_approval_and_customer_view(client, admin_token, customer_token):
+    """Personel raporu -> merkezi AI (piyasa - ekspertiz değer kaybı) -> admin onayı -> müşteri."""
+    _seed_listings()
+    person = _create_personnel(client, admin_token, "ai@yerimebak.test", "İstanbul", "Şişli", "AI Personel")
+    token = _login(client, "ai@yerimebak.test", "Personel123")
+    report_id = client.post(
+        "/api/v1/expertiz/requests",
+        headers=_auth(customer_token),
+        json={"firm_id": "FIRM_001", "package_id": "PG_FULL", "plate": "34 AI 01", "city": "İstanbul"},
+    ).json()["report_id"]
+    client.post(f"/api/v1/expertiz/admin/requests/{report_id}/assign", headers=_auth(admin_token), json={"personnel_id": person["id"]})
+    client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/start", headers=_auth(token))
+    client.post(
+        f"/api/v1/expertiz/personnel/tasks/{report_id}/media",
+        headers=_auth(token),
+        files={"file": ("kurumsal.pdf", PDF_BYTES, "application/pdf")},
+        data={"category": "corporate_report", "section": "kurumsal"},
+    )
+
+    rapor = _tam_rapor(report_id, person["id"])
+    # Kullanıcı örneği: iki kapı değişen, arka çamurluk boyalı
+    rapor["adim4"] = {"gorevId": report_id, "personelId": person["id"],
+                      "parcaDurumlari": {"solOnKapi": "degisen", "sagOnKapi": "degisen", "solArkaCamurluk": "boyali"},
+                      "yapisalDurumlar": {"onSasi": "orijinal"}}
+    submitted = client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/submit", headers=_auth(token), json={"tam_rapor": rapor})
+    assert submitted.status_code == 200, submitted.text
+
+    admin_report = client.get(f"/api/v1/expertiz/admin/reports/{report_id}", headers=_auth(admin_token)).json()["report"]
+    assert admin_report["status"] == "pending_admin", admin_report.get("ai_meta")
+    assert admin_report["can_publish"] is True
+    ai = admin_report["ai_analiz_detay"]
+    degerleme = ai["ekspertizDegerleme"]
+    assert degerleme["degerlemeYapildi"] is True
+    assert degerleme["degisenParcaSayisi"] == 2 and degerleme["boyaliParcaSayisi"] == 1
+    assert {k["anahtar"] for k in degerleme["kalemler"]} >= {"solOnKapi", "sagOnKapi", "solArkaCamurluk"}
+    assert degerleme["aiDegeri"] < degerleme["temizPiyasaDegeri"]
+    assert 7 <= degerleme["toplamDegerKaybiYuzde"] <= 14
+    assert ai["raporOzeti"]["tahminiDeger"] == degerleme["aiDegeri"]
+    assert ai["marketReference"]["source"] == "listings" and ai["marketReference"]["clean_count"] >= 3
+
+    # Müşteri / personel AI'yı tetikleyemez veya yeniden çalıştıramaz
+    assert client.post("/api/v1/trigger", headers=_auth(customer_token), json={"report_id": report_id}).status_code == 403
+    assert client.get(f"/api/v1/status/{report_id}", headers=_auth(customer_token)).status_code == 403
+    assert client.post(f"/api/v1/expertiz/admin/reports/{report_id}/reanalyze", headers=_auth(token)).status_code == 403
+
+    # Admin yeniden analiz edebilir (sonuç aynı bulgulardan deterministik)
+    re_run = client.post(f"/api/v1/expertiz/admin/reports/{report_id}/reanalyze", headers=_auth(admin_token))
+    assert re_run.status_code == 200, re_run.text
+    assert re_run.json()["report"]["status"] == "pending_admin"
+    assert re_run.json()["report"]["ai_analiz_detay"]["ekspertizDegerleme"]["aiDegeri"] == degerleme["aiDegeri"]
+
+    # Admin onayı ile yayın (müşteriye not)
+    published = client.post(
+        f"/api/v1/expertiz/admin/reports/{report_id}/publish",
+        headers=_auth(admin_token),
+        json={"admin_note": "Değişen kapılar pazarlıkta dikkate alınmalı."},
+    )
+    assert published.status_code == 200, published.text
+
+    # Yayınlanan rapor AI tarafından artık değiştirilemez
+    assert client.post(f"/api/v1/expertiz/admin/reports/{report_id}/reanalyze", headers=_auth(admin_token)).status_code == 400
+    from yerimebak_ai_v5.core.supabase_bridge import get_supabase_bridge
+    assert get_supabase_bridge().write_ai_results(report_id, {"tamamlandiMi": True}) is False
+
+    # Müşteri: personel raporu + kurumsal rapor + AI değerlemesi birlikte
+    customer = client.get(f"/api/v1/expertiz/reports/{report_id}", headers=_auth(customer_token)).json()["report"]
+    assert customer["status"] == "published"
+    assert customer["report"]["adim4"]["parcaDurumlari"]["solOnKapi"] == "degisen"
+    assert len(customer["corporate_reports"]) == 1
+    assert customer["summary"]["market_value"] == degerleme["aiDegeri"]
+    assert customer["summary"]["value_loss_pct"] == degerleme["toplamDegerKaybiYuzde"]
+    assert customer["summary"]["ai_comment"]
+    assert customer["ai"]["ekspertizDegerleme"]["kalemler"]
+    assert "marketReference" not in customer["ai"] and customer["ai"]["piyasaReferansi"]["bulundu"] is True
+    assert "url" not in customer["ai"]["piyasaReferansi"]["emsaller"][0]
+    assert customer["admin_note"] == "Değişen kapılar pazarlıkta dikkate alınmalı."
+    listed = client.get("/api/v1/expertiz/reports", headers=_auth(customer_token)).json()["reports"]
+    assert report_id in [r["id"] for r in listed]
+
+
+def test_ai_worker_loop_recovers_stuck_reports(client):
+    """Arka plan görevi düşerse polling döngüsü bekleyen pending_ai raporlarını tamamlar."""
+    import asyncio
+    import json as _json
+
+    import psycopg2
+
+    from yerimebak_ai_v5.workers.ai_analysis_worker import get_ai_analysis_worker
+
+    tam = {"adim1": {"marka": "Fiat", "model": "Egea", "yil": 2021, "guncelKm": 50_000},
+           "adim4": {"parcaDurumlari": {"kaput": "boyali"}}}
+    stuck_id, fresh_id = str(uuid.uuid4()), str(uuid.uuid4())
+    conn = psycopg2.connect(TEST_DB)
+    with conn, conn.cursor() as cur:
+        for rid, age in ((stuck_id, "10 minutes"), (fresh_id, "0 seconds")):
+            cur.execute(
+                "INSERT INTO reports (id, status, data, ai_analizi_yapildi_mi, status_updated_at) "
+                "VALUES (%s, 'pending_ai', %s::jsonb, FALSE, NOW() - %s::interval)",
+                (rid, _json.dumps({"vehicle_snapshot": {"price": 880_000}, "tam_rapor": tam}), age),
+            )
+    processed = asyncio.run(get_ai_analysis_worker().run_once(min_age_seconds=60))
+    assert processed >= 1
+    with conn, conn.cursor() as cur:
+        cur.execute("SELECT id::text, status FROM reports WHERE id::text IN (%s, %s)", (stuck_id, fresh_id))
+        statuses = dict(cur.fetchall())
+    conn.close()
+    assert statuses[stuck_id] == "pending_admin"
+    assert statuses[fresh_id] == "pending_ai"  # yeni gönderilen, arka plan görevine bırakılır

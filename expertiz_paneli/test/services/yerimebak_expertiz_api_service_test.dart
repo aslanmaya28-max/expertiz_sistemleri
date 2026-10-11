@@ -45,6 +45,21 @@ void main() {
     expect(result['success'], isTrue);
   });
 
+  test('publishReport sends optional admin note and reanalyze hits admin endpoint', () async {
+    final calls = <String>[];
+    final client = MockClient((request) async {
+      calls.add('${request.url.path} ${request.body}');
+      return http.Response(jsonEncode({'success': true}), 200);
+    });
+    final service = YerimebakExpertizApiService(client: client, accessToken: 't');
+
+    await service.publishReport('r9', adminNote: '  Pazarlıkta değişenleri dikkate alın ');
+    await service.reanalyzeReport('r9');
+
+    expect(calls[0], '/api/v1/expertiz/admin/reports/r9/publish {"admin_note":"Pazarlıkta değişenleri dikkate alın"}');
+    expect(calls[1], '/api/v1/expertiz/admin/reports/r9/reanalyze {}');
+  });
+
   test('rejectReport posts reason to central admin reject endpoint', () async {
     final client = MockClient((request) async {
       expect(request.method, 'POST');

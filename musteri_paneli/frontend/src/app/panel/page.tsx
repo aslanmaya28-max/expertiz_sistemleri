@@ -361,8 +361,13 @@ function ReportRow({ report }: { report: ExpertizReportSummary }) {
       <div className="mt-3 grid gap-2 text-xs text-metin-ikincil sm:grid-cols-2">
         <span>Yayin: {formatDate(report.published_at)}</span>
         <span>Tutar: {formatPrice(report.summary?.total_tl)}</span>
-        <span>Piyasa: {formatPrice(report.summary?.market_value)}</span>
-        <span>AI: {report.summary?.ai_analysis_ready ? "Hazir" : "Bekliyor"}</span>
+        <span>AI degeri: {formatPrice(report.summary?.market_value)}</span>
+        <span>
+          Deger kaybi:{" "}
+          {typeof report.summary?.value_loss_pct === "number"
+            ? `%${report.summary.value_loss_pct.toLocaleString("tr-TR", { maximumFractionDigits: 1 })}`
+            : "-"}
+        </span>
       </div>
     </div>
   );

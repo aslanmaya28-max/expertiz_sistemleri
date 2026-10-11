@@ -485,11 +485,59 @@ def _public_request(row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _customer_ai(ai: Any) -> Optional[Dict[str, Any]]:
+    """Musteriye gosterilen AI analizi: ic metadata ayiklanir, emsal ilanlar sadelesir."""
+    ai = _json_loads(ai, None)
+    if not isinstance(ai, dict):
+        return None
+    out = {k: v for k, v in ai.items() if k not in ("source", "official", "temporary", "marketReference")}
+    if isinstance(out.get("oneriler"), list):
+        out["oneriler"] = [o for o in out["oneriler"] if not (isinstance(o, dict) and o.get("hedef") == "admin")]
+    ref = ai.get("marketReference")
+    if isinstance(ref, dict):
+        out["piyasaReferansi"] = {
+            "bulundu": bool(ref.get("found")),
+            "emsalSayisi": ref.get("count") or 0,
+            "hasarsizEmsalSayisi": ref.get("clean_count") or 0,
+            "ortalama": ref.get("market_avg_price") or 0,
+            "medyan": ref.get("market_median_price") or 0,
+            "min": ref.get("market_min_price") or 0,
+            "max": ref.get("market_max_price") or 0,
+            "guncelGun": ref.get("recent_days"),
+            "emsaller": [
+                {k: sample.get(k) for k in ("price", "km", "year", "title", "condition")}
+                for sample in (ref.get("samples") or [])[:8]
+                if isinstance(sample, dict)
+            ],
+        }
+    return out
+
+
+def _ai_summary_fields(ai: Any) -> Dict[str, Any]:
+    ai = _json_loads(ai, None)
+    if not isinstance(ai, dict):
+        return {}
+    ozet = ai.get("raporOzeti") if isinstance(ai.get("raporOzeti"), dict) else {}
+    degerleme = ai.get("ekspertizDegerleme") if isinstance(ai.get("ekspertizDegerleme"), dict) else {}
+    skorlar = ai.get("skorlar") if isinstance(ai.get("skorlar"), dict) else {}
+    return {
+        "market_value": degerleme.get("aiDegeri") or ozet.get("tahminiDeger") or None,
+        "clean_market_value": degerleme.get("temizPiyasaDegeri"),
+        "value_loss_pct": degerleme.get("toplamDegerKaybiYuzde", ozet.get("degerKaybiYuzde")),
+        "fair_price_min": (degerleme.get("adilFiyatAraligi") or {}).get("min"),
+        "fair_price_max": (degerleme.get("adilFiyatAraligi") or {}).get("max"),
+        "overall_score": skorlar.get("genelPuan"),
+        "recommendation": ozet.get("onayRedOnerisi"),
+        "ai_comment": ozet.get("ozetAciklama"),
+    }
+
+
 def _public_report(row: Dict[str, Any]) -> Dict[str, Any]:
     data = _json_loads(row.get("data"), {}) or {}
     vehicle = data.get("vehicle_snapshot", {}) if isinstance(data, dict) else {}
     tam_rapor = data.get("tam_rapor") if isinstance(data, dict) else None
-    ai_summary = row.get("ai_analiz_detay") or row.get("ai_analysis_result")
+    ai_raw = row.get("ai_analiz_detay") or row.get("ai_analysis_result")
+    ai_fields = _ai_summary_fields(ai_raw)
     return {
         "id": row.get("id"),
         "status": row.get("status"),
@@ -502,12 +550,19 @@ def _public_report(row: Dict[str, Any]) -> Dict[str, Any]:
             "ai_analysis_ready": bool(row.get("ai_analizi_yapildi_mi")),
             "ai_source": _ai_meta_from_row(row)["source"],
             "ai_official": _ai_meta_from_row(row)["official"],
-            "market_value": row.get("ai_piyasa_degeri"),
-            "ai_comment": row.get("ai_yorumu"),
+            "market_value": ai_fields.get("market_value"),
+            "clean_market_value": ai_fields.get("clean_market_value"),
+            "value_loss_pct": ai_fields.get("value_loss_pct"),
+            "fair_price_min": ai_fields.get("fair_price_min"),
+            "fair_price_max": ai_fields.get("fair_price_max"),
+            "overall_score": ai_fields.get("overall_score"),
+            "recommendation": ai_fields.get("recommendation"),
+            "ai_comment": ai_fields.get("ai_comment"),
             "damage_amount": row.get("hasar_tutar"),
             "total_tl": row.get("toplam_tutar"),
         },
-        "ai": ai_summary,
+        "ai": _customer_ai(ai_raw),
+        "admin_note": data.get("admin_note") if isinstance(data, dict) else None,
         "report": tam_rapor,
     }
 
@@ -727,7 +782,7 @@ def _write_audit(cursor: Any, action: str, entity_type: str, entity_id: str,
     )
 
 
-def publish_admin_report(report_id: str, admin: Dict[str, Any]) -> Dict[str, Any]:
+def publish_admin_report(report_id: str, admin: Dict[str, Any], admin_note: Optional[str] = None) -> Dict[str, Any]:
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
@@ -753,6 +808,8 @@ def publish_admin_report(report_id: str, admin: Dict[str, Any]) -> Dict[str, Any
         data = _json_loads(row.get("data"), {}) or {}
         data["published_at"] = now
         data["published_by"] = admin.get("email") or admin.get("id")
+        if admin_note and admin_note.strip():
+            data["admin_note"] = admin_note.strip()[:2000]
 
         cursor.execute(
             """
