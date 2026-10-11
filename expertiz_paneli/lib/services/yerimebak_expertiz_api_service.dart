@@ -162,6 +162,69 @@ class YerimebakExpertizApiService {
     return _post('/expertiz/personnel/tasks/$taskId/$action');
   }
 
+  // ---------------------------------------------------------------------------
+  // Personel saha raporu, fotoğraflar, kurumsal rapor
+  // ---------------------------------------------------------------------------
+
+  Future<Map<String, dynamic>> getTaskReport(String taskId) {
+    return _get('/expertiz/personnel/tasks/$taskId/report');
+  }
+
+  Future<Map<String, dynamic>> saveTaskDraft(String taskId, Map<String, dynamic> tamRapor) {
+    return _send('PUT', '/expertiz/personnel/tasks/$taskId/draft', body: {'tam_rapor': tamRapor});
+  }
+
+  Future<Map<String, dynamic>> submitTaskReport(String taskId, Map<String, dynamic> tamRapor) {
+    return _post('/expertiz/personnel/tasks/$taskId/submit', body: {'tam_rapor': tamRapor});
+  }
+
+  /// Fotoğraf veya kurumsal rapor (PDF/fotoğraf) yükler.
+  /// [category]: inspection_photo | corporate_report
+  /// [section]: arac | dis | ic | boya_kaporta | kurumsal | genel
+  Future<Map<String, dynamic>> uploadTaskMedia(
+    String taskId, {
+    required List<int> bytes,
+    required String fileName,
+    required String category,
+    String? section,
+    String? itemKey,
+    String? itemLabel,
+    String? note,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/expertiz/personnel/tasks/$taskId/media'));
+    final headers = _headers()..remove('Content-Type');
+    request.headers.addAll(headers);
+    request.fields['category'] = category;
+    if (section != null) request.fields['section'] = section;
+    if (itemKey != null) request.fields['item_key'] = itemKey;
+    if (itemLabel != null) request.fields['item_label'] = itemLabel;
+    if (note != null && note.isNotEmpty) request.fields['note'] = note;
+    request.files.add(http.MultipartFile.fromBytes('file', bytes, filename: fileName));
+    final streamed = await _client.send(request);
+    final response = await http.Response.fromStream(streamed);
+    return _handle(response);
+  }
+
+  Future<Map<String, dynamic>> deleteTaskMedia(String taskId, String mediaId) {
+    return _send('DELETE', '/expertiz/personnel/tasks/$taskId/media/$mediaId');
+  }
+
+  /// Sunucunun döndürdüğü göreli medya yolunu (/api/v1/...) tam adrese çevirir.
+  String resolveUrl(String path) {
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    return Uri.parse(baseUrl).resolve(path).toString();
+  }
+
+  /// Dosya içeriğini indirir (PDF önizleme için). Bağlantı imzalı olduğundan
+  /// ek kimlik bilgisi gerekmez.
+  Future<List<int>> downloadBytes(String path) async {
+    final response = await _client.get(Uri.parse(resolveUrl(path)));
+    if (response.statusCode >= 400) {
+      throw ApiException('Dosya indirilemedi (HTTP ${response.statusCode})', response.statusCode);
+    }
+    return response.bodyBytes;
+  }
+
   Future<Map<String, dynamic>> _send(
     String method,
     String path, {

@@ -24,6 +24,7 @@ from yerimebak_ai_v5.core.database_config import DatabaseConfig
 from yerimebak_ai_v5.core import turkey_regions
 from yerimebak_ai_v5.services import personnel_service
 from yerimebak_ai_v5.services import expertiz_service
+from yerimebak_ai_v5.services import media_service
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ DURUM_BY_ASSIGNMENT = {
     "assigned": "Personele Atandı",
     "accepted": "Personel Kabul Etti",
     "in_progress": "İncelemede",
+    "submitted": "Rapor Gönderildi",
 }
 
 _schema_ready = False
@@ -63,6 +65,7 @@ def ensure_reports_table(cursor: Any) -> None:
 def ensure_workflow_schema(cursor: Any) -> None:
     personnel_service._ensure_personnel_schema(cursor)
     ensure_reports_table(cursor)
+    media_service.ensure_media_schema(cursor)
 
 
 def ensure_workflow_schema_once() -> bool:
@@ -544,7 +547,8 @@ def list_personnel_tasks(user: Dict[str, Any]) -> Dict[str, Any]:
 
 _TASK_TRANSITIONS = {
     "accept": {"from": ("assigned",), "to": "accepted", "stamp": "accepted_at"},
-    "start": {"from": ("assigned", "accepted"), "to": "in_progress", "stamp": "started_at"},
+    # "submitted": admin raporu reddettiyse personel duzeltmeye yeniden baslar
+    "start": {"from": ("assigned", "accepted", "submitted"), "to": "in_progress", "stamp": "started_at"},
 }
 
 
@@ -596,3 +600,275 @@ def update_task_progress(report_id: str, user: Dict[str, Any], action: str) -> D
         return {"success": True, "task": _admin_request(_fetch_report(cursor, report_id))}
     finally:
         DatabaseConfig.return_connection(conn)
+
+
+# ---------------------------------------------------------------------------
+# Personel: saha raporu (dis / ic / boya-kaporta / kurumsal) ve fotograflar
+# ---------------------------------------------------------------------------
+
+REPORT_SECTIONS = ("adim1", "adim2", "adim3", "adim4", "adim5")
+MAX_REPORT_JSON_BYTES = 2 * 1024 * 1024
+
+
+def corporate_info(row: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
+    """Musterinin kurumsal ekspertiz (anlasmali firma) talep edip etmedigi."""
+    talep = data.get("talep") if isinstance(data.get("talep"), dict) else {}
+    firm_name = row.get("ekspertiz_firmasi") or row.get("firma") or talep.get("expertizFirmasi") or ""
+    package_name = data.get("expertiz_paketi") or talep.get("expertizPaketi") or ""
+    required = bool(data.get("firm_id") or data.get("expertiz_package_id"))
+    if "corporate_required" in data:
+        required = bool(data.get("corporate_required"))
+    return {"required": required, "firm_name": firm_name, "package_name": package_name}
+
+
+def _load_owned_task(cursor: Any, report_id: str, user: Dict[str, Any], lock: bool = False) -> Dict[str, Any]:
+    cursor.execute(
+        f"SELECT * FROM reports WHERE id::text = %s{' FOR UPDATE' if lock else ''}",
+        (str(report_id),),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return _error("Gorev bulunamadi", 404)
+    row = dict(row)
+    data = _load_data(row.get("data"))
+    if _assigned_id(data) != str(user.get("id") or ""):
+        return _error("Bu gorev size atanmamis", 403)
+    return {"row": row, "data": data}
+
+
+def _task_is_open(row: Dict[str, Any]) -> bool:
+    return (row.get("status") or "draft") in ASSIGNABLE_STATUSES
+
+
+def get_task_report(report_id: str, user: Dict[str, Any]) -> Dict[str, Any]:
+    """Personelin rapor ekrani icin: gorev, taslak rapor, fotograflar, kurumsal bilgi."""
+    ensure_workflow_schema_once()
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        loaded = _load_owned_task(cursor, report_id, user)
+        if "error" in loaded:
+            return loaded
+        row, data = loaded["row"], loaded["data"]
+        media = media_service.list_media(cursor, [str(row["id"])])[str(row["id"])]
+    finally:
+        DatabaseConfig.return_connection(conn)
+    return {
+        "success": True,
+        "task": _admin_request(row),
+        "editable": _task_is_open(row),
+        "tam_rapor": data.get("tam_rapor_draft") or data.get("tam_rapor"),
+        "draft_saved_at": data.get("tam_rapor_draft_at"),
+        "corporate": corporate_info(row, data),
+        "rejection_reason": data.get("rejection_reason") if row.get("status") == "rejected" else None,
+        "media": media,
+    }
+
+
+def _validate_report_payload(tam_rapor: Any) -> Optional[Dict[str, Any]]:
+    if not isinstance(tam_rapor, dict):
+        return _error("Rapor verisi gecersiz", 400)
+    if len(json.dumps(tam_rapor, ensure_ascii=False, default=str).encode("utf-8")) > MAX_REPORT_JSON_BYTES:
+        return _error("Rapor verisi cok buyuk", 413)
+    return None
+
+
+def save_task_draft(report_id: str, user: Dict[str, Any], tam_rapor: Any) -> Dict[str, Any]:
+    invalid = _validate_report_payload(tam_rapor)
+    if invalid:
+        return invalid
+    ensure_workflow_schema_once()
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        loaded = _load_owned_task(cursor, report_id, user, lock=True)
+        if "error" in loaded:
+            return loaded
+        row, data = loaded["row"], loaded["data"]
+        if not _task_is_open(row):
+            return _error("Gonderilmis rapor degistirilemez", 409)
+        data["tam_rapor_draft"] = tam_rapor
+        data["tam_rapor_draft_at"] = _now()
+        cursor.execute(
+            "UPDATE reports SET data = %s, updated_at = NOW() WHERE id = %s",
+            (Json(data), row["id"]),
+        )
+        conn.commit()
+        return {"success": True, "draft_saved_at": data["tam_rapor_draft_at"]}
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
+def upload_task_media(
+    report_id: str,
+    user: Dict[str, Any],
+    content: bytes,
+    original_name: Optional[str],
+    category: str,
+    section: Optional[str] = None,
+    item_key: Optional[str] = None,
+    item_label: Optional[str] = None,
+    note: Optional[str] = None,
+) -> Dict[str, Any]:
+    ensure_workflow_schema_once()
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        loaded = _load_owned_task(cursor, report_id, user)
+        if "error" in loaded:
+            return loaded
+        row = loaded["row"]
+        if not _task_is_open(row):
+            return _error("Gonderilmis rapora dosya eklenemez", 409)
+        result = media_service.store_media(
+            cursor, str(row["id"]), user, content, original_name, category, section, item_key, item_label, note
+        )
+        if "error" in result:
+            conn.rollback()
+            return result
+        _write_audit(
+            cursor,
+            "MEDIA_UPLOADED",
+            str(row["id"]),
+            user,
+            {"media_id": result["media"]["id"], "category": category, "item_key": item_key},
+        )
+        conn.commit()
+        return result
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
+def delete_task_media(report_id: str, media_id: str, user: Dict[str, Any]) -> Dict[str, Any]:
+    ensure_workflow_schema_once()
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        loaded = _load_owned_task(cursor, report_id, user)
+        if "error" in loaded:
+            return loaded
+        row = loaded["row"]
+        if not _task_is_open(row):
+            return _error("Gonderilmis rapordan dosya silinemez", 409)
+        if not media_service.soft_delete_media(cursor, str(row["id"]), media_id):
+            return _error("Dosya bulunamadi", 404)
+        _write_audit(cursor, "MEDIA_DELETED", str(row["id"]), user, {"media_id": str(media_id)})
+        conn.commit()
+        return {"success": True}
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
+def submit_task_report(report_id: str, user: Dict[str, Any], tam_rapor: Any) -> Dict[str, Any]:
+    """Personel raporu 'Kaydet ve Gonder' ile admin onayina gonderir.
+
+    Kurallar:
+    - Gorev bu personele atanmis ve acik (draft / rejected) olmali.
+    - Rapor 5 bolumu icermeli (arac, dis, ic, boya-kaporta, kurumsal).
+    - Musteri kurumsal ekspertiz talep ettiyse kurumsal rapor dosyasi eklenmis olmali.
+    Sonuc: status='pending_ai' (merkezi AI analizi) -> admin 'Onay Bekleyen' sekmesi.
+    """
+    invalid = _validate_report_payload(tam_rapor)
+    if invalid:
+        return invalid
+    missing = [key for key in REPORT_SECTIONS if not isinstance(tam_rapor.get(key), dict)]
+    if missing:
+        return _error(f"Rapor eksik bolum iceriyor: {', '.join(missing)}", 400)
+
+    ensure_workflow_schema_once()
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        loaded = _load_owned_task(cursor, report_id, user, lock=True)
+        if "error" in loaded:
+            return loaded
+        row, data = loaded["row"], loaded["data"]
+        if not _task_is_open(row):
+            return _error("Bu rapor zaten gonderilmis", 409)
+
+        counts = media_service.count_media(cursor, str(row["id"]))
+        corporate = corporate_info(row, data)
+        if corporate["required"] and counts.get("corporate_report", 0) == 0:
+            return _error(
+                f"Musteri kurumsal ekspertiz talep etti ({corporate['firm_name'] or 'anlasmali firma'}). "
+                "Firmanin raporunu dosyaya ekleyin.",
+                409,
+            )
+
+        now = _now()
+        was_rejected = row.get("status") == "rejected"
+        assignment = data.get("assignment") if isinstance(data.get("assignment"), dict) else {}
+        history = list(assignment.get("history") or [])
+        history.append({"action": "submitted", "personnel_id": str(user.get("id")), "by": _actor_label(user), "at": now})
+        assignment.update({"status": "submitted", "submitted_at": now, "history": history})
+        data["assignment"] = assignment
+        data["tam_rapor"] = tam_rapor
+        data["tam_rapor_draft"] = tam_rapor
+        data["tam_rapor_draft_at"] = now
+        data["inspection"] = {
+            "submitted_at": now,
+            "submitted_by": str(user.get("id")),
+            "submitted_by_name": user.get("full_name") or user.get("email"),
+            "photo_count": counts.get("inspection_photo", 0),
+            "corporate_report_count": counts.get("corporate_report", 0),
+            "corporate_required": corporate["required"],
+            "revision": int((data.get("inspection") or {}).get("revision", 0)) + (1 if was_rejected else 0),
+        }
+        if was_rejected:
+            data["previous_rejection_reason"] = data.get("rejection_reason")
+        if isinstance(data.get("talep"), dict):
+            data["talep"]["durum"] = DURUM_BY_ASSIGNMENT["submitted"]
+
+        adim1 = tam_rapor.get("adim1") or {}
+        snapshot = data.get("vehicle_snapshot") if isinstance(data.get("vehicle_snapshot"), dict) else {}
+        for target, source in (("marka", "marka"), ("model", "model"), ("yil", "yil"), ("km", "guncelKm")):
+            if adim1.get(source) not in (None, ""):
+                snapshot[target] = adim1.get(source)
+        data["vehicle_snapshot"] = snapshot
+
+        cursor.execute(
+            """
+            UPDATE reports
+            SET data = %s,
+                status = 'pending_ai',
+                durum = %s,
+                plaka = COALESCE(NULLIF(%s, ''), plaka),
+                status_updated_at = NOW(),
+                updated_at = NOW(),
+                version_id = COALESCE(version_id, 0) + 1
+            WHERE id = %s
+            """,
+            (Json(data), DURUM_BY_ASSIGNMENT["submitted"], str(adim1.get("plaka") or ""), row["id"]),
+        )
+        request_id = data.get("expertiz_request_id") or str(row["id"])
+        cursor.execute(
+            "UPDATE expertiz_requests SET status = %s, updated_at = %s WHERE id = %s",
+            (DURUM_BY_ASSIGNMENT["submitted"], now, str(request_id)),
+        )
+        _write_audit(
+            cursor,
+            "REPORT_SUBMITTED",
+            str(row["id"]),
+            user,
+            {"revision": data["inspection"]["revision"], "photos": counts.get("inspection_photo", 0)},
+        )
+        conn.commit()
+        return {"success": True, "task": _admin_request(_fetch_report(cursor, report_id))}
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
+async def run_central_ai(report_id: str) -> bool:
+    """Gonderilen rapor icin merkezi AI analizini calistirir (arka planda).
+
+    Basarili olursa rapor 'pending_admin' durumuna gecer. Basarisiz olursa
+    'pending_ai' olarak admin 'Onay Bekleyen' listesinde kalir ve admin
+    analizi panelden tekrar tetikleyebilir.
+    """
+    try:
+        from yerimebak_ai_v5.workers.ai_analysis_worker import get_ai_analysis_worker
+
+        return bool(await get_ai_analysis_worker().process_single_report(str(report_id)))
+    except Exception as exc:  # pragma: no cover - loglanir
+        logger.error("Merkezi AI analizi baslatilamadi (%s): %s", report_id, exc)
+        return False

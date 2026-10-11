@@ -1,105 +1,191 @@
-/// Adım 2: Dış Ekspertiz Modeli
+import 'kontrol_listesi.dart';
+
+/// Adım 2 – Dış Ekspertiz.
+///
+/// Tüm maddelerin durumu [durumlar] haritasında (madde anahtarı → durum)
+/// tutulur. Maddeler [DisEkspertizListesi]'nden gelir. Eski alan adları
+/// (onTampon, onCamurluklar, solOnKapi ...) PDF / AI servisleriyle uyum için
+/// getter olarak korunur.
 class Adim2DisEkspertizModel {
-  // Görev ID
   final String gorevId;
   final String personelId;
 
-  // 🚗 ÖN KISIM
-  String? onTampon;
-  String? onFarlar;
-  String? onCamurluklar;
-  String? onKaput;
-  String? motorNo; // Yeni alan
+  /// Madde anahtarı → [KontrolDurumu] değeri
+  final Map<String, String> durumlar;
 
+  /// Madde anahtarı → personel notu
+  Map<String, String>? aciklamalar;
 
-  // 🚗 ARKA KISIM
-  String? arkaTampon;
-  String? arkaCamurluklar;
-  String? bagajKapagi;
-
-  // 🚗 YAN KISIMLAR
-  String? solOnKapi;
-  String? sagOnKapi;
-  String? solArkaKapi;
-  String? sagArkaKapi;
-  
-  // 🚗 EK KAPILAR (Adım 2 sayfası için)
-  String? onKapi; // Ön kapılar için genel durum
-  String? arkaKapi; // Arka kapılar için genel durum
-
-  // 🚗 TAVAN
-  String? tavan;
-  String? tavanTente; // Tavan tente için
-
-  // 🚘 ŞASİ
-  String? onSasi; // Ön şasi
-  String? arkaSasi; // Arka şasi
-
-  // 🚗 KAPORTA
-  String? onCamurlar; // Ön çamurlar için
-  String? arkaCamurlar; // Arka çamurlar için
-
-  //  LASTİKLER
-  String? onLastikler;
-  String? arkaLastikler;
-
-  // 📝 NOTLAR
   String? genelNot;
-  Map<String, String>? aciklamalar; // Her madde için açıklama
-  Map<String, List<String>>? fotografUrl; // Her madde için fotoğraflar
-  Map<String, String>? fotografYolu; // Her madde için ilk fotoğraf yolu (thumbnail)
-  List<String> fotografUrlleri; // Eski uyumluluk için
+  String? motorNo;
 
-  // Kayıt tarihi
+  // Eski uyumluluk (fotoğraflar artık sunucuda; bkz. RaporMedya)
+  Map<String, List<String>>? fotografUrl;
+  Map<String, String>? fotografYolu;
+  List<String> fotografUrlleri;
+
   final DateTime kayitTarihi;
 
   Adim2DisEkspertizModel({
     required this.gorevId,
     required this.personelId,
-    this.onTampon,
-    this.onFarlar,
-    this.onCamurluklar,
-    this.onKaput,
-    this.motorNo,
-    this.arkaTampon,
-    this.arkaCamurluklar,
-    this.bagajKapagi,
-    this.solOnKapi,
-    this.sagOnKapi,
-    this.solArkaKapi,
-    this.sagArkaKapi,
-    this.onKapi,
-    this.arkaKapi,
-    this.tavan,
-    this.tavanTente,
-    this.onSasi,
-    this.arkaSasi,
-    this.onCamurlar,
-    this.arkaCamurlar,
-    this.onLastikler,
-    this.arkaLastikler,
-    this.genelNot,
+    Map<String, String>? durumlar,
     this.aciklamalar,
+    this.genelNot,
+    this.motorNo,
     this.fotografUrl,
     this.fotografYolu,
     List<String>? fotografUrlleri,
-  })  : fotografUrlleri = fotografUrlleri ?? [],
+    // Eski alanlar (eski taslaklar / testler için)
+    String? onTampon,
+    String? onFarlar,
+    String? onCamurluklar,
+    String? onKaput,
+    String? arkaTampon,
+    String? arkaCamurluklar,
+    String? bagajKapagi,
+    String? solOnKapi,
+    String? sagOnKapi,
+    String? solArkaKapi,
+    String? sagArkaKapi,
+    String? tavan,
+    String? tavanTente,
+    String? onSasi,
+    String? arkaSasi,
+    String? onLastikler,
+    String? arkaLastikler,
+  })  : durumlar = {
+          ..._legacySeed({
+            'onTampon': [onTampon],
+            'onFarlar': [onFarlar],
+            'solOnCamurluk': [onCamurluklar],
+            'sagOnCamurluk': [onCamurluklar],
+            'onKaput': [onKaput],
+            'arkaTampon': [arkaTampon],
+            'solArkaCamurluk': [arkaCamurluklar],
+            'sagArkaCamurluk': [arkaCamurluklar],
+            'bagajKapagi': [bagajKapagi],
+            'solOnKapi': [solOnKapi],
+            'sagOnKapi': [sagOnKapi],
+            'solArkaKapi': [solArkaKapi],
+            'sagArkaKapi': [sagArkaKapi],
+            'tavan': [tavan],
+            'tavanTente': [tavanTente],
+            'onSasi': [onSasi],
+            'arkaSasi': [arkaSasi],
+            'onSolLastik': [onLastikler],
+            'onSagLastik': [onLastikler],
+            'arkaSolLastik': [arkaLastikler],
+            'arkaSagLastik': [arkaLastikler],
+          }),
+          ...?durumlar,
+        },
+        fotografUrlleri = fotografUrlleri ?? [],
         kayitTarihi = DateTime.now();
 
-  /// JSON'dan Adim2DisEkspertizModel nesnesi oluştur
+  static Map<String, String> _legacySeed(Map<String, List<String?>> values) {
+    final result = <String, String>{};
+    values.forEach((key, list) {
+      final value = list.first;
+      if (value != null && value.isNotEmpty) result[key] = value;
+    });
+    return result;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Eski alan adları (salt okunur)
+  // ---------------------------------------------------------------------------
+  String? _w(List<String> keys) => KontrolDurumu.enKotu(keys.map((k) => durumlar[k]));
+
+  String? get onTampon => durumlar['onTampon'];
+  String? get onFarlar => durumlar['onFarlar'];
+  String? get onCamurluklar => _w(['solOnCamurluk', 'sagOnCamurluk']);
+  String? get onKaput => durumlar['onKaput'];
+  String? get arkaTampon => durumlar['arkaTampon'];
+  String? get arkaCamurluklar => _w(['solArkaCamurluk', 'sagArkaCamurluk']);
+  String? get bagajKapagi => durumlar['bagajKapagi'];
+  String? get solOnKapi => durumlar['solOnKapi'];
+  String? get sagOnKapi => durumlar['sagOnKapi'];
+  String? get solArkaKapi => durumlar['solArkaKapi'];
+  String? get sagArkaKapi => durumlar['sagArkaKapi'];
+  String? get onKapi => _w(['solOnKapi', 'sagOnKapi']);
+  String? get arkaKapi => _w(['solArkaKapi', 'sagArkaKapi']);
+  String? get tavan => durumlar['tavan'];
+  String? get tavanTente => durumlar['tavanTente'];
+  String? get onSasi => durumlar['onSasi'];
+  String? get arkaSasi => durumlar['arkaSasi'];
+  String? get onCamurlar => onCamurluklar;
+  String? get arkaCamurlar => arkaCamurluklar;
+  String? get onLastikler => _w(['onSolLastik', 'onSagLastik']);
+  String? get arkaLastikler => _w(['arkaSolLastik', 'arkaSagLastik']);
+
+  // ---------------------------------------------------------------------------
+  // Durum
+  // ---------------------------------------------------------------------------
+  static List<KontrolMaddesi> get maddeler => DisEkspertizListesi.maddeler;
+
+  String? durum(String key) => durumlar[key];
+  String not(String key) => aciklamalar?[key] ?? '';
+
+  /// Durumu seçilmemiş maddeler
+  List<KontrolMaddesi> get eksikMaddeler => maddeler.where((m) => durumlar[m.key] == null).toList();
+
+  /// Eksiklik (sorunlu/kötü/ağır hasar) işaretlenen maddeler → fotoğraf zorunlu
+  List<KontrolMaddesi> get eksiklikliMaddeler =>
+      maddeler.where((m) => KontrolDurumu.eksiklikMi(durumlar[m.key])).toList();
+
+  Adim2DisEkspertizModel withDurum(String key, String? value) {
+    final yeni = Map<String, String>.from(durumlar);
+    if (value == null) {
+      yeni.remove(key);
+    } else {
+      yeni[key] = value;
+    }
+    return copyWith(durumlar: yeni);
+  }
+
+  Adim2DisEkspertizModel withNot(String key, String value) {
+    final yeni = Map<String, String>.from(aciklamalar ?? {});
+    if (value.trim().isEmpty) {
+      yeni.remove(key);
+    } else {
+      yeni[key] = value;
+    }
+    return copyWith(aciklamalar: yeni);
+  }
+
+  bool get isValid => eksikMaddeler.isEmpty;
+
+  int get filledFields => maddeler.where((m) => durumlar[m.key] != null).length;
+  int get totalFields => maddeler.length;
+  double get completionPercentage => totalFields == 0 ? 0 : filledFields / totalFields;
+
+  // ---------------------------------------------------------------------------
+  // JSON
+  // ---------------------------------------------------------------------------
   factory Adim2DisEkspertizModel.fromJson(Map<String, dynamic> json) {
-    final aciklamalarMap = json['aciklamalar'] as Map<String, dynamic>?;
-    final fotografUrlMap = json['fotografUrl'] as Map<String, dynamic>?;
-    final fotografYoluMap = json['fotografYolu'] as Map<String, dynamic>?;
-    
-    return Adim2DisEkspertizModel(
-      gorevId: json['gorevId'] as String,
-      personelId: json['personelId'] as String,
+    final stored = stringMap(json['maddeDurumlari']);
+    final common = Adim2DisEkspertizModel(
+      gorevId: json['gorevId']?.toString() ?? '',
+      personelId: json['personelId']?.toString() ?? '',
+      aciklamalar: stringMap(json['aciklamalar']),
+      genelNot: json['genelNot'] as String?,
+      motorNo: json['motorNo'] as String?,
+      fotografUrl: stringListMap(json['fotografUrl']),
+      fotografYolu: stringMap(json['fotografYolu']),
+      fotografUrlleri: stringList(json['fotografUrlleri']),
+    );
+    if (stored.isNotEmpty) {
+      return common.copyWith(durumlar: stored);
+    }
+    // Eski taslak: maddeDurumlari yok, eski alan adlarından doldur
+    final legacy = Adim2DisEkspertizModel(
+      gorevId: common.gorevId,
+      personelId: common.personelId,
       onTampon: json['onTampon'] as String?,
       onFarlar: json['onFarlar'] as String?,
       onCamurluklar: json['onCamurluklar'] as String?,
       onKaput: json['onKaput'] as String?,
-      motorNo: json['motorNo'] as String?,
       arkaTampon: json['arkaTampon'] as String?,
       arkaCamurluklar: json['arkaCamurluklar'] as String?,
       bagajKapagi: json['bagajKapagi'] as String?,
@@ -107,34 +193,33 @@ class Adim2DisEkspertizModel {
       sagOnKapi: json['sagOnKapi'] as String?,
       solArkaKapi: json['solArkaKapi'] as String?,
       sagArkaKapi: json['sagArkaKapi'] as String?,
-      onKapi: json['onKapi'] as String?,
-      arkaKapi: json['arkaKapi'] as String?,
       tavan: json['tavan'] as String?,
       tavanTente: json['tavanTente'] as String?,
       onSasi: json['onSasi'] as String?,
       arkaSasi: json['arkaSasi'] as String?,
-      onCamurlar: json['onCamurlar'] as String?,
-      arkaCamurlar: json['arkaCamurlar'] as String?,
       onLastikler: json['onLastikler'] as String?,
       arkaLastikler: json['arkaLastikler'] as String?,
-      genelNot: json['genelNot'] as String?,
-      aciklamalar: aciklamalarMap?.map((key, value) => MapEntry(key, value as String)),
-      fotografUrl: fotografUrlMap?.map((key, value) => MapEntry(key, (value as List<dynamic>).map((e) => e as String).toList())),
-      fotografYolu: fotografYoluMap?.map((key, value) => MapEntry(key, value as String)),
-      fotografUrlleri: (json['fotografUrlleri'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
     );
+    return common.copyWith(durumlar: legacy.durumlar);
   }
 
-  /// Adim2DisEkspertizModel nesnesini JSON'a çevir
   Map<String, dynamic> toJson() {
     return {
       'gorevId': gorevId,
       'personelId': personelId,
+      'maddeDurumlari': durumlar,
+      'kontrolListesi': kontrolListesiJson(
+        maddeler,
+        durumlar,
+        aciklamalar ?? const {},
+        KontrolDurumu.etiket,
+        KontrolDurumu.eksiklikMi,
+      ),
+      // Eski alanlar (PDF / AI / eski ekranlar)
       'onTampon': onTampon,
       'onFarlar': onFarlar,
       'onCamurluklar': onCamurluklar,
       'onKaput': onKaput,
-      'motorNo': motorNo,
       'arkaTampon': arkaTampon,
       'arkaCamurluklar': arkaCamurluklar,
       'bagajKapagi': bagajKapagi,
@@ -142,17 +227,14 @@ class Adim2DisEkspertizModel {
       'sagOnKapi': sagOnKapi,
       'solArkaKapi': solArkaKapi,
       'sagArkaKapi': sagArkaKapi,
-      'onKapi': onKapi,
-      'arkaKapi': arkaKapi,
       'tavan': tavan,
       'tavanTente': tavanTente,
       'onSasi': onSasi,
       'arkaSasi': arkaSasi,
-      'onCamurlar': onCamurlar,
-      'arkaCamurlar': arkaCamurlar,
       'onLastikler': onLastikler,
       'arkaLastikler': arkaLastikler,
       'genelNot': genelNot,
+      'motorNo': motorNo,
       'aciklamalar': aciklamalar,
       'fotografUrl': fotografUrl,
       'fotografYolu': fotografYolu,
@@ -161,34 +243,13 @@ class Adim2DisEkspertizModel {
     };
   }
 
-  /// Modeli kopyalar ve belirtilen alanları günceller
   Adim2DisEkspertizModel copyWith({
     String? gorevId,
     String? personelId,
-    String? onTampon,
-    String? onFarlar,
-    String? onCamurluklar,
-    String? onKaput,
-    String? motorNo,
-    String? arkaTampon,
-    String? arkaCamurluklar,
-    String? bagajKapagi,
-    String? solOnKapi,
-    String? sagOnKapi,
-    String? solArkaKapi,
-    String? sagArkaKapi,
-    String? onKapi,
-    String? arkaKapi,
-    String? tavan,
-    String? tavanTente,
-    String? onSasi,
-    String? arkaSasi,
-    String? onCamurlar,
-    String? arkaCamurlar,
-    String? onLastikler,
-    String? arkaLastikler,
-    String? genelNot,
+    Map<String, String>? durumlar,
     Map<String, String>? aciklamalar,
+    String? genelNot,
+    String? motorNo,
     Map<String, List<String>>? fotografUrl,
     Map<String, String>? fotografYolu,
     List<String>? fotografUrlleri,
@@ -196,87 +257,22 @@ class Adim2DisEkspertizModel {
     return Adim2DisEkspertizModel(
       gorevId: gorevId ?? this.gorevId,
       personelId: personelId ?? this.personelId,
-      onTampon: onTampon ?? this.onTampon,
-      onFarlar: onFarlar ?? this.onFarlar,
-      onCamurluklar: onCamurluklar ?? this.onCamurluklar,
-      onKaput: onKaput ?? this.onKaput,
-      motorNo: motorNo ?? this.motorNo,
-      arkaTampon: arkaTampon ?? this.arkaTampon,
-      arkaCamurluklar: arkaCamurluklar ?? this.arkaCamurluklar,
-      bagajKapagi: bagajKapagi ?? this.bagajKapagi,
-      solOnKapi: solOnKapi ?? this.solOnKapi,
-      sagOnKapi: sagOnKapi ?? this.sagOnKapi,
-      solArkaKapi: solArkaKapi ?? this.solArkaKapi,
-      sagArkaKapi: sagArkaKapi ?? this.sagArkaKapi,
-      onKapi: onKapi ?? this.onKapi,
-      arkaKapi: arkaKapi ?? this.arkaKapi,
-      tavan: tavan ?? this.tavan,
-      tavanTente: tavanTente ?? this.tavanTente,
-      onSasi: onSasi ?? this.onSasi,
-      arkaSasi: arkaSasi ?? this.arkaSasi,
-      onCamurlar: onCamurlar ?? this.onCamurlar,
-      arkaCamurlar: arkaCamurlar ?? this.arkaCamurlar,
-      onLastikler: onLastikler ?? this.onLastikler,
-      arkaLastikler: arkaLastikler ?? this.arkaLastikler,
-      genelNot: genelNot ?? this.genelNot,
+      durumlar: durumlar ?? this.durumlar,
       aciklamalar: aciklamalar ?? this.aciklamalar,
+      genelNot: genelNot ?? this.genelNot,
+      motorNo: motorNo ?? this.motorNo,
       fotografUrl: fotografUrl ?? this.fotografUrl,
       fotografYolu: fotografYolu ?? this.fotografYolu,
       fotografUrlleri: fotografUrlleri ?? this.fotografUrlleri,
     );
   }
 
-  /// Tüm durum alanlarının doldurulup doldurulmadığını kontrol eder
-  bool get isValid {
-    return onTampon != null &&
-        onFarlar != null &&
-        onCamurluklar != null &&
-        onKaput != null &&
-        arkaTampon != null &&
-        arkaCamurluklar != null &&
-        bagajKapagi != null &&
-        solOnKapi != null &&
-        sagOnKapi != null &&
-        solArkaKapi != null &&
-        sagArkaKapi != null &&
-        tavan != null &&
-        onLastikler != null &&
-        arkaLastikler != null;
-  }
-
-  /// Doldurulmuş alan sayısı
-  int get filledFields {
-    int count = 0;
-    final fields = [
-      onTampon, onFarlar, onCamurluklar, onKaput,
-      arkaTampon, arkaCamurluklar, bagajKapagi,
-      solOnKapi, sagOnKapi, solArkaKapi, sagArkaKapi,
-      tavan, onLastikler, arkaLastikler
-    ];
-    for (final field in fields) {
-      if (field != null) count++;
-    }
-    return count;
-  }
-
-  /// Toplam alan sayısı
-  int get totalFields => 14;
-
-  /// Dolum yüzdesi
-  double get completionPercentage => filledFields / totalFields;
-
-  /// String reprazantasyonu
   @override
-  String toString() {
-    return 'Adim2DisEkspertizModel(durum: $filledFields/$totalFields)';
+  String toString() => 'Adim2DisEkspertizModel(durum: $filledFields/$totalFields)';
+
+  static Adim2DisEkspertizModel empty({String? gorevId, String? personelId}) {
+    return Adim2DisEkspertizModel(gorevId: gorevId ?? '', personelId: personelId ?? '');
   }
 
-  /// Boş model oluştur
-  static Adim2DisEkspertizModel empty({String? gorevId, String? personelId}) {
-    return Adim2DisEkspertizModel(
-      gorevId: gorevId ?? '',
-      personelId: personelId ?? '',
-    );
-  }
-  bool get isEmpty => gorevId.isEmpty;
+  bool get isEmpty => durumlar.isEmpty;
 }

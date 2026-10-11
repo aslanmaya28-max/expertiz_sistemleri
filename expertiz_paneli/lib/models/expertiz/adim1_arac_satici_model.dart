@@ -90,29 +90,29 @@ class Adim1AracSaticiModel {
   /// JSON'dan Adim1AracSaticiModel nesnesi oluştur
   factory Adim1AracSaticiModel.fromJson(Map<String, dynamic> json) {
     return Adim1AracSaticiModel(
-      gorevId: json['gorevId'] as String,
-      personelId: json['personelId'] as String,
-      marka: json['marka'] as String,
-      model: json['model'] as String,
-      yakitTuru: json['yakitTuru'] as String,
-      yil: json['yil'] as String?,
-      plaka: json['plaka'] as String,
-      saseNo: json['saseNo'] as String,
+      gorevId: json['gorevId']?.toString() ?? '',
+      personelId: json['personelId']?.toString() ?? '',
+      marka: json['marka']?.toString() ?? '',
+      model: json['model']?.toString() ?? '',
+      yakitTuru: json['yakitTuru']?.toString() ?? '',
+      yil: json['yil']?.toString(),
+      plaka: json['plaka']?.toString() ?? '',
+      saseNo: json['saseNo']?.toString() ?? '',
       motorNo: json['motorNo'] as String? ?? '', // Geriye dönük uyumluluk
-      guncelKm: json['guncelKm'] as int,
+      guncelKm: (json['guncelKm'] as num?)?.toInt() ?? 0,
       enSonBakimTarihi: json['enSonBakimTarihi'] != null
-          ? DateTime.parse(json['enSonBakimTarihi'] as String)
+          ? DateTime.tryParse(json['enSonBakimTarihi'].toString())
           : null,
       sonMuayeneTarihi: json['sonMuayeneTarihi'] != null
-          ? DateTime.parse(json['sonMuayeneTarihi'] as String)
+          ? DateTime.tryParse(json['sonMuayeneTarihi'].toString())
           : null,
       paket: json['paket'] as String?,
-      hasarKayitAdet: json['hasarKayitAdet'] as int?,
-      hasarKayitToplamTutar: json['hasarKayitToplamTutar'] as double?,
-      ruhsatSahibiAdSoyad: json['ruhsatSahibiAdSoyad'] as String,
-      iletisimTelefon: json['iletisimTelefon'] as String,
+      hasarKayitAdet: (json['hasarKayitAdet'] as num?)?.toInt(),
+      hasarKayitToplamTutar: (json['hasarKayitToplamTutar'] as num?)?.toDouble(),
+      ruhsatSahibiAdSoyad: json['ruhsatSahibiAdSoyad']?.toString() ?? '',
+      iletisimTelefon: json['iletisimTelefon']?.toString() ?? '',
       pazarlikPayiVar: json['pazarlikPayiVar'] as bool? ?? false,
-      pazarlikMiktari: json['pazarlikMiktari'] as double?,
+      pazarlikMiktari: (json['pazarlikMiktari'] as num?)?.toDouble(),
       genelNot: json['genelNot'] as String?,
       durumSorular: (json['durumSorular'] as List<dynamic>?)
               ?.map((e) => DurumluSoru.fromJson(e as Map<String, dynamic>))
@@ -286,5 +286,5 @@ class Adim1AracSaticiModel {
       iletisimTelefon: '',
     );
   }
-  bool get isEmpty => gorevId.isEmpty;
+  bool get isEmpty => marka.isEmpty && model.isEmpty && saseNo.isEmpty;
 }

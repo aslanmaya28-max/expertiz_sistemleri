@@ -105,6 +105,33 @@ export interface ExpertizRequestSummary {
   vehicle?: Record<string, unknown>;
 }
 
+/** Ekspertiz fotografi veya kurumsal rapor dosyasi (sureli imzali baglanti) */
+export interface ReportMedia {
+  id: string;
+  category: "inspection_photo" | "corporate_report" | string;
+  section?: string | null;
+  item_key?: string | null;
+  item_label?: string | null;
+  note?: string;
+  content_type?: string;
+  is_image?: boolean;
+  original_name?: string | null;
+  created_at?: string;
+  url: string;
+}
+
+/** Saha raporundaki kontrol maddesi (Flutter rapor JSON'undaki kontrolListesi) */
+export interface ReportChecklistItem {
+  key: string;
+  label: string;
+  grup: string;
+  durum?: string | null;
+  durumEtiket?: string;
+  eksiklik?: boolean;
+  not?: string | null;
+  mikron?: number | null;
+}
+
 export interface ExpertizReportSummary {
   id: string;
   status: string;
@@ -120,6 +147,9 @@ export interface ExpertizReportSummary {
     damage_amount?: number | null;
     total_tl?: number | null;
   };
+  media?: ReportMedia[];
+  photos?: ReportMedia[];
+  corporate_reports?: ReportMedia[];
 }
 
 export interface ExpertizRequestsResponse {

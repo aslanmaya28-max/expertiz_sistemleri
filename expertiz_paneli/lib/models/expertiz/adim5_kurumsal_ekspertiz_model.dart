@@ -42,6 +42,17 @@ class Adim5KurumsalEkspertizModel {
   String? genelNot;
   List<String> fotografUrlleri;
 
+  // 🏢 KURUMSAL EKSPERTİZ RAPORU (müşteri anlaşmalı firma paketi seçtiyse)
+  /// Müşteri kurumsal ekspertiz talep etti mi? (talepten gelir)
+  bool kurumsalTalepVar;
+  String? kurumsalFirma;
+  String? kurumsalPaket;
+  String? kurumsalRaporNo;
+  DateTime? kurumsalRaporTarihi;
+
+  /// Firmanın raporundaki sonuç özeti (personel girer)
+  String? kurumsalSonucOzeti;
+
   // Kayıt tarihi
   final DateTime kayitTarihi;
 
@@ -72,6 +83,12 @@ class Adim5KurumsalEkspertizModel {
     this.oneriler,
     this.genelNot,
     List<String>? fotografUrlleri,
+    this.kurumsalTalepVar = false,
+    this.kurumsalFirma,
+    this.kurumsalPaket,
+    this.kurumsalRaporNo,
+    this.kurumsalRaporTarihi,
+    this.kurumsalSonucOzeti,
   })  : ruhsatFotograflari = ruhsatFotograflari ?? [],
         bakimDefteriFotograflari = bakimDefteriFotograflari ?? [],
         sigortaFotograflari = sigortaFotograflari ?? [],
@@ -83,8 +100,8 @@ class Adim5KurumsalEkspertizModel {
   /// JSON'dan Adim5KurumsalEkspertizModel nesnesi oluştur
   factory Adim5KurumsalEkspertizModel.fromJson(Map<String, dynamic> json) {
     return Adim5KurumsalEkspertizModel(
-      gorevId: json['gorevId'] as String,
-      personelId: json['personelId'] as String,
+      gorevId: json['gorevId']?.toString() ?? '',
+      personelId: json['personelId']?.toString() ?? '',
       ruhsatDosyasiVar: json['ruhsatDosyasiVar'] as bool?,
       bakimDefteriVar: json['bakimDefteriVar'] as bool?,
       sigortaPolicesiVar: json['sigortaPolicesiVar'] as bool?,
@@ -99,16 +116,22 @@ class Adim5KurumsalEkspertizModel {
       direksiyonSistemi: json['direksiyonSistemi'] as String?,
       elektrikSistemi: json['elektrikSistemi'] as String?,
       yakitTipi: json['yakitTipi'] as String?,
-      bataryaSagligi: json['bataryaSagligi'] as double?,
+      bataryaSagligi: (json['bataryaSagligi'] as num?)?.toDouble(),
       tahminiMenzil: json['tahminiMenzil'] as String?,
       sarjPortuKondisyonu: json['sarjPortuKondisyonu'] as String?,
       yazilimSurumu: json['yazilimSurumu'] as String?,
       ekstraOpsiyonlar: (json['ekstraOpsiyonlar'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
-      genelPuan: json['genelPuan'] as double?,
+      genelPuan: (json['genelPuan'] as num?)?.toDouble(),
       ozetNot: json['ozetNot'] as String?,
       oneriler: json['oneriler'] as String?,
       genelNot: json['genelNot'] as String?,
       fotografUrlleri: (json['fotografUrlleri'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
+      kurumsalTalepVar: json['kurumsalTalepVar'] as bool? ?? false,
+      kurumsalFirma: json['kurumsalFirma'] as String?,
+      kurumsalPaket: json['kurumsalPaket'] as String?,
+      kurumsalRaporNo: json['kurumsalRaporNo'] as String?,
+      kurumsalRaporTarihi: DateTime.tryParse(json['kurumsalRaporTarihi']?.toString() ?? ''),
+      kurumsalSonucOzeti: json['kurumsalSonucOzeti'] as String?,
     );
   }
 
@@ -141,6 +164,12 @@ class Adim5KurumsalEkspertizModel {
       'oneriler': oneriler,
       'genelNot': genelNot,
       'fotografUrlleri': fotografUrlleri,
+      'kurumsalTalepVar': kurumsalTalepVar,
+      'kurumsalFirma': kurumsalFirma,
+      'kurumsalPaket': kurumsalPaket,
+      'kurumsalRaporNo': kurumsalRaporNo,
+      'kurumsalRaporTarihi': kurumsalRaporTarihi?.toIso8601String(),
+      'kurumsalSonucOzeti': kurumsalSonucOzeti,
       'kayitTarihi': kayitTarihi.toIso8601String(),
     };
   }
@@ -173,6 +202,12 @@ class Adim5KurumsalEkspertizModel {
     String? oneriler,
     String? genelNot,
     List<String>? fotografUrlleri,
+    bool? kurumsalTalepVar,
+    String? kurumsalFirma,
+    String? kurumsalPaket,
+    String? kurumsalRaporNo,
+    DateTime? kurumsalRaporTarihi,
+    String? kurumsalSonucOzeti,
   }) {
     return Adim5KurumsalEkspertizModel(
       gorevId: gorevId ?? this.gorevId,
@@ -201,36 +236,37 @@ class Adim5KurumsalEkspertizModel {
       oneriler: oneriler ?? this.oneriler,
       genelNot: genelNot ?? this.genelNot,
       fotografUrlleri: fotografUrlleri ?? this.fotografUrlleri,
+      kurumsalTalepVar: kurumsalTalepVar ?? this.kurumsalTalepVar,
+      kurumsalFirma: kurumsalFirma ?? this.kurumsalFirma,
+      kurumsalPaket: kurumsalPaket ?? this.kurumsalPaket,
+      kurumsalRaporNo: kurumsalRaporNo ?? this.kurumsalRaporNo,
+      kurumsalRaporTarihi: kurumsalRaporTarihi ?? this.kurumsalRaporTarihi,
+      kurumsalSonucOzeti: kurumsalSonucOzeti ?? this.kurumsalSonucOzeti,
     );
   }
 
-  /// Tüm durum alanlarının doldurulup doldurulmadığını kontrol eder
+  /// Adım geçerliliği.
+  ///
+  /// Mekanik kontroller kurumsal firmanın raporundan gelir ve opsiyoneldir.
+  /// Müşteri kurumsal ekspertiz talep ettiyse rapor numarası zorunludur;
+  /// rapor dosyasının eklenmiş olması ayrıca kontrol edilir (ExpertizProvider).
   bool get isValid {
-    return motorDurumu != null &&
-        sanzimanDurumu != null &&
-        frenSistemi != null &&
-        direksiyonSistemi != null &&
-        elektrikSistemi != null &&
-        genelPuan != null &&
-        genelPuan! >= 0 &&
-        genelPuan! <= 100;
+    final puanGecerli = genelPuan == null || (genelPuan! >= 0 && genelPuan! <= 100);
+    final kurumsalGecerli = !kurumsalTalepVar || (kurumsalRaporNo?.trim().isNotEmpty ?? false);
+    return puanGecerli && kurumsalGecerli;
   }
 
-  /// Doldurulmuş alan sayısı
+  /// Doldurulmuş alan sayısı (kurumsal talep varsa rapor no ve sonuç özeti)
   int get filledFields {
+    if (!kurumsalTalepVar) return 1;
     int count = 0;
-    final fields = [
-      motorDurumu, sanzimanDurumu, frenSistemi,
-      direksiyonSistemi, elektrikSistemi
-    ];
-    for (final field in fields) {
-      if (field != null) count++;
-    }
+    if (kurumsalRaporNo?.trim().isNotEmpty ?? false) count++;
+    if (kurumsalSonucOzeti?.trim().isNotEmpty ?? false) count++;
     return count;
   }
 
   /// Toplam alan sayısı
-  int get totalFields => 5;
+  int get totalFields => kurumsalTalepVar ? 2 : 1;
 
   /// Dolum yüzdesi
   double get completionPercentage => filledFields / totalFields;
@@ -301,5 +337,10 @@ class Adim5KurumsalEkspertizModel {
   }
 
   /// Modelin boş olup olmadığını kontrol eder
-  bool get isEmpty => gorevId.isEmpty || personelId.isEmpty;
+  bool get isEmpty =>
+      (kurumsalRaporNo ?? '').isEmpty &&
+      (kurumsalSonucOzeti ?? '').isEmpty &&
+      motorDurumu == null &&
+      genelPuan == null &&
+      (genelNot ?? '').isEmpty;
 }
