@@ -529,9 +529,36 @@ def _admin_report(row: Dict[str, Any]) -> Dict[str, Any]:
             "ai_analysis_result": row.get("ai_analysis_result"),
             "ai_meta": _ai_meta_from_row(row),
             "can_publish": row.get("status") == "pending_admin" and _has_official_central_ai(row),
+            # Admin rapor inceleme ekraninin kullandigi ham alanlar
+            "user_id": row.get("user_id"),
+            "plaka": row.get("plaka"),
+            "sehir": row.get("sehir"),
+            "ekspertiz_firmasi": row.get("ekspertiz_firmasi") or row.get("firma"),
+            "hizmet_bedeli": row.get("hizmet_bedeli"),
+            "paket_fiyati": row.get("paket_fiyati"),
+            "toplam_tutar": row.get("toplam_tutar"),
+            "odendi_mi": row.get("odendi_mi"),
+            "ai_analizi_yapildi_mi": bool(row.get("ai_analizi_yapildi_mi")),
+            "inspection": data.get("inspection") if isinstance(data, dict) else None,
         }
     )
     return public
+
+
+def _attach_media(cursor: Any, reports: List[Dict[str, Any]], categories: Optional[List[str]] = None) -> None:
+    """Rapor(lar)a imzali URL'li fotograf / kurumsal rapor listesini ekler."""
+    from yerimebak_ai_v5.services import media_service
+
+    try:
+        media = media_service.list_media(cursor, [str(r.get("id")) for r in reports], categories)
+    except Exception:
+        # report_media tablosu henuz yoksa (sema acilista kurulur) rapor yine doner
+        media = {}
+    for report in reports:
+        items = media.get(str(report.get("id")), [])
+        report["media"] = items
+        report["photos"] = [m for m in items if m["category"] == "inspection_photo"]
+        report["corporate_reports"] = [m for m in items if m["category"] == "corporate_report"]
 
 
 def list_customer_requests(user: Dict[str, Any]) -> Dict[str, Any]:
@@ -579,7 +606,9 @@ def list_customer_reports(user: Dict[str, Any]) -> Dict[str, Any]:
             (profile_id, profile_id),
         )
         rows = [_row_to_dict(row) for row in cursor.fetchall()]
-        return {"success": True, "reports": [_public_report(row) for row in rows]}
+        reports = [_public_report(row) for row in rows]
+        _attach_media(cursor, reports, ["inspection_photo", "corporate_report"])
+        return {"success": True, "reports": reports}
     finally:
         DatabaseConfig.return_connection(conn)
 
@@ -594,7 +623,7 @@ def get_customer_report(report_id: str, user: Dict[str, Any]) -> Dict[str, Any]:
             """
             SELECT *
             FROM reports
-            WHERE id = %s
+            WHERE id::text = %s
               AND status = 'published'
               AND (user_id = %s OR customer_id = %s)
             LIMIT 1
@@ -604,7 +633,10 @@ def get_customer_report(report_id: str, user: Dict[str, Any]) -> Dict[str, Any]:
         row = _row_to_dict(cursor.fetchone())
         if not row:
             return {"error": "Rapor bulunamadi veya henuz yayinlanmadi"}
-        return {"success": True, "report": _public_report(row)}
+        report = _public_report(row)
+        # Musteri sadece yayinlanmis raporun fotograflarini ve kurumsal raporunu gorur
+        _attach_media(cursor, [report], ["inspection_photo", "corporate_report"])
+        return {"success": True, "report": report}
     finally:
         DatabaseConfig.return_connection(conn)
 
@@ -638,7 +670,9 @@ def list_admin_reports(status: Optional[str] = None, limit: int = 100) -> Dict[s
                 (safe_limit,),
             )
         rows = [_row_to_dict(row) for row in cursor.fetchall()]
-        return {"success": True, "reports": [_admin_report(row) for row in rows], "total": len(rows)}
+        reports = [_admin_report(row) for row in rows]
+        _attach_media(cursor, reports)
+        return {"success": True, "reports": reports, "total": len(rows)}
     finally:
         DatabaseConfig.return_connection(conn)
 
@@ -648,11 +682,13 @@ def get_admin_report(report_id: str) -> Dict[str, Any]:
     try:
         cursor = conn.cursor()
         _ensure_reports_schema(cursor)
-        cursor.execute("SELECT * FROM reports WHERE id = %s LIMIT 1", (report_id,))
+        cursor.execute("SELECT * FROM reports WHERE id::text = %s LIMIT 1", (str(report_id),))
         row = _row_to_dict(cursor.fetchone())
         if not row:
             return {"error": "Rapor bulunamadi"}
-        return {"success": True, "report": _admin_report(row)}
+        report = _admin_report(row)
+        _attach_media(cursor, [report])
+        return {"success": True, "report": report}
     finally:
         DatabaseConfig.return_connection(conn)
 
@@ -696,7 +732,7 @@ def publish_admin_report(report_id: str, admin: Dict[str, Any]) -> Dict[str, Any
     try:
         cursor = conn.cursor()
         _ensure_reports_schema(cursor)
-        cursor.execute("SELECT * FROM reports WHERE id = %s LIMIT 1", (report_id,))
+        cursor.execute("SELECT * FROM reports WHERE id::text = %s LIMIT 1", (str(report_id),))
         row = _row_to_dict(cursor.fetchone())
         if not row:
             return {"error": "Rapor bulunamadi", "http_status": 404}
@@ -753,7 +789,7 @@ def reject_admin_report(report_id: str, reason: str, admin: Dict[str, Any]) -> D
     try:
         cursor = conn.cursor()
         _ensure_reports_schema(cursor)
-        cursor.execute("SELECT * FROM reports WHERE id = %s LIMIT 1", (report_id,))
+        cursor.execute("SELECT * FROM reports WHERE id::text = %s LIMIT 1", (str(report_id),))
         row = _row_to_dict(cursor.fetchone())
         if not row:
             return {"error": "Rapor bulunamadi", "http_status": 404}

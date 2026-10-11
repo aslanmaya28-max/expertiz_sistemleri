@@ -58,8 +58,8 @@ class TamRaporModel {
   /// JSON'dan TamRaporModel nesnesi oluştur
   factory TamRaporModel.fromJson(Map<String, dynamic> json) {
     final model = TamRaporModel(
-      gorevId: json['gorevId'] as String,
-      personelId: json['personelId'] as String,
+      gorevId: json['gorevId']?.toString() ?? '',
+      personelId: json['personelId']?.toString() ?? '',
       adim1: Adim1AracSaticiModel.fromJson(json['adim1'] as Map<String, dynamic>),
       adim2: Adim2DisEkspertizModel.fromJson(json['adim2'] as Map<String, dynamic>),
       adim3: Adim3IcEkspertizModel.fromJson(json['adim3'] as Map<String, dynamic>),
@@ -67,7 +67,7 @@ class TamRaporModel {
       adim5: Adim5KurumsalEkspertizModel.fromJson(json['adim5'] as Map<String, dynamic>),
       genelNot: json['genelNot'] as String?,
       oneriler: json['oneriler'] as String?,
-      genelPuan: json['genelPuan'] as double?,
+      genelPuan: (json['genelPuan'] as num?)?.toDouble(),
       durum: json['durum'] as String? ?? 'Onay Bekliyor',
       aiAnalizSonucu: json['aiAnalizSonucu'] != null
           ? AIAnalizSonucu.fromJson(json['aiAnalizSonucu'] as Map<String, dynamic>)
@@ -77,10 +77,10 @@ class TamRaporModel {
     // baslangicZamani ve bitisZamani JSON'dan okunur
     return model.copyWith(
       baslangicZamani: json['baslangicZamani'] != null
-          ? DateTime.parse(json['baslangicZamani'] as String)
+          ? DateTime.tryParse(json['baslangicZamani'].toString()) ?? DateTime.now()
           : DateTime.now(),
       bitisZamani: json['bitisZamani'] != null
-          ? DateTime.parse(json['bitisZamani'] as String)
+          ? DateTime.tryParse(json['bitisZamani'].toString())
           : null,
     );
   }

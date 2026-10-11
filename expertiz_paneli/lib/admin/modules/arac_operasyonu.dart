@@ -294,6 +294,11 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
         icon: const Icon(Icons.person_add, size: 18),
         label: const Text('Personel Ata'),
       ));
+    } else if (bucket == 'pending_approval') {
+      actions.add(const Text(
+        'Personel raporu gönderdi • İncelemek ve yayınlamak için "Raporlar" sekmesini açın',
+        style: TextStyle(color: Colors.white54, fontSize: 12),
+      ));
     } else if (bucket == 'in_progress') {
       actions.addAll([
         OutlinedButton.icon(

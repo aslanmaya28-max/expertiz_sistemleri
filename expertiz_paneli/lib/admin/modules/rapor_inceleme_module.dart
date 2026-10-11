@@ -1,8 +1,15 @@
 ﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'dart:typed_data';
+
+import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../models/expertiz/adim2_dis_ekspertiz_model.dart';
+import '../../models/expertiz/adim3_ic_ekspertiz_model.dart';
+import '../../models/expertiz/adim4_boya_kaporta_model.dart';
+import '../../models/expertiz/kontrol_listesi.dart';
+import '../../models/expertiz/rapor_medya.dart';
 import '../../models/expertiz/tam_rapor_model.dart';
 import '../../models/ai/ai_analiz_sonucu_model.dart';
 import '../../providers/admin_provider.dart';
@@ -25,62 +32,200 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
   AIAnalizSonucu? _aiSonucu;
   bool _isLoading = true;
   bool _isProcessing = false;
-  StreamSubscription? _reportSubscription;
+  Timer? _refreshTimer;
   final YerimebakExpertizApiService _expertizApi = YerimebakExpertizApiService();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _loadReports();
-    _subscribeToReports();
+    // Personelin gönderdiği yeni raporlar ekran açıkken de düşsün
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) => _loadReports(silent: true));
   }
 
   @override
   void dispose() {
     _tabController.dispose();
-    _reportSubscription?.cancel();
+    _refreshTimer?.cancel();
     super.dispose();
   }
 
-  Future<void> _loadReports() async {
+  Future<void> _loadReports({bool silent = false}) async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
+    if (!silent) setState(() => _isLoading = true);
     try {
-      final client = Supabase.instance.client;
-      final response = await client
-          .from('reports')
-          .select()
-          .inFilter('status', ['pending_admin', 'pending_ai', 'published', 'rejected', 'draft'])
-          .order('status_updated_at', ascending: false);
-      if (mounted) {
-        setState(() {
-          _allReports = List<Map<String, dynamic>>.from(response);
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Rapor yukleme hatasi: $e');
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  void _subscribeToReports() {
-    try {
-      final stream = Supabase.instance.client
-          .from('reports')
-          .stream(primaryKey: ['id'])
-          .order('status_updated_at', ascending: false);
-      _reportSubscription = stream.listen((data) {
-        if (mounted) {
-          setState(() {
-            _allReports = List<Map<String, dynamic>>.from(data);
-          });
+      final response = await _expertizApi.getAdminReports(limit: 200);
+      final reports = (response['reports'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      // Önce admin onayı bekleyenler
+      const oncelik = {'pending_admin': 0, 'pending_ai': 1, 'rejected': 2, 'published': 3, 'draft': 4};
+      reports.sort((a, b) => (oncelik[a['status']] ?? 9).compareTo(oncelik[b['status']] ?? 9));
+      if (!mounted) return;
+      setState(() {
+        _allReports = reports;
+        _isLoading = false;
+        // Seçili raporu taze veriyle (yeni imzalı fotoğraf bağlantıları) güncelle
+        final selectedId = _selectedReport?['id'];
+        if (selectedId != null) {
+          final fresh = reports.where((r) => r['id'] == selectedId).firstOrNull;
+          if (fresh != null) {
+            _selectedReport = fresh;
+            _tamRapor = _parseTamRapor(fresh);
+            _aiSonucu = _parseAiSonuc(fresh);
+          }
         }
       });
     } catch (e) {
-      debugPrint('Stream hatasi: $e');
+      debugPrint('Rapor yukleme hatasi: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        if (!silent) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Raporlar yüklenemedi: $e')));
+        }
+      }
     }
+  }
+
+  List<RaporMedya> _medya(String kategori, {String? bolum, String? maddeKey}) {
+    return RaporMedya.listFrom(_selectedReport?['media'])
+        .where((m) => m.kategori == kategori && (bolum == null || m.bolum == bolum) && (maddeKey == null || m.maddeKey == maddeKey))
+        .toList();
+  }
+
+  String _url(RaporMedya medya) => _expertizApi.resolveUrl(medya.url);
+
+  Future<void> _medyaAc(RaporMedya medya) async {
+    if (medya.resimMi) {
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: Colors.black,
+          insetPadding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(child: InteractiveViewer(child: Image.network(_url(medya), fit: BoxFit.contain))),
+              if ((medya.maddeEtiket ?? '').isNotEmpty || medya.not.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    [medya.maddeEtiket, medya.not].where((e) => (e ?? '').isNotEmpty).join(' – '),
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+      return;
+    }
+    try {
+      final bytes = await _expertizApi.downloadBytes(medya.url);
+      await Printing.layoutPdf(onLayout: (_) async => Uint8List.fromList(bytes), name: medya.dosyaAdi ?? 'rapor.pdf');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Dosya açılamadı: $e')));
+      }
+    }
+  }
+
+  Widget _thumbnails(List<RaporMedya> fotolar, {double size = 64}) {
+    if (fotolar.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: fotolar
+            .map((m) => InkWell(
+                  onTap: () => _medyaAc(m),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: Image.network(
+                      _url(m),
+                      width: size,
+                      height: size,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: size,
+                        height: size,
+                        color: Colors.white10,
+                        child: const Icon(Icons.broken_image, color: Colors.white38),
+                      ),
+                    ),
+                  ),
+                ))
+            .toList(),
+      ),
+    );
+  }
+
+  /// Kontrol listesi bölümü: durum + not + o maddenin fotoğrafları
+  Widget _kontrolBolumu({
+    required String title,
+    required IconData icon,
+    required String bolum,
+    required List<KontrolMaddesi> maddeler,
+    required String? Function(String key) durum,
+    required String Function(String?) etiket,
+    required Color Function(String?) renk,
+    required bool Function(String?) eksiklik,
+    required String Function(String key) not,
+    int? Function(String key)? mikron,
+  }) {
+    final eksikler = maddeler.where((m) => eksiklik(durum(m.key))).length;
+    return _buildSectionCard(
+      title: '$title  •  $eksikler eksiklik',
+      icon: icon,
+      color: eksikler > 0 ? Colors.orange : null,
+      children: maddeler.map((m) {
+        final d = durum(m.key);
+        final fotolar = _medya(RaporMedya.kategoriFoto, bolum: bolum, maddeKey: m.key);
+        final n = not(m.key);
+        final mk = mikron?.call(m.key);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                SizedBox(
+                  width: 180,
+                  child: Text(m.label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: renk(d).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: renk(d).withValues(alpha: 0.6)),
+                  ),
+                  child: Text(etiket(d), style: TextStyle(color: renk(d), fontSize: 11, fontWeight: FontWeight.w600)),
+                ),
+                if (mk != null) ...[
+                  const SizedBox(width: 8),
+                  Text('$mk μm', style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                ],
+                if (fotolar.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Icon(Icons.photo_camera, size: 14, color: Colors.white.withValues(alpha: 0.5)),
+                  Text(' ${fotolar.length}', style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                ],
+              ],
+            ),
+            if (n.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(left: 180, top: 2),
+                child: Text(n, style: const TextStyle(color: Colors.white54, fontSize: 12, fontStyle: FontStyle.italic)),
+              ),
+            if (fotolar.isNotEmpty) Padding(padding: const EdgeInsets.only(left: 180), child: _thumbnails(fotolar)),
+            const SizedBox(height: 6),
+          ],
+        );
+      }).toList(),
+    );
   }
 
   void _selectReport(Map<String, dynamic> report) {
@@ -463,7 +608,7 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
         _buildDetailHeader(),
         Expanded(
           child: DefaultTabController(
-            length: 5,
+            length: 6,
             child: Column(
               children: [
                 TabBar(
@@ -477,6 +622,7 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
                     Tab(icon: Icon(Icons.directions_car), text: 'Adim 1-2'),
                     Tab(icon: Icon(Icons.event_seat), text: 'Adim 3-4'),
                     Tab(icon: Icon(Icons.business), text: 'Kurumsal'),
+                    Tab(icon: Icon(Icons.photo_library), text: 'Fotoğraflar'),
                     Tab(icon: Icon(Icons.psychology), text: 'AI Analiz'),
                   ],
                 ),
@@ -488,6 +634,7 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
                       _buildDisVeAracTab(),
                       _buildIcVeBoyaTab(),
                       _buildKurumsalTab(),
+                      _buildFotograflarTab(),
                       _buildAiAnalizTab(),
                     ],
                   ),
@@ -676,30 +823,21 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
             ],
           ),
           const SizedBox(height: 16),
-          _buildSectionCard(
-            title: 'Adim 2: Dis Ekspertiz',
+          _kontrolBolumu(
+            title: 'Adım 2: Dış Ekspertiz',
             icon: Icons.search,
-            children: [
-              _buildDurumRow('On Tampon', rapor.adim2.onTampon),
-              _buildDurumRow('On Farlar', rapor.adim2.onFarlar),
-              _buildDurumRow('On Camurluklar', rapor.adim2.onCamurluklar),
-              _buildDurumRow('On Kaput', rapor.adim2.onKaput),
-              _buildDurumRow('Arka Tampon', rapor.adim2.arkaTampon),
-              _buildDurumRow('Arka Camurluklar', rapor.adim2.arkaCamurluklar),
-              _buildDurumRow('Bagaj Kapagi', rapor.adim2.bagajKapagi),
-              _buildDurumRow('Sol On Kapi', rapor.adim2.solOnKapi),
-              _buildDurumRow('Sag On Kapi', rapor.adim2.sagOnKapi),
-              _buildDurumRow('Sol Arka Kapi', rapor.adim2.solArkaKapi),
-              _buildDurumRow('Sag Arka Kapi', rapor.adim2.sagArkaKapi),
-              _buildDurumRow('Tavan', rapor.adim2.tavan),
-              _buildDurumRow('On Sasi', rapor.adim2.onSasi),
-              _buildDurumRow('Arka Sasi', rapor.adim2.arkaSasi),
-              _buildDurumRow('On Lastikler', rapor.adim2.onLastikler),
-              _buildDurumRow('Arka Lastikler', rapor.adim2.arkaLastikler),
-              if (rapor.adim2.genelNot != null)
-                _buildInfoRow('Not', rapor.adim2.genelNot!),
-            ],
+            bolum: 'dis',
+            maddeler: Adim2DisEkspertizModel.maddeler,
+            durum: rapor.adim2.durum,
+            etiket: KontrolDurumu.etiket,
+            renk: KontrolDurumu.renk,
+            eksiklik: KontrolDurumu.eksiklikMi,
+            not: rapor.adim2.not,
           ),
+          if ((rapor.adim2.genelNot ?? '').isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildInfoRow('Dış ekspertiz notu', rapor.adim2.genelNot!),
+          ],
         ],
       ),
     );
@@ -715,38 +853,71 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionCard(
-            title: 'Adim 3: Ic Ekspertiz',
+          _kontrolBolumu(
+            title: 'Adım 3: İç Ekspertiz',
             icon: Icons.event_seat,
+            bolum: 'ic',
+            maddeler: Adim3IcEkspertizModel.maddeler,
+            durum: rapor.adim3.durum,
+            etiket: KontrolDurumu.etiket,
+            renk: KontrolDurumu.renk,
+            eksiklik: KontrolDurumu.eksiklikMi,
+            not: rapor.adim3.not,
+          ),
+          if ((rapor.adim3.genelNot ?? '').isNotEmpty) _buildInfoRow('İç ekspertiz notu', rapor.adim3.genelNot!),
+          const SizedBox(height: 16),
+          _buildSectionCard(
+            title: 'Adım 4: Boya / Kaporta Özeti',
+            icon: Icons.color_lens,
             children: [
-              _buildDurumRow('Direksiyon', rapor.adim3.direksiyon),
-              _buildDurumRow('Gosterge Paneli', rapor.adim3.gostergePaneli),
-              _buildDurumRow('Klima', rapor.adim3.klima),
-              _buildDurumRow('Ses Sistemi', rapor.adim3.sesSistemi),
-              _buildDurumRow('On Koltuklar', rapor.adim3.onKoltuklar),
-              _buildDurumRow('Arka Koltuklar', rapor.adim3.arkaKoltuklar),
-              _buildDurumRow('Koltuk Dosemesi', rapor.adim3.koltukDosemesi),
-              _buildDurumRow('Doseme', rapor.adim3.dorseme),
-              _buildDurumRow('Tavan Dosemesi', rapor.adim3.tavanDosemesi),
-              _buildDurumRow('On Pencereler', rapor.adim3.onPencereler),
-              _buildDurumRow('Arka Pencereler', rapor.adim3.arkaPencereler),
-              _buildDurumRow('Merkezi Kilitle', rapor.adim3.merkeziKilit),
-              _buildDurumRow('Cam Kontrolleri', rapor.adim3.camKontrolleri),
-              _buildDurumRow('Ayna Kontrolleri', rapor.adim3.aynaKontrolleri),
-              if (rapor.adim3.genelNot != null)
-                _buildInfoRow('Not', rapor.adim3.genelNot!),
+              _buildInfoRow('Boyalı parçalar', rapor.adim4.boyaliParcalar.isEmpty ? '-' : rapor.adim4.boyaliParcalar.join(', ')),
+              _buildInfoRow('Değişen parçalar', rapor.adim4.degisenParcalar.isEmpty ? '-' : rapor.adim4.degisenParcalar.join(', ')),
+              _buildInfoRow('Hasar sayısı', '${rapor.adim4.hasarSayisi}'),
+              if ((rapor.adim4.genelNot ?? '').isNotEmpty) _buildInfoRow('Genel not', rapor.adim4.genelNot!),
             ],
           ),
           const SizedBox(height: 16),
-          _buildSectionCard(
-            title: 'Adim 4: Boya / Kaporta',
-            icon: Icons.color_lens,
-            children: [
-              _buildInfoRow('Hasar Sayisi', '${rapor.adim4.hasarSayisi}'),
-              if (rapor.adim4.genelNot != null)
-                _buildInfoRow('Genel Not', rapor.adim4.genelNot!),
-            ],
+          _kontrolBolumu(
+            title: 'Kaporta Parçaları',
+            icon: Icons.car_repair,
+            bolum: 'boya_kaporta',
+            maddeler: Adim4BoyaKaportaModel.parcalar,
+            durum: (key) => rapor.adim4.parcaDurumlari[key],
+            etiket: ParcaDurumu.etiket,
+            renk: ParcaDurumu.renk,
+            eksiklik: ParcaDurumu.eksiklikMi,
+            not: rapor.adim4.not,
+            mikron: (key) => rapor.adim4.mikronlar[key],
           ),
+          const SizedBox(height: 16),
+          _kontrolBolumu(
+            title: 'Şasi ve Yapısal Elemanlar',
+            icon: Icons.construction,
+            bolum: 'boya_kaporta',
+            maddeler: Adim4BoyaKaportaModel.yapisal,
+            durum: (key) => rapor.adim4.yapisalDurumlar[key],
+            etiket: YapisalDurum.etiket,
+            renk: YapisalDurum.renk,
+            eksiklik: YapisalDurum.eksiklikMi,
+            not: rapor.adim4.not,
+          ),
+          if (rapor.adim4.hasarKayitlari.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildSectionCard(
+              title: 'Ek Hasar Kayıtları',
+              icon: Icons.warning_amber,
+              color: Colors.orange,
+              children: rapor.adim4.hasarKayitlari
+                  .map((h) => Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildInfoRow('${h.konum} (${h.tip})', '${h.buyukluk}${(h.not ?? '').isEmpty ? '' : ' – ${h.not}'}'),
+                          _thumbnails(_medya(RaporMedya.kategoriFoto, bolum: 'boya_kaporta', maddeKey: h.id)),
+                        ],
+                      ))
+                  .toList(),
+            ),
+          ],
         ],
       ),
     );
@@ -758,11 +929,38 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
       return _buildNoData('Kurumsal ekspertiz verisi yok');
     }
     final adim5 = rapor.adim5;
+    final kurumsalDosyalar = _medya(RaporMedya.kategoriKurumsal);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _buildSectionCard(
+            title: 'Kurumsal Ekspertiz Raporu',
+            icon: Icons.verified,
+            color: adim5.kurumsalTalepVar && kurumsalDosyalar.isEmpty ? Colors.red : null,
+            children: [
+              _buildInfoRow('Talep', adim5.kurumsalTalepVar ? 'Var' : 'Yok'),
+              if ((adim5.kurumsalFirma ?? '').isNotEmpty) _buildInfoRow('Firma', adim5.kurumsalFirma!),
+              if ((adim5.kurumsalPaket ?? '').isNotEmpty) _buildInfoRow('Paket', adim5.kurumsalPaket!),
+              if ((adim5.kurumsalRaporNo ?? '').isNotEmpty) _buildInfoRow('Rapor No', adim5.kurumsalRaporNo!),
+              if (adim5.kurumsalRaporTarihi != null)
+                _buildInfoRow('Rapor Tarihi', DateFormat('dd.MM.yyyy').format(adim5.kurumsalRaporTarihi!)),
+              if ((adim5.kurumsalSonucOzeti ?? '').isNotEmpty) _buildInfoRow('Sonuç Özeti', adim5.kurumsalSonucOzeti!),
+              if (kurumsalDosyalar.isEmpty)
+                const Text('Dosya eklenmemiş', style: TextStyle(color: Colors.white38))
+              else
+                ...kurumsalDosyalar.map((m) => ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(m.pdfMi ? Icons.picture_as_pdf : Icons.image, color: Colors.redAccent),
+                      title: Text(m.dosyaAdi ?? 'Kurumsal rapor', style: const TextStyle(color: Colors.white)),
+                      subtitle: const Text('Açmak için dokunun', style: TextStyle(color: Colors.white38)),
+                      onTap: () => _medyaAc(m),
+                    )),
+            ],
+          ),
+          const SizedBox(height: 16),
           _buildSectionCard(
             title: 'Adim 5: Kurumsal Ekspertiz',
             icon: Icons.business,
@@ -799,6 +997,54 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildFotograflarTab() {
+    final fotolar = _medya(RaporMedya.kategoriFoto);
+    if (fotolar.isEmpty) return _buildNoData('Bu raporda fotoğraf yok');
+    const bolumAdlari = {
+      'arac': 'Araç',
+      'dis': 'Dış Ekspertiz',
+      'ic': 'İç Ekspertiz',
+      'boya_kaporta': 'Boya / Kaporta',
+      'kurumsal': 'Kurumsal',
+      'genel': 'Genel',
+    };
+    final gruplar = <String, List<RaporMedya>>{};
+    for (final m in fotolar) {
+      gruplar.putIfAbsent(m.bolum ?? 'genel', () => []).add(m);
+    }
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        for (final entry in gruplar.entries) ...[
+          Text(
+            '${bolumAdlari[entry.key] ?? entry.key} (${entry.value.length})',
+            style: const TextStyle(color: FuturisticTheme.neon, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: entry.value
+                .map((m) => SizedBox(
+                      width: 150,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _thumbnails([m], size: 150),
+                          Text(m.maddeEtiket ?? '-', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                          if (m.not.isNotEmpty)
+                            Text(m.not, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                        ],
+                      ),
+                    ))
+                .toList(),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ],
     );
   }
 

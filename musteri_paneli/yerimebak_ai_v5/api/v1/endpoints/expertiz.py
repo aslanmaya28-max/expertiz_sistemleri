@@ -4,11 +4,12 @@ Kurumsal ekspertiz talep API'si.
 """
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from yerimebak_ai_v5.api.v1.endpoints.auth import get_admin_user, get_authenticated_user
-from yerimebak_ai_v5.services import dispatch_service
+from yerimebak_ai_v5.services import dispatch_service, media_service
 from yerimebak_ai_v5.services.expertiz_service import (
     create_expertiz_request,
     get_admin_report,
@@ -45,6 +46,10 @@ class AssignRequest(BaseModel):
 
 class UnassignRequest(BaseModel):
     reason: Optional[str] = None
+
+
+class TaskReportPayload(BaseModel):
+    tam_rapor: Dict[str, Any]
 
 
 def _raise_if_error(result: Dict[str, Any]) -> Dict[str, Any]:
@@ -209,3 +214,83 @@ async def personnel_accept_task(report_id: str, user: Dict[str, Any] = Depends(g
 @router.post("/personnel/tasks/{report_id}/start")
 async def personnel_start_task(report_id: str, user: Dict[str, Any] = Depends(get_personnel_user)) -> Dict[str, Any]:
     return _raise_if_error(dispatch_service.update_task_progress(report_id, user, "start"))
+
+
+
+# ---------------------------------------------------------------------------
+# Personel: saha raporu, fotograflar, kurumsal rapor, kaydet & gonder
+# ---------------------------------------------------------------------------
+
+@router.get("/personnel/tasks/{report_id}/report")
+async def personnel_task_report(report_id: str, user: Dict[str, Any] = Depends(get_personnel_user)) -> Dict[str, Any]:
+    return _raise_if_error(dispatch_service.get_task_report(report_id, user))
+
+
+@router.put("/personnel/tasks/{report_id}/draft")
+async def personnel_save_draft(
+    report_id: str,
+    payload: TaskReportPayload,
+    user: Dict[str, Any] = Depends(get_personnel_user),
+) -> Dict[str, Any]:
+    return _raise_if_error(dispatch_service.save_task_draft(report_id, user, payload.tam_rapor))
+
+
+@router.post("/personnel/tasks/{report_id}/media")
+async def personnel_upload_media(
+    report_id: str,
+    file: UploadFile = File(...),
+    category: str = Form("inspection_photo"),
+    section: Optional[str] = Form(None),
+    item_key: Optional[str] = Form(None),
+    item_label: Optional[str] = Form(None),
+    note: Optional[str] = Form(None),
+    user: Dict[str, Any] = Depends(get_personnel_user),
+) -> Dict[str, Any]:
+    # Sinirin bir byte fazlasini oku: buyuk dosyalar bellege tamamen alinmaz
+    content = await file.read(media_service.MAX_UPLOAD_BYTES + 1)
+    return _raise_if_error(
+        dispatch_service.upload_task_media(
+            report_id, user, content, file.filename, category, section, item_key, item_label, note
+        )
+    )
+
+
+@router.delete("/personnel/tasks/{report_id}/media/{media_id}")
+async def personnel_delete_media(
+    report_id: str,
+    media_id: str,
+    user: Dict[str, Any] = Depends(get_personnel_user),
+) -> Dict[str, Any]:
+    return _raise_if_error(dispatch_service.delete_task_media(report_id, media_id, user))
+
+
+@router.post("/personnel/tasks/{report_id}/submit")
+async def personnel_submit_report(
+    report_id: str,
+    payload: TaskReportPayload,
+    background_tasks: BackgroundTasks,
+    user: Dict[str, Any] = Depends(get_personnel_user),
+) -> Dict[str, Any]:
+    result = _raise_if_error(dispatch_service.submit_task_report(report_id, user, payload.tam_rapor))
+    # Merkezi AI analizi yanit dondukten sonra calisir; rapor bu arada
+    # admin panelinde "Onay Bekleyen" sekmesinde gorunur.
+    background_tasks.add_task(dispatch_service.run_central_ai, report_id)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Medya dosyasi (imzali URL ile)
+# ---------------------------------------------------------------------------
+
+@router.get("/media/{media_id}")
+async def get_media_file(media_id: str, exp: int = 0, sig: str = "") -> FileResponse:
+    result = media_service.open_media(media_id, exp, sig)
+    if "error" in result:
+        raise HTTPException(status_code=int(result.get("http_status") or 404), detail=result["error"])
+    return FileResponse(
+        result["path"],
+        media_type=result["content_type"],
+        filename=result["original_name"],
+        content_disposition_type="inline",
+        headers={"Cache-Control": "private, max-age=3600"},
+    )

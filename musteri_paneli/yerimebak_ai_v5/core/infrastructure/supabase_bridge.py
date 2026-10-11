@@ -139,10 +139,16 @@ class SupabaseBridge:
             if isinstance(adim1, dict):
                 vehicle_info["marka"] = adim1.get("marka", vehicle_info["brand"])
                 vehicle_info["model"] = adim1.get("model", vehicle_info["model"])
+                # AI worker "brand"/"model" anahtarlarini okur; personelin sahada
+                # dogruladigi bilgiler ilan bilgisinden onceliklidir.
+                if adim1.get("marka"):
+                    vehicle_info["brand"] = adim1["marka"]
+                if adim1.get("model"):
+                    vehicle_info["model"] = adim1["model"]
                 vehicle_info["yil"] = adim1.get("yil", vehicle_info["year"])
                 vehicle_info["km"] = adim1.get("guncelKm", vehicle_info["km"])
                 vehicle_info["paket"] = adim1.get("paket", "")
-                vehicle_info["yakit"] = adim1.get("yakit", "")
+                vehicle_info["yakit"] = adim1.get("yakit") or adim1.get("yakitTuru", "")
                 vehicle_info["sanziman"] = adim1.get("sanziman", "")
                 vehicle_info["renk"] = adim1.get("renk", "")
 

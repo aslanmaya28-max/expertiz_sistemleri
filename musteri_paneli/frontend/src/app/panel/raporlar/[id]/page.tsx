@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { getMyExpertizReport, type ExpertizReportDetailResponse } from "@/lib/api";
+import {
+  getMyExpertizReport,
+  type ExpertizReportDetailResponse,
+  type ReportChecklistItem,
+  type ReportMedia,
+} from "@/lib/api";
 import { useAuth } from "@/kancalar/yetkiKullan";
 
 function formatPrice(value?: number | null): string {
@@ -71,6 +76,13 @@ export default function MusteriRaporDetaySayfasi() {
   }
 
   const report = data.report;
+  const tamRapor = report.report as TamRapor;
+  const kurumsal = asRecord(tamRapor?.adim5) as Record<string, string | undefined> | undefined;
+  const bolumler = [
+    { baslik: "Dis ekspertiz", bolum: "dis", items: checklist(tamRapor?.adim2) },
+    { baslik: "Ic ekspertiz", bolum: "ic", items: checklist(tamRapor?.adim3) },
+    { baslik: "Boya / kaporta", bolum: "boya_kaporta", items: checklist(tamRapor?.adim4) },
+  ];
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -99,11 +111,166 @@ export default function MusteriRaporDetaySayfasi() {
           </div>
         )}
 
-        <div className="mt-6 rounded-lg bg-gray-50 p-4">
-          <div className="text-sm font-semibold text-metin-birincil">Arac ozeti</div>
-          <pre className="mt-3 max-h-80 overflow-auto text-xs text-metin-ikincil">{JSON.stringify(report.vehicle || {}, null, 2)}</pre>
-        </div>
+        <AracOzeti tamRapor={tamRapor} vehicle={report.vehicle} />
       </div>
+
+      {(report.corporate_reports?.length ?? 0) > 0 && (
+        <section className="mt-6 rounded-lg border border-kenarlik-acik bg-white p-6">
+          <h2 className="text-lg font-semibold text-metin-birincil">Kurumsal ekspertiz raporu</h2>
+          {kurumsal && (
+            <p className="mt-1 text-sm text-metin-ikincil">
+              {[kurumsal.kurumsalFirma, kurumsal.kurumsalPaket, kurumsal.kurumsalRaporNo && `Rapor No: ${kurumsal.kurumsalRaporNo}`]
+                .filter(Boolean)
+                .join(" • ")}
+            </p>
+          )}
+          {kurumsal?.kurumsalSonucOzeti && (
+            <p className="mt-3 text-sm leading-6 text-metin-ikincil">{String(kurumsal.kurumsalSonucOzeti)}</p>
+          )}
+          <ul className="mt-4 space-y-2">
+            {report.corporate_reports!.map((m) => (
+              <li key={m.id}>
+                <a
+                  href={m.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-lg border border-kenarlik-acik px-4 py-2 text-sm font-semibold text-birincil hover:bg-blue-50"
+                >
+                  {m.content_type === "application/pdf" ? "PDF" : "Gorsel"} – {m.original_name || "Kurumsal rapor"}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {bolumler.map((bolum) => (
+        <KontrolBolumu key={bolum.baslik} {...bolum} photos={report.photos ?? []} />
+      ))}
+
+      {(report.photos?.length ?? 0) > 0 && (
+        <section className="mt-6 rounded-lg border border-kenarlik-acik bg-white p-6">
+          <h2 className="text-lg font-semibold text-metin-birincil">Tum fotograflar ({report.photos!.length})</h2>
+          <FotoGaleri photos={report.photos!} />
+        </section>
+      )}
+    </div>
+  );
+}
+
+type TamRapor = Record<string, unknown> | null | undefined;
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+}
+
+function checklist(step: unknown): ReportChecklistItem[] {
+  const list = asRecord(step)?.kontrolListesi;
+  return Array.isArray(list) ? (list as ReportChecklistItem[]) : [];
+}
+
+function AracOzeti({ tamRapor, vehicle }: { tamRapor: TamRapor; vehicle?: Record<string, unknown> }) {
+  const adim1 = asRecord(tamRapor?.adim1);
+  const satirlar: [string, unknown][] = [
+    ["Marka / Model", adim1 ? `${adim1.marka ?? ""} ${adim1.model ?? ""}`.trim() : `${vehicle?.marka ?? ""} ${vehicle?.model ?? ""}`.trim()],
+    ["Model yili", adim1?.yil ?? vehicle?.yil],
+    ["Kilometre", adim1?.guncelKm ?? vehicle?.km],
+    ["Yakit", adim1?.yakitTuru],
+    ["Plaka", adim1?.plaka ?? vehicle?.plaka],
+  ];
+  return (
+    <div className="mt-6 rounded-lg bg-gray-50 p-4">
+      <div className="text-sm font-semibold text-metin-birincil">Arac ozeti</div>
+      <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+        {satirlar
+          .filter(([, v]) => v !== undefined && v !== null && String(v).trim() !== "")
+          .map(([k, v]) => (
+            <div key={k} className="flex justify-between gap-4 text-sm">
+              <dt className="text-metin-ikincil">{k}</dt>
+              <dd className="font-semibold text-metin-birincil">{String(v)}</dd>
+            </div>
+          ))}
+      </dl>
+    </div>
+  );
+}
+
+function KontrolBolumu({
+  baslik,
+  bolum,
+  items,
+  photos,
+}: {
+  baslik: string;
+  bolum: string;
+  items: ReportChecklistItem[];
+  photos: ReportMedia[];
+}) {
+  const [hepsi, setHepsi] = useState(false);
+  if (items.length === 0) return null;
+  const eksiklikler = items.filter((i) => i.eksiklik);
+  const gorunen = hepsi ? items : eksiklikler;
+  return (
+    <section className="mt-6 rounded-lg border border-kenarlik-acik bg-white p-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold text-metin-birincil">{baslik}</h2>
+        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${eksiklikler.length ? "bg-orange-100 text-orange-700" : "bg-green-100 text-green-700"}`}>
+          {eksiklikler.length ? `${eksiklikler.length} bulgu` : "Bulgu yok"}
+        </span>
+      </div>
+      {gorunen.length === 0 ? (
+        <p className="mt-3 text-sm text-metin-ikincil">Kontrol edilen {items.length} maddede eksiklik bulunmadi.</p>
+      ) : (
+        <ul className="mt-4 divide-y divide-kenarlik-acik">
+          {gorunen.map((item) => {
+            const itemPhotos = photos.filter((p) => p.section === bolum && p.item_key === item.key);
+            return (
+              <li key={item.key} className="py-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-metin-birincil">{item.label}</span>
+                  <span className={`rounded px-2 py-0.5 text-xs font-semibold ${item.eksiklik ? "bg-red-50 text-red-700" : "bg-gray-100 text-metin-ikincil"}`}>
+                    {item.durumEtiket || item.durum || "-"}
+                    {item.mikron ? ` • ${item.mikron} μm` : ""}
+                  </span>
+                </div>
+                {item.not && <p className="mt-1 text-sm text-metin-ikincil">{item.not}</p>}
+                {itemPhotos.length > 0 && <FotoGaleri photos={itemPhotos} kucuk />}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <button
+        type="button"
+        onClick={() => setHepsi((v) => !v)}
+        className="mt-3 text-sm font-semibold text-birincil hover:underline"
+      >
+        {hepsi ? "Sadece bulgulari goster" : `Tum ${items.length} maddeyi goster`}
+      </button>
+    </section>
+  );
+}
+
+function FotoGaleri({ photos, kucuk = false }: { photos: ReportMedia[]; kucuk?: boolean }) {
+  return (
+    <div className={`mt-3 grid gap-3 ${kucuk ? "grid-cols-3 sm:grid-cols-5" : "grid-cols-2 sm:grid-cols-4"}`}>
+      {photos.map((p) => (
+        <a key={p.id} href={p.url} target="_blank" rel="noopener noreferrer" className="group block">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={p.url}
+            alt={p.item_label || "Ekspertiz fotografi"}
+            loading="lazy"
+            className="aspect-square w-full rounded-lg object-cover ring-1 ring-kenarlik-acik group-hover:opacity-90"
+          />
+          {!kucuk && (
+            <span className="mt-1 block text-xs text-metin-ikincil">
+              {p.item_label || "-"}
+              {p.note ? ` – ${p.note}` : ""}
+            </span>
+          )}
+        </a>
+      ))}
     </div>
   );
 }

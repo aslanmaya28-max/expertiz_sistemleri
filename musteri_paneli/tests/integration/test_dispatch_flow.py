@@ -230,3 +230,150 @@ def test_full_dispatch_flow(client, admin_token, customer_token):
     actions = [h["action"] for h in final["assignment"]["history"]]
     assert actions == ["assigned", "accept", "start", "reassigned", "released", "assigned", "released"]
 
+
+
+JPEG_BYTES = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00" + b"\x00" * 200 + b"\xff\xd9"
+PDF_BYTES = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
+
+
+def _tam_rapor(report_id, personnel_id):
+    base = {"gorevId": report_id, "personelId": personnel_id}
+    return {
+        **base,
+        "adim1": {**base, "marka": "Fiat", "model": "Egea", "yil": "2021", "plaka": "34 TST 35", "guncelKm": 45000},
+        "adim2": {**base, "maddeDurumlari": {"onTampon": "Sorunlu"}},
+        "adim3": {**base, "maddeDurumlari": {"direksiyon": "İyi"}},
+        "adim4": {**base, "parcalar": {"kaput": {"durum": "boyali"}}},
+        "adim5": {**base, "kurumsalRaporNo": "PG-123"},
+        "durum": "Onay Bekliyor",
+    }
+
+
+def test_inspection_report_photos_and_submit(client, admin_token, customer_token):
+    person = _create_personnel(client, admin_token, "rapor@yerimebak.test", "İstanbul", "Beşiktaş", "Rapor Personel")
+    token = _login(client, "rapor@yerimebak.test", "Personel123")
+    created = client.post(
+        "/api/v1/expertiz/requests",
+        headers=_auth(customer_token),
+        json={"firm_id": "FIRM_001", "package_id": "PG_FULL", "plate": "34 TST 35", "city": "İstanbul"},
+    )
+    report_id = created.json()["report_id"]
+    assert client.post(
+        f"/api/v1/expertiz/admin/requests/{report_id}/assign", headers=_auth(admin_token), json={"personnel_id": person["id"]}
+    ).status_code == 200
+    assert client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/start", headers=_auth(token)).status_code == 200
+
+    detail = client.get(f"/api/v1/expertiz/personnel/tasks/{report_id}/report", headers=_auth(token)).json()
+    assert detail["editable"] is True
+    assert detail["corporate"]["required"] is True
+    assert detail["tam_rapor"] is None
+
+    # Hasar fotografi yukle (dosya turu icerikten belirlenir)
+    photo = client.post(
+        f"/api/v1/expertiz/personnel/tasks/{report_id}/media",
+        headers=_auth(token),
+        files={"file": ("tampon.jpg", JPEG_BYTES, "image/jpeg")},
+        data={"category": "inspection_photo", "section": "dis", "item_key": "onTampon", "item_label": "Ön Tampon", "note": "Çizik"},
+    )
+    assert photo.status_code == 200, photo.text
+    photo_media = photo.json()["media"]
+    assert photo_media["is_image"] and photo_media["item_key"] == "onTampon"
+
+    fake = client.post(
+        f"/api/v1/expertiz/personnel/tasks/{report_id}/media",
+        headers=_auth(token),
+        files={"file": ("virus.jpg", b"MZ\x90\x00not-an-image", "image/jpeg")},
+        data={"category": "inspection_photo"},
+    )
+    assert fake.status_code == 415
+    pdf_as_photo = client.post(
+        f"/api/v1/expertiz/personnel/tasks/{report_id}/media",
+        headers=_auth(token),
+        files={"file": ("x.pdf", PDF_BYTES, "application/pdf")},
+        data={"category": "inspection_photo"},
+    )
+    assert pdf_as_photo.status_code == 415
+
+    # Imzali URL ile dosya okunur, imzasiz/bozuk imza reddedilir
+    got = client.get(photo_media["url"])
+    assert got.status_code == 200 and got.content == JPEG_BYTES
+    assert client.get(photo_media["url"].replace("sig=", "sig=0")).status_code == 403
+
+    # Taslak kaydet
+    rapor = _tam_rapor(report_id, person["id"])
+    assert client.put(f"/api/v1/expertiz/personnel/tasks/{report_id}/draft", headers=_auth(token), json={"tam_rapor": rapor}).status_code == 200
+    assert client.get(f"/api/v1/expertiz/personnel/tasks/{report_id}/report", headers=_auth(token)).json()["tam_rapor"]["adim5"]["kurumsalRaporNo"] == "PG-123"
+
+    # Kurumsal rapor eklenmeden gonderilemez
+    blocked = client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/submit", headers=_auth(token), json={"tam_rapor": rapor})
+    assert blocked.status_code == 409 and "kurumsal" in blocked.json()["detail"].lower()
+
+    corp = client.post(
+        f"/api/v1/expertiz/personnel/tasks/{report_id}/media",
+        headers=_auth(token),
+        files={"file": ("pilot_garage_rapor.pdf", PDF_BYTES, "application/pdf")},
+        data={"category": "corporate_report", "section": "kurumsal"},
+    )
+    assert corp.status_code == 200, corp.text
+
+    # Eksik bolumlu rapor reddedilir
+    bad = client.post(
+        f"/api/v1/expertiz/personnel/tasks/{report_id}/submit",
+        headers=_auth(token),
+        json={"tam_rapor": {"adim1": {}}},
+    )
+    assert bad.status_code == 400
+
+    # Musteri yayinlanmadan raporu goremez
+    assert client.get(f"/api/v1/expertiz/reports/{report_id}", headers=_auth(customer_token)).status_code == 404
+
+    submitted = client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/submit", headers=_auth(token), json={"tam_rapor": rapor})
+    assert submitted.status_code == 200, submitted.text
+    assert submitted.json()["task"]["bucket"] == "pending_approval"
+
+    # Gonderildikten sonra degistirilemez
+    assert client.put(f"/api/v1/expertiz/personnel/tasks/{report_id}/draft", headers=_auth(token), json={"tam_rapor": rapor}).status_code == 409
+    tasks = client.get("/api/v1/expertiz/personnel/tasks", headers=_auth(token)).json()
+    assert tasks["summary"]["active"] == 0 and tasks["summary"]["completed"] == 1
+
+    # Admin: rapor, fotograflar ve kurumsal rapor gorunur
+    queue = client.get("/api/v1/expertiz/admin/requests?bucket=pending_approval", headers=_auth(admin_token)).json()
+    assert report_id in [r["id"] for r in queue["requests"]]
+    admin_report = client.get(f"/api/v1/expertiz/admin/reports/{report_id}", headers=_auth(admin_token)).json()["report"]
+    assert admin_report["status"] in ("pending_ai", "pending_admin")
+    assert admin_report["data"]["tam_rapor"]["adim1"]["marka"] == "Fiat"
+    assert len(admin_report["photos"]) == 1 and len(admin_report["corporate_reports"]) == 1
+    assert admin_report["photos"][0]["note"] == "Çizik"
+    assert client.get(admin_report["corporate_reports"][0]["url"]).content == PDF_BYTES
+
+    # Admin reddederse personel duzeltip tekrar gonderir
+    if admin_report["status"] == "pending_admin":
+        rejected = client.post(
+            f"/api/v1/expertiz/admin/reports/{report_id}/reject", headers=_auth(admin_token), json={"reason": "Arka tampon fotografi eksik"}
+        )
+        assert rejected.status_code == 200, rejected.text
+        again = client.get(f"/api/v1/expertiz/personnel/tasks/{report_id}/report", headers=_auth(token)).json()
+        assert again["editable"] and again["rejection_reason"] == "Arka tampon fotografi eksik"
+        assert client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/start", headers=_auth(token)).status_code == 200
+        client.post(
+            f"/api/v1/expertiz/personnel/tasks/{report_id}/media",
+            headers=_auth(token),
+            files={"file": ("arka.jpg", JPEG_BYTES, "image/jpeg")},
+            data={"category": "inspection_photo", "section": "dis", "item_key": "arkaTampon"},
+        )
+        resubmitted = client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/submit", headers=_auth(token), json={"tam_rapor": rapor})
+        assert resubmitted.status_code == 200
+
+        admin_report = client.get(f"/api/v1/expertiz/admin/reports/{report_id}", headers=_auth(admin_token)).json()["report"]
+        assert admin_report["inspection"]["revision"] == 1
+        assert len(admin_report["photos"]) == 2
+
+    # Admin yayinlarsa musteri raporu, fotograflari ve kurumsal raporu gorur
+    if admin_report["status"] == "pending_admin" and admin_report["can_publish"]:
+        published = client.post(f"/api/v1/expertiz/admin/reports/{report_id}/publish", headers=_auth(admin_token))
+        assert published.status_code == 200, published.text
+        customer_view = client.get(f"/api/v1/expertiz/reports/{report_id}", headers=_auth(customer_token)).json()["report"]
+        assert len(customer_view["photos"]) >= 1 and len(customer_view["corporate_reports"]) == 1
+        assert client.get(customer_view["photos"][0]["url"]).status_code == 200
+    else:
+        pytest.fail(f"AI analizi raporu admin onayina tasimadi: {admin_report['status']} / {admin_report.get('ai_meta')}")
