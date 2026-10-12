@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from yerimebak_ai_v5.api.v1.endpoints.auth import get_admin_user, get_authenticated_user
-from yerimebak_ai_v5.services import dispatch_service, finance_service, media_service
+from yerimebak_ai_v5.services import customer_service, dispatch_service, finance_service, media_service
 from yerimebak_ai_v5.services.expertiz_service import (
     create_expertiz_request,
     get_admin_report,
@@ -49,6 +49,11 @@ class AssignRequest(BaseModel):
 
 
 class UnassignRequest(BaseModel):
+    reason: Optional[str] = None
+
+
+class CustomerStatusRequest(BaseModel):
+    active: bool
     reason: Optional[str] = None
 
 
@@ -170,6 +175,34 @@ async def admin_finance_summary(
     admin: Dict[str, Any] = Depends(get_admin_user),
 ) -> Dict[str, Any]:
     return _raise_if_error(finance_service.get_admin_finance_summary())
+
+
+@router.get("/admin/customers")
+async def admin_list_customers(
+    search: Optional[str] = None,
+    limit: int = 200,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    return _raise_if_error(customer_service.list_customers(search=search, limit=limit))
+
+
+@router.get("/admin/customers/{customer_id}")
+async def admin_customer_detail(
+    customer_id: int,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    return _raise_if_error(customer_service.get_customer(customer_id))
+
+
+@router.post("/admin/customers/{customer_id}/status")
+async def admin_set_customer_status(
+    customer_id: int,
+    payload: CustomerStatusRequest,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    return _raise_if_error(
+        customer_service.set_customer_active(customer_id, payload.active, payload.reason or "", admin)
+    )
 
 
 # ---------------------------------------------------------------------------
