@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@/kancalar/yetkiKullan";
+import { useAuth, useCredits } from "@/kancalar/yetkiKullan";
 
 export default function ProfilSayfasi() {
   const { user, loading, logout } = useAuth();
+  const credits = useCredits();
   const [token] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     return localStorage.getItem("yerimebak_token");
@@ -31,7 +32,7 @@ export default function ProfilSayfasi() {
         <hr className="border-kenarlik-acik" />
         <div className="flex items-center justify-between">
           <span className="text-sm text-metin-ikincil">Kredi Bakiyesi</span>
-          <span className="text-xl font-bold text-birincil">{user.credits}</span>
+          <span className="text-xl font-bold text-birincil">{credits}</span>
         </div>
         <hr className="border-kenarlik-acik" />
         <div className="flex items-center justify-between">

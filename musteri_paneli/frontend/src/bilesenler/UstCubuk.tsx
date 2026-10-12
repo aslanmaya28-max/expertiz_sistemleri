@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useAuth } from "@/kancalar/yetkiKullan";
+import { useAuth, useCredits } from "@/kancalar/yetkiKullan";
 
 export default function UstCubuk() {
   const [menuAcik, setMenuAcik] = useState(false);
   const { user, loading, logout } = useAuth();
+  const credits = useCredits();
 
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-kenarlik-acik">
@@ -29,7 +30,7 @@ export default function UstCubuk() {
           <div className="hidden md:flex items-center gap-3">
             {loading ? null : user ? (
               <>
-                <span className="text-xs px-2.5 py-1 bg-birincil/10 text-birincil rounded-full font-medium">{user.credits} kredi</span>
+                <span className="text-xs px-2.5 py-1 bg-birincil/10 text-birincil rounded-full font-medium">{credits} kredi</span>
                 <Link href="/panel" className="text-sm font-medium text-metin-ikincil hover:text-birincil transition-colors">Panelim</Link>
                 <Link href="/profil" className="text-sm font-medium text-metin-ikincil hover:text-birincil transition-colors">Profilim</Link>
                 {user.role === "admin" && (
@@ -64,7 +65,7 @@ export default function UstCubuk() {
             <div className="pt-3 border-t border-kenarlik-acik flex gap-3">
               {user ? (
                 <>
-                  <Link href="/profil" className="text-sm font-medium text-metin-ikincil" onClick={() => setMenuAcik(false)}>Profilim ({user.credits} kredi)</Link>
+                  <Link href="/profil" className="text-sm font-medium text-metin-ikincil" onClick={() => setMenuAcik(false)}>Profilim ({credits} kredi)</Link>
                   <Link href="/panel" className="text-sm font-medium text-metin-ikincil" onClick={() => setMenuAcik(false)}>Panelim</Link>
                   <button onClick={() => { logout(); setMenuAcik(false); }} className="text-sm font-medium text-tehlike">Çıkış</button>
                 </>

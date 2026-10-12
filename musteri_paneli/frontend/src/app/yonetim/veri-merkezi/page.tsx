@@ -89,7 +89,9 @@ export default function VeriMerkeziPage() {
 
   useEffect(() => {
     if (user?.role !== "admin") return;
-    loadCoverage();
+    // Ilk yukleme bir sonraki tikte: effect icinde senkron setState olmasin
+    const first = window.setTimeout(() => loadCoverage(), 0);
+    return () => window.clearTimeout(first);
   }, [loadCoverage, user?.role]);
 
   const coverageRate = useMemo(() => {

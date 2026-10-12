@@ -24,10 +24,10 @@ from yerimebak_ai_v5.services import pricing_service
 ANALYSIS_COST = 1
 PART_STATUSES = ("orijinal", "lokal_boyali", "boyali", "degisen")
 VERDICTS = {
-    "AVANTAJLI": ("AL", "Fiyat, aracin bulgulara gore degerinin altinda; alim icin avantajli."),
-    "MAKUL": ("AL", "Fiyat, aracin bulgulara gore degeriyle uyumlu; tavsiye fiyata yakin alinabilir."),
-    "PAZARLIK": ("PAZARLIK YAP", "Fiyat biraz yuksek; tavsiye fiyata inmek icin pazarlik onerilir."),
-    "YUKSEK": ("ALMA", "Fiyat, aracin bulgulara gore degerinin belirgin uzerinde; bu fiyattan alinmasi onerilmez."),
+    "AVANTAJLI": ("AL", "Fiyat, aracın bulgulara göre değerinin altında; alım için avantajlı."),
+    "MAKUL": ("AL", "Fiyat, aracın bulgulara göre değeriyle uyumlu; tavsiye fiyata yakın alınabilir."),
+    "PAZARLIK": ("PAZARLIK YAP", "Fiyat biraz yüksek; tavsiye fiyata inmek için pazarlık önerilir."),
+    "YUKSEK": ("ALMA", "Fiyat, aracın bulgulara göre değerinin belirgin üzerinde; bu fiyattan alınması önerilmez."),
 }
 
 
@@ -136,7 +136,7 @@ def _paint_to_parts(paint_info: Any) -> Dict[str, str]:
 
 def prefill_from_link(url: str) -> Dict[str, Any]:
     if not normalize_url(url):
-        return _error("Gecerli bir ilan linki girin")
+        return _error("Geçerli bir ilan linki girin")
     listing = _listing_by_url(url)
     if listing:
         return {
@@ -150,14 +150,14 @@ def prefill_from_link(url: str) -> Dict[str, Any]:
                 "image_url": listing.get("image_url"), "location": listing.get("location"),
             },
             "parts": _paint_to_parts(listing.get("paint_info")),
-            "message": "Ilan sistemimizde bulundu; bilgileri kontrol edip eksikleri tamamlayin.",
+            "message": "İlan sistemimizde bulundu; bilgileri kontrol edip eksikleri tamamlayın.",
         }
     return {
         "success": True,
         "found": False,
         "vehicle": _guess_from_slug(url),
         "parts": {},
-        "message": "Ilan sistemimizde yok; linkten tahmin edilen bilgileri kontrol edip eksikleri elle girin.",
+        "message": "İlan sistemimizde yok; linkten tahmin edilen bilgileri kontrol edip eksikleri elle girin.",
     }
 
 
@@ -186,9 +186,9 @@ def inflation_projection(ai_value: float, purchase_price: float) -> Optional[Dic
         "altiAy": horizon(6),
         "birYil": horizon(12),
         "aciklama": (
-            "Tahmini deger, aracin bugunku bulgu duzeltmeli degerinin aylik arac enflasyonu ile "
-            "buyutulmesiyle hesaplanir; getiri, tavsiye alim fiyatina gore beklenen deger artisidir. "
-            "Piyasa kosullarina gore degisebilir, yatirim tavsiyesi degildir."
+            "Tahmini değer, aracın bugünkü bulgu düzeltmeli değerinin aylık araç enflasyonu ile "
+            "büyütülmesiyle hesaplanır; getiri, tavsiye alım fiyatına göre beklenen değer artışıdır. "
+            "Piyasa koşullarına göre değişebilir, yatırım tavsiyesi değildir."
         ),
     }
 
@@ -225,13 +225,13 @@ def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
     fuel = str(pick("fuel") or "").strip() or None
     transmission = str(pick("transmission") or "").strip() or None
 
-    missing = [name for name, value in (("marka", brand), ("model", model), ("yil", year), ("km", km), ("ilan fiyati", price)) if not value]
+    missing = [name for name, value in (("marka", brand), ("model", model), ("yıl", year), ("km", km), ("ilan fiyatı", price)) if not value]
     if missing:
         return _error(f"Eksik bilgi: {', '.join(missing)}")
     if not 1980 <= year <= datetime.now().year + 1:
-        return _error("Model yili gecersiz")
+        return _error("Model yılı geçersiz")
     if not 0 <= km <= 2_000_000 or not 10_000 <= price <= 200_000_000:
-        return _error("Km veya ilan fiyati gecersiz")
+        return _error("Km veya ilan fiyatı geçersiz")
 
     parts = _clean_parts(payload.get("parts"))
     if not parts and listing and payload.get("parts") is None:
@@ -241,7 +241,7 @@ def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
 
     payment = get_payment_service()
     if not payment.check_credits_before_analysis(user["id"]):
-        return _error("Yetersiz kredi. Analiz icin kredi paketi satin alin.", 402, "insufficient_credits")
+        return _error("Yetersiz kredi. Analiz için kredi paketi satın alın.", 402, "insufficient_credits")
 
     reference = get_market_reference_service().get_reference(
         brand=brand, model=model, year=year, km=km, fuel=fuel, transmission=transmission,
@@ -249,8 +249,8 @@ def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
     )
     if not reference.get("count") or str(reference.get("source", "")).startswith("last_resort"):
         return _error(
-            f"{brand} {model} {year} icin yeterli guncel piyasa verisi yok. Kredi dusulmedi; "
-            "veri toplandikca tekrar deneyebilirsiniz.",
+            f"{brand} {model} {year} için yeterli güncel piyasa verisi yok. Kredi düşülmedi; "
+            "veri toplandıkça tekrar deneyebilirsiniz.",
             422, "insufficient_market_data",
         )
 
@@ -264,7 +264,7 @@ def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
     }
     degerleme = evaluate(tam_rapor, reference, listed_price=price, vehicle={"km": km, "yil": year})
     if not degerleme.get("degerlemeYapildi") or not degerleme.get("aiDegeri"):
-        return _error("Bu arac icin degerleme yapilamadi. Kredi dusulmedi.", 422, "valuation_failed")
+        return _error("Bu araç için değerleme yapılamadı. Kredi düşülmedi.", 422, "valuation_failed")
 
     ai_value = float(degerleme["aiDegeri"])
     recommended = float(degerleme.get("onerilenAlimFiyati") or ai_value)
@@ -318,7 +318,7 @@ def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
                         "getiri": projection},
     )
     if not deduction.get("success"):
-        return _error("Yetersiz kredi. Analiz icin kredi paketi satin alin.", 402, "insufficient_credits")
+        return _error("Yetersiz kredi. Analiz için kredi paketi satın alın.", 402, "insufficient_credits")
     result["kredi"] = {"dusulen": ANALYSIS_COST, "kalan": deduction.get("credits_after")}
     result["success"] = True
     return result

@@ -2,6 +2,12 @@ import { getToken } from "@/lib/yetki";
 
 export const API_BASE = "/api/v1";
 
+export class ApiError extends Error {
+  constructor(message: string, public status: number, public code?: string) {
+    super(message);
+  }
+}
+
 async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const token = getToken();
   const res = await fetch(`${API_BASE}${endpoint}`, {
@@ -15,7 +21,9 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(error.detail || `HTTP ${res.status}`);
+    const detail = error.detail;
+    const message = typeof detail === "string" ? detail : detail?.message || `HTTP ${res.status}`;
+    throw new ApiError(message, res.status, typeof detail === "object" ? detail?.code : undefined);
   }
 
   return res.json();
@@ -290,6 +298,16 @@ export interface CustomerProfileResponse {
   profile: CustomerProfile;
 }
 
+export interface VehicleInput {
+  brand?: string;
+  model?: string;
+  year?: number;
+  km?: number;
+  price?: number;
+  fuel?: string;
+  transmission?: string;
+}
+
 export interface CreateExpertizRequestPayload {
   firm_id: string;
   package_id: string;
@@ -298,6 +316,116 @@ export interface CreateExpertizRequestPayload {
   plate?: string;
   city?: string;
   note?: string;
+  vehicle?: VehicleInput;
+}
+
+export interface ExpertizTotals {
+  service_fee_tl: number;
+  package_price_tl: number;
+  vat_tl: number;
+  total_tl: number;
+}
+
+/** Odeme baslatma cevabi: PayTR iframe adresi veya (gelistirmede) simulasyon */
+export interface CheckoutStart {
+  success: boolean;
+  order_id: string;
+  kind: "credits" | "expertiz";
+  amount_tl: number;
+  provider: "paytr" | "simulation";
+  iframe_url: string | null;
+  request_id?: string;
+  credits?: number;
+  totals?: ExpertizTotals;
+}
+
+export interface CheckoutStatus {
+  success: boolean;
+  order_id: string;
+  kind: "credits" | "expertiz";
+  status: "pending" | "paid" | "failed";
+  amount_tl: number;
+  credits?: number;
+  credit_balance?: number | null;
+  request_id?: string;
+  firm_name?: string;
+  package_name?: string;
+  failed_reason?: string | null;
+}
+
+export interface CreditPackage {
+  credits: number;
+  price: number;
+  name: string;
+  popular?: boolean;
+}
+
+export type PartStatus = "orijinal" | "lokal_boyali" | "boyali" | "degisen";
+
+export interface ValuationPartsResponse {
+  parts: { key: string; label: string }[];
+  statuses: { key: PartStatus; label: string }[];
+  cost_credits: number;
+}
+
+export interface ValuationPrefill {
+  success: boolean;
+  found: boolean;
+  listing_id?: number;
+  vehicle: VehicleInput & { title?: string; image_url?: string; location?: string };
+  parts: Record<string, PartStatus>;
+  message: string;
+}
+
+export interface ValuationRequestPayload {
+  listing_url?: string;
+  brand?: string;
+  model?: string;
+  year?: number;
+  km?: number;
+  listed_price?: number;
+  fuel?: string;
+  transmission?: string;
+  parts?: Record<string, PartStatus>;
+  tramer_amount?: number;
+  tramer_count?: number;
+}
+
+export interface ValuationHorizon {
+  ay: number;
+  tahminiDeger: number;
+  getiriTl: number;
+  getiriYuzde: number | null;
+}
+
+export interface ValuationResult {
+  success: boolean;
+  arac: { marka: string; model: string; yil: number; km: number; yakit?: string | null; vites?: string | null; ilanFiyati: number; ilanLinki?: string | null };
+  piyasa: { ortalama: number; medyan: number; min: number; max: number; emsalSayisi: number; hasarsizEmsalSayisi?: number; guvenSkoru: number; guncelGun?: number };
+  degerleme: {
+    temizPiyasaDegeri: number;
+    toplamDegerKaybiYuzde: number;
+    toplamDegerKaybiTutar: number;
+    kalemler: ValuationLossItem[];
+    aiDegeri: number;
+    adilFiyatAraligi: { min: number; max: number };
+    tavsiyeFiyat: number;
+    hasarSeviyesi?: string;
+    agirHasar?: boolean;
+    ozet?: string;
+  };
+  karar: { sonuc: "AL" | "PAZARLIK YAP" | "ALMA"; aciklama: string; ilanFarkiYuzde?: number; ilanFarkiTutar?: number };
+  getiri: null | {
+    aylikEnflasyonYuzde: number;
+    yillikEnflasyonYuzde: number;
+    kaynak?: string;
+    gecerlilikTarihi?: string;
+    alisFiyati: number;
+    altiAy: ValuationHorizon;
+    birYil: ValuationHorizon;
+    aciklama: string;
+  };
+  kredi: { dusulen: number; kalan: number };
 }
 
 export interface VitrinStats {
@@ -452,8 +580,13 @@ export function getExpertizPackages(): Promise<ExpertizPackagesResponse> {
   return fetchAPI<ExpertizPackagesResponse>("/expertiz/packages");
 }
 
-export function createExpertizRequest(payload: CreateExpertizRequestPayload): Promise<Record<string, unknown>> {
-  return fetchAPI<Record<string, unknown>>("/expertiz/requests", {
+export function getExpertizQuote(firmId: string, packageId: string): Promise<{ success: boolean; totals: ExpertizTotals }> {
+  return fetchAPI(`/expertiz/quote?firm_id=${encodeURIComponent(firmId)}&package_id=${encodeURIComponent(packageId)}`);
+}
+
+/** Talep olusturur ve odemeyi baslatir; talep odeme onaylaninca isleme alinir. */
+export function createExpertizRequest(payload: CreateExpertizRequestPayload): Promise<CheckoutStart> {
+  return fetchAPI<CheckoutStart>("/expertiz/requests", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -503,4 +636,47 @@ export function updateProfile(payload: Partial<CustomerProfile>): Promise<Custom
     method: "PUT",
     body: JSON.stringify(payload),
   });
+}
+
+// ---------------------------------------------------------------------------
+// Odeme (PayTR) ve kredi paketleri
+// ---------------------------------------------------------------------------
+
+export function getCreditPackages(): Promise<{ packages: Record<string, CreditPackage>; analysis_cost: number }> {
+  return fetchAPI("/payments/packages");
+}
+
+export function startCreditCheckout(packageKey: string): Promise<CheckoutStart> {
+  return fetchAPI<CheckoutStart>("/payments/checkout/credits", {
+    method: "POST",
+    body: JSON.stringify({ package_key: packageKey }),
+  });
+}
+
+export function getCheckoutStatus(orderId: string): Promise<CheckoutStatus> {
+  return fetchAPI<CheckoutStatus>(`/payments/checkout/${encodeURIComponent(orderId)}`);
+}
+
+/** Sadece sunucuda PAYMENT_SIMULATION=true iken calisir (gelistirme). */
+export function simulateCheckout(orderId: string, success: boolean): Promise<CheckoutStatus> {
+  return fetchAPI<CheckoutStatus>(`/payments/checkout/${encodeURIComponent(orderId)}/simulate`, {
+    method: "POST",
+    body: JSON.stringify({ success }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Arac degerleme (kredi ile)
+// ---------------------------------------------------------------------------
+
+export function getValuationParts(): Promise<ValuationPartsResponse> {
+  return fetchAPI<ValuationPartsResponse>("/valuation/parts");
+}
+
+export function prefillValuation(url: string): Promise<ValuationPrefill> {
+  return fetchAPI<ValuationPrefill>(`/valuation/prefill?url=${encodeURIComponent(url)}`);
+}
+
+export function analyzeValuation(payload: ValuationRequestPayload): Promise<ValuationResult> {
+  return fetchAPI<ValuationResult>("/valuation/analyze", { method: "POST", body: JSON.stringify(payload) });
 }
