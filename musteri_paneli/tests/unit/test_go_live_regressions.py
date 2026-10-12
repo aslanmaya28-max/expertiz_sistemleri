@@ -142,5 +142,19 @@ class ScraperStopTests(unittest.TestCase):
         asyncio.run(scenario())
 
 
+class ExpertizCatalogSeedTests(unittest.TestCase):
+    def test_seed_contains_requested_firms_without_invented_prices(self):
+        from yerimebak_ai_v5.services.pricing_service import SEED_FIRMS
+
+        ids = [firm["id"] for firm in SEED_FIRMS]
+        self.assertEqual(len(ids), len(set(ids)))
+        for firm_id in ("yamanlar", "dynobil", "umran", "tarcanlar", "auto-king"):
+            self.assertIn(firm_id, ids)
+        # Fiyati kaynaktan dogrulanamayan firmalar paketsiz gelir; fiyatlari admin girer.
+        for firm in SEED_FIRMS:
+            if firm["source_url"] is None:
+                self.assertEqual(firm["packages"], [], firm["id"])
+
+
 if __name__ == "__main__":
     unittest.main()

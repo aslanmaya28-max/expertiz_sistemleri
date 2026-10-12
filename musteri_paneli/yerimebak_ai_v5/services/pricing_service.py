@@ -27,7 +27,8 @@ _schema_ready = False
 
 # Baslangic katalogu: firmalarin kendi fiyat sayfalarindan / basin kaynaklarindan
 # (Ekim 2026 aramasi). Fiyatlar degisken oldugu icin "verified=False" ile gelir;
-# admin dogrulayip guncellemelidir. Kalan firmalar admin panelinden eklenir.
+# admin dogrulayip guncellemelidir. Fiyati bulunamayan firmalar paketsiz eklenir:
+# musteriye gorunmezler, admin Fiyatlandirma sekmesinden paket girince yayina cikarlar.
 SEED_FIRMS: List[Dict[str, Any]] = [
     {
         "id": "otorapor", "name": "Otorapor", "source_url": "https://otorapor.com/paketler",
@@ -73,6 +74,10 @@ SEED_FIRMS: List[Dict[str, Any]] = [
             ("Eko Paket", 5200, ["Kaporta/Boya", "Motor"]),
         ],
     },
+    {"id": "yamanlar", "name": "Yamanlar Oto Ekspertiz", "source_url": None, "packages": []},
+    {"id": "dynobil", "name": "Dynobil", "source_url": None, "packages": []},
+    {"id": "umran", "name": "Ümran Oto Ekspertiz", "source_url": None, "packages": []},
+    {"id": "tarcanlar", "name": "Tarcanlar Oto Ekspertiz", "source_url": None, "packages": []},
 ]
 
 
@@ -144,18 +149,21 @@ def ensure_schema(force: bool = False) -> None:
                 "INSERT INTO system_settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING",
                 (SETTING_SERVICE_FEE, Json({"amount_tl": DEFAULT_SERVICE_FEE_TL})),
             )
-            cursor.execute("SELECT COUNT(*) AS n FROM expertiz_firms")
-            if int(dict(cursor.fetchone())["n"]) == 0:
-                for f_index, firm in enumerate(SEED_FIRMS):
+            # Eksik katalog firmalari her acilista eklenir (mevcut veritabanlari da alir).
+            # Var olan firmaya dokunulmaz: admin'in fiyat/aktiflik degisiklikleri korunur.
+            for f_index, firm in enumerate(SEED_FIRMS):
+                cursor.execute(
+                    "INSERT INTO expertiz_firms (id, name, sort_order, source_url, verified) VALUES (%s, %s, %s, %s, FALSE) "
+                    "ON CONFLICT (id) DO NOTHING RETURNING id",
+                    (firm["id"], firm["name"], f_index, firm["source_url"]),
+                )
+                if cursor.fetchone() is None:
+                    continue
+                for p_index, (name, price, features) in enumerate(firm["packages"]):
                     cursor.execute(
-                        "INSERT INTO expertiz_firms (id, name, sort_order, source_url, verified) VALUES (%s, %s, %s, %s, FALSE)",
-                        (firm["id"], firm["name"], f_index, firm["source_url"]),
+                        "INSERT INTO expertiz_packages (id, firm_id, name, price_tl, features, sort_order) VALUES (%s, %s, %s, %s, %s, %s)",
+                        (f"{firm['id']}--{_slug(name)}", firm["id"], name, price, Json(features), p_index),
                     )
-                    for p_index, (name, price, features) in enumerate(firm["packages"]):
-                        cursor.execute(
-                            "INSERT INTO expertiz_packages (id, firm_id, name, price_tl, features, sort_order) VALUES (%s, %s, %s, %s, %s, %s)",
-                            (f"{firm['id']}--{_slug(name)}", firm["id"], name, price, Json(features), p_index),
-                        )
             conn.commit()
             _schema_ready = True
         finally:
