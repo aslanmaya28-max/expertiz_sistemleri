@@ -172,7 +172,7 @@ def analyze_listing(listing_id: int) -> Optional[Dict[str, Any]]:
 
         listing = dict(row)
     finally:
-        conn.close()
+        DatabaseConfig.return_connection(conn)
 
     price = listing.get('price') or 0
     if price is None or price == 0:
@@ -332,8 +332,9 @@ def analyze_listing(listing_id: int) -> Optional[Dict[str, Any]]:
             days_to_sell,
             listing_id,
         ))
+        conn.commit()
     finally:
-        conn.close()
+        DatabaseConfig.return_connection(conn)
 
     result = {
         "id": listing_id,

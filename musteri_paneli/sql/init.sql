@@ -115,7 +115,9 @@ CREATE TABLE IF NOT EXISTS users (
     last_login TIMESTAMP,
     profile_image TEXT,
     google_id TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- update_users_updated_at tetikleyicisi bu kolonu doldurur
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS analysis_history (

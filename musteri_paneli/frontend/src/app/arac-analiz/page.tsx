@@ -15,7 +15,7 @@ export default function AracAnalizSayfasi() {
       const token = getToken();
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
-      const res = await fetch("/api/v1/analysis/analyze", {
+      const res = await fetch("/api/v1/analyze", {
         method: "POST",
         headers,
         body: JSON.stringify({

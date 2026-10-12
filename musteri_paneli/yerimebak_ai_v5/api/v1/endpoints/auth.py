@@ -339,6 +339,7 @@ async def get_profile(user: Dict[str, Any] = Depends(get_current_user)) -> Dict[
         conn = auth_service_conn
         cursor = conn.cursor()
         _ensure_profile_columns(cursor)
+        conn.commit()
         cursor.execute("SELECT * FROM users WHERE id = %s", (user["id"],))
         row = cursor.fetchone()
         if not row:
@@ -379,6 +380,8 @@ async def update_profile(
                 f"UPDATE users SET {assignments} WHERE id = %s",
                 tuple(updates.values()) + (user["id"],),
             )
+
+        conn.commit()
 
         cursor.execute("SELECT * FROM users WHERE id = %s", (user["id"],))
         row = cursor.fetchone()

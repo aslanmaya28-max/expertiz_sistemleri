@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/kancalar/yetkiKullan";
+import { getToken } from "@/lib/yetki";
 import YonetimLayout from "@/bilesenler/YonetimLayout";
 
 export default function VitrinYonetimi() {
@@ -9,6 +10,14 @@ export default function VitrinYonetimi() {
   const [esik, setEsik] = useState(70);
   const [islemSonucu, setIslemSonucu] = useState<string | null>(null);
   const [yukleniyor, setYukleniyor] = useState(false);
+
+  // Vitrin yazma uçları admin yetkisi ister.
+  const authHeaders = (): Record<string, string> => {
+    const token = getToken();
+    const h: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) h["Authorization"] = `Bearer ${token}`;
+    return h;
+  };
 
   useEffect(() => {
     if (!user || user.role !== "admin") {
@@ -29,8 +38,8 @@ export default function VitrinYonetimi() {
       let analyzed = 0;
       for (const v of data.vehicles || []) {
         try {
-          await fetch(`/api/v1/vitrin/${v.id}/analyze`, { method: "POST" });
-          analyzed++;
+          const res = await fetch(`/api/v1/vitrin/${v.id}/analyze`, { method: "POST", headers: authHeaders() });
+          if (res.ok) analyzed++;
         } catch { /* skip failed */ }
       }
       setIslemSonucu(`${analyzed} araç yeniden analiz edildi`);
@@ -50,12 +59,12 @@ export default function VitrinYonetimi() {
       let activated = 0;
       for (const v of data.vehicles || []) {
         try {
-          await fetch(`/api/v1/vitrin/${v.id}/status`, {
+          const res = await fetch(`/api/v1/vitrin/${v.id}/status`, {
             method: "PATCH",
-            headers: { "Content-Type": "application/json" },
+            headers: authHeaders(),
             body: JSON.stringify({ status: "active" }),
           });
-          activated++;
+          if (res.ok) activated++;
         } catch { /* skip failed */ }
       }
       setIslemSonucu(`${activated} araç aktifleştirildi`);

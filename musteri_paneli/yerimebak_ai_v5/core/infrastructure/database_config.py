@@ -115,6 +115,16 @@ class DatabaseConfig:
             try:
                 if isinstance(conn, _PooledConnection):
                     conn._return_to_pool = None
+                # Commit edilmemis islem bir sonraki istege devredilmesin: yarim kalan
+                # yazma baskasinin commit'iyle kaydedilmez, hatali islem sonraki
+                # kullaniciya "current transaction is aborted" olarak yansimaz.
+                if not conn.closed:
+                    try:
+                        conn.rollback()
+                        conn.autocommit = False
+                    except Exception:
+                        _pool.putconn(conn, close=True)
+                        return
                 _pool.putconn(conn)
             except Exception:
                 pass
@@ -321,6 +331,12 @@ class DatabaseConfig:
         conn = DatabaseConfig.get_connection()
         try:
             cursor = conn.cursor()
+            # init.sql, users tablosuna updated_at dolduran bir tetikleyici ekler; eski
+            # kurulumlarda kolon yoksa users uzerindeki her UPDATE (giris, kredi) patlar.
+            # Asagidaki listings adimlarindan bagimsiz olsun diye ayri commit edilir.
+            cursor.execute("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+            conn.commit()
+
             cursor.execute("""
                 SELECT column_name FROM information_schema.columns
                 WHERE table_name = 'listings'

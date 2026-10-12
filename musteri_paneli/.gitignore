@@ -130,3 +130,6 @@ _agents/
 
 # 🔒 DÜZELTİLDİ (Bug #10): Frontend bağımlılıkları
 node_modules/
+
+# Kaziyici calisma ani PID dosyalari
+*.pid
