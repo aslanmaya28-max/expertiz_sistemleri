@@ -1,4 +1,4 @@
-import { getToken } from "@/lib/yetki";
+import { getToken, removeToken } from "@/lib/yetki";
 
 export const API_BASE = "/api/v1";
 
@@ -18,6 +18,15 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
     },
     ...options,
   });
+
+  // Oturum suresi dolmus / gecersiz: token silinir, kullanici girise yonlendirilir
+  if (res.status === 401 && token && typeof window !== "undefined") {
+    removeToken();
+    window.dispatchEvent(new Event("yerimebak:auth"));
+    if (!window.location.pathname.startsWith("/giris")) {
+      window.location.href = `/giris?oturum=bitti&donus=${encodeURIComponent(window.location.pathname)}`;
+    }
+  }
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: res.statusText }));
@@ -325,6 +334,7 @@ export interface CustomerProfile {
   tax_number?: string | null;
   tax_office?: string | null;
   invoice_address?: string | null;
+  email_verified?: boolean;
 }
 
 export interface CustomerProfileResponse {
@@ -352,6 +362,8 @@ export interface CreateExpertizRequestPayload {
   district?: string;
   note?: string;
   vehicle?: VehicleInput;
+  /** On Bilgilendirme Formu + Mesafeli Satis Sozlesmesi onayi */
+  contract_accepted: boolean;
 }
 
 export interface ExpertizTotals {
@@ -473,82 +485,6 @@ export interface VitrinStats {
   daily_new_listings: number;
 }
 
-export type ScraperSource = "arabam" | "borusan" | "all";
-
-export interface ScraperSourceStatus {
-  status: "running" | "idle" | "unknown" | string;
-  pid?: number | null;
-  last_activity?: string | null;
-  source: "arabam" | "borusan" | string;
-}
-
-export interface ScraperStatusResponse {
-  arabam: ScraperSourceStatus;
-  borusan: ScraperSourceStatus;
-  active_workers: number;
-  total_workers: number;
-}
-
-export interface ScraperActionResponse {
-  status: string;
-  message: string;
-  source?: string;
-  sources?: string[];
-}
-
-export interface MarketCoverageBalance {
-  status?: string;
-  missing?: Record<string, number>;
-  [key: string]: string | number | Record<string, number> | undefined;
-}
-
-export interface MarketCoverageRow {
-  brand: string;
-  model: string;
-  segment: string;
-  priority: number;
-  year_bucket: string;
-  year_min: number;
-  year_max: number;
-  active_count: number;
-  target_count: number;
-  missing_count: number;
-  stale_count: number;
-  fuel_balance: MarketCoverageBalance;
-  transmission_balance: MarketCoverageBalance;
-  coverage_status: "healthy" | "underfilled" | "filled_imbalanced" | "stale" | string;
-}
-
-export interface MarketCoverageSummaryResponse {
-  success: boolean;
-  total_rows: number;
-  healthy: number;
-  underfilled: number;
-  filled_imbalanced: number;
-  stale: number;
-  coverage: MarketCoverageRow[];
-}
-
-export interface MarketBackfillTarget {
-  brand: string;
-  model: string;
-  segment: string;
-  year_min: number;
-  year_max: number;
-  year_bucket: string;
-  missing_count: number;
-  preferred_fuel?: string | null;
-  preferred_transmission?: string | null;
-  priority: number;
-  reason: string;
-}
-
-export interface MarketBackfillTargetsResponse {
-  success: boolean;
-  total: number;
-  targets: MarketBackfillTarget[];
-}
-
 export interface BrandInfo {
   brand: string;
   count: number;
@@ -583,32 +519,8 @@ export function getStats(): Promise<VitrinStats> {
   return fetchAPI<VitrinStats>("/vitrin/stats");
 }
 
-export function getScraperStatus(): Promise<ScraperStatusResponse> {
-  return fetchAPI<ScraperStatusResponse>("/scrapers/status");
-}
-
-export function startScraper(source: ScraperSource): Promise<ScraperActionResponse> {
-  return fetchAPI<ScraperActionResponse>(`/scrapers/start/${source}`, { method: "POST" });
-}
-
-export function stopScraper(source: ScraperSource): Promise<ScraperActionResponse> {
-  return fetchAPI<ScraperActionResponse>(`/scrapers/stop/${source}`, { method: "POST" });
-}
-
-export function getMarketCoverageSummary(): Promise<MarketCoverageSummaryResponse> {
-  return fetchAPI<MarketCoverageSummaryResponse>("/market-coverage/summary");
-}
-
-export function getMarketBackfillTargets(): Promise<MarketBackfillTargetsResponse> {
-  return fetchAPI<MarketBackfillTargetsResponse>("/market-coverage/backfill-targets");
-}
-
 export function searchVehicles(q: string, limit = 20): Promise<{ query: string; total: number; vehicles: VehicleCard[] }> {
   return fetchAPI(`/vitrin/search?q=${encodeURIComponent(q)}&limit=${limit}`);
-}
-
-export function analyzeVehicle(id: number): Promise<Record<string, unknown>> {
-  return fetchAPI(`/vitrin/${id}/analyze`, { method: "POST" });
 }
 
 export function getExpertizPackages(): Promise<ExpertizPackagesResponse> {
@@ -689,11 +601,29 @@ export function getCreditPackages(): Promise<{ packages: Record<string, CreditPa
   return fetchAPI("/payments/packages");
 }
 
-export function startCreditCheckout(packageKey: string): Promise<CheckoutStart> {
+export function startCreditCheckout(packageKey: string, contractAccepted: boolean): Promise<CheckoutStart> {
   return fetchAPI<CheckoutStart>("/payments/checkout/credits", {
     method: "POST",
-    body: JSON.stringify({ package_key: packageKey }),
+    body: JSON.stringify({ package_key: packageKey, contract_accepted: contractAccepted }),
   });
+}
+
+// --- Hesap: sifre sifirlama, e-posta dogrulama ---------------------------
+
+export function requestPasswordReset(email: string): Promise<{ success: boolean; message: string }> {
+  return fetchAPI("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });
+}
+
+export function resetPassword(token: string, newPassword: string): Promise<{ success: boolean }> {
+  return fetchAPI("/auth/reset-password", { method: "POST", body: JSON.stringify({ token, new_password: newPassword }) });
+}
+
+export function verifyEmail(token: string): Promise<{ success: boolean; credits_granted: number }> {
+  return fetchAPI("/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) });
+}
+
+export function resendVerification(): Promise<{ success: boolean; already_verified?: boolean }> {
+  return fetchAPI("/auth/resend-verification", { method: "POST", body: JSON.stringify({}) });
 }
 
 export function getCheckoutStatus(orderId: string): Promise<CheckoutStatus> {

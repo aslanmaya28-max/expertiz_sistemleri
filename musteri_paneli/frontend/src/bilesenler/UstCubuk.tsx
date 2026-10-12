@@ -33,7 +33,7 @@ export default function UstCubuk() {
                 <Link href="/panel" className="text-sm font-medium text-metin-ikincil hover:text-birincil transition-colors">Panelim</Link>
                 <Link href="/profil" className="text-sm font-medium text-metin-ikincil hover:text-birincil transition-colors">Profilim</Link>
                 {user.role === "admin" && (
-                  <Link href="/yonetim" className="text-sm font-medium px-3 py-1.5 bg-metin-birincil text-white rounded-lg hover:opacity-90">Yönetim</Link>
+                  <a href="https://admin.yerimebak.com.tr" className="text-sm font-medium px-3 py-1.5 bg-metin-birincil text-white rounded-lg hover:opacity-90">Yönetim</a>
                 )}
                 <button onClick={logout} className="text-sm font-medium text-metin-ikincil hover:text-tehlike transition-colors">Çıkış</button>
               </>

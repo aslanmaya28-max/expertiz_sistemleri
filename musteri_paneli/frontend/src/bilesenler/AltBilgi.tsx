@@ -27,25 +27,26 @@ export default function AltBilgi() {
           <div>
             <h4 className="font-semibold mb-4">Kurumsal</h4>
             <ul className="space-y-2 text-sm text-gray-400">
-              <li><span className="hover:text-birincil transition-colors cursor-pointer">Hakkımızda</span></li>
-              <li><span className="hover:text-birincil transition-colors cursor-pointer">İletişim</span></li>
-              <li><span className="hover:text-birincil transition-colors cursor-pointer">Gizlilik Politikası</span></li>
-              <li><span className="hover:text-birincil transition-colors cursor-pointer">Kullanım Koşulları</span></li>
+              <li><Link href="/hakkimizda" className="hover:text-birincil transition-colors">Hakkımızda</Link></li>
+              <li><Link href="/iletisim" className="hover:text-birincil transition-colors">İletişim</Link></li>
+              <li><Link href="/kullanim-kosullari" className="hover:text-birincil transition-colors">Kullanım Koşulları</Link></li>
             </ul>
           </div>
 
           <div>
-            <h4 className="font-semibold mb-4">İletişim</h4>
+            <h4 className="font-semibold mb-4">Yasal</h4>
             <ul className="space-y-2 text-sm text-gray-400">
-              <li>info@yerimebak.ai</li>
-              <li>+90 (212) 000 00 00</li>
-              <li>İstanbul, Türkiye</li>
+              <li><Link href="/kvkk" className="hover:text-birincil transition-colors">KVKK Aydınlatma Metni</Link></li>
+              <li><Link href="/gizlilik" className="hover:text-birincil transition-colors">Gizlilik ve Çerez Politikası</Link></li>
+              <li><Link href="/mesafeli-satis" className="hover:text-birincil transition-colors">Mesafeli Satış Sözleşmesi</Link></li>
+              <li><Link href="/iptal-iade" className="hover:text-birincil transition-colors">İptal ve İade Koşulları</Link></li>
             </ul>
           </div>
         </div>
 
-        <div className="border-t border-gray-700 mt-8 pt-8 text-center text-sm text-gray-500">
-          © {new Date().getFullYear()} yerimebak.ai — Tüm hakları saklıdır.
+        <div className="border-t border-gray-700 mt-8 pt-8 flex flex-col items-center gap-2 text-center text-sm text-gray-500">
+          <p>Ödemeler PayTR güvencesiyle kredi ve banka kartı ile alınır.</p>
+          <p>© {new Date().getFullYear()} YerimeBak — yerimebak.com.tr — Tüm hakları saklıdır.</p>
         </div>
       </div>
     </footer>

@@ -22,6 +22,8 @@ function decodeUser(token: string | null): User | null {
     if (parts.length !== 3) throw new Error("invalid");
     const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
     const payload = JSON.parse(atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4)));
+    // Suresi dolmus oturum: kullanici girisli gorunmesin (islemler 401 verirdi)
+    if (typeof payload.exp === "number" && payload.exp * 1000 <= Date.now()) return null;
     return {
       id: payload.sub,
       email: payload.email,
@@ -77,11 +79,11 @@ export function useAuth() {
     return data;
   };
 
-  const register = async (email: string, password: string, full_name: string, phone?: string) => {
+  const register = async (email: string, password: string, full_name: string, phone: string | undefined, termsAccepted: boolean) => {
     const res = await fetch("/api/v1/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, full_name, phone }),
+      body: JSON.stringify({ email, password, full_name, phone, terms_accepted: termsAccepted }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Kayit basarisiz");

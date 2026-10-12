@@ -21,6 +21,7 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/kancalar/yetkiKullan";
 import { BILDIRIM_EVENT } from "@/bilesenler/BildirimZili";
+import EpostaDogrulamaUyarisi from "@/bilesenler/EpostaDogrulamaUyarisi";
 
 type PanelTab = "ozet" | "analizler" | "ekspertiz" | "raporlar" | "favoriler" | "krediler" | "profil";
 
@@ -61,6 +62,8 @@ function statusLabel(status?: string): { text: string; cls: string } {
     case "pending_ai":
     case "rejected":
       return { text: "Rapor kontrol ediliyor", cls: "bg-orange-100 text-orange-700" };
+    case "cancelled":
+      return { text: "İptal edildi", cls: "bg-gray-100 text-gray-600" };
     case "draft":
       return { text: "İşlemde", cls: "bg-blue-100 text-blue-700" };
     case "payment_pending":
@@ -151,7 +154,7 @@ export default function MusteriPaneli() {
   }, [user]);
 
   const activeRequests = useMemo(
-    () => requests.filter((item) => item.status !== "published" && item.status !== "payment_failed"),
+    () => requests.filter((item) => !["published", "payment_failed", "cancelled"].includes(item.status)),
     [requests],
   );
   const latestRequests = requests.slice(0, 4);
@@ -204,6 +207,8 @@ export default function MusteriPaneli() {
           </Link>
         </div>
       </div>
+
+      {profile && profile.email_verified === false ? <EpostaDogrulamaUyarisi email={profile.email} /> : null}
 
       {error && (
         <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -397,7 +402,7 @@ function RequestRow({ request }: { request: ExpertizRequestSummary }) {
         <span>Odeme: {({ paid: "Odendi", paid_simulation: "Odendi (test)", pending: "Bekliyor", failed: "Basarisiz" } as Record<string, string>)[request.payment_status || ""] || request.payment_status || "-"}</span>
         <span>Tarih: {formatDate(request.created_at)}</span>
       </div>
-      {request.progress && request.status !== "published" ? <CanliDurum progress={request.progress} /> : null}
+      {request.progress && !["published", "cancelled"].includes(request.status) ? <CanliDurum progress={request.progress} /> : null}
     </div>
   );
 }

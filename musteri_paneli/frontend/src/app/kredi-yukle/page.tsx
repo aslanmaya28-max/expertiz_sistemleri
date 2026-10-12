@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import OdemeAlani from "@/bilesenler/OdemeAlani";
+import SozlesmeOnayi from "@/bilesenler/SozlesmeOnayi";
 import { notifyCreditsChanged, useAuth } from "@/kancalar/yetkiKullan";
 import {
   getCreditBalance,
@@ -28,6 +29,7 @@ function KrediYukleIcerigi() {
   const [tamam, setTamam] = useState<CheckoutStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [hata, setHata] = useState<string | null>(null);
+  const [onay, setOnay] = useState(false);
 
   useEffect(() => {
     getCreditPackages()
@@ -48,7 +50,7 @@ function KrediYukleIcerigi() {
     setBusy(true);
     setHata(null);
     try {
-      setCheckout(await startCreditCheckout(secili));
+      setCheckout(await startCreditCheckout(secili, onay));
     } catch (err) {
       setHata(err instanceof Error ? err.message : "Ödeme başlatılamadı");
     } finally {
@@ -119,10 +121,11 @@ function KrediYukleIcerigi() {
               <strong className="text-metin-birincil">{tl(p.price)}</strong>
             </label>
           ))}
+          <SozlesmeOnayi checked={onay} onChange={setOnay} />
           <button
             type="button"
             onClick={odemeyeGec}
-            disabled={!paket || busy}
+            disabled={!paket || busy || !onay}
             className="w-full rounded-lg bg-birincil py-3 font-semibold text-white disabled:opacity-50"
           >
             {busy ? "Ödeme hazırlanıyor..." : paket ? `${tl(paket.price)} Öde` : "Paket seçin"}
