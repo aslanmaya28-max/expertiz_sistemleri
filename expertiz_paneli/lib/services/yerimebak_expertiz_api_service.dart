@@ -107,7 +107,14 @@ class YerimebakExpertizApiService {
     );
   }
 
-  /// Müşteri ekspertiz talebi oluşturur → admin "Atama Bekleyen" kuyruğuna düşer.
+  /// Güncel kurumsal ekspertiz kataloğu: hizmet bedeli, KDV oranı, firmalar/paketler.
+  Future<Map<String, dynamic>> getExpertizPackages() {
+    return _get('/expertiz/packages');
+  }
+
+  /// Müşteri ekspertiz talebi oluşturur ve PayTR ödemesini başlatır.
+  /// Talep, ödeme onaylanınca admin "Atama Bekleyen" kuyruğuna düşer.
+  /// Cevap: order_id, request_id, amount_tl, provider (paytr|simulation), iframe_url.
   Future<Map<String, dynamic>> createExpertizRequest({
     required String firmId,
     required String packageId,
@@ -115,6 +122,7 @@ class YerimebakExpertizApiService {
     String? city,
     String? listingUrl,
     String? note,
+    Map<String, dynamic>? vehicle,
   }) {
     return _post('/expertiz/requests', body: {
       'firm_id': firmId,
@@ -123,7 +131,66 @@ class YerimebakExpertizApiService {
       if (city != null && city.isNotEmpty) 'city': city,
       if (listingUrl != null && listingUrl.isNotEmpty) 'listing_url': listingUrl,
       if (note != null && note.isNotEmpty) 'note': note,
+      if (vehicle != null && vehicle.isNotEmpty) 'vehicle': vehicle,
     });
+  }
+
+  /// Ödeme durumu: status = pending | paid | failed
+  Future<Map<String, dynamic>> getCheckoutStatus(String orderId) {
+    return _get('/payments/checkout/$orderId');
+  }
+
+  /// Sadece sunucu PAYMENT_SIMULATION=true iken (geliştirme/test).
+  Future<Map<String, dynamic>> simulateCheckout(String orderId, {bool success = true}) {
+    return _post('/payments/checkout/$orderId/simulate', body: {'success': success});
+  }
+
+  // ---------------------------------------------------------------------------
+  // Fiyatlandırma (admin): hizmet bedeli, araç enflasyonu, ekspertiz firma/paketleri
+  // ---------------------------------------------------------------------------
+
+  /// Hizmet bedeli, KDV, aylık araç enflasyonu ve tüm (pasifler dahil) firma/paketler.
+  Future<Map<String, dynamic>> getAdminPricing() {
+    return _get('/expertiz/admin/pricing');
+  }
+
+  Future<Map<String, dynamic>> updatePricingSettings({
+    double? serviceFeeTl,
+    double? inflationMonthlyPct,
+    String? inflationNote,
+    String? inflationEffectiveDate,
+  }) {
+    return _put('/expertiz/admin/pricing/settings', body: {
+      if (serviceFeeTl != null) 'service_fee_tl': serviceFeeTl,
+      if (inflationMonthlyPct != null) 'vehicle_inflation_monthly_pct': inflationMonthlyPct,
+      if (inflationNote != null) 'inflation_note': inflationNote,
+      if (inflationEffectiveDate != null) 'inflation_effective_date': inflationEffectiveDate,
+    });
+  }
+
+  Future<Map<String, dynamic>> createFirm(String name, {String? sourceUrl}) {
+    return _post('/expertiz/admin/firms', body: {
+      'name': name,
+      if (sourceUrl != null && sourceUrl.isNotEmpty) 'source_url': sourceUrl,
+    });
+  }
+
+  /// [fields]: name, active, sort_order, source_url, verified
+  Future<Map<String, dynamic>> updateFirm(String firmId, Map<String, dynamic> fields) {
+    return _put('/expertiz/admin/firms/$firmId', body: fields);
+  }
+
+  Future<Map<String, dynamic>> createPackage(String firmId, {required String name, required double price, List<String> features = const []}) {
+    return _post('/expertiz/admin/firms/$firmId/packages', body: {
+      'name': name,
+      'price': price,
+      'features': features,
+    });
+  }
+
+  /// [fields]: name, price, features, active, sort_order
+  Future<Map<String, dynamic>> updatePackage(String firmId, String packageId, Map<String, dynamic> fields) {
+    return _put('/expertiz/admin/firms/$firmId/packages/$packageId', body: fields);
   }
 
   // ---------------------------------------------------------------------------

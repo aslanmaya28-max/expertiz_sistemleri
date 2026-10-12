@@ -41,14 +41,18 @@ class AdminOnlyRouteTests(unittest.TestCase):
         for method, path in (("PATCH", "/{vehicle_id}/status"), ("POST", "/{vehicle_id}/analyze")):
             self.assertIn(get_admin_user, _dependency_calls(_route(vitrin.router, path, method)), path)
 
-    def test_manual_analysis_path_matches_frontend(self):
-        from yerimebak_ai_v5.api.v1.router import api_router  # noqa: F401  (yonlendirici kurulur)
-        from yerimebak_ai_v5.api.v1.endpoints import analysis
+    def test_frontend_valuation_paths_exist_in_backend(self):
+        from tests.unit.route_paths import api_paths
+        from yerimebak_ai_v5.api.v1.router import api_router
 
-        _route(analysis.router, "/analyze", "POST")
-        page = (ROOT / "frontend/src/app/arac-analiz/page.tsx").read_text(encoding="utf-8")
-        # analysis router'i /api/v1 altina oneksiz baglanir
-        self.assertIn('fetch("/api/v1/analyze"', page)
+        paths = api_paths(api_router)
+        api_ts = (ROOT / "frontend/src/lib/api.ts").read_text(encoding="utf-8")
+        for path in ("/valuation/analyze", "/valuation/prefill", "/valuation/parts", "/payments/checkout/credits"):
+            self.assertIn(f'"{path}', api_ts.replace("`", '"'))
+            self.assertIn(path, paths)
+        # Onceki 404: frontend'in var olmayan /analysis/analyze adresini cagirmasi
+        for page in (ROOT / "frontend/src").rglob("*.ts*"):
+            self.assertNotIn("/api/v1/analysis/analyze", page.read_text(encoding="utf-8"), str(page))
 
 
 class ConnectionPoolTests(unittest.TestCase):

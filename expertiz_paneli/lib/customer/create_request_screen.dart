@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/constants/location_data.dart';
 import '../../core/constants/expertiz_packages.dart';
@@ -26,6 +27,40 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   void initState() {
     super.initState();
     _loadUserName();
+    _loadCatalog();
+  }
+
+  /// Firma/paket fiyatları ve hizmet bedeli admin panelinden yönetilir; merkezi API'den okunur.
+  Future<void> _loadCatalog() async {
+    try {
+      final data = await _api.getExpertizPackages();
+      final firms = (data['firms'] as List? ?? const [])
+          .whereType<Map>()
+          .map((f) => ExpertizFirm(
+                id: f['id'].toString(),
+                name: f['name']?.toString() ?? '',
+                logoUrl: '',
+                packages: (f['packages'] as List? ?? const [])
+                    .whereType<Map>()
+                    .map((p) => ExpertizPackage(
+                          id: p['id'].toString(),
+                          name: p['name']?.toString() ?? '',
+                          price: (p['price'] as num?)?.toDouble() ?? 0,
+                          features: (p['features'] as List? ?? const []).map((e) => e.toString()).toList(),
+                        ))
+                    .toList(),
+              ))
+          .toList();
+      if (!mounted) return;
+      setState(() {
+        _firmalar = firms;
+        _hizmetBedeli = (data['service_fee_tl'] as num?)?.toDouble() ?? _hizmetBedeli;
+        _kdvOrani = (data['vat_rate'] as num?)?.toDouble() ?? _kdvOrani;
+        _katalogHatasi = null;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _katalogHatasi = 'Ekspertiz paketleri yüklenemedi: $e');
+    }
   }
   
   Future<void> _loadUserName() async {
@@ -48,15 +83,12 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   ExpertizFirm? _secilenFirma;
   ExpertizPackage? _secilenPaket;
 
-  // Adım 3: Ödeme
-  final _kartAdiController = TextEditingController();
-  final _kartNumarasiController = TextEditingController();
-  final _sktController = TextEditingController();
-  final _cvvController = TextEditingController();
-
-  // Constants
-  static const double _hizmetBedeli = 6500.0;
-  static const double _kdvOrani = 0.20;
+  // Katalog (merkezi API) ve ödeme
+  final YerimebakExpertizApiService _api = YerimebakExpertizApiService();
+  List<ExpertizFirm> _firmalar = const [];
+  String? _katalogHatasi;
+  double _hizmetBedeli = 0;
+  double _kdvOrani = 0.20;
 
   // Loading State
   bool _isLoading = false;
@@ -65,10 +97,6 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   void dispose() {
     _ilanLinkController.dispose();
     _plakaController.dispose();
-    _kartAdiController.dispose();
-    _kartNumarasiController.dispose();
-    _sktController.dispose();
-    _cvvController.dispose();
     super.dispose();
   }
 
@@ -83,11 +111,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
 
   bool get _adim2Valid => _secilenFirma != null && _secilenPaket != null;
 
-  bool get _adim3Valid =>
-      _kartAdiController.text.isNotEmpty &&
-      _kartNumarasiController.text.isNotEmpty &&
-      _sktController.text.isNotEmpty &&
-      _cvvController.text.isNotEmpty;
+  // Kart bilgisi uygulamada alınmaz; ödeme PayTR güvenli sayfasında yapılır.
+  bool get _adim3Valid => true;
 
   @override
   Widget build(BuildContext context) {
@@ -416,7 +441,11 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
               const SizedBox(height: 16),
               
               // Firma Listesi
-              ...ExpertizPackages.firms.map((firma) {
+              if (_katalogHatasi != null)
+                _buildWarningCard(_katalogHatasi!, Icons.error_outline)
+              else if (_firmalar.isEmpty)
+                const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator())),
+              ..._firmalar.map((firma) {
                 final isSelected = _secilenFirma?.id == firma.id;
                 return _buildFirmaCard(firma, isSelected);
               }),
@@ -461,91 +490,22 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
               _buildSummaryCard(),
               const SizedBox(height: 24),
               
-              // Ödeme Formu
               const Text(
-                'Ödeme Bilgileri',
+                'Ödeme',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF1976D2),
                 ),
               ),
-              const SizedBox(height: 16),
-              
-              TextFormField(
-                controller: _kartAdiController,
-                decoration: InputDecoration(
-                  labelText: 'Kart Üzerindeki İsim *',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  prefixIcon: const Icon(Icons.person, color: Color(0xFF1976D2)),
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
+              const SizedBox(height: 8),
+              Text(
+                '"Ödemeyi Tamamla" ile talebiniz oluşturulur ve PayTR güvenli ödeme sayfası açılır. '
+                'Kart bilgileriniz uygulamaya girilmez. Talebiniz ödeme onaylandığında işleme alınır.',
+                style: TextStyle(color: Colors.grey[800], fontSize: 14),
               ),
-              const SizedBox(height: 12),
-              
-              TextFormField(
-                controller: _kartNumarasiController,
-                decoration: InputDecoration(
-                  labelText: 'Kart Numarası *',
-                  hintText: 'XXXX XXXX XXXX XXXX',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  prefixIcon: const Icon(Icons.credit_card, color: Color(0xFF1976D2)),
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
-                keyboardType: TextInputType.number,
-                maxLength: 19,
-              ),
-              const SizedBox(height: 12),
-              
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _sktController,
-                      decoration: InputDecoration(
-                        labelText: 'SKT (AA/YY) *',
-                        hintText: 'MM/YY',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        prefixIcon: const Icon(Icons.calendar_today, color: Color(0xFF1976D2)),
-                        filled: true,
-                        fillColor: Colors.white,
-                      ),
-                      keyboardType: TextInputType.number,
-                      maxLength: 5,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _cvvController,
-                      decoration: InputDecoration(
-                        labelText: 'CVV *',
-                        hintText: 'XXX',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        prefixIcon: const Icon(Icons.lock, color: Color(0xFF1976D2)),
-                        filled: true,
-                        fillColor: Colors.white,
-                      ),
-                      keyboardType: TextInputType.number,
-                      maxLength: 3,
-                      obscureText: true,
-                    ),
-                  ),
-                ],
-              ),
-              
               const SizedBox(height: 24),
-              
+
               // Güvenlik Notu
               Container(
                 padding: const EdgeInsets.all(16),
@@ -563,7 +523,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Ödeme bilgileriniz 256-bit SSL şifreleme ile korunmaktadır.',
+                        'Ödeme, PayTR altyapısında 3D Secure ile alınır.',
                         style: TextStyle(
                           color: Colors.grey[800],
                           fontSize: 13,
@@ -1017,7 +977,6 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
     }
     
     if (_currentStep == 2 && !_adim3Valid) {
-      _showErrorSnackBar('Lütfen tüm ödeme bilgilerini doldurunuz.');
       return;
     }
     
@@ -1055,15 +1014,14 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
     );
   }
 
-  // Talep Oluşturma
+  // Talep Oluşturma + PayTR ödemesi
   Future<void> _talepOlustur() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // Talep merkezi API'ye yazılır → admin panelinde "Atama Bekleyen" listesine düşer
-      final response = await YerimebakExpertizApiService().createExpertizRequest(
+      final response = await _api.createExpertizRequest(
         firmId: _secilenFirma!.id,
         packageId: _secilenPaket!.id,
         plate: _plakaController.text.trim().toUpperCase(),
@@ -1071,9 +1029,12 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
         listingUrl: _ilanLinkController.text.trim(),
         note: 'Mobil uygulama talebi',
       );
+      if (!mounted) return;
+      final paid = await _odemeyiTamamla(response);
+      if (!mounted || paid == null) return;
 
       final talep = TalepModel(
-        id: response['report_id']?.toString() ?? response['request_id']?.toString() ?? const Uuid().v4(),
+        id: paid['request_id']?.toString() ?? response['request_id']?.toString() ?? const Uuid().v4(),
         musteriAdi: _userName,
         musteriId: _userId ?? _userName,
         telefon: '',
@@ -1088,16 +1049,13 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
         expertizPaketi: _secilenPaket!.name,
         paketFiyati: _secilenPaket!.price,
         hizmetBedeli: _hizmetBedeli,
-        toplamTutar: (response['total_tl'] as num?)?.toDouble() ?? _toplamTutar,
+        toplamTutar: (paid['amount_tl'] as num?)?.toDouble() ?? _toplamTutar,
         isPaid: true,
       );
-
-      if (mounted) {
-        _showSuccessDialog(talep);
-      }
+      _showSuccessDialog(talep);
     } catch (e) {
       if (mounted) {
-        _showErrorSnackBar('Bir hata oluştu: $e');
+        _showErrorSnackBar(e is ApiException ? e.message : 'Bir hata oluştu: $e');
       }
     } finally {
       if (mounted) {
@@ -1106,6 +1064,84 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
         });
       }
     }
+  }
+
+  /// PayTR sayfasını açar ve onayı bekler. Ödendiyse sipariş durumunu, vazgeçildiyse null döner.
+  Future<Map<String, dynamic>?> _odemeyiTamamla(Map<String, dynamic> checkout) async {
+    final orderId = checkout['order_id'].toString();
+    final iframeUrl = checkout['iframe_url']?.toString();
+    final simulation = checkout['provider'] == 'simulation';
+    if (!simulation && iframeUrl != null && iframeUrl.isNotEmpty) {
+      await launchUrl(Uri.parse(iframeUrl), mode: LaunchMode.externalApplication);
+    }
+    if (!mounted) return null;
+
+    return showDialog<Map<String, dynamic>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        String? info;
+        bool busy = false;
+        return StatefulBuilder(
+          builder: (ctx, setDialog) {
+            Future<void> check({bool? simulate}) async {
+              setDialog(() {
+                busy = true;
+                info = null;
+              });
+              try {
+                final status = simulate == null
+                    ? await _api.getCheckoutStatus(orderId)
+                    : await _api.simulateCheckout(orderId, success: simulate);
+                if (status['status'] == 'paid') {
+                  if (dialogContext.mounted) Navigator.pop(dialogContext, status);
+                  return;
+                }
+                setDialog(() => info = status['status'] == 'failed'
+                    ? 'Ödeme başarısız oldu; kartınızdan çekim yapılmadı.'
+                    : 'Ödeme onayı henüz gelmedi. Ödemeyi tamamladıysanız birkaç saniye sonra tekrar kontrol edin.');
+              } catch (e) {
+                setDialog(() => info = e is ApiException ? e.message : '$e');
+              } finally {
+                setDialog(() => busy = false);
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Ödeme'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Tutar: ${((checkout['amount_tl'] as num?) ?? _toplamTutar).toStringAsFixed(2)} TL'),
+                  const SizedBox(height: 8),
+                  Text(simulation
+                      ? 'Sunucu test ödeme modunda; gerçek çekim yapılmaz.'
+                      : 'Ödemeyi açılan PayTR sayfasında tamamlayın, ardından "Ödemeyi Kontrol Et"e basın.'),
+                  if (info != null) ...[
+                    const SizedBox(height: 12),
+                    Text(info!, style: const TextStyle(color: Color(0xFFD32F2F))),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: busy ? null : () => Navigator.pop(dialogContext), child: const Text('Vazgeç')),
+                if (simulation)
+                  FilledButton(onPressed: busy ? null : () => check(simulate: true), child: const Text('Ödemeyi Onayla (test)'))
+                else ...[
+                  if (iframeUrl != null)
+                    TextButton(
+                      onPressed: busy ? null : () => launchUrl(Uri.parse(iframeUrl), mode: LaunchMode.externalApplication),
+                      child: const Text('Ödeme Sayfasını Aç'),
+                    ),
+                  FilledButton(onPressed: busy ? null : () => check(), child: const Text('Ödemeyi Kontrol Et')),
+                ],
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _showSuccessDialog(TalepModel talep) {
