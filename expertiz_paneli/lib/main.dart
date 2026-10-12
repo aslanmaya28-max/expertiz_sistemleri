@@ -23,11 +23,6 @@ import 'services/rapor_service.dart';
 import 'services/vision_engine_service.dart';
 import 'services/shared_preferences_manager.dart';
 import 'repositories/auth_repository.dart';
-import 'admin/admin_dashboard.dart';
-import 'personnel/personnel_dashboard.dart';
-import 'customer/customer_dashboard.dart';
-import 'screens/login_screen.dart';
-import 'widgets/auth_wrapper.dart';
 import 'routing/app_router.dart';
 
 
@@ -77,6 +72,8 @@ void main() async {
 
 /// 🔒 DÜZELTİLDİ (B13): Config hatası durumunda gösterilecek basit uygulama
 class _ConfigErrorApp extends ConsumerWidget {
+  const _ConfigErrorApp();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
