@@ -126,6 +126,26 @@ class YerimebakExpertizApiService {
     });
   }
 
+  /// Admin müşteri listesi (arama: e-posta, ad veya telefon).
+  Future<Map<String, dynamic>> getAdminCustomers({String? search}) {
+    final term = search?.trim() ?? '';
+    return _get('/expertiz/admin/customers', queryParams: term.isEmpty ? null : {'search': term});
+  }
+
+  /// Müşteri detayı ve ekspertiz talepleri.
+  Future<Map<String, dynamic>> getAdminCustomer(int customerId) {
+    return _get('/expertiz/admin/customers/$customerId');
+  }
+
+  /// Müşteri hesabını aktif/pasif yapar. Pasife almada [reason] zorunludur.
+  Future<Map<String, dynamic>> setCustomerActive(int customerId, {required bool active, String? reason}) {
+    final note = reason?.trim() ?? '';
+    return _post(
+      '/expertiz/admin/customers/$customerId/status',
+      body: {'active': active, if (note.isNotEmpty) 'reason': note},
+    );
+  }
+
   /// Admin finans özeti: ekspertiz cirosu/KDV, kredi satışları, personel hakedişi.
   Future<Map<String, dynamic>> getAdminFinanceSummary() {
     return _get('/expertiz/admin/finance/summary');
