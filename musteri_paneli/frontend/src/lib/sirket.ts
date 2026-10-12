@@ -30,6 +30,6 @@ export async function sirketBilgisi(): Promise<SirketBilgisi> {
     eposta: env("COMPANY_EMAIL") || "info@yerimebak.com.tr",
     kep: env("COMPANY_KEP") || BOS,
     kvkkEposta: env("COMPANY_KVKK_EMAIL") || env("COMPANY_EMAIL") || "kvkk@yerimebak.com.tr",
-    site: "https://yerimebak.com.tr",
+    site: "https://www.yerimebak.com.tr",
   };
 }

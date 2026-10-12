@@ -1,18 +1,40 @@
-# YerimeBak — Canlıya Çıkış Rehberi (yerimebak.com.tr)
+# YerimeBak — Canlıya Çıkış Rehberi (www.yerimebak.com.tr)
 
-Tek sunucu, Docker Compose. Dışarıya yalnızca nginx (80/443) açılır.
+Müşteri sitesi ve admin paneli **Vercel**'de çalışır. API, veritabanı ve kazıyıcılar ise **bir sunucuda** Docker Compose ile çalışır. Sunucuda dışarıya yalnızca nginx (80/443) açılır.
 
-| Adres | Servis |
-|---|---|
-| https://yerimebak.com.tr | Müşteri sitesi (Next.js) + `/api/v1` (FastAPI) |
-| https://www.yerimebak.com.tr | → yerimebak.com.tr yönlendirmesi |
-| https://admin.yerimebak.com.tr | Flutter admin / personel paneli + `/api/v1` |
+| Adres | Nerede | Servis |
+|---|---|---|
+| https://www.yerimebak.com.tr | Vercel | Müşteri sitesi (Next.js) — ana adres |
+| https://yerimebak.com.tr | Vercel | → www yönlendirmesi |
+| https://admin.yerimebak.com.tr | Vercel | Flutter admin / personel paneli |
+| https://api.yerimebak.com.tr | Sunucu | FastAPI + PostgreSQL + Redis + kazıyıcılar |
 
-## 1. Sunucu ve DNS
+> İstenirse her şey tek sunucuda da çalışır: `.env` içine `COMPOSE_PROFILES=tek-sunucu` ve `NGINX_CONF=nginx.conf` yazılır, sertifika `tek` moduyla alınır (bkz. 3).
 
-- Ubuntu 22.04+ / Debian 12, en az 2 vCPU · 4 GB RAM · 40 GB disk.
+## 1. DNS (METUnic → yerimebak.com.tr → DNS Kayıtları)
+
+| Ad | Tür | Değer |
+|---|---|---|
+| `@` | A | Vercel'in verdiği IP (Vercel → Project → Domains) |
+| `www` | CNAME | Vercel'in verdiği CNAME |
+| `admin` | CNAME | Vercel'in verdiği CNAME |
+| `api` | A | API sunucusunun IP adresi |
+
+## 1b. Vercel projeleri
+
+| Proje | Kök klasör | Ortam değişkenleri |
+|---|---|---|
+| `yerimebak-site` | `musteri_paneli/frontend` | `NEXT_PUBLIC_API_BASE_URL=https://api.yerimebak.com.tr/api/v1`, `API_BACKEND_URL=https://api.yerimebak.com.tr`, `COMPANY_*` |
+| `yerimebak-admin` | `expertiz_paneli` | `YERIMEBAK_API_BASE_URL=https://api.yerimebak.com.tr/api/v1` |
+
+- **Admin projesi:** Flutter SDK'yı derleme sırasında kendisi indirir (`scripts/vercel_build.sh`, ayarlar `vercel.json`'da).
+- **Otomatik yayın:** Her iki proje de GitHub'a bağlı; `main` dalına her push otomatik yayınlanır.
+- **Değişkenler:** `NEXT_PUBLIC_*` ve `YERIMEBAK_API_BASE_URL` derlemeye gömülür. Değiştirince yeniden yayınlamak (Redeploy) gerekir.
+
+## 1c. API sunucusu
+
+- Ubuntu 22.04+ / Debian 12, en az 2 vCPU · 4 GB RAM · 40 GB disk (ör. Hetzner CX22).
 - Docker Engine + Compose eklentisi kurulu olmalı.
-- DNS'te üç A kaydı da sunucu IP'sine gitmeli: `yerimebak.com.tr`, `www`, `admin`.
 - Güvenlik duvarında yalnızca 22, 80 ve 443 açık olmalı.
 
 ## 2. Ortam değişkenleri
@@ -38,7 +60,7 @@ Doldurulması **zorunlu** alanlar:
 
 İsteğe bağlı: `SENTRY_DSN` (hata izleme), `OFFSITE_PATH` + `RCLONE_CONFIG_OFFSITE_*` (sunucu dışı yedek).
 
-> `COMPANY_*` değerleri çalışma anında okunur; değiştirdikten sonra `docker compose up -d frontend` yeterlidir.
+> `COMPANY_*` değerleri müşteri sitesinde gösterilir. Vercel kullanılıyorsa bunlar Vercel projesine (`yerimebak-site`) girilir, sunucu `.env`'ine değil.
 
 ## 3. İlk kurulum ve SSL
 
@@ -46,13 +68,14 @@ nginx sertifika olmadan açılamaz. Bu yüzden ilk sertifika betikle alınır:
 
 ```sh
 docker compose build
-sh scripts/ilk_sertifika.sh info@yerimebak.com.tr
+sh scripts/ilk_sertifika.sh info@yerimebak.com.tr api   # Vercel kurulumu: yalnızca api.yerimebak.com.tr
+# sh scripts/ilk_sertifika.sh info@yerimebak.com.tr tek  # her şey tek sunucuda
 ```
 
 Betik şunları yapar:
 
 1. nginx'i durdurur.
-2. certbot'u standalone modda çalıştırıp üç alan adı için tek sertifika alır.
+2. certbot'u standalone modda çalıştırıp sertifika alır (`api` modunda yalnızca api.yerimebak.com.tr).
 3. Tüm servisleri başlatır.
 
 Yenileme `certbot` servisiyle otomatik yapılır (12 saatte bir kontrol). nginx 6 saatte bir yeniden yüklenir.
@@ -61,15 +84,15 @@ Kontrol:
 
 ```sh
 docker compose ps
-curl -I https://yerimebak.com.tr
-curl https://yerimebak.com.tr/health
+curl https://api.yerimebak.com.tr/health
+curl -I https://www.yerimebak.com.tr
 ```
 
 ## 4. PayTR ayarları
 
 PayTR Mağaza Paneli → Ayarlar:
 
-- **Bildirim URL**: `https://yerimebak.com.tr/api/v1/payments/paytr/callback`
+- **Bildirim URL**: `https://api.yerimebak.com.tr/api/v1/payments/paytr/callback`
 - Başarılı / başarısız dönüş adresleri `.env` içindeki `PAYTR_OK_URL` / `PAYTR_FAIL_URL` ile aynı olmalı.
 - İade (admin → İptal / İade ve kredi paketi iadesi) PayTR iade API'sini kullanır. Mağazada iade yetkisi açık olmalı.
 

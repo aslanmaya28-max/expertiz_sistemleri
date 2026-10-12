@@ -1,6 +1,8 @@
 import { getToken, removeToken } from "@/lib/yetki";
 
-export const API_BASE = "/api/v1";
+// API ayri sunucudaysa (Vercel + api.yerimebak.com.tr) tarayici dogrudan oraya gider;
+// boylece PayTR ve hiz siniri gercek istemci IP'sini gorur. Tanimsizsa ayni alan adi.
+export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "/api/v1").replace(/\/$/, "");
 
 export class ApiError extends Error {
   constructor(message: string, public status: number, public code?: string) {

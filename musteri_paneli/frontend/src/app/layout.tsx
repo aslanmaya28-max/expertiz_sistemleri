@@ -11,7 +11,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://yerimebak.com.tr"),
+  metadataBase: new URL("https://www.yerimebak.com.tr"),
   title: {
     default: "YerimeBak — AI Destekli Araç Değerleme ve Ekspertiz",
     template: "%s | YerimeBak",
@@ -49,7 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               "@context": "https://schema.org",
               "@type": "WebApplication",
               name: "YerimeBak",
-              url: "https://yerimebak.com.tr",
+              url: "https://www.yerimebak.com.tr",
               description: "AI destekli araç değerleme ve risk analizi platformu",
               applicationCategory: "BusinessApplication",
               operatingSystem: "Web",
