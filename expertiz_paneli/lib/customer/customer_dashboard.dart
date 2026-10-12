@@ -99,12 +99,16 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
       final stream = Supabase.instance.client
           .from('reports')
           .stream(primaryKey: ['id'])
-          .eq('status', ReportStatus.published.value)
+          // Supabase realtime akışı tek filtre destekler: güvenlik filtresi
+          // (user_id) sunucuda, yayın durumu filtresi istemcide uygulanır.
           .eq('user_id', userId) // 🔒 Kendi raporlarına filtrele
           .order('status_updated_at', ascending: false);
 
 
-      _reportsSubscription = stream.listen((event) {
+      _reportsSubscription = stream.listen((rows) {
+        final event = rows
+            .where((r) => r['status'] == ReportStatus.published.value)
+            .toList();
         if (mounted) {
           setState(() {
             _dashboardData = {
