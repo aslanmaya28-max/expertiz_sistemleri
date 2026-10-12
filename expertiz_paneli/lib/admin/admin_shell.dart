@@ -13,6 +13,7 @@
 library;
 
 import 'dart:ui';
+import '../core/widgets/yerimebak_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_provider.dart';
@@ -127,8 +128,8 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
     return AppBar(
       title: Row(
         children: [
-          const Icon(Icons.admin_panel_settings, color: YerimeBakColors.blue),
-          const SizedBox(width: 10),
+          YerimeBakLogo(height: 34, onDark: isDarkMode),
+          const SizedBox(width: 12),
           Text(
             'Admin Paneli',
             style: TextStyle(

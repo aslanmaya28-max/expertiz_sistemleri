@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { useAuth, useCredits } from "@/kancalar/yetkiKullan";
@@ -14,11 +15,8 @@ export default function UstCubuk() {
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-kenarlik-acik">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-birincil rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">Y</span>
-            </div>
-            <span className="text-lg font-bold text-metin-birincil">yerimebak<span className="text-birincil">.ai</span></span>
+          <Link href="/" className="flex items-center" aria-label="YerimeBak ana sayfa">
+            <Image src="/logo-yerimebak.png" alt="YerimeBak" width={640} height={262} priority className="h-11 w-auto" />
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">

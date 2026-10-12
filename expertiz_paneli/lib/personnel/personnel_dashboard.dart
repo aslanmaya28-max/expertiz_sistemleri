@@ -10,6 +10,7 @@
 library;
 
 import 'dart:async';
+import '../core/widgets/yerimebak_logo.dart';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -224,7 +225,14 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
       child: Scaffold(
         backgroundColor: FuturisticTheme.bgPrimary,
         appBar: AppBar(
-          title: const Text('Personel Paneli'),
+          title: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              YerimeBakLogo(height: 32, onDark: true),
+              SizedBox(width: 12),
+              Text('Personel Paneli'),
+            ],
+          ),
           actions: [
             IconButton(
               key: const Key('notificationsButton'),
