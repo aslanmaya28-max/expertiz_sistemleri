@@ -17,7 +17,7 @@ interface Siparis {
 }
 
 export default function OdemeOnaylari() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [siparisler, setSiparisler] = useState<Siparis[]>([]);
   const [yukleniyor, setYukleniyor] = useState(true);
 
@@ -29,6 +29,7 @@ export default function OdemeOnaylari() {
   };
 
   useEffect(() => {
+    if (loading) return;
     if (!user || user.role !== "admin") {
       if (typeof window !== "undefined") window.location.href = "/";
       return;
@@ -38,7 +39,7 @@ export default function OdemeOnaylari() {
       .then((d) => setSiparisler(d.orders || []))
       .catch(console.error)
       .finally(() => setYukleniyor(false));
-  }, [user]);
+  }, [loading, user]);
 
   const onayla = async (id: string) => {
     try {

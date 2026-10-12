@@ -6,7 +6,7 @@ import { getToken } from "@/lib/yetki";
 import YonetimLayout from "@/bilesenler/YonetimLayout";
 
 export default function VitrinYonetimi() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [esik, setEsik] = useState(70);
   const [islemSonucu, setIslemSonucu] = useState<string | null>(null);
   const [yukleniyor, setYukleniyor] = useState(false);
@@ -20,10 +20,10 @@ export default function VitrinYonetimi() {
   };
 
   useEffect(() => {
-    if (!user || user.role !== "admin") {
+    if (!loading && (!user || user.role !== "admin")) {
       window.location.href = "/";
     }
-  }, [user]);
+  }, [loading, user]);
 
   if (!user || user.role !== "admin") {
     return null;

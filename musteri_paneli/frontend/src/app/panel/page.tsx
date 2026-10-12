@@ -63,6 +63,10 @@ function statusLabel(status?: string): { text: string; cls: string } {
       return { text: "Duzeltme gerekli", cls: "bg-red-100 text-red-700" };
     case "draft":
       return { text: "Islemde", cls: "bg-gray-100 text-gray-700" };
+    case "payment_pending":
+      return { text: "Odeme bekliyor", cls: "bg-yellow-100 text-yellow-800" };
+    case "payment_failed":
+      return { text: "Odeme basarisiz", cls: "bg-red-100 text-red-700" };
     default:
       return { text: status || "Bilinmiyor", cls: "bg-gray-100 text-gray-700" };
   }
@@ -339,7 +343,7 @@ function RequestRow({ request }: { request: ExpertizRequestSummary }) {
       <div className="mt-3 grid gap-2 text-xs text-metin-ikincil sm:grid-cols-2">
         <span>Konum: {request.city || "-"}</span>
         <span>Tutar: {formatPrice(request.total_tl)}</span>
-        <span>Odeme: {request.payment_status || "-"}</span>
+        <span>Odeme: {({ paid: "Odendi", paid_simulation: "Odendi (test)", pending: "Bekliyor", failed: "Basarisiz" } as Record<string, string>)[request.payment_status || ""] || request.payment_status || "-"}</span>
         <span>Tarih: {formatDate(request.created_at)}</span>
       </div>
     </div>
