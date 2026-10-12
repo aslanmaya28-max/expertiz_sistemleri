@@ -120,6 +120,7 @@ class YerimebakExpertizApiService {
     required String packageId,
     String? plate,
     String? city,
+    String? district,
     String? listingUrl,
     String? note,
     Map<String, dynamic>? vehicle,
@@ -129,6 +130,7 @@ class YerimebakExpertizApiService {
       'package_id': packageId,
       if (plate != null && plate.isNotEmpty) 'plate': plate,
       if (city != null && city.isNotEmpty) 'city': city,
+      if (district != null && district.isNotEmpty) 'district': district,
       if (listingUrl != null && listingUrl.isNotEmpty) 'listing_url': listingUrl,
       if (note != null && note.isNotEmpty) 'note': note,
       if (vehicle != null && vehicle.isNotEmpty) 'vehicle': vehicle,
@@ -297,9 +299,39 @@ class YerimebakExpertizApiService {
     return _get('/expertiz/personnel/tasks');
   }
 
-  /// action: accept | start
+  /// Saha adımı: accept | depart (harekete geçti) | arrive (araç başında) |
+  /// corporate (kurumsal ekspertizde) | start (rapora başla / düzeltmeye başla)
   Future<Map<String, dynamic>> updateMyTask(String taskId, String action) {
     return _post('/expertiz/personnel/tasks/$taskId/$action');
+  }
+
+  /// Giriş yapmış personelin profili (il, ilçe, görev durumu).
+  Future<Map<String, dynamic>> getPersonnelMe() {
+    return _get('/expertiz/personnel/me');
+  }
+
+  /// Personel kendini görev için aktif/pasif yapar.
+  Future<Map<String, dynamic>> setMyDuty(bool onDuty) {
+    return _send('PUT', '/expertiz/personnel/me/duty', body: {'on_duty': onDuty});
+  }
+
+  /// Admin: personelin görev durumunu değiştirir.
+  Future<Map<String, dynamic>> setPersonnelDuty(String personnelId, bool onDuty) {
+    return _send('PUT', '/expertiz/admin/personnel/$personnelId/duty', body: {'on_duty': onDuty});
+  }
+
+  // ---------------------------------------------------------------------------
+  // Bildirimler
+  // ---------------------------------------------------------------------------
+
+  /// [admin]: true ise admin ortak bildirim kutusu (+ kendi bildirimleri).
+  Future<Map<String, dynamic>> getNotifications({bool admin = false, int limit = 30}) {
+    return _get('/expertiz/${admin ? 'admin/' : ''}notifications?limit=$limit');
+  }
+
+  /// [ids] verilmezse tüm okunmamış bildirimler okundu olur.
+  Future<Map<String, dynamic>> markNotificationsRead({bool admin = false, List<int>? ids}) {
+    return _post('/expertiz/${admin ? 'admin/' : ''}notifications/read', body: {if (ids != null) 'ids': ids});
   }
 
   // ---------------------------------------------------------------------------

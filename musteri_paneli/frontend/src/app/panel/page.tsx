@@ -20,6 +20,7 @@ import {
   type FavoriteVehicle,
 } from "@/lib/api";
 import { useAuth } from "@/kancalar/yetkiKullan";
+import { BILDIRIM_EVENT } from "@/bilesenler/BildirimZili";
 
 type PanelTab = "ozet" | "analizler" | "ekspertiz" | "raporlar" | "favoriler" | "krediler" | "profil";
 
@@ -55,14 +56,13 @@ function statusLabel(status?: string): { text: string; cls: string } {
   switch (status) {
     case "published":
       return { text: "Yayinlandi", cls: "bg-green-100 text-green-700" };
+    // Ic kalite kontrolu (admin reddi dahil) musteriye tek adim olarak gorunur
     case "pending_admin":
-      return { text: "Admin onayinda", cls: "bg-orange-100 text-orange-700" };
     case "pending_ai":
-      return { text: "AI analizinde", cls: "bg-blue-100 text-blue-700" };
     case "rejected":
-      return { text: "Duzeltme gerekli", cls: "bg-red-100 text-red-700" };
+      return { text: "Rapor kontrol ediliyor", cls: "bg-orange-100 text-orange-700" };
     case "draft":
-      return { text: "Islemde", cls: "bg-gray-100 text-gray-700" };
+      return { text: "İşlemde", cls: "bg-blue-100 text-blue-700" };
     case "payment_pending":
       return { text: "Odeme bekliyor", cls: "bg-yellow-100 text-yellow-800" };
     case "payment_failed":
@@ -130,8 +130,28 @@ export default function MusteriPaneli() {
     loadPanel();
   }, [user]);
 
+  // Canli durum: uzman yola cikti / arac basinda ... bildirim gelince veya 30 sn'de bir yenilenir
+  useEffect(() => {
+    if (!user) return;
+    let iptal = false;
+    const yenile = () => {
+      getMyExpertizRequests()
+        .then((res) => { if (!iptal) setRequests(res.requests || []); })
+        .catch(() => undefined);
+    };
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") yenile();
+    }, 30_000);
+    window.addEventListener(BILDIRIM_EVENT, yenile);
+    return () => {
+      iptal = true;
+      window.clearInterval(timer);
+      window.removeEventListener(BILDIRIM_EVENT, yenile);
+    };
+  }, [user]);
+
   const activeRequests = useMemo(
-    () => requests.filter((item) => item.status !== "published" && item.status !== "rejected"),
+    () => requests.filter((item) => item.status !== "published" && item.status !== "payment_failed"),
     [requests],
   );
   const latestRequests = requests.slice(0, 4);
@@ -329,8 +349,39 @@ function AnalysisRow({ item }: { item: AnalysisHistoryItem }) {
   );
 }
 
+function saat(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+function CanliDurum({ progress }: { progress: NonNullable<ExpertizRequestSummary["progress"]> }) {
+  return (
+    <div className="mt-4 border-t border-kenarlik-acik pt-3">
+      <div className="text-xs font-semibold text-metin-birincil">
+        {progress.label}
+        {progress.person_name ? <span className="font-normal text-metin-ikincil"> · Uzmanınız: {progress.person_name}</span> : null}
+      </div>
+      <ol className="mt-3 grid gap-2 sm:grid-cols-2">
+        {progress.steps.map((step) => (
+          <li key={step.key} className="flex items-center gap-2 text-xs">
+            <span className={`flex h-4 w-4 flex-none items-center justify-center rounded-full ${step.done ? "bg-green-500 text-white" : "border border-kenarlik-acik"}`}>
+              {step.done ? "✓" : ""}
+            </span>
+            <span className={step.done ? "text-metin-birincil" : "text-metin-ikincil"}>{step.label}</span>
+            {step.at && step.done ? <span className="text-metin-ikincil">{saat(step.at)}</span> : null}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 function RequestRow({ request }: { request: ExpertizRequestSummary }) {
-  const status = statusLabel(request.status);
+  const status = request.status === "draft" && request.progress
+    ? { text: request.progress.label, cls: "bg-blue-100 text-blue-700" }
+    : statusLabel(request.status);
   return (
     <div className="rounded-lg border border-kenarlik-acik p-4">
       <div className="flex items-start justify-between gap-3">
@@ -341,11 +392,12 @@ function RequestRow({ request }: { request: ExpertizRequestSummary }) {
         <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${status.cls}`}>{status.text}</span>
       </div>
       <div className="mt-3 grid gap-2 text-xs text-metin-ikincil sm:grid-cols-2">
-        <span>Konum: {request.city || "-"}</span>
+        <span>Konum: {[request.city, request.district].filter(Boolean).join(" / ") || "-"}</span>
         <span>Tutar: {formatPrice(request.total_tl)}</span>
         <span>Odeme: {({ paid: "Odendi", paid_simulation: "Odendi (test)", pending: "Bekliyor", failed: "Basarisiz" } as Record<string, string>)[request.payment_status || ""] || request.payment_status || "-"}</span>
         <span>Tarih: {formatDate(request.created_at)}</span>
       </div>
+      {request.progress && request.status !== "published" ? <CanliDurum progress={request.progress} /> : null}
     </div>
   );
 }

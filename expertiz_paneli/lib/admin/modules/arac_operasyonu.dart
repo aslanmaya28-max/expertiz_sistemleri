@@ -19,7 +19,9 @@ import '../../../widgets/cyber/cyber_shimmer_loading.dart';
 /// - Tamamlanan: rapor yayınlandı
 ///
 /// Atama, bölge sistemine göre önerilen personel listesinden yapılır
-/// (önce aynı il, sonra aynı bölge, en az açık görevi olan önce).
+/// (önce aynı ilçe, sonra aynı il, sonra aynı bölge; görev için pasif personel
+/// atanamaz). İşlemdeki taleplerde personelin saha adımı (harekete geçti, araç
+/// başında, kurumsal ekspertizde) canlı görünür.
 class AracOperasyonu extends StatefulWidget {
   const AracOperasyonu({super.key, this.apiService});
 
@@ -270,8 +272,14 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
     switch (assignment['status']) {
       case 'accepted':
         return (label: 'Personel kabul etti', color: Colors.tealAccent);
+      case 'on_the_way':
+        return (label: 'Harekete geçti', color: Colors.amberAccent);
+      case 'at_vehicle':
+        return (label: 'Araç başında', color: Colors.lightGreenAccent);
+      case 'at_corporate':
+        return (label: 'Kurumsal ekspertizde', color: Colors.cyanAccent);
       case 'in_progress':
-        return (label: 'İncelemede', color: Colors.blueAccent);
+        return (label: 'Rapor hazırlanıyor', color: Colors.blueAccent);
       default:
         return (label: 'Personele atandı', color: Colors.purpleAccent);
     }
@@ -283,7 +291,8 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
     final assignment = _map(request['assignment']);
     final status = _statusOf(request);
     final bucket = request['bucket'];
-    final city = request['city']?.toString() ?? '';
+    final district = request['district']?.toString() ?? '';
+    final city = [request['city']?.toString() ?? '', district].where((e) => e.isNotEmpty).join(' / ');
     final region = request['region']?.toString() ?? '';
     final assignedName = assignment['personnel_name']?.toString() ?? '';
 
@@ -451,7 +460,8 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
             _detailRow('Müşteri', _orDash(customer['name'])),
             _detailRow('Telefon', _orDash(customer['phone'])),
             _detailRow('E-posta', _orDash(customer['email'])),
-            _detailRow('İl / Bölge', '${_orDash(request['city'])} / ${_orDash(request['region'])}'),
+            _detailRow('İl / İlçe / Bölge',
+                '${_orDash(request['city'])} / ${_orDash(request['district'])} / ${_orDash(request['region'])}'),
             _detailRow('Firma / Paket', '${_orDash(request['firm_name'])} / ${_orDash(request['package_name'])}'),
             _detailRow('Tutar', '${NumberFormat.decimalPattern('tr').format(request['total_tl'] ?? 0)} TL'),
             _detailRow('Müşteri notu', _orDash(request['note'])),
@@ -463,6 +473,16 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
               _detailRow('Atama zamanı', _formatDate(assignment['assigned_at'])),
               _detailRow('Atayan', _orDash(assignment['assigned_by'])),
               _detailRow('Admin notu', _orDash(assignment['note'])),
+              const Divider(color: Colors.white12, height: 28),
+              const Text('Saha durumu', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              _detailRow('Kabul', _formatDate(assignment['accepted_at'])),
+              _detailRow('Harekete geçti', _formatDate(assignment['departed_at'])),
+              _detailRow('Araç başında', _formatDate(assignment['arrived_at'])),
+              if (request['corporate_required'] == true)
+                _detailRow('Kurumsal ekspertizde', _formatDate(assignment['corporate_at'])),
+              _detailRow('Rapora başladı', _formatDate(assignment['started_at'])),
+              _detailRow('Rapor gönderildi', _formatDate(assignment['submitted_at'])),
             ],
             if (history.isNotEmpty) ...[
               const Divider(color: Colors.white12, height: 28),
@@ -568,11 +588,13 @@ class _PersonelAtamaDialog extends StatefulWidget {
 
 class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
   static const _matchLabels = {
+    'same_district': 'Aynı ilçe',
     'same_city': 'Aynı il',
     'same_region': 'Aynı bölge',
     'other_region': 'Bölge dışı',
   };
   static const _matchColors = {
+    'same_district': Colors.greenAccent,
     'same_city': Colors.green,
     'same_region': Colors.orange,
     'other_region': Colors.grey,
@@ -618,10 +640,10 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
         _candidates = rows;
         // Mevcut atama varsa (yeniden atama) öneriyi farklı bir personelden seç
         _selectedId = rows
-            .where((c) => c['id'].toString() != current)
+            .where((c) => c['id'].toString() != current && c['assignable'] != false)
             .map((c) => c['id'].toString())
             .firstOrNull;
-        if (_selectedId == null && recommended != current) _selectedId = recommended;
+        if (_selectedId == null && recommended != null && recommended != current) _selectedId = recommended;
         _showOtherRegions = !rows.any((c) => c['match'] != 'other_region');
         _loading = false;
       });
@@ -656,8 +678,10 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
   @override
   Widget build(BuildContext context) {
     final vehicle = widget.request['vehicle'] is Map ? Map<String, dynamic>.from(widget.request['vehicle'] as Map) : {};
-    final city = widget.request['city']?.toString() ?? '';
+    final district = widget.request['district']?.toString() ?? '';
+    final city = [widget.request['city']?.toString() ?? '', district].where((e) => e.isNotEmpty).join(' / ');
     final region = widget.request['region']?.toString() ?? '';
+    final onDutyCount = _candidates.where((c) => c['assignable'] != false && c['is_current'] != true).length;
     final current = _candidates.where((c) => c['is_current'] == true).firstOrNull;
     final selectable = _candidates.where((c) => c['is_current'] != true).toList();
     final visible = _showOtherRegions ? selectable : selectable.where((c) => c['match'] != 'other_region').toList();
@@ -679,7 +703,8 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'Öneri sırası: aynı il → aynı bölge → en az açık görev.',
+                    'Öneri sırası: aynı ilçe → aynı il → aynı bölge → en az açık görev. '
+                    'Görev için pasif personel seçilemez.',
                     style: TextStyle(fontSize: 12),
                   ),
                   if (current != null) ...[
@@ -690,15 +715,17 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
                     ),
                   ],
                   const SizedBox(height: 12),
-                  if (selectable.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16),
+                  if (selectable.isEmpty || onDutyCount == 0)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Text(
-                        'Atanabilecek aktif personel yok. Önce Personel sekmesinden personel ekleyin.',
-                        style: TextStyle(color: Colors.orange),
+                        selectable.isEmpty
+                            ? 'Atanabilecek personel yok. Önce Personel sekmesinden personel ekleyin.'
+                            : 'Şu an görev için aktif personel yok; personel kendini aktif yaptığında atanabilir.',
+                        style: const TextStyle(color: Colors.orange),
                       ),
-                    )
-                  else
+                    ),
+                  if (selectable.isNotEmpty)
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxHeight: 340),
                       child: SingleChildScrollView(
@@ -710,15 +737,17 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
                             children: visible.map((c) {
                               final match = c['match']?.toString() ?? 'other_region';
                               final openTasks = (c['open_task_count'] as num?)?.toInt() ?? 0;
+                              final assignable = c['assignable'] != false;
                               return RadioListTile<String>(
                                 value: c['id'].toString(),
+                                enabled: assignable,
                                 title: Text(
                                   '${c['full_name']}',
                                   style: const TextStyle(fontWeight: FontWeight.w600),
                                 ),
                                 subtitle: Text(
                                   '${c['city'] ?? '-'} / ${c['district'] ?? '-'} • ${c['region'] ?? '-'}\n'
-                                  '$openTasks açık görev'
+                                  '${assignable ? '' : 'GÖREV İÇİN PASİF • '}$openTasks açık görev'
                                   '${(c['expertise'] ?? '').toString().isNotEmpty ? ' • ${c['expertise']}' : ''}',
                                 ),
                                 isThreeLine: true,

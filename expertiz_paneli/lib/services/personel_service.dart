@@ -190,6 +190,19 @@ class PersonelService extends ChangeNotifier {
     return released;
   }
 
+  /// Görev için aktif/pasif (hesap açık kalır). Pasif personele görev atanmaz.
+  Future<void> setGorevDurumu(String personelId, bool aktif) async {
+    final response = await _apiService.setPersonnelDuty(personelId, aktif);
+    final apiPersonel = response['personnel'];
+    final index = _personeller.indexWhere((p) => p.id == personelId);
+    if (apiPersonel is Map) {
+      _upsertLocal(fromApi(Map<String, dynamic>.from(apiPersonel)));
+    } else if (index != -1) {
+      _personeller[index] = _personeller[index].copyWith(gorevAktif: aktif);
+    }
+    notifyListeners();
+  }
+
   Future<void> activatePersonel(String personelId) async {
     final response = await _apiService.activatePersonnel(personelId);
     final apiPersonel = response['personnel'];

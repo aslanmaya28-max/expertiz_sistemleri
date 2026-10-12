@@ -193,6 +193,10 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
                       }),
                       onResetPassword: _showResetPasswordDialog,
                       onRemove: _confirmRemove,
+                      onDutyChanged: (p, value) => _run(() async {
+                        await _service.setGorevDurumu(p.id, value);
+                        _toast(value ? '${p.tamAd} görev için aktif' : '${p.tamAd} görev için pasif; yeni görev atanmaz');
+                      }),
                     ),
                 ],
               ),
@@ -947,6 +951,7 @@ class _PersonnelTable extends StatelessWidget {
   final void Function(PersonelModel personel) onActivate;
   final void Function(PersonelModel personel) onResetPassword;
   final void Function(PersonelModel personel) onRemove;
+  final void Function(PersonelModel personel, bool value) onDutyChanged;
 
   const _PersonnelTable({
     required this.personeller,
@@ -956,6 +961,7 @@ class _PersonnelTable extends StatelessWidget {
     required this.onActivate,
     required this.onResetPassword,
     required this.onRemove,
+    required this.onDutyChanged,
   });
 
   @override
@@ -978,7 +984,8 @@ class _PersonnelTable extends StatelessWidget {
           DataColumn(label: Text('Telefon')),
           DataColumn(label: Text('Uzmanlık')),
           DataColumn(label: Text('Açık Görev'), numeric: true),
-          DataColumn(label: Text('Durum')),
+          DataColumn(label: Text('Görev')),
+          DataColumn(label: Text('Hesap')),
           DataColumn(label: Text('İşlem')),
         ],
         rows: personeller.map((personel) {
@@ -996,6 +1003,16 @@ class _PersonnelTable extends StatelessWidget {
             DataCell(Text((personel.telefon ?? '').isEmpty ? '-' : personel.telefon!)),
             DataCell(Text((personel.uzmanlikAlani ?? '').isEmpty ? personel.unvan : personel.uzmanlikAlani!)),
             DataCell(Text('${openTaskCount(personel.id)}')),
+            DataCell(Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Switch(
+                  value: personel.aktif && personel.gorevAktif,
+                  onChanged: personel.aktif ? (value) => onDutyChanged(personel, value) : null,
+                ),
+                Text(personel.aktif && personel.gorevAktif ? 'Aktif' : 'Pasif', style: const TextStyle(fontSize: 12)),
+              ],
+            )),
             DataCell(Chip(
               label: Text(personel.aktif ? 'Aktif' : 'Pasif'),
               backgroundColor: (personel.aktif ? Colors.green : Colors.grey).withValues(alpha: .18),

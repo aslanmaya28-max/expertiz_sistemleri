@@ -20,6 +20,7 @@ import '../../providers/theme_provider.dart';
 import '../../widgets/cyber/cyber_background.dart';
 import '../../core/constants/yerimebak_colors.dart';
 import 'unauthorized_screen.dart';
+import 'widgets/admin_notification_bell.dart';
 import 'modules/dashboard_module.dart';
 import 'modules/arac_operasyonu.dart';
 import '../../screens/personel/personel_bolge_sistemi.dart';
@@ -151,13 +152,10 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
           tooltip: isDarkMode ? 'Aydınlık Mod' : 'Gece Modu',
         ),
         // Notifications
-        IconButton(
-          icon: Icon(
-            Icons.notifications,
-            color: isDarkMode ? Colors.white : YerimeBakColors.blue,
-          ),
-          onPressed: () => _showMessage('Bildirimler'),
-          tooltip: 'Bildirimler',
+        // Saha adımları, onaya gelen raporlar; tıklanınca Araç Operasyonu açılır
+        AdminNotificationBell(
+          color: isDarkMode ? Colors.white : YerimeBakColors.blue,
+          onOpenReport: (_) => _tabController.animateTo(1),
         ),
         // Logout
         IconButton(

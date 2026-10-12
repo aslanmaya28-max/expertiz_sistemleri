@@ -5,6 +5,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import OdemeAlani from "@/bilesenler/OdemeAlani";
 import { useAuth } from "@/kancalar/yetkiKullan";
+import { ILLER } from "@/lib/iller";
 import {
   createExpertizRequest,
   getExpertizPackages,
@@ -22,6 +23,18 @@ function tl(value: number) {
 
 const ADIMLAR = ["Araç", "Hizmet Bedeli", "Ekspertiz Paketi", "Ödeme"];
 
+const trLower = (v: string) => v.toLocaleLowerCase("tr-TR").trim();
+
+/** Ilan konumundan ("İstanbul Kadıköy", "Kadıköy, İstanbul") il ve ilce cikarir. */
+function konumAyir(location?: string | null): { city: string; district: string } {
+  const text = (location || "").trim();
+  if (!text) return { city: "", district: "" };
+  const parts = text.split(/[/,-]|\s+/).map((p) => p.trim()).filter(Boolean);
+  const city = ILLER.find((il) => parts.some((p) => trLower(p) === trLower(il))) || "";
+  const district = city ? parts.filter((p) => trLower(p) !== trLower(city)).join(" ") : "";
+  return { city, district };
+}
+
 interface Arac {
   link: string;
   brand: string;
@@ -33,10 +46,11 @@ interface Arac {
   gear: string;
   plate: string;
   city: string;
+  district: string;
   note: string;
 }
 
-const BOS_ARAC: Arac = { link: "", brand: "", model: "", year: "", km: "", price: "", fuel: "", gear: "", plate: "", city: "", note: "" };
+const BOS_ARAC: Arac = { link: "", brand: "", model: "", year: "", km: "", price: "", fuel: "", gear: "", plate: "", city: "", district: "", note: "" };
 
 function EkspertizTalebiIcerigi() {
   const params = useSearchParams();
@@ -79,7 +93,7 @@ function EkspertizTalebiIcerigi() {
             price: detail.price ? String(detail.price) : "",
             fuel: detail.fuel || "",
             gear: detail.transmission || "",
-            city: detail.location || "",
+            ...konumAyir(detail.location),
           }));
         }
       } catch (err) {
@@ -119,7 +133,7 @@ function EkspertizTalebiIcerigi() {
         price: v.price != null ? String(v.price) : a.price,
         fuel: v.fuel ?? a.fuel,
         gear: v.transmission ?? a.gear,
-        city: a.city || v.location || "",
+        ...(a.city ? {} : konumAyir(v.location)),
       }));
       setPrefillMsg(res.message);
     } catch (err) {
@@ -136,8 +150,8 @@ function EkspertizTalebiIcerigi() {
         setError("İlan linkini paylaşın veya en az marka ve model girin.");
         return;
       }
-      if (!arac.city.trim()) {
-        setError("Ekspertizin yapılacağı şehri girin.");
+      if (!arac.city.trim() || !arac.district.trim()) {
+        setError("Aracın bulunduğu il ve ilçeyi girin; talebiniz bölgedeki uzmana yönlendirilir.");
         return;
       }
     }
@@ -162,6 +176,7 @@ function EkspertizTalebiIcerigi() {
           listing_url: arac.link.trim() || undefined,
           plate: arac.plate,
           city: arac.city,
+          district: arac.district.trim(),
           note: arac.note,
           vehicle: {
             brand: arac.brand || undefined,
@@ -264,7 +279,13 @@ function EkspertizTalebiIcerigi() {
                     <option value="">Seçiniz</option><option>Otomatik</option><option>Manuel</option><option>Yarı Otomatik</option>
                   </select>
                 </label>
-                <label className="block sm:col-span-2"><span className={lbl}>Ekspertizin yapılacağı şehir / ilçe</span><input value={arac.city} onChange={set("city")} className={input} placeholder="İstanbul / Kadıköy" /></label>
+                <label className="block"><span className={lbl}>Aracın bulunduğu il</span>
+                  <select value={arac.city} onChange={set("city")} className={input}>
+                    <option value="">İl seçiniz</option>
+                    {ILLER.map((il) => <option key={il}>{il}</option>)}
+                  </select>
+                </label>
+                <label className="block"><span className={lbl}>İlçe</span><input value={arac.district} onChange={set("district")} className={input} placeholder="Kadıköy" /></label>
               </div>
               <label className="block"><span className={lbl}>Not (satıcı randevusu, özel talep)</span>
                 <textarea value={arac.note} onChange={set("note")} className={input} rows={3} />
@@ -327,7 +348,7 @@ function EkspertizTalebiIcerigi() {
               ) : (
                 <>
                   <p className="mt-1 text-sm text-metin-ikincil">
-                    {arac.brand || arac.model ? `${arac.brand} ${arac.model} ${arac.year}`.trim() : arac.link} • {arac.city}
+                    {arac.brand || arac.model ? `${arac.brand} ${arac.model} ${arac.year}`.trim() : arac.link} • {arac.city} / {arac.district}
                   </p>
                   <button type="button" onClick={odemeyeGec} disabled={busy || !selectedPackage}
                     className="mt-4 w-full rounded-lg bg-birincil py-3 font-semibold text-white disabled:opacity-50">
