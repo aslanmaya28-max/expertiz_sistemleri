@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import OdemeAlani from "@/bilesenler/OdemeAlani";
+import SozlesmeOnayi from "@/bilesenler/SozlesmeOnayi";
 import { useAuth } from "@/kancalar/yetkiKullan";
 import { ILLER } from "@/lib/iller";
 import {
@@ -66,6 +67,7 @@ function EkspertizTalebiIcerigi() {
   const [packageId, setPackageId] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [onay, setOnay] = useState(false);
   const [prefillMsg, setPrefillMsg] = useState<string | null>(null);
   const [checkout, setCheckout] = useState<CheckoutStart | null>(null);
   const [odendi, setOdendi] = useState<CheckoutStatus | null>(null);
@@ -178,6 +180,7 @@ function EkspertizTalebiIcerigi() {
           city: arac.city,
           district: arac.district.trim(),
           note: arac.note,
+          contract_accepted: onay,
           vehicle: {
             brand: arac.brand || undefined,
             model: arac.model || undefined,
@@ -350,7 +353,8 @@ function EkspertizTalebiIcerigi() {
                   <p className="mt-1 text-sm text-metin-ikincil">
                     {arac.brand || arac.model ? `${arac.brand} ${arac.model} ${arac.year}`.trim() : arac.link} • {arac.city} / {arac.district}
                   </p>
-                  <button type="button" onClick={odemeyeGec} disabled={busy || !selectedPackage}
+                  <div className="mt-4"><SozlesmeOnayi checked={onay} onChange={setOnay} hizmet /></div>
+                  <button type="button" onClick={odemeyeGec} disabled={busy || !selectedPackage || !onay}
                     className="mt-4 w-full rounded-lg bg-birincil py-3 font-semibold text-white disabled:opacity-50">
                     {busy ? "Ödeme hazırlanıyor..." : `${tl(total)} Öde`}
                   </button>
