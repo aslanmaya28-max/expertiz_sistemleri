@@ -364,6 +364,14 @@ async def admin_cancel_request(
     return _raise_if_error(refund_service.cancel_expertiz_request(report_id, admin, payload.reason, payload.refund))
 
 
+@router.get("/admin/dashboard")
+async def admin_dashboard(admin: Dict[str, Any] = Depends(get_admin_user)) -> Dict[str, Any]:
+    """Flutter admin ana ekrani: sayaclar, durum dagilimi, son islemler, trendler."""
+    from yerimebak_ai_v5.services import admin_dashboard_service
+
+    return admin_dashboard_service.get_dashboard()
+
+
 @router.get("/admin/finance/invoices.csv")
 async def admin_invoice_export(
     start: Optional[str] = None,

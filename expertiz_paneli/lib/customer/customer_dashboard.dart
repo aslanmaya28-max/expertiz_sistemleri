@@ -1,7 +1,7 @@
 import 'dart:async';
 import '../core/widgets/yerimebak_logo.dart';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/yerimebak_expertiz_api_service.dart';
 import 'package:provider/provider.dart';
 import 'package:yerimebak_sistemleri/screens/login_screen.dart';
 import '../../core/theme/futuristic_theme.dart';
@@ -16,7 +16,6 @@ import 'analysis_history_screen.dart';
 import '../../core/constants/roles.dart';
 import '../../providers/user_provider.dart';
 import '../../models/report_status.dart';
-import '../../services/notification_service.dart';
 
 class CustomerDashboard extends StatefulWidget {
   const CustomerDashboard({super.key});
@@ -29,7 +28,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
   Map<String, dynamic>? _dashboardData;
   bool _isLoading = true;
   String? _error;
-  StreamSubscription? _reportsSubscription;
+  Timer? _refreshTimer;
   int _unreadNotifications = 0;
 
   @override
@@ -42,106 +41,79 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
 
   @override
   void dispose() {
-    _reportsSubscription?.cancel();
+    _refreshTimer?.cancel();
     super.dispose();
   }
   
+  final YerimebakExpertizApiService _api = YerimebakExpertizApiService();
+
+  /// Talepler ve canlı durumları merkezi API'den gelir (önceden Supabase).
   Future<void> _loadDashboardData() async {
     try {
-      final userProvider = context.read<UserProvider>();
-      final userId = userProvider.userId;
-      
-      if (userId == null) {
-        setState(() {
-          _isLoading = false;
-          _error = 'Oturum açılmadı';
-        });
-        return;
-      }
-
-      // FAZ-3.0: Customer ONLY sees their own published reports
-      // 🔒 GÜVENLİK: user_id filtresi ile kendi raporlarini gorebilir
-      final response = await Supabase.instance.client
-          .from('reports')
-          .select('id, plaka, firma, status, created_at, status_updated_at')
-          .eq('status', ReportStatus.published.value) // 🔒 Published ONLY
-          .eq('user_id', userId) // 🔒 GÜVENLİK: Sadece kendi raporlari
-          .order('status_updated_at', ascending: false)
-          .limit(10);
-      
-      final reports = response as List<dynamic>;
-
+      final response = await _api.getMyRequests();
+      final rows = (response['requests'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      if (!mounted) return;
       setState(() {
         _dashboardData = {
-          'total_reports': reports.length,
-          'published_reports': reports.length,
-          'recent_transactions': reports.cast<Map<String, dynamic>>(),
+          'total_reports': rows.length,
+          'published_reports': rows.where((r) => r['status'] == ReportStatus.published.value).length,
+          'recent_transactions': rows.take(10).map((r) {
+            final progress = r['progress'] is Map ? r['progress'] as Map : const {};
+            return {
+              'plaka': r['plate'],
+              'firma': r['firm_name'],
+              'durum': _durumMetni(r['status']?.toString(), progress['label']?.toString()),
+            };
+          }).toList(),
         };
         _isLoading = false;
+        _error = null;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = e is ApiException ? e.message : e.toString();
         _isLoading = false;
       });
     }
   }
 
-  /// FAZ-3.0: Subscribe to published reports in real-time
-  void _subscribeToReports() {
-    final userProvider = context.read<UserProvider>();
-    final userId = userProvider.userId;
-    
-    if (userId == null) return;
-
-    try {
-      // 🔒 DÜZELTİLDİ (B10): user_id filtresi eklendi — her müşteri sadece kendi raporlarını görür.
-      // KVKK/GDPR uyumu: Müşteriler diğer müşterilerin raporlarını göremez.
-      final stream = Supabase.instance.client
-          .from('reports')
-          .stream(primaryKey: ['id'])
-          // Supabase realtime akışı tek filtre destekler: güvenlik filtresi
-          // (user_id) sunucuda, yayın durumu filtresi istemcide uygulanır.
-          .eq('user_id', userId) // 🔒 Kendi raporlarına filtrele
-          .order('status_updated_at', ascending: false);
-
-
-      _reportsSubscription = stream.listen((rows) {
-        final event = rows
-            .where((r) => r['status'] == ReportStatus.published.value)
-            .toList();
-        if (mounted) {
-          setState(() {
-            _dashboardData = {
-              'total_reports': event.length,
-              'published_reports': event.length,
-              'recent_transactions': event.cast<Map<String, dynamic>>(),
-            };
-          });
-        }
-      });
-    } catch (e) {
-      debugPrint('❌ Failed to subscribe to reports: $e');
+  static String _durumMetni(String? status, String? canliDurum) {
+    switch (status) {
+      case 'published':
+        return 'Tamamlandı';
+      case 'cancelled':
+        return 'İptal Edildi';
+      case 'payment_pending':
+        return 'Ödeme bekliyor';
+      case 'payment_failed':
+        return 'Ödeme başarısız';
+      case 'pending_ai':
+      case 'pending_admin':
+      case 'rejected':
+        return 'Rapor kontrol ediliyor';
+      default:
+        return canliDurum ?? 'İşlemde';
     }
   }
 
-  /// Load notification count
-  Future<void> _loadNotificationCount() async {
-    final userProvider = context.read<UserProvider>();
-    final userId = userProvider.userId;
-    
-    if (userId == null) return;
+  /// Canlı durum: 30 sn'de bir yenilenir.
+  void _subscribeToReports() {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _loadDashboardData();
+      _loadNotificationCount();
+    });
+  }
 
+  Future<void> _loadNotificationCount() async {
     try {
-      final notificationService = NotificationService(Supabase.instance.client);
-      notificationService.init(userId);
-      
-      final count = await notificationService.getUnreadCount();
-      if (mounted) {
-        setState(() => _unreadNotifications = count);
-      }
+      final response = await _api.getNotifications(limit: 1);
+      if (mounted) setState(() => _unreadNotifications = (response['unread'] as num?)?.toInt() ?? 0);
     } catch (e) {
-      debugPrint('❌ Failed to load notification count: $e');
+      debugPrint('Bildirim sayısı alınamadı: $e');
     }
   }
   
@@ -528,7 +500,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                     children: [
                       Icon(Icons.history, size: 64, color: Colors.white24),
                       SizedBox(height: 16),
-                      Text('Henüz yayınlanmış rapor yok', style: TextStyle(color: Colors.white54)),
+                      Text('Henüz ekspertiz talebiniz yok', style: TextStyle(color: Colors.white54)),
                       SizedBox(height: 8),
                       Text(
                         'Raporlarınız inceleme ve onaylandıktan sonra burada görünecektir',

@@ -782,6 +782,15 @@ def test_accounts_refunds_invoices_and_emails(client, admin_token):
         db.close()
         assert {"terms_of_use", "kvkk_notice", "distance_sales", "preliminary_info"} <= kinds
 
+        # --- Admin ana ekran ozeti (Supabase yerine merkezi API)
+        dash = client.get("/api/v1/expertiz/admin/dashboard", headers=_auth(admin_token))
+        assert dash.status_code == 200, dash.text
+        dash = dash.json()
+        assert dash["stats"]["total_reports"] >= 1 and dash["status_distribution"]["cancelled"] >= 1
+        assert len(dash["weekly_published"]) == 7 and len(dash["ai_confidence_trend"]) == 7
+        assert any(a["title"] == "Talep iptal edildi" for a in dash["recent_activities"]) or dash["recent_activities"]
+        assert client.get("/api/v1/expertiz/admin/dashboard", headers=_auth(token)).status_code == 403
+
         # --- Vitrin toplu islemleri (admin)
         assert client.post("/api/v1/vitrin/admin/activate-hidden", headers=_auth(token)).status_code == 403
         assert client.post("/api/v1/vitrin/admin/activate-hidden", headers=_auth(admin_token)).json()["success"] is True

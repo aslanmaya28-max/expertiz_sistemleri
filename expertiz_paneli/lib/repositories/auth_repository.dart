@@ -118,8 +118,15 @@ class AuthRepository {
       final centralToken = _centralAccessToken ?? CentralAuthTokenStore.accessToken;
       if (centralToken != null) {
         _centralAccessToken = centralToken;
-        final user = await _centralAuthClient.me(centralToken);
-        return AuthResult.success(user);
+        try {
+          final user = await _centralAuthClient.me(centralToken);
+          return AuthResult.success(user);
+        } catch (e) {
+          // Suresi dolmus / gecersiz oturum: saklanan anahtar silinir, giris ekranina donulur
+          _centralAccessToken = null;
+          CentralAuthTokenStore.clear();
+          return AuthResult.failure('Oturumunuzun süresi doldu, lütfen tekrar giriş yapın');
+        }
       }
 
       // 1. Check if user is logged in

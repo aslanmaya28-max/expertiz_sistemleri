@@ -14,7 +14,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/yerimebak_expertiz_api_service.dart';
 import '../../../providers/user_provider.dart';
 import '../../../models/dashboard_stats.dart';
 import '../../../models/chart_data.dart';
@@ -29,7 +29,10 @@ import 'package:intl/intl.dart';
 
 /// Dashboard Module - Real-time Command Center
 class DashboardModule extends StatefulWidget {
-  const DashboardModule({super.key});
+  const DashboardModule({super.key, this.apiService});
+
+  /// Testlerde sahte servis vermek için.
+  final YerimebakExpertizApiService? apiService;
 
   @override
   State<DashboardModule> createState() => _DashboardModuleState();
@@ -68,7 +71,7 @@ class _DashboardModuleState extends State<DashboardModule> {
   @override
   void initState() {
     super.initState();
-    _dashboardService = DashboardService(Supabase.instance.client);
+    _dashboardService = DashboardService(api: widget.apiService);
     _loadAllData();
     _subscribeToUpdates();
   }
