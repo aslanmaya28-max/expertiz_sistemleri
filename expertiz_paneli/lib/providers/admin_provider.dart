@@ -2,95 +2,17 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/talep_model.dart';
 import '../services/talep_service.dart';
-import '../services/finance_service.dart';
-import '../models/finance/finance_model.dart';
 import '../core/constants/roles.dart';
-
-/// Nihai Ödeme Modeli (Checkout)
-class CheckoutModel {
-  final double expertizPaketFiyati;   // Kurumsal Firma Payı
-  final double yerimeBakHizmetBedeli; // Bizim Gelirimiz (Baz)
-  final double kdvTutari;             // Toplam KDV (%20)
-  final double toplamTutar;           // Müşterinin Ödeyeceği
-  final double personelHakedis;       // Personelin Payı (%25 - Hizmet Bedeli Üzerinden)
-  final double sirketNetGelir;        // Şirket Kasa (Hizmet - Personel)
-
-  CheckoutModel({
-    required this.expertizPaketFiyati,
-    required this.yerimeBakHizmetBedeli,
-    required this.kdvTutari,
-    required this.toplamTutar,
-    required this.personelHakedis,
-    required this.sirketNetGelir,
-  });
-}
-
-/// Finansal Motor Yardımcı Sınıfı
-/// Tüm finansal hesaplamalar burada merkezi olarak yapılır.
-class FinancialEngine {
-  static const double bazHizmetBedeli = 6500.0;
-  static const double kdvOrani = 0.20;
-  static const double personelPayiOrani = 0.25;
-
-  /// İşlem maliyetlerini hesaplar (Eski metod - Geriye dönük uyumluluk için)
-  static Map<String, double> hesaplaIslemMaliyetleri() {
-     return hesaplaIslemMaliyetleriDetayli(0);
-  }
-
-  /// Detaylı Maliyet Hesaplama (Yeni Mimari)
-  /// Müşterinin seçtiği paket fiyatını da dahile eder.
-  static Map<String, double> hesaplaIslemMaliyetleriDetayli(double expertizPaketFiyati) {
-    final checkout = hesaplaCheckout(expertizPaketFiyati);
-    
-    return {
-      'bazUcret': checkout.yerimeBakHizmetBedeli,
-      'expertizPaketFiyati': checkout.expertizPaketFiyati,
-      'kdvTutari': checkout.kdvTutari,
-      'personelPayi': checkout.personelHakedis,
-      'toplamTutar': checkout.toplamTutar,
-      'sirketPayi': checkout.sirketNetGelir,
-    };
-  }
-
-  /// Checkout Modelini Oluştur
-  static CheckoutModel hesaplaCheckout(double expertizPaketFiyati) {
-    // 1. Ara Toplam (Paket + Hizmet)
-    final araToplam = expertizPaketFiyati + bazHizmetBedeli;
-    
-    // 2. KDV Hesabı (Toplam üzerinden)
-    final kdvTutari = araToplam * kdvOrani;
-    
-    // 3. Genel Toplam
-    final toplamTutar = araToplam + kdvTutari;
-    
-    // 4. Personel Hakedişi (Sadece Hizmet Bedeli Üzerinden)
-    // Not: Kurumsal ekspertiz ücreti "Pass-Through" maliyettir, personelle paylaşılmaz.
-    final personelHakedis = bazHizmetBedeli * personelPayiOrani;
-    
-    // 5. Şirket Net Geliri
-    final sirketNetGelir = bazHizmetBedeli - personelHakedis;
-
-    return CheckoutModel(
-      expertizPaketFiyati: expertizPaketFiyati,
-      yerimeBakHizmetBedeli: bazHizmetBedeli,
-      kdvTutari: kdvTutari,
-      toplamTutar: toplamTutar,
-      personelHakedis: personelHakedis,
-      sirketNetGelir: sirketNetGelir,
-    );
-  }
-}
 
 /// AdminProvider: Uygulamanın Merkezi Sinir Sistemi
 /// 
 /// Bu provider, Müşteri (TalepService) ve Personel (RaporService) arasındaki
-/// tüm iletişimi yönetir, finansal operasyonları tetikler ve admin paneline
+/// tüm iletişimi yönetir ve admin paneline
 /// anlık veri akışı sağlar.
 /// 
 /// Görevleri:
 /// 1. Talep ve Rapor süreçlerini senkronize etmek.
-/// 2. Finansal motoru tetikleyerek hakediş ve ödemeleri hesaplamak.
-/// 3. Hata yönetimi ve asenkron veri akışını sağlamak.
+/// 2. Hata yönetimi ve asenkron veri akışını sağlamak.
 class AdminProvider with ChangeNotifier {
   final TalepService _talepService = TalepService();
   
@@ -201,107 +123,6 @@ class AdminProvider with ChangeNotifier {
     } catch (e) {
       _error = "Rapor tamamlama işlemi başarısız: $e";
       debugPrint("❌ Step 3 Hatası: $e");
-      return false;
-    } finally {
-      _setLoading(false);
-    }
-  }
-
-  /// Admin bir talebi/raporu onayladığında FİNANSAL MOTOR devreye girer.
-  Future<bool> talepOnaylaVeFinansallastir(String talepId) async {
-    _setLoading(true);
-    try {
-      final talep = _talepler.firstWhere((t) => t.id == talepId);
-      
-      // 1. Finansal Hesaplamalar (Helper Class)
-      // Yeni: Paketin fiyatını modele göre çekiyoruz (Varsayılan 0 olabilir)
-      final maliyetler = FinancialEngine.hesaplaIslemMaliyetleriDetayli(talep.paketFiyati);
-
-      debugPrint("--- FİNANSAL İŞLEM MOTORU (DETAYLI) ---");
-      debugPrint("Baz Hizmet Bedeli: ${maliyetler['bazUcret']} TL");
-      debugPrint("Ekspertiz Paketi: ${maliyetler['expertizPaketFiyati']} TL");
-      debugPrint("KDV (%20): ${maliyetler['kdvTutari']} TL");
-      debugPrint("TOPLAM TAHSİLAT: ${maliyetler['toplamTutar']} TL");
-      debugPrint("Personel Payı: ${maliyetler['personelPayi']} TL");
-      debugPrint("-------------------------------");
-
-      // 2. Ödeme Kaydı (FinanceService Entegrasyonu)
-      final odeme = Odeme(
-        id: "payment_${DateTime.now().millisecondsSinceEpoch}",
-        amount: maliyetler['toplamTutar']!, // Müşteriden Çekilen Toplam
-        customerID: talep.musteriAdi,
-        staffID: talep.atananPersonel ?? "Bilinmiyor",
-        reportID: talepId,
-        // Komisyon oranı: (Sirket Net + Personel Payi) / Toplam Tutar.
-        // Veya basitleştirilmiş bir oran verebiliriz.
-        // Burada FinanceService'in otomatik hesaplamaları için yüzdesel bir değer girmek gerekebilir
-        // Ancak tutar bazlı çalıştığımız için yüzdeyi hesaplayıp gönderelim.
-        commission: 0, // Mock, veya hesaplanabilir
-        status: "Beklemede",
-        olusturmaTarihi: DateTime.now(),
-        odemeYontemi: "Kredi Kartı", 
-      );
-      
-      await FinanceService().odemeEkle(odeme);
-
-      // 3. Personel Hakediş Kaydı
-      final hakedis = PersonelHakedis(
-        id: "hakedis_${DateTime.now().millisecondsSinceEpoch}",
-        personelID: talep.atananPersonel ?? "Sistem",
-        odemeID: odeme.id,
-        reportID: talepId,
-        hakedisTutari: maliyetler['personelPayi']!,
-        kazanimTarihi: DateTime.now(),
-        durum: "bekleniyor",
-      );
-
-      await FinanceService().hakedisEkle(hakedis);
-
-      // 4. Talep Durumunu Güncelle
-      final onayliTalep = TalepModel(
-        id: talep.id,
-        musteriAdi: talep.musteriAdi,
-        musteriId: talep.musteriId, // Yeni: musteriId
-        telefon: talep.telefon,
-        aracPlaka: talep.aracPlaka,
-        aracMarka: talep.aracMarka,
-        aracModel: talep.aracModel,
-        durum: "Tamamlandi", // Yeni: "Tamamlandi" → Müşteri erişimi açılacak
-        olusturulma: talep.olusturulma,
-        atananPersonel: talep.atananPersonel,
-        aciklama: talep.aciklama,
-        sehir: talep.sehir,
-        expertizFirmasi: talep.expertizFirmasi,
-        expertizPaketi: talep.expertizPaketi,
-        paketFiyati: talep.paketFiyati,
-        motorNo: talep.motorNo,
-        hizmetBedeli: talep.hizmetBedeli, // Yeni
-        toplamTutar: talep.toplamTutar, // Yeni
-        hasarTutar: talep.hasarTutar, // Yeni
-        isPaid: talep.isPaid, // Yeni
-        // AI verileri: Admin onayı ile birlikte yapılmış varsayalım
-        aiAnaliziYapildiMi: true, // Yeni
-        aiPiyasaDegeri: talep.aiPiyasaDegeri, // Yeni
-        aiOnerilenAlimFiyati: talep.aiOnerilenAlimFiyati, // Yeni
-        aiAltiAylikGetiri: talep.aiAltiAylikGetiri, // Yeni
-        aiBirYillikGetiri: talep.aiBirYillikGetiri, // Yeni
-        aiYorumu: talep.aiYorumu, // Yeni
-        aiDegerKaybi: talep.aiDegerKaybi, // Yeni
-        aiNetKarPotansiyeli: talep.aiNetKarPotansiyeli, // Yeni
-        aiAnalizSonucu: talep.aiAnalizSonucu, // Yeni
-      );
-      
-      await _talepService.talepGuncelle(talepId, onayliTalep);
-      
-      _bildirimEkle("✅ TAMAMLANDI: ${talep.aracPlaka} için rapor tamamlandı, müşteri erişimi açıldı");
-      _bildirimEkle("FİNANS ONAYI: ${talep.aracPlaka} için ${maliyetler['toplamTutar']!.toStringAsFixed(2)} TL faturalandırıldı.");
-      debugPrint("✅ Step 4 (Admin → Customer): Durum 'Tamamlandi', AI sonuçları dahil edildi, müşteri erişimi açık");
-      await loadTalepler();
-      return true;
-
-    } catch (e) {
-      _error = "Finansal işlem hatası: $e";
-      debugPrint(_error);
       return false;
     } finally {
       _setLoading(false);

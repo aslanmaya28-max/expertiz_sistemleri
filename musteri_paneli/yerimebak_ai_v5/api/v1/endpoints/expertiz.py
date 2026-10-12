@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from yerimebak_ai_v5.api.v1.endpoints.auth import get_admin_user, get_authenticated_user
-from yerimebak_ai_v5.services import dispatch_service, media_service
+from yerimebak_ai_v5.services import dispatch_service, finance_service, media_service
 from yerimebak_ai_v5.services.expertiz_service import (
     create_expertiz_request,
     get_admin_report,
@@ -163,6 +163,13 @@ async def my_published_report_detail(
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
     return result
+
+
+@router.get("/admin/finance/summary")
+async def admin_finance_summary(
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    return _raise_if_error(finance_service.get_admin_finance_summary())
 
 
 # ---------------------------------------------------------------------------

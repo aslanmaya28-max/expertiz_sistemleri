@@ -126,6 +126,11 @@ class YerimebakExpertizApiService {
     });
   }
 
+  /// Admin finans özeti: ekspertiz cirosu/KDV, kredi satışları, personel hakedişi.
+  Future<Map<String, dynamic>> getAdminFinanceSummary() {
+    return _get('/expertiz/admin/finance/summary');
+  }
+
   // ---------------------------------------------------------------------------
   // Talep kuyruğu ve personel atama (admin)
   // ---------------------------------------------------------------------------
