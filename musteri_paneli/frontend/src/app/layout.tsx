@@ -38,7 +38,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="tr" className="h-full antialiased">
       <head>
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" href="/yerimebak-mark.svg" type="image/svg+xml" />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <script
           type="application/ld+json"

@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../core/widgets/yerimebak_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
@@ -152,7 +153,14 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
     return BaseScaffold(
       role: UserRole.customer,
       appBar: AppBar(
-        title: const Text('Müşteri Paneli'),
+        title: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            YerimeBakLogo(height: 32, onDark: true),
+            SizedBox(width: 12),
+            Text('Müşteri Paneli'),
+          ],
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [

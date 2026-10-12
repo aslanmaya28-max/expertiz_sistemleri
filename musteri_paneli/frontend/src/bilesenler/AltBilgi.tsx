@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 export default function AltBilgi() {
@@ -6,11 +7,9 @@ export default function AltBilgi() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-birincil rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">Y</span>
-              </div>
-              <span className="text-lg font-bold">yerimebak<span className="text-birincil">.ai</span></span>
+            {/* Logo koyu lacivert: koyu zeminde acik kart icinde */}
+            <div className="mb-4 inline-flex rounded-lg bg-white px-3 py-2">
+              <Image src="/logo-yerimebak.png" alt="YerimeBak" width={640} height={262} className="h-10 w-auto" />
             </div>
             <p className="text-sm text-gray-400">Yapay zeka destekli araç değerleme ve galericilik asistanı.</p>
           </div>
