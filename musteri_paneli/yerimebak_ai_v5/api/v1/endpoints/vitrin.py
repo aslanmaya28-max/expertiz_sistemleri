@@ -509,3 +509,61 @@ async def update_vehicle_status(vehicle_id: int, payload: Dict[str, str] = None,
     result = await loop.run_in_executor(None, _sync_update_vehicle_status, vehicle_id, new_status)
     cache_invalidate_vitrin()
     return result
+
+
+# ──────────────────────────────────────────────
+# Admin toplu islemler (Flutter admin > Piyasa Verisi)
+# ──────────────────────────────────────────────
+
+def _sync_activate_hidden() -> Dict[str, Any]:
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE listings SET status = 'active' WHERE status = 'hidden'")
+        updated = cursor.rowcount
+        conn.commit()
+        return {"success": True, "activated": updated}
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
+def _sync_reanalyze_active(limit: int) -> Dict[str, Any]:
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id FROM listings WHERE COALESCE(status, 'active') = 'active' ORDER BY updated_at DESC NULLS LAST LIMIT %s",
+            (limit,),
+        )
+        ids = [dict(row)["id"] for row in cursor.fetchall()]
+    finally:
+        DatabaseConfig.return_connection(conn)
+    analyzed = 0
+    for listing_id in ids:
+        try:
+            if analyze_listing(listing_id):
+                analyzed += 1
+        except Exception as exc:  # tek ilan hatasi toplu islemi durdurmasin
+            logger.warning("Vitrin yeniden analiz hatasi (%s): %s", listing_id, exc)
+    return {"success": True, "analyzed": analyzed, "total": len(ids)}
+
+
+@router.post("/admin/activate-hidden")
+async def admin_activate_hidden(admin: Dict[str, Any] = Depends(get_admin_user)) -> Dict[str, Any]:
+    """Gizlenen tum ilanlari tekrar vitrine alir."""
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, _sync_activate_hidden)
+    cache_invalidate_vitrin()
+    return result
+
+
+@router.post("/admin/reanalyze")
+async def admin_reanalyze(
+    limit: int = Query(200, ge=1, le=1000),
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    """Vitrindeki aktif ilanlarin AI analizini (puan, fiyat yorumu) yeniler."""
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, _sync_reanalyze_active, limit)
+    cache_invalidate_vitrin()
+    return result

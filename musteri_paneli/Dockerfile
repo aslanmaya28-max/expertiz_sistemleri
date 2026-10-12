@@ -37,14 +37,23 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install Playwright browsers
-RUN playwright install chromium --with-deps
+# Tarayici root'un ev dizinine degil, uygulama kullanicisinin (1000) de
+# okuyabilecegi sabit bir dizine kurulur; aksi halde kaziyici canlida acilamaz.
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN playwright install chromium --with-deps && chmod -R a+rX /ms-playwright
 
 # Copy application code
 COPY yerimebak_ai_v5/ /app/yerimebak_ai_v5/
 COPY sql/ /app/sql/
 
-# Create data directories
-RUN mkdir -p /app/data /app/logs
+# Uygulama kullanicisi (docker-compose'da user: "1000:1000").
+# /app (kod, kaziyici PID dosyalari), /app/data (fotograf / kurumsal rapor
+# yuklemeleri, kalici volume) ve /app/logs bu kullaniciya ait olmali;
+# root'a ait kalirsa yuklemeler "Permission denied" ile basarisiz olur.
+RUN groupadd --gid 1000 app && useradd --uid 1000 --gid 1000 --home-dir /app --no-create-home app \
+    && mkdir -p /app/data/media /app/logs \
+    && chown -R 1000:1000 /app
+USER 1000:1000
 
 # Set environment variables
 ENV PYTHONPATH=/app
@@ -52,7 +61,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # Expose ports
-EXPOSE 8000 8501
+EXPOSE 8000
 
 # Default command
-CMD ["python", "-m", "yerimebak_ai_v5.worker_manager"]
+CMD ["python", "-m", "uvicorn", "yerimebak_ai_v5.main:app", "--host", "0.0.0.0", "--port", "8000"]

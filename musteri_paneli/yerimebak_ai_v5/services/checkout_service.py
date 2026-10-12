@@ -80,7 +80,13 @@ def _start_payment(oid: str, user: Dict[str, Any], amount_tl: float, basket, use
 # Kredi paketi
 # ---------------------------------------------------------------------------
 
-def start_credit_purchase(user: Dict[str, Any], package_key: str, user_ip: str) -> Dict[str, Any]:
+def _record_contract(user: Dict[str, Any], oid: str, user_ip: str) -> None:
+    from yerimebak_ai_v5.services import account_service
+
+    account_service.record_consents(user["id"], ["preliminary_info", "distance_sales"], reference=oid, ip=user_ip)
+
+
+def start_credit_purchase(user: Dict[str, Any], package_key: str, user_ip: str, contract_accepted: bool = False) -> Dict[str, Any]:
     from yerimebak_ai_v5.services.payment_service import CREDIT_PACKAGES
 
     ensure_schema()
@@ -89,8 +95,11 @@ def start_credit_purchase(user: Dict[str, Any], package_key: str, user_ip: str) 
         return _error(f"Gecersiz paket. Gecerli paketler: {', '.join(CREDIT_PACKAGES)}")
     if not user.get("email"):
         return _error("Odeme icin hesabinizda e-posta adresi olmali")
+    if not contract_accepted:
+        return _error("Ön Bilgilendirme Formu ve Mesafeli Satış Sözleşmesi onaylanmalidir")
 
     oid = _new_oid(CREDIT_PREFIX)
+    _record_contract(user, oid, user_ip)
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
@@ -126,7 +135,7 @@ def _fulfill_credit(cursor: Any, oid: str, total_kurus: Optional[int]) -> Dict[s
         SET status = 'approved', approved_by = 'paytr', approved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
         WHERE paytr_oid = %s AND status = 'pending'
           AND (%s IS NULL OR %s >= ROUND(amount_tl * 100))
-        RETURNING user_id, credits, amount_tl
+        RETURNING user_id, user_email, credits, amount_tl, package_name
         """,
         (oid, total_kurus, total_kurus),
     )
@@ -140,7 +149,9 @@ def _fulfill_credit(cursor: Any, oid: str, total_kurus: Optional[int]) -> Dict[s
         "INSERT INTO credit_usage_logs (user_id, action, credits_used, description) VALUES (%s, %s, %s, %s)",
         (row["user_id"], "credit_purchase", int(row["credits"]), f"PayTR {oid}: {row['credits']} kredi yuklendi"),
     )
-    return {"fulfilled": True, "credits_added": int(row["credits"]), "new_balance": int(balance)}
+    return {"fulfilled": True, "credits_added": int(row["credits"]), "new_balance": int(balance),
+            "kind": "credits", "email": row.get("user_email"), "amount_tl": float(row["amount_tl"] or 0),
+            "title": f"{row.get('package_name') or 'Kredi paketi'} ({int(row['credits'])} analiz kredisi)"}
 
 
 # ---------------------------------------------------------------------------
@@ -197,6 +208,8 @@ def start_expertiz_checkout(payload: Dict[str, Any], user: Dict[str, Any], user_
     # Talep, aracin bulundugu il/ilcedeki gorev icin aktif personele yonlendirilir
     if not str(payload.get("city") or "").strip() or not str(payload.get("district") or "").strip():
         return _error("Aracin bulundugu il ve ilce zorunludur")
+    if not payload.get("contract_accepted"):
+        return _error("Ön Bilgilendirme Formu ve Mesafeli Satış Sözleşmesi onaylanmalidir")
 
     quote = quote_expertiz(str(payload.get("firm_id") or ""), str(payload.get("package_id") or ""))
     if "error" in quote:
@@ -205,6 +218,7 @@ def start_expertiz_checkout(payload: Dict[str, Any], user: Dict[str, Any], user_
 
     request_id = str(uuid.uuid4())
     oid = _new_oid(EXPERTIZ_PREFIX)
+    _record_contract(user, oid, user_ip)
     now = _now()
     clean_payload = {
         "firm_id": selected["firm"]["id"],
@@ -296,7 +310,20 @@ def _fulfill_expertiz(cursor: Any, oid: str, total_kurus: Optional[int]) -> Dict
         now=now,
         payment_status="paid",
     )
-    return {"fulfilled": True, "request_id": row["id"]}
+    from yerimebak_ai_v5.services import notification_service
+
+    payload = snapshot.get("payload") or {}
+    vehicle = payload.get("vehicle") or {}
+    place = " / ".join(p for p in (payload.get("city"), payload.get("district")) if p)
+    label = " ".join(str(v) for v in (payload.get("plate"), vehicle.get("brand"), vehicle.get("model")) if v) or "Araç"
+    notification_service.notify_admins(
+        cursor, "request_paid", "Yeni ekspertiz talebi",
+        f"{label}{' - ' + place if place else ''} • personel ataması bekliyor", str(row["id"]),
+    )
+    title = f"{snapshot['selected']['firm']['name']} - {snapshot['selected']['package']['name']}"
+    return {"fulfilled": True, "request_id": row["id"], "kind": "expertiz",
+            "email": (snapshot.get("user") or {}).get("email"),
+            "amount_tl": float(snapshot["totals"].get("total_tl") or 0), "title": f"Ekspertiz: {title} ({label})"}
 
 
 # ---------------------------------------------------------------------------
@@ -322,6 +349,27 @@ def _mark_failed(oid: str, reason: str) -> None:
         DatabaseConfig.return_connection(conn)
 
 
+def _send_receipt(oid: str, result: Dict[str, Any]) -> None:
+    """Odeme onayi e-postasi (makbuz). Fatura muhasebe tarafindan ayrica kesilir."""
+    from yerimebak_ai_v5.services import email_service
+
+    amount = f"{result.get('amount_tl', 0):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    lines = [
+        "Ödemeniz başarıyla alındı. Teşekkür ederiz.",
+        f"Ürün / hizmet: {result.get('title')}",
+        f"Tutar (KDV dahil): {amount} TL",
+        f"Sipariş no: {oid}",
+    ]
+    if result.get("kind") == "credits":
+        lines.append(f"Kredileriniz hesabınıza yüklendi. Güncel bakiye: {result.get('new_balance')} kredi.")
+        button = ("Araç analizine başla", email_service.site_url("/arac-analiz"))
+    else:
+        lines.append("Talebiniz bölgedeki ekspertiz uzmanına yönlendiriliyor; süreci panelinizden canlı izleyebilirsiniz.")
+        button = ("Talebimi izle", email_service.site_url("/panel"))
+    lines.append("Faturanız ayrıca e-posta adresinize gönderilecektir.")
+    email_service.send(result.get("email"), f"YerimeBak - Odemeniz alindi ({oid})", "Ödemeniz alındı", lines, button)
+
+
 def complete_payment(oid: str, success: bool, total_kurus: Optional[int] = None, reason: str = "") -> Dict[str, Any]:
     """Odeme sonucunu isler; ayni bildirim tekrar gelirse etkisizdir."""
     ensure_schema()
@@ -340,6 +388,7 @@ def complete_payment(oid: str, success: bool, total_kurus: Optional[int] = None,
         conn.commit()
         if result.get("fulfilled"):
             logger.info("[CHECKOUT] Odeme tamamlandi: %s %s", oid, result)
+            _send_receipt(oid, result)
         return result
     except Exception:
         conn.rollback()

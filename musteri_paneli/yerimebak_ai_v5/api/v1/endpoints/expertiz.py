@@ -5,7 +5,7 @@ Kurumsal ekspertiz talep API'si.
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
 from yerimebak_ai_v5.api.v1.endpoints.auth import get_admin_user, get_authenticated_user
@@ -16,9 +16,11 @@ from yerimebak_ai_v5.services import (
     finance_service,
     media_service,
     notification_service,
+    invoice_export,
     paytr_service,
     personnel_service,
     pricing_service,
+    refund_service,
 )
 from yerimebak_ai_v5.services.expertiz_service import (
     get_admin_report,
@@ -45,6 +47,8 @@ class CreateExpertizRequest(BaseModel):
     note: Optional[str] = None
     # Linkle veya elle girilen arac: brand, model, year, km, price, fuel, transmission
     vehicle: Optional[Dict[str, Any]] = None
+    # On Bilgilendirme Formu + Mesafeli Satis Sozlesmesi onayi (zorunlu)
+    contract_accepted: bool = False
 
 
 class PricingSettingsRequest(BaseModel):
@@ -90,6 +94,11 @@ class UnassignRequest(BaseModel):
 class CustomerStatusRequest(BaseModel):
     active: bool
     reason: Optional[str] = None
+
+
+class CancelRequestPayload(BaseModel):
+    reason: str
+    refund: bool = True
 
 
 class DutyRequest(BaseModel):
@@ -343,6 +352,35 @@ async def admin_assign_request(
     admin: Dict[str, Any] = Depends(get_admin_user),
 ) -> Dict[str, Any]:
     return _raise_if_error(dispatch_service.assign_request(report_id, request.personnel_id, admin, request.note))
+
+
+@router.post("/admin/requests/{report_id}/cancel")
+async def admin_cancel_request(
+    report_id: str,
+    payload: CancelRequestPayload,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    """Talebi iptal eder; refund=True ise odeme PayTR uzerinden musteriye iade edilir."""
+    return _raise_if_error(refund_service.cancel_expertiz_request(report_id, admin, payload.reason, payload.refund))
+
+
+@router.get("/admin/finance/invoices.csv")
+async def admin_invoice_export(
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Response:
+    """Muhasebe / e-Arsiv icin tahsilat dokumu (CSV). start/end: YYYY-AA-GG."""
+    try:
+        rows = invoice_export.collect_rows(start, end)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Tarih formati YYYY-AA-GG olmali")
+    filename = f"yerimebak_tahsilatlar_{start or 'bu-ay'}_{end or 'bugun'}.csv"
+    return Response(
+        content=invoice_export.to_csv(rows),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/admin/requests/{report_id}/unassign")

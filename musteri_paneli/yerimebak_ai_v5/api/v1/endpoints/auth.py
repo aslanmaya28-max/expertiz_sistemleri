@@ -1,11 +1,10 @@
 import re
-from fastapi import APIRouter, HTTPException, Header, Depends
+from fastapi import APIRouter, HTTPException, Header, Depends, Request
 from typing import Dict, Any, Optional
 from pydantic import BaseModel, field_validator
 
 from yerimebak_ai_v5.core.database_config import DatabaseConfig
 from yerimebak_ai_v5.services.auth_service import get_auth_service, _create_jwt
-from yerimebak_ai_v5.core.sms_service import send_otp_sms, verify_otp
 from yerimebak_ai_v5.core.supabase_auth import validate_supabase_jwt
 
 router = APIRouter()
@@ -16,6 +15,8 @@ class RegisterRequest(BaseModel):
     password: str
     full_name: Optional[str] = None
     phone: Optional[str] = None
+    # Kullanim Kosullari + KVKK Aydinlatma Metni onayi (zorunlu)
+    terms_accepted: bool = False
 
     # 🔒 GÜVENLİK: Email ve şifre validasyonu
     @field_validator("email")
@@ -53,52 +54,17 @@ class LoginRequest(BaseModel):
         return v.lower().strip()
 
 
-class PhoneRegisterRequest(BaseModel):
-    phone: str
-    full_name: str
-    email: Optional[str] = None
-
-    # 🔒 GÜVENLİK: Telefon validasyonu
-    @field_validator("phone")
-    @classmethod
-    def validate_phone(cls, v: str) -> str:
-        # Sadece rakam ve + karakterine izin ver
-        cleaned = re.sub(r'[^\d+]', '', v)
-        if len(cleaned) < 10:
-            raise ValueError("Gecersiz telefon numarasi")
-        return cleaned
+class ForgotPasswordRequest(BaseModel):
+    email: str
 
 
-class SendOtpRequest(BaseModel):
-    phone: str
-
-    @field_validator("phone")
-    @classmethod
-    def validate_phone(cls, v: str) -> str:
-        cleaned = re.sub(r'[^\d+]', '', v)
-        if len(cleaned) < 10:
-            raise ValueError("Gecersiz telefon numarasi")
-        return cleaned
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
 
 
-class VerifyOtpRequest(BaseModel):
-    phone: str
-    code: str
-
-    @field_validator("phone")
-    @classmethod
-    def validate_phone(cls, v: str) -> str:
-        cleaned = re.sub(r'[^\d+]', '', v)
-        if len(cleaned) < 10:
-            raise ValueError("Gecersiz telefon numarasi")
-        return cleaned
-
-    @field_validator("code")
-    @classmethod
-    def validate_code(cls, v: str) -> str:
-        if not re.match(r'^\d{4,6}$', v):
-            raise ValueError("Gecersiz dogrulama kodu")
-        return v
+class VerifyEmailRequest(BaseModel):
+    token: str
 
 
 class AdminCreateRequest(BaseModel):
@@ -170,6 +136,8 @@ def _public_profile(user: Dict[str, Any]) -> Dict[str, Any]:
         "tax_number": user.get("tax_number"),
         "tax_office": user.get("tax_office"),
         "invoice_address": user.get("invoice_address"),
+        "email_verified": user.get("email_verified") is not False,
+        "must_change_password": bool(user.get("must_change_password")),
     }
 
 
@@ -391,20 +359,19 @@ async def update_profile(
 
 
 @router.post("/register")
-async def register(request: RegisterRequest) -> Dict[str, Any]:
+async def register(request: RegisterRequest, http_request: Request) -> Dict[str, Any]:
+    if not request.terms_accepted:
+        raise HTTPException(status_code=400, detail="Kullanim Kosullari ve KVKK Aydinlatma Metni onaylanmalidir")
     auth = get_auth_service()
     result = auth.register(email=request.email, password=request.password, full_name=request.full_name, phone=request.phone)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
-    return result
+    from yerimebak_ai_v5.services import account_service
 
-
-@router.post("/register-phone")
-async def register_phone(request: PhoneRegisterRequest) -> Dict[str, Any]:
-    auth = get_auth_service()
-    result = auth.register_with_phone(phone=request.phone, full_name=request.full_name, email=request.email)
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
+    account_service.record_consents(
+        result["user"]["id"], ["terms_of_use", "kvkk_notice"],
+        ip=http_request.headers.get("x-real-ip") or (http_request.client.host if http_request.client else None),
+    )
     return result
 
 
@@ -431,36 +398,47 @@ async def change_password(
     return result
 
 
-@router.post("/send-otp")
-async def send_otp(request: SendOtpRequest) -> Dict[str, Any]:
-    success, dev_code = send_otp_sms(request.phone)
-    if not success:
-        raise HTTPException(status_code=500, detail="SMS gonderilemedi")
-
-    response: Dict[str, Any] = {"success": True, "message": "Dogrulama kodu gonderildi"}
-    if dev_code:
-        response["dev_code"] = dev_code
-    return response
+# Telefon / SMS ile kayit ve giris kaldirildi: hicbir arayuz kullanmiyordu ve
+# dogrulamasiz hesap acilmasina (bedava kredi istismari) izin veriyordu.
 
 
-@router.post("/verify-otp")
-async def verify_otp_endpoint(request: VerifyOtpRequest) -> Dict[str, Any]:
-    if not verify_otp(request.phone, request.code):
-        raise HTTPException(status_code=401, detail="Gecersiz veya suresi dolmus kod")
+@router.post("/forgot-password")
+async def forgot_password(request: ForgotPasswordRequest) -> Dict[str, Any]:
+    """Sifremi unuttum: kayitli e-postaya tek kullanimlik baglanti gonderir."""
+    from yerimebak_ai_v5.services import account_service
 
-    auth = get_auth_service()
-    login_result = auth.login_with_otp(request.phone)
+    return account_service.request_password_reset(request.email)
 
-    if "error" in login_result:
-        raise HTTPException(status_code=404, detail=login_result["error"])
 
-    token = _create_token_payload(login_result["user"])
+@router.post("/reset-password")
+async def reset_password(request: ResetPasswordRequest) -> Dict[str, Any]:
+    from yerimebak_ai_v5.services import account_service
 
-    return {
-        "success": True,
-        "token": token,
-        "user": login_result["user"],
-    }
+    result = account_service.reset_password(request.token, request.new_password)
+    if "error" in result:
+        raise HTTPException(status_code=int(result.get("http_status") or 400), detail=result["error"])
+    return result
+
+
+@router.post("/verify-email")
+async def verify_email(request: VerifyEmailRequest) -> Dict[str, Any]:
+    """E-posta dogrulama; hos geldin kredisi ilk dogrulamada yuklenir."""
+    from yerimebak_ai_v5.services import account_service
+
+    result = account_service.verify_email(request.token)
+    if "error" in result:
+        raise HTTPException(status_code=int(result.get("http_status") or 400), detail=result["error"])
+    return result
+
+
+@router.post("/resend-verification")
+async def resend_verification(user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+    from yerimebak_ai_v5.services import account_service
+
+    result = account_service.resend_verification(user)
+    if "error" in result:
+        raise HTTPException(status_code=int(result.get("http_status") or 400), detail=result["error"])
+    return result
 
 
 @router.get("/me")

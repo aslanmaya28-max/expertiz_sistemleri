@@ -1,0 +1,17 @@
+build/
+.dart_tool/
+.idea/
+.vs/
+.codex/
+.claude/
+android/
+ios/
+linux/
+macos/
+windows/
+vision_engine/
+supabase/
+docs/
+plans/
+test/
+*.md

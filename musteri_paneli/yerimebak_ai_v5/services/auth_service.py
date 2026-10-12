@@ -4,9 +4,9 @@ YERIMEBAK AI v8.2 - Auth Service (Güvenlik Güncellemesi)
 Kullanici kimlik dogrulama ve oturum yonetimi
 🔒 GÜVENLİK: bcrypt + PyJWT kullanir, SHA-256 el yapimi JWT kaldirildi
 """
-import secrets
 import logging
 import os
+import hmac
 import re
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta, timezone
@@ -126,132 +126,34 @@ class AuthService:
             api_key = f"yk-{uuid.uuid4().hex[:24]}"
             hashed_pw = _hash_password(password)
 
+            # Hos geldin kredisi e-posta dogrulaninca yuklenir (account_service.verify_email)
+            from yerimebak_ai_v5.services import account_service
+            account_service.ensure_schema()
             cursor.execute(f"""
-                INSERT INTO users (email, password, full_name, phone, api_key, credits, tier, role, is_active)
-                VALUES ({self._p}, {self._p}, {self._p}, {self._p}, {self._p}, {self._p}, 'free', 'user', 1)
-            """, (email, hashed_pw, full_name, phone, api_key, FREE_CREDITS_ON_REGISTER))
+                INSERT INTO users (email, password, full_name, phone, api_key, credits, tier, role, is_active,
+                                   email_verified, welcome_credits_granted)
+                VALUES ({self._p}, {self._p}, {self._p}, {self._p}, {self._p}, 0, 'free', 'user', 1, FALSE, FALSE)
+            """, (email, hashed_pw, full_name, phone, api_key))
             conn.commit()
 
             cursor.execute(f"SELECT id, email, full_name, phone, api_key, credits, tier, role FROM users WHERE email = {self._p}", (email,))
             user = dict(cursor.fetchone())
+            user["email_verified"] = False
 
             token = _create_user_jwt(user)
+            account_service.send_verification(user["id"], email, full_name or "")
 
+            bonus = f" Dogrulamadan sonra {FREE_CREDITS_ON_REGISTER} ucretsiz kredi yuklenir." if FREE_CREDITS_ON_REGISTER else ""
             return {
                 "success": True,
                 "user": user,
                 "token": token,
                 "api_key": api_key,
-                "message": f"Kayit basarili. {FREE_CREDITS_ON_REGISTER} ucretsiz kredi yuklendi."
+                "email_verification_required": True,
+                "message": f"Kayit basarili. E-posta adresinize dogrulama baglantisi gonderdik.{bonus}"
             }
         finally:
             DatabaseConfig.return_connection(conn)  # 🔒 DÜZELTİLDİ: conn.close() -> pool'a geri ver
-
-    def register_with_phone(self, phone: str, full_name: str, email: str = None) -> Dict[str, Any]:
-        from yerimebak_ai_v5.services.payment_service import FREE_CREDITS_ON_REGISTER
-        conn = DatabaseConfig.get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(f"SELECT id FROM users WHERE phone = {self._p}", (phone,))
-            if cursor.fetchone():
-                return {"error": "Bu telefon numarasi zaten kayitli"}
-
-            if email:
-                cursor.execute(f"SELECT id FROM users WHERE email = {self._p}", (email,))
-                if cursor.fetchone():
-                    return {"error": "Bu email adresi zaten kayitli"}
-
-            import uuid
-            api_key = f"yk-{uuid.uuid4().hex[:24]}"
-            temp_pass = secrets.token_hex(16)
-            hashed_pw = _hash_password(temp_pass)
-
-            cursor.execute(f"""
-                INSERT INTO users (email, password, full_name, phone, api_key, credits, tier, role, is_active)
-                VALUES ({self._p}, {self._p}, {self._p}, {self._p}, {self._p}, {self._p}, 'free', 'user', 1)
-            """, (email or f"{phone}@yerimebak.ai", hashed_pw, full_name, phone, api_key, FREE_CREDITS_ON_REGISTER))
-            conn.commit()
-
-            cursor.execute(f"SELECT id, email, full_name, api_key, credits, tier, role, phone FROM users WHERE phone = {self._p}", (phone,))
-            user = dict(cursor.fetchone())
-
-            token = _create_user_jwt(user)
-
-            return {
-                "success": True,
-                "user": user,
-                "token": token,
-                "api_key": api_key,
-                "message": f"Kayit basarili. {FREE_CREDITS_ON_REGISTER} ucretsiz kredi yuklendi."
-            }
-        finally:
-            DatabaseConfig.return_connection(conn)  # 🔒 DÜZELTİLDİ: conn.close() -> pool'a geri ver
-
-    def login_with_otp(self, phone: str, otp_code: str = None) -> Dict[str, Any]:
-        """🔒 DÜZELTİLDİ (Security): OTP kodu zorunlu!
-        Önceki implementasyon sadece telefon numarası alıp direkt login yapıyordu.
-        """
-        conn = DatabaseConfig.get_connection()
-        try:
-            if not otp_code:
-                return {"error": "OTP kodu zorunludur. Telefon numarasi ile dogrulama yapilmali."}
-
-            cursor = conn.cursor()
-            cursor.execute(f"SELECT * FROM users WHERE phone = {self._p}", (phone,))
-            row = cursor.fetchone()
-
-            if not row:
-                return {"error": "Bu telefon numarasi ile kayitli hesap bulunamadi"}
-
-            user = dict(row)
-
-            if not user.get('is_active', 1):
-                return {"error": "Hesabiniz devre disi birakilmis"}
-
-            # 🔒 GÜVENLİK: OTP kodu dogrulamasi
-            cursor.execute(f"""
-                SELECT id FROM otp_codes 
-                WHERE phone = {self._p}
-                AND code = {self._p}
-                AND expires_at > CURRENT_TIMESTAMP 
-                AND used = 0
-                ORDER BY created_at DESC LIMIT 1
-            """, (phone, otp_code))
-            
-            otp_row = cursor.fetchone()
-            if not otp_row:
-                # OTP tablosu yoksa veya kod yanlissa -> hata
-                return {
-                    "error": "Gecersiz veya sureyi dolmus OTP kodu. "
-                             "Lutfen yeni bir dogrulama kodu isteyin."
-                }
-            
-            # OTP kodunu kullanildi olarak isaretle (replay attack önleme)
-            cursor.execute(f"""
-                UPDATE otp_codes SET used = 1 WHERE id = {self._p}
-            """, (otp_row['id'],))
-            conn.commit()
-
-            cursor.execute(f"""
-                UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = {self._p}
-            """, (user['id'],))
-            conn.commit()
-
-            return {
-                "success": True,
-                "user": {
-                    "id": user['id'],
-                    "email": user['email'],
-                    "full_name": user.get('full_name'),
-                    "phone": user.get('phone'),
-                    "api_key": user['api_key'],
-                    "credits": user['credits'],
-                    "tier": user['tier'],
-                    "role": user['role'],
-                }
-            }
-        finally:
-            DatabaseConfig.return_connection(conn)
 
     def verify_token(self, token: str) -> Optional[Dict[str, Any]]:
         payload = _verify_jwt(token)
@@ -334,6 +236,8 @@ class AuthService:
                     "credits": user['credits'],
                     "tier": user['tier'],
                     "role": user['role'],
+                    "email_verified": user.get('email_verified') is not False,
+                    "must_change_password": bool(user.get('must_change_password')),
                 }
             }
         finally:
@@ -360,8 +264,9 @@ class AuthService:
             if not user.get('password') or not _verify_password(current_password, user['password']):
                 return {"error": "Mevcut sifre hatali", "http_status": 403}
 
+            # Gecici sifre ile giren personel sifresini degistirince zorunluluk kalkar
             cursor.execute(
-                f"UPDATE users SET password = {self._p} WHERE id = {self._p}",
+                f"UPDATE users SET password = {self._p}, must_change_password = FALSE WHERE id = {self._p}",
                 (_hash_password(new_password), user['id']),
             )
             conn.commit()
@@ -408,8 +313,11 @@ class AuthService:
         if not expected_key:
             return {"error": "Sunucu yapilandirma hatasi: ADMIN_SECRET_KEY tanimlanmamis"}
         
-        if admin_key != expected_key:
+        if not hmac.compare_digest(str(admin_key or ""), expected_key):
             return {"error": "Gecersiz admin anahtari"}
+
+        from yerimebak_ai_v5.services import account_service
+        account_service.ensure_schema()
 
         conn = DatabaseConfig.get_connection()
         try:
@@ -423,8 +331,9 @@ class AuthService:
             hashed_pw = _hash_password(password)
 
             cursor.execute(f"""
-                INSERT INTO users (email, password, api_key, credits, tier, role, is_active)
-                VALUES ({self._p}, {self._p}, {self._p}, 1000, 'enterprise', 'admin', 1)
+                INSERT INTO users (email, password, api_key, credits, tier, role, is_active,
+                                   email_verified, welcome_credits_granted)
+                VALUES ({self._p}, {self._p}, {self._p}, 1000, 'enterprise', 'admin', 1, TRUE, TRUE)
             """, (email, hashed_pw, api_key))
             conn.commit()
 

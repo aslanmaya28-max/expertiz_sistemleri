@@ -33,6 +33,21 @@ class PaytrSigningTests(unittest.TestCase):
         )
         self.assertEqual(body["paytr_token"], _expected_sign(hash_str + "tuz"))
 
+    def test_refund_request_signature(self):
+        with patch.dict(os.environ, PAYTR_ENV, clear=False):
+            body = paytr_service.build_refund_request("EXABC123", 7200)
+        self.assertEqual(body["return_amount"], "7200.00")
+        self.assertEqual(body["paytr_token"], _expected_sign("123456" "EXABC123" "7200.00" "tuz"))
+
+    def test_refund_error_raises_and_does_not_succeed(self):
+        response = MagicMock()
+        response.json.return_value = {"status": "error", "err_no": "009", "err_msg": "Iade tutari hatali"}
+        with patch.dict(os.environ, {**PAYTR_ENV, "PAYMENT_SIMULATION": "false"}, clear=False), \
+                patch.object(paytr_service.requests, "post", return_value=response):
+            with self.assertRaises(paytr_service.PaytrError) as ctx:
+                paytr_service.refund("EXABC123", 100)
+        self.assertIn("Iade tutari hatali", str(ctx.exception))
+
     def test_merchant_oid_must_be_alphanumeric(self):
         with patch.dict(os.environ, PAYTR_ENV, clear=False):
             with self.assertRaises(paytr_service.PaytrError):

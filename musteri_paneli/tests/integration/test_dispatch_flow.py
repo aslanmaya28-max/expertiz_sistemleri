@@ -59,6 +59,7 @@ def _create_paid_request(client, token, plate, city, note=None, package_index=0,
     package = firm["packages"][min(package_index, len(firm["packages"]) - 1)]
     body = {
         "firm_id": firm["id"], "package_id": package["id"], "plate": plate, "city": city, "district": district,
+        "contract_accepted": True,
         "vehicle": {"brand": "Fiat", "model": "Egea", "year": 2020, "km": 60000, "price": 850000},
     }
     if note:
@@ -90,7 +91,8 @@ def admin_token(client):
 def customer_token(client):
     response = client.post(
         "/api/v1/auth/register",
-        json={"email": "musteri@yerimebak.test", "password": "Musteri123!", "full_name": "Ayse Musteri", "phone": "05551112233"},
+        json={"email": "musteri@yerimebak.test", "password": "Musteri123!", "full_name": "Ayse Musteri", "phone": "05551112233",
+              "terms_accepted": True},
     )
     assert response.status_code == 200, response.text
     return _login(client, "musteri@yerimebak.test", "Musteri123!")
@@ -539,7 +541,7 @@ def test_field_flow_duty_district_live_status_and_notifications(client, admin_to
     no_district = client.post(
         "/api/v1/expertiz/requests", headers=_auth(customer_token),
         json={"firm_id": firm["id"], "package_id": firm["packages"][0]["id"], "city": "İzmir",
-              "vehicle": {"brand": "Fiat", "model": "Egea"}},
+              "vehicle": {"brand": "Fiat", "model": "Egea"}, "contract_accepted": True},
     )
     assert no_district.status_code == 400 and "ilce" in no_district.json()["detail"]
 
@@ -652,3 +654,136 @@ def test_field_flow_duty_district_live_status_and_notifications(client, admin_to
     assert on.status_code == 200 and on.json()["personnel"]["on_duty"] is True
     assert any(n["kind"] == "duty_changed" for n in _notes(client, c_token)["notifications"])
     assert client.put(f"/api/v1/expertiz/admin/personnel/{c['id']}/duty", headers=_auth(c_token), json={"on_duty": True}).status_code == 403
+
+
+def _link_token(message, path):
+    import re as _re
+
+    body = message.get_body(preferencelist=("plain",)).get_content()
+    match = _re.search(rf"{path}\?token=([A-Za-z0-9_\-]+)", body)
+    assert match, body
+    return match.group(1)
+
+
+def test_accounts_refunds_invoices_and_emails(client, admin_token):
+    """E-posta dogrulama + hos geldin kredisi, sifre sifirlama, iptal/iade, fatura dokumu, e-posta bildirimleri."""
+    from yerimebak_ai_v5.services import email_service
+
+    outbox = email_service.capture_for_tests()
+    try:
+        # --- Kayit: kredi hemen verilmez, dogrulama e-postasi gider
+        # Kullanim kosullari / KVKK onayi olmadan kayit olunamaz
+        no_terms = client.post("/api/v1/auth/register", json={"email": "onaysiz@yerimebak.test", "password": "Musteri123!"})
+        assert no_terms.status_code == 400
+        reg = client.post("/api/v1/auth/register", json={"email": "Yeni@Yerimebak.test", "password": "Musteri123!",
+                                                           "full_name": "Yeni Musteri", "terms_accepted": True})
+        assert reg.status_code == 200, reg.text
+        assert reg.json()["user"]["credits"] == 0 and reg.json()["email_verification_required"] is True
+        token = reg.json()["token"]
+        verify_mail = next(m for m in outbox if m["To"] == "yeni@yerimebak.test")
+        vtoken = _link_token(verify_mail, "/eposta-dogrula")
+        assert client.get("/api/v1/auth/profile", headers=_auth(token)).json()["profile"]["email_verified"] is False
+
+        ok = client.post("/api/v1/auth/verify-email", json={"token": vtoken})
+        assert ok.status_code == 200 and ok.json()["credits_granted"] == 3
+        # Ayni baglanti ikinci kez kullanilamaz, kredi iki kez verilmez
+        assert client.post("/api/v1/auth/verify-email", json={"token": vtoken}).status_code == 400
+        profile = client.get("/api/v1/auth/profile", headers=_auth(token)).json()["profile"]
+        assert profile["email_verified"] is True and profile["credits"] == 3
+        assert client.post("/api/v1/auth/resend-verification", headers=_auth(token)).json()["already_verified"] is True
+
+        # --- Sifremi unuttum: kayitli olmayan e-postada da ayni yanit
+        unknown = client.post("/api/v1/auth/forgot-password", json={"email": "yok@yerimebak.test"})
+        known = client.post("/api/v1/auth/forgot-password", json={"email": "yeni@yerimebak.test"})
+        assert unknown.status_code == known.status_code == 200 and unknown.json() == known.json()
+        reset_mail = [m for m in outbox if "Sifre sifirlama" in m["Subject"]]
+        assert len(reset_mail) == 1
+        rtoken = _link_token(reset_mail[0], "/sifre-sifirla")
+        assert client.post("/api/v1/auth/reset-password", json={"token": rtoken, "new_password": "zayif"}).status_code == 400
+        assert client.post("/api/v1/auth/reset-password", json={"token": rtoken, "new_password": "YeniSifre123"}).status_code == 200
+        assert client.post("/api/v1/auth/reset-password", json={"token": rtoken, "new_password": "BaskaSifre123"}).status_code == 400
+        assert client.post("/api/v1/auth/login", json={"email": "yeni@yerimebak.test", "password": "Musteri123!"}).status_code == 401
+        token = _login(client, "yeni@yerimebak.test", "YeniSifre123")
+
+        # --- SMS / telefonla kayit uclari kaldirildi
+        for path in ("/api/v1/auth/send-otp", "/api/v1/auth/verify-otp", "/api/v1/auth/register-phone"):
+            assert client.post(path, json={"phone": "05551112233", "code": "123456", "full_name": "X"}).status_code in (404, 405)
+
+        # Ekspertiz odemesi de sozlesme onayi olmadan baslamaz
+        firm = client.get("/api/v1/expertiz/packages").json()["firms"][0]
+        no_contract = client.post("/api/v1/expertiz/requests", headers=_auth(token), json={
+            "firm_id": firm["id"], "package_id": firm["packages"][0]["id"], "city": "Ankara", "district": "Çankaya",
+            "vehicle": {"brand": "Fiat", "model": "Egea"}})
+        assert no_contract.status_code == 400 and "Sözleşmesi" in no_contract.json()["detail"]
+
+        # --- Odeme: makbuz e-postasi + admine yeni talep bildirimi
+        report_id = _create_paid_request(client, token, "06 IPT 06", "Ankara", district="Çankaya")
+        assert any("Odemeniz alindi" in m["Subject"] and m["To"] == "yeni@yerimebak.test" for m in outbox)
+        admin_notes = client.get("/api/v1/expertiz/admin/notifications", headers=_auth(admin_token)).json()["notifications"]
+        assert any(n["kind"] == "request_paid" and n["report_id"] == report_id for n in admin_notes)
+
+        # --- Iptal + iade
+        assert client.post(f"/api/v1/expertiz/admin/requests/{report_id}/cancel", headers=_auth(admin_token), json={"reason": ""}).status_code == 400
+        cancelled = client.post(f"/api/v1/expertiz/admin/requests/{report_id}/cancel", headers=_auth(admin_token),
+                                json={"reason": "Musteri talebi", "refund": True})
+        assert cancelled.status_code == 200, cancelled.text
+        assert cancelled.json()["refunded_tl"] > 0
+        assert client.post(f"/api/v1/expertiz/admin/requests/{report_id}/cancel", headers=_auth(admin_token),
+                           json={"reason": "tekrar"}).status_code == 409
+        detail = client.get(f"/api/v1/expertiz/admin/requests/{report_id}", headers=_auth(admin_token)).json()["request"]
+        assert detail["bucket"] == "cancelled" and detail["cancellation"]["reason"] == "Musteri talebi"
+        mine = next(r for r in client.get("/api/v1/expertiz/requests", headers=_auth(token)).json()["requests"] if r["report_id"] == report_id)
+        assert mine["status"] == "cancelled" and mine["progress"]["stage"] == "cancelled"
+        assert any("iptal" in m["Subject"].lower() for m in outbox if m["To"] == "yeni@yerimebak.test")
+        # Iptal edilen talebe personel atanamaz
+        person = _create_personnel(client, admin_token, "iptal@yerimebak.test", "Ankara", "Çankaya", "Iptal Personel")
+        assert client.post(f"/api/v1/expertiz/admin/requests/{report_id}/assign", headers=_auth(admin_token),
+                           json={"personnel_id": person["id"]}).status_code == 409
+        finance = client.get("/api/v1/expertiz/admin/finance/summary", headers=_auth(admin_token)).json()
+        assert finance["iadeler"]["expertiz_count"] >= 1
+
+        # --- Kredi paketi: kullanilmissa iade yok, kullanilmamissa iade + kredi dusumu
+        # Mesafeli satis sozlesmesi onayi olmadan odeme baslamaz
+        assert client.post("/api/v1/payments/checkout/credits", headers=_auth(token), json={"package_key": "paket3"}).status_code == 400
+        start = client.post("/api/v1/payments/checkout/credits", headers=_auth(token),
+                            json={"package_key": "paket3", "contract_accepted": True})
+        assert start.status_code == 200, start.text
+        oid = start.json()["order_id"]
+        client.post(f"/api/v1/payments/checkout/{oid}/simulate", headers=_auth(token), json={"success": True})
+        before = client.get("/api/v1/auth/profile", headers=_auth(token)).json()["profile"]["credits"]
+        assert client.post(f"/api/v1/payments/admin/orders/{oid}/refund", headers=_auth(token), json={"reason": "x"}).status_code == 403
+        refunded = client.post(f"/api/v1/payments/admin/orders/{oid}/refund", headers=_auth(admin_token), json={"reason": "Yanlis paket"})
+        assert refunded.status_code == 200, refunded.text
+        after = client.get("/api/v1/auth/profile", headers=_auth(token)).json()["profile"]["credits"]
+        assert after == before - 3
+        assert client.post(f"/api/v1/payments/admin/orders/{oid}/refund", headers=_auth(admin_token), json={"reason": "x"}).status_code == 409
+
+        # --- Fatura dokumu (CSV): satis + iade satirlari, fatura bilgileri
+        client.put("/api/v1/auth/profile", headers=_auth(token), json={"company_name": "Yeni Ltd", "tax_number": "1234567890", "tax_office": "Kavaklidere"})
+        csv_resp = client.get("/api/v1/expertiz/admin/finance/invoices.csv", headers=_auth(admin_token))
+        assert csv_resp.status_code == 200 and csv_resp.headers["content-type"].startswith("text/csv")
+        text = csv_resp.content.decode("utf-8-sig")
+        lines = [l for l in text.splitlines() if "yeni@yerimebak.test" in l]
+        assert any(";satis;" in l and "Yeni Ltd" in l and "1234567890" in l for l in lines)
+        assert sum(";iade;" in l for l in lines) == 2
+        assert client.get("/api/v1/expertiz/admin/finance/invoices.csv", headers=_auth(token)).status_code == 403
+        assert client.get("/api/v1/expertiz/admin/finance/invoices.csv?start=bozuk", headers=_auth(admin_token)).status_code == 400
+
+        # --- Eski havale/elle onay uclari kaldirildi
+        assert client.post("/api/v1/payments/order", headers=_auth(token), json={"package_key": "paket3"}).status_code in (404, 405)
+        assert client.post("/api/v1/payments/approve", headers=_auth(admin_token), json={"order_id": "x"}).status_code in (404, 405)
+
+        # Onaylar kanit olarak saklanir
+        import psycopg2
+        db = psycopg2.connect(TEST_DB)
+        with db.cursor() as cur:
+            cur.execute("SELECT kind, reference FROM legal_consents WHERE user_id = (SELECT id FROM users WHERE email = 'yeni@yerimebak.test')")
+            kinds = {k for k, _ in cur.fetchall()}
+        db.close()
+        assert {"terms_of_use", "kvkk_notice", "distance_sales", "preliminary_info"} <= kinds
+
+        # --- Vitrin toplu islemleri (admin)
+        assert client.post("/api/v1/vitrin/admin/activate-hidden", headers=_auth(token)).status_code == 403
+        assert client.post("/api/v1/vitrin/admin/activate-hidden", headers=_auth(admin_token)).json()["success"] is True
+    finally:
+        email_service.stop_capture()

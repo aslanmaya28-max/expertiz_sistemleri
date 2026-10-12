@@ -52,7 +52,12 @@ def summarize(requests: List[Dict[str, Any]], payment_orders: List[Dict[str, Any
     durumlar: Dict[str, int] = {}
     personel: Dict[str, Dict[str, Any]] = {}
 
+    iade = {"expertiz_count": 0, "expertiz_tl": 0.0, "kredi_count": 0, "kredi_tl": 0.0}
     for row in requests:
+        if row.get("payment_status") == "refunded":
+            iade["expertiz_count"] += 1
+            iade["expertiz_tl"] += _num(row.get("total_tl"))
+            continue
         if row.get("status") in CANCELLED_REQUEST_STATUSES:
             continue
         if row.get("payment_status") not in PAID_PAYMENT_STATUSES:
@@ -93,6 +98,9 @@ def summarize(requests: List[Dict[str, Any]], payment_orders: List[Dict[str, Any
         if status in ("approved", "pending"):
             kredi[f"{status}_tl"] += _num(row.get("toplam"))
             kredi[f"{status}_count"] += int(row.get("adet") or 0)
+        elif status == "refunded":
+            iade["kredi_tl"] += _num(row.get("toplam"))
+            iade["kredi_count"] += int(row.get("adet") or 0)
 
     personel_listesi = sorted(personel.values(), key=lambda p: p["hakedis_tl"], reverse=True)
     for p in personel_listesi:
@@ -109,6 +117,7 @@ def summarize(requests: List[Dict[str, Any]], payment_orders: List[Dict[str, Any
             "report_status_counts": durumlar,
         },
         "kredi_satislari": {k: round(v, 2) if isinstance(v, float) else v for k, v in kredi.items()},
+        "iadeler": {k: round(v, 2) if isinstance(v, float) else v for k, v in iade.items()},
         "personel": {
             "share_rate": PERSONNEL_SHARE_RATE,
             "hakedis_tl": round(sum(p["hakedis_tl"] for p in personel_listesi), 2),
