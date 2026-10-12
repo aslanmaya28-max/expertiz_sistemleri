@@ -58,6 +58,10 @@ async def lifespan(app: FastAPI):
         # Personel / talep / atama tablolarini commit ederek hazirla
         from yerimebak_ai_v5.services.dispatch_service import ensure_workflow_schema_once
         ensure_workflow_schema_once()
+        # Fiyatlandirma katalogu + PayTR odeme kolonlari
+        from yerimebak_ai_v5.services import checkout_service, pricing_service
+        pricing_service.ensure_schema()
+        checkout_service.ensure_schema()
         logger.info("[STARTUP] Database ready.")
     except Exception as e:
         logger.error(f"[STARTUP] Database init failed")

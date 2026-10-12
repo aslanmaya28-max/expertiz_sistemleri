@@ -22,6 +22,8 @@ from yerimebak_ai_v5.services.expertiz_service import _ensure_expertiz_requests_
 PERSONNEL_SHARE_RATE = float(os.getenv("PERSONNEL_SHARE_RATE", "0.25"))
 
 CANCELLED_REQUEST_STATUSES = {"Iptal", "cancelled"}
+# Odemesi alinmamis (bekleyen / basarisiz) talepler ciroya girmez
+PAID_PAYMENT_STATUSES = {"paid", "paid_simulation"}
 
 
 def _num(value: Any) -> float:
@@ -52,6 +54,8 @@ def summarize(requests: List[Dict[str, Any]], payment_orders: List[Dict[str, Any
 
     for row in requests:
         if row.get("status") in CANCELLED_REQUEST_STATUSES:
+            continue
+        if row.get("payment_status") not in PAID_PAYMENT_STATUSES:
             continue
         toplam = _num(row.get("total_tl"))
         vergi = _num(row.get("vat_tl"))

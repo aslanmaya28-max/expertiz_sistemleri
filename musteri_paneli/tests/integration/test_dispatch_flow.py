@@ -24,6 +24,8 @@ def client():
     os.environ["ADMIN_SECRET_KEY"] = ADMIN_KEY
     # Polling dongusu testte kapali: AI, gonderimdeki arka plan gorevi ile deterministik calisir
     os.environ["AI_WORKER_ENABLED"] = "false"
+    # Odeme, PayTR yerine test simulasyonuyla tamamlanir
+    os.environ["PAYMENT_SIMULATION"] = "true"
 
     import psycopg2
 
@@ -35,11 +37,13 @@ def client():
 
     from fastapi.testclient import TestClient
     from yerimebak_ai_v5.main import app
-    from yerimebak_ai_v5.services import dispatch_service, expertiz_service
+    from yerimebak_ai_v5.services import checkout_service, dispatch_service, expertiz_service, pricing_service
 
     # Sema bu surecte daha once hazirlandiysa sifirlanan veritabani icin tekrar kur
     dispatch_service._schema_ready = False
     expertiz_service._reports_schema_ensured = False
+    pricing_service._schema_ready = False
+    checkout_service._schema_ready = False
 
     with TestClient(app, base_url="http://localhost") as test_client:
         yield test_client
@@ -47,6 +51,23 @@ def client():
 
 def _auth(token):
     return {"Authorization": f"Bearer {token}"}
+
+
+def _create_paid_request(client, token, plate, city, note=None, package_index=0):
+    """Katalogdan paket secer, talep acar ve odemeyi (simulasyon) tamamlar; rapor id doner."""
+    firm = client.get("/api/v1/expertiz/packages").json()["firms"][0]
+    package = firm["packages"][min(package_index, len(firm["packages"]) - 1)]
+    body = {
+        "firm_id": firm["id"], "package_id": package["id"], "plate": plate, "city": city,
+        "vehicle": {"brand": "Fiat", "model": "Egea", "year": 2020, "km": 60000, "price": 850000},
+    }
+    if note:
+        body["note"] = note
+    created = client.post("/api/v1/expertiz/requests", headers=_auth(token), json=body)
+    assert created.status_code == 200, created.text
+    paid = client.post(f"/api/v1/payments/checkout/{created.json()['order_id']}/simulate", headers=_auth(token), json={"success": True})
+    assert paid.status_code == 200 and paid.json()["status"] == "paid", paid.text
+    return created.json()["request_id"]
 
 
 def _login(client, email, password):
@@ -124,13 +145,7 @@ def test_full_dispatch_flow(client, admin_token, customer_token):
     ank_token = _login(client, "ank@yerimebak.test", "Personel123")
 
     # --- Musteri talebi -------------------------------------------------------
-    created = client.post(
-        "/api/v1/expertiz/requests",
-        headers=_auth(customer_token),
-        json={"firm_id": "FIRM_001", "package_id": "PG_STD", "plate": "34 TST 34", "city": "istanbul kadikoy", "note": "Hafta ici"},
-    )
-    assert created.status_code == 200, created.text
-    report_id = created.json()["report_id"]
+    report_id = _create_paid_request(client, customer_token, "34 TST 34", "istanbul kadikoy", note="Hafta ici", package_index=1)
 
     # Musteri ve personel admin kuyruguna erisemez
     assert client.get("/api/v1/expertiz/admin/requests", headers=_auth(customer_token)).status_code == 403
@@ -254,12 +269,7 @@ def _tam_rapor(report_id, personnel_id):
 def test_inspection_report_photos_and_submit(client, admin_token, customer_token):
     person = _create_personnel(client, admin_token, "rapor@yerimebak.test", "İstanbul", "Beşiktaş", "Rapor Personel")
     token = _login(client, "rapor@yerimebak.test", "Personel123")
-    created = client.post(
-        "/api/v1/expertiz/requests",
-        headers=_auth(customer_token),
-        json={"firm_id": "FIRM_001", "package_id": "PG_FULL", "plate": "34 TST 35", "city": "İstanbul"},
-    )
-    report_id = created.json()["report_id"]
+    report_id = _create_paid_request(client, customer_token, "34 TST 35", "İstanbul", package_index=3)
     assert client.post(
         f"/api/v1/expertiz/admin/requests/{report_id}/assign", headers=_auth(admin_token), json={"personnel_id": person["id"]}
     ).status_code == 200
@@ -403,11 +413,7 @@ def test_ai_valuation_admin_approval_and_customer_view(client, admin_token, cust
     _seed_listings()
     person = _create_personnel(client, admin_token, "ai@yerimebak.test", "İstanbul", "Şişli", "AI Personel")
     token = _login(client, "ai@yerimebak.test", "Personel123")
-    report_id = client.post(
-        "/api/v1/expertiz/requests",
-        headers=_auth(customer_token),
-        json={"firm_id": "FIRM_001", "package_id": "PG_FULL", "plate": "34 AI 01", "city": "İstanbul"},
-    ).json()["report_id"]
+    report_id = _create_paid_request(client, customer_token, "34 AI 01", "İstanbul", package_index=3)
     client.post(f"/api/v1/expertiz/admin/requests/{report_id}/assign", headers=_auth(admin_token), json={"personnel_id": person["id"]})
     client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/start", headers=_auth(token))
     client.post(

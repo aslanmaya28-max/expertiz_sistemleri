@@ -1,0 +1,324 @@
+# -*- coding: utf-8 -*-
+"""
+Musteri arac degerlemesi (kredi ile).
+
+Musteri ilan linkini paylasir veya bilgileri elle girer; boyali / degisen parcalar
+ve tramer (hasar kaydi) bildirilir. Sistem:
+  1. Kazinan guncel ilanlardan piyasa ortalamasini (emsal) bulur,
+  2. Her bulgunun deger kaybini dusup tavsiye (alim) fiyatini cikarir,
+  3. Ilan fiyatina gore AL / PAZARLIK / ALMA karari verir,
+  4. Admin'in girdigi aylik arac enflasyonuyla 6 ay / 1 yil sonraki degeri ve getiriyi hesaplar.
+
+Yeterli emsal yoksa analiz yapilmaz ve kredi dusulmez.
+"""
+import re
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+from urllib.parse import urlsplit, urlunsplit
+
+from yerimebak_ai_v5.core.ai.inspection_valuation import PART_LABELS, evaluate
+from yerimebak_ai_v5.core.database_config import DatabaseConfig
+from yerimebak_ai_v5.core.market_reference_service import get_market_reference_service
+from yerimebak_ai_v5.services import pricing_service
+
+ANALYSIS_COST = 1
+PART_STATUSES = ("orijinal", "lokal_boyali", "boyali", "degisen")
+VERDICTS = {
+    "AVANTAJLI": ("AL", "Fiyat, aracin bulgulara gore degerinin altinda; alim icin avantajli."),
+    "MAKUL": ("AL", "Fiyat, aracin bulgulara gore degeriyle uyumlu; tavsiye fiyata yakin alinabilir."),
+    "PAZARLIK": ("PAZARLIK YAP", "Fiyat biraz yuksek; tavsiye fiyata inmek icin pazarlik onerilir."),
+    "YUKSEK": ("ALMA", "Fiyat, aracin bulgulara gore degerinin belirgin uzerinde; bu fiyattan alinmasi onerilmez."),
+}
+
+
+def _error(message: str, status: int = 400, code: Optional[str] = None) -> Dict[str, Any]:
+    out = {"error": message, "http_status": status}
+    if code:
+        out["code"] = code
+    return out
+
+
+def _int(value: Any) -> Optional[int]:
+    if value in (None, ""):
+        return None
+    try:
+        return int(float(str(value).replace(".", "").replace(",", ".")) if isinstance(value, str) else float(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def normalize_url(url: str) -> str:
+    """Sorgu/parca kisimlari atilir; ayni ilanin farkli linkleri eslesir."""
+    url = (url or "").strip()
+    if not url:
+        return ""
+    if not re.match(r"^https?://", url, re.I):
+        url = "https://" + url
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), parts.path.rstrip("/"), "", ""))
+
+
+def _listing_by_url(url: str) -> Optional[Dict[str, Any]]:
+    norm = normalize_url(url)
+    if not norm:
+        return None
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT id, brand, model, year, km, price, fuel, transmission, title, url, image_url,
+                   location, paint_info, accident_record
+            FROM listings
+            WHERE rtrim(split_part(split_part(lower(url), '?', 1), '#', 1), '/') = %s
+            LIMIT 1
+            """,
+            (norm,),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
+def _known_brands() -> List[str]:
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT brand FROM listings WHERE brand IS NOT NULL AND brand <> ''")
+        return [str(dict(r)["brand"]) for r in cursor.fetchall()]
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
+def _guess_from_slug(url: str) -> Dict[str, Any]:
+    """Ilan veritabaninda yoksa linkteki metinden marka/model/yil tahmini (musteri dogrular)."""
+    path = urlsplit(normalize_url(url)).path.lower()
+    tokens = [t for t in re.split(r"[^a-z0-9]+", path) if t]
+    guess: Dict[str, Any] = {}
+    for brand in sorted(_known_brands(), key=len, reverse=True):
+        slug = re.sub(r"[^a-z0-9]+", "-", brand.lower()).strip("-")
+        parts = slug.split("-")
+        for i in range(len(tokens) - len(parts) + 1):
+            if tokens[i:i + len(parts)] == parts:
+                guess["brand"] = brand
+                if i + len(parts) < len(tokens):
+                    guess["model"] = tokens[i + len(parts)].capitalize()
+                break
+        if guess:
+            break
+    year = next((int(t) for t in tokens if t.isdigit() and 1990 <= int(t) <= datetime.now().year + 1), None)
+    if year:
+        guess["year"] = year
+    return guess
+
+
+def _paint_to_parts(paint_info: Any) -> Dict[str, str]:
+    """Kazinan ilandaki boya/degisen bilgisini parca anahtarlarina cevirir."""
+    import json as _json
+
+    if isinstance(paint_info, str):
+        try:
+            paint_info = _json.loads(paint_info)
+        except ValueError:
+            return {}
+    if not isinstance(paint_info, dict):
+        return {}
+    labels = {v.lower(): k for k, v in PART_LABELS.items()}
+    parts: Dict[str, str] = {}
+    for status, key in (("lokal_boyali", "local_painted_parts"), ("boyali", "painted_parts"), ("degisen", "changed_parts")):
+        for label in paint_info.get(key) or []:
+            part = labels.get(str(label).strip().lower())
+            if part:
+                parts[part] = status
+    return parts
+
+
+def prefill_from_link(url: str) -> Dict[str, Any]:
+    if not normalize_url(url):
+        return _error("Gecerli bir ilan linki girin")
+    listing = _listing_by_url(url)
+    if listing:
+        return {
+            "success": True,
+            "found": True,
+            "listing_id": listing["id"],
+            "vehicle": {
+                "brand": listing.get("brand"), "model": listing.get("model"), "year": listing.get("year"),
+                "km": listing.get("km"), "price": listing.get("price"), "fuel": listing.get("fuel"),
+                "transmission": listing.get("transmission"), "title": listing.get("title"),
+                "image_url": listing.get("image_url"), "location": listing.get("location"),
+            },
+            "parts": _paint_to_parts(listing.get("paint_info")),
+            "message": "Ilan sistemimizde bulundu; bilgileri kontrol edip eksikleri tamamlayin.",
+        }
+    return {
+        "success": True,
+        "found": False,
+        "vehicle": _guess_from_slug(url),
+        "parts": {},
+        "message": "Ilan sistemimizde yok; linkten tahmin edilen bilgileri kontrol edip eksikleri elle girin.",
+    }
+
+
+def inflation_projection(ai_value: float, purchase_price: float) -> Optional[Dict[str, Any]]:
+    settings = pricing_service.get_pricing_settings().get("vehicle_inflation")
+    if not settings:
+        return None
+    monthly = float(settings["monthly_pct"]) / 100.0
+
+    def horizon(months: int) -> Dict[str, Any]:
+        future = ai_value * (1 + monthly) ** months
+        gain = future - purchase_price
+        return {
+            "ay": months,
+            "tahminiDeger": int(round(future, -3)),
+            "getiriTl": int(round(gain, -3)),
+            "getiriYuzde": round(gain / purchase_price * 100, 1) if purchase_price else None,
+        }
+
+    return {
+        "aylikEnflasyonYuzde": float(settings["monthly_pct"]),
+        "yillikEnflasyonYuzde": round(((1 + monthly) ** 12 - 1) * 100, 1),
+        "kaynak": settings.get("note") or "",
+        "gecerlilikTarihi": settings.get("effective_date"),
+        "alisFiyati": int(purchase_price),
+        "altiAy": horizon(6),
+        "birYil": horizon(12),
+        "aciklama": (
+            "Tahmini deger, aracin bugunku bulgu duzeltmeli degerinin aylik arac enflasyonu ile "
+            "buyutulmesiyle hesaplanir; getiri, tavsiye alim fiyatina gore beklenen deger artisidir. "
+            "Piyasa kosullarina gore degisebilir, yatirim tavsiyesi degildir."
+        ),
+    }
+
+
+def _clean_parts(raw: Any) -> Dict[str, str]:
+    parts: Dict[str, str] = {}
+    if not isinstance(raw, dict):
+        return parts
+    for key, status in raw.items():
+        status = str(status or "").strip().lower()
+        if key in PART_LABELS and status in PART_STATUSES and status != "orijinal":
+            parts[key] = status
+    return parts
+
+
+def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
+    from yerimebak_ai_v5.services.payment_service import get_payment_service
+
+    listing = None
+    if payload.get("listing_url"):
+        listing = _listing_by_url(payload["listing_url"])
+
+    def pick(key: str, listing_key: Optional[str] = None):
+        value = payload.get(key)
+        if value in (None, "") and listing:
+            value = listing.get(listing_key or key)
+        return value
+
+    brand = str(pick("brand") or "").strip()
+    model = str(pick("model") or "").strip()
+    year = _int(pick("year"))
+    km = _int(pick("km"))
+    price = _int(pick("listed_price", "price"))
+    fuel = str(pick("fuel") or "").strip() or None
+    transmission = str(pick("transmission") or "").strip() or None
+
+    missing = [name for name, value in (("marka", brand), ("model", model), ("yil", year), ("km", km), ("ilan fiyati", price)) if not value]
+    if missing:
+        return _error(f"Eksik bilgi: {', '.join(missing)}")
+    if not 1980 <= year <= datetime.now().year + 1:
+        return _error("Model yili gecersiz")
+    if not 0 <= km <= 2_000_000 or not 10_000 <= price <= 200_000_000:
+        return _error("Km veya ilan fiyati gecersiz")
+
+    parts = _clean_parts(payload.get("parts"))
+    if not parts and listing and payload.get("parts") is None:
+        parts = _paint_to_parts(listing.get("paint_info"))
+    tramer_amount = max(0, _int(payload.get("tramer_amount")) or 0)
+    tramer_count = max(0, _int(payload.get("tramer_count")) or (1 if tramer_amount else 0))
+
+    payment = get_payment_service()
+    if not payment.check_credits_before_analysis(user["id"]):
+        return _error("Yetersiz kredi. Analiz icin kredi paketi satin alin.", 402, "insufficient_credits")
+
+    reference = get_market_reference_service().get_reference(
+        brand=brand, model=model, year=year, km=km, fuel=fuel, transmission=transmission,
+        exclude_id=listing.get("id") if listing else None, listed_price=price,
+    )
+    if not reference.get("count") or str(reference.get("source", "")).startswith("last_resort"):
+        return _error(
+            f"{brand} {model} {year} icin yeterli guncel piyasa verisi yok. Kredi dusulmedi; "
+            "veri toplandikca tekrar deneyebilirsiniz.",
+            422, "insufficient_market_data",
+        )
+
+    tam_rapor = {
+        "adim1": {
+            "marka": brand, "model": model, "yil": year, "guncelKm": km,
+            "hasarKayitToplamTutar": tramer_amount, "hasarKayitAdet": tramer_count,
+            "yakitTuru": fuel, "vites": transmission,
+        },
+        "adim4": {"parcaDurumlari": parts},
+    }
+    degerleme = evaluate(tam_rapor, reference, listed_price=price, vehicle={"km": km, "yil": year})
+    if not degerleme.get("degerlemeYapildi") or not degerleme.get("aiDegeri"):
+        return _error("Bu arac icin degerleme yapilamadi. Kredi dusulmedi.", 422, "valuation_failed")
+
+    ai_value = float(degerleme["aiDegeri"])
+    recommended = float(degerleme.get("onerilenAlimFiyati") or ai_value)
+    verdict_key = (degerleme.get("fiyatYorumu") or {}).get("karar", "MAKUL")
+    karar, karar_aciklama = VERDICTS.get(verdict_key, VERDICTS["MAKUL"])
+    purchase_price = min(float(price), recommended)
+    projection = inflation_projection(ai_value, purchase_price)
+
+    result = {
+        "arac": {"marka": brand, "model": model, "yil": year, "km": km, "yakit": fuel, "vites": transmission,
+                 "ilanFiyati": price, "ilanLinki": payload.get("listing_url") or None},
+        "piyasa": {
+            "ortalama": reference.get("market_avg_price"),
+            "medyan": reference.get("market_median_price"),
+            "min": reference.get("market_min_price"),
+            "max": reference.get("market_max_price"),
+            "emsalSayisi": reference.get("count"),
+            "hasarsizEmsalSayisi": reference.get("clean_count"),
+            "guvenSkoru": degerleme.get("guvenSkoru"),
+            "guncelGun": reference.get("recent_days"),
+        },
+        "degerleme": {
+            "temizPiyasaDegeri": degerleme.get("temizPiyasaDegeri"),
+            "toplamDegerKaybiYuzde": degerleme.get("toplamDegerKaybiYuzde"),
+            "toplamDegerKaybiTutar": degerleme.get("toplamDegerKaybiTutar"),
+            "kalemler": degerleme.get("kalemler") or [],
+            "aiDegeri": degerleme.get("aiDegeri"),
+            "adilFiyatAraligi": degerleme.get("adilFiyatAraligi"),
+            "tavsiyeFiyat": int(recommended),
+            "hasarSeviyesi": degerleme.get("hasarSeviyesi"),
+            "agirHasar": degerleme.get("agirHasar"),
+            "ozet": degerleme.get("ozet"),
+        },
+        "karar": {
+            "sonuc": karar,
+            "aciklama": karar_aciklama,
+            "ilanFarkiYuzde": (degerleme.get("fiyatYorumu") or {}).get("farkYuzde"),
+            "ilanFarkiTutar": (degerleme.get("fiyatYorumu") or {}).get("farkTutar"),
+        },
+        "getiri": projection,
+    }
+
+    deduction = payment.deduct_credits(
+        user["id"],
+        amount=ANALYSIS_COST,
+        description=f"Arac degerleme: {brand} {model} {year}",
+        vehicle_data={**result["arac"], "source": "panel_valuation", "parts": parts,
+                      "tramer_amount": tramer_amount},
+        valuation_data={"credits_deducted": ANALYSIS_COST, "karar": karar, "tavsiye_fiyat": int(recommended),
+                        "ai_degeri": degerleme.get("aiDegeri"), "piyasa_ortalama": reference.get("market_avg_price"),
+                        "getiri": projection},
+    )
+    if not deduction.get("success"):
+        return _error("Yetersiz kredi. Analiz icin kredi paketi satin alin.", 402, "insufficient_credits")
+    result["kredi"] = {"dusulen": ANALYSIS_COST, "kalan": deduction.get("credits_after")}
+    result["success"] = True
+    return result

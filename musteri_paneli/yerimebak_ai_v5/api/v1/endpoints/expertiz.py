@@ -4,14 +4,21 @@ Kurumsal ekspertiz talep API'si.
 """
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from yerimebak_ai_v5.api.v1.endpoints.auth import get_admin_user, get_authenticated_user
-from yerimebak_ai_v5.services import customer_service, dispatch_service, finance_service, media_service
+from yerimebak_ai_v5.services import (
+    checkout_service,
+    customer_service,
+    dispatch_service,
+    finance_service,
+    media_service,
+    paytr_service,
+    pricing_service,
+)
 from yerimebak_ai_v5.services.expertiz_service import (
-    create_expertiz_request,
     get_admin_report,
     get_customer_report,
     get_expertiz_packages,
@@ -33,6 +40,31 @@ class CreateExpertizRequest(BaseModel):
     plate: Optional[str] = None
     city: Optional[str] = None
     note: Optional[str] = None
+    # Linkle veya elle girilen arac: brand, model, year, km, price, fuel, transmission
+    vehicle: Optional[Dict[str, Any]] = None
+
+
+class PricingSettingsRequest(BaseModel):
+    service_fee_tl: Optional[float] = None
+    vehicle_inflation_monthly_pct: Optional[float] = None
+    inflation_note: Optional[str] = None
+    inflation_effective_date: Optional[str] = None
+
+
+class FirmRequest(BaseModel):
+    name: Optional[str] = None
+    active: Optional[bool] = None
+    sort_order: Optional[int] = None
+    source_url: Optional[str] = None
+    verified: Optional[bool] = None
+
+
+class PackageRequest(BaseModel):
+    name: Optional[str] = None
+    price: Optional[float] = None
+    features: Optional[Any] = None
+    active: Optional[bool] = None
+    sort_order: Optional[int] = None
 
 
 class RejectReportRequest(BaseModel):
@@ -78,15 +110,24 @@ async def packages() -> Dict[str, Any]:
     return get_expertiz_packages()
 
 
+@router.get("/quote")
+async def quote(firm_id: str, package_id: str) -> Dict[str, Any]:
+    """Hizmet bedeli + paket + KDV toplam tutar (odeme ozeti)."""
+    return _raise_if_error(checkout_service.quote_expertiz(firm_id, package_id))
+
+
 @router.post("/requests")
 async def request_expertiz(
     request: CreateExpertizRequest,
+    http_request: Request,
     user: Dict[str, Any] = Depends(get_authenticated_user),
 ) -> Dict[str, Any]:
-    result = create_expertiz_request(request.model_dump(), user)
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result
+    """Ekspertiz talebi + odeme baslatma. Talep, odeme onaylaninca kuyruga duser."""
+    ip = paytr_service.client_ip(
+        {k.lower(): v for k, v in http_request.headers.items()},
+        http_request.client.host if http_request.client else None,
+    )
+    return _raise_if_error(checkout_service.start_expertiz_checkout(request.model_dump(), user, ip))
 
 
 @router.get("/requests")
@@ -168,6 +209,53 @@ async def my_published_report_detail(
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
     return result
+
+
+# ---------------------------------------------------------------------------
+# Admin: fiyatlandirma (hizmet bedeli, arac enflasyonu, firma / paket katalogu)
+# ---------------------------------------------------------------------------
+
+@router.get("/admin/pricing")
+async def admin_pricing(admin: Dict[str, Any] = Depends(get_admin_user)) -> Dict[str, Any]:
+    settings = pricing_service.get_pricing_settings()
+    return {**settings, "firms": pricing_service.list_firms(include_inactive=True)}
+
+
+@router.put("/admin/pricing/settings")
+async def admin_update_pricing(payload: PricingSettingsRequest, admin: Dict[str, Any] = Depends(get_admin_user)) -> Dict[str, Any]:
+    return _raise_if_error(pricing_service.update_pricing_settings(payload.model_dump(exclude_none=True), admin))
+
+
+@router.post("/admin/firms")
+async def admin_create_firm(payload: FirmRequest, admin: Dict[str, Any] = Depends(get_admin_user)) -> Dict[str, Any]:
+    return _raise_if_error(pricing_service.save_firm(payload.model_dump(exclude_none=True)))
+
+
+@router.put("/admin/firms/{firm_id}")
+async def admin_update_firm(firm_id: str, payload: FirmRequest, admin: Dict[str, Any] = Depends(get_admin_user)) -> Dict[str, Any]:
+    return _raise_if_error(pricing_service.save_firm(payload.model_dump(exclude_none=True), firm_id))
+
+
+@router.delete("/admin/firms/{firm_id}")
+async def admin_deactivate_firm(firm_id: str, admin: Dict[str, Any] = Depends(get_admin_user)) -> Dict[str, Any]:
+    return _raise_if_error(pricing_service.delete_firm(firm_id))
+
+
+@router.post("/admin/firms/{firm_id}/packages")
+async def admin_create_package(firm_id: str, payload: PackageRequest, admin: Dict[str, Any] = Depends(get_admin_user)) -> Dict[str, Any]:
+    return _raise_if_error(pricing_service.save_package(firm_id, payload.model_dump(exclude_none=True)))
+
+
+@router.put("/admin/firms/{firm_id}/packages/{package_id}")
+async def admin_update_package(
+    firm_id: str, package_id: str, payload: PackageRequest, admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    return _raise_if_error(pricing_service.save_package(firm_id, payload.model_dump(exclude_none=True), package_id))
+
+
+@router.delete("/admin/firms/{firm_id}/packages/{package_id}")
+async def admin_deactivate_package(firm_id: str, package_id: str, admin: Dict[str, Any] = Depends(get_admin_user)) -> Dict[str, Any]:
+    return _raise_if_error(pricing_service.delete_package(firm_id, package_id))
 
 
 @router.get("/admin/finance/summary")
