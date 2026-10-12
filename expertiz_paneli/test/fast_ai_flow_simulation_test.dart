@@ -108,9 +108,10 @@ void main() {
 // PDF'den gelen kısıtlı veriyi, analiz edilebilir TamRapor'a çeviren yardımcı
 TamRaporModel _createMockTamRaporFromPDF(AracRapor aracRapor) {
   // Mock: PDF'te "Sol Ön Çamurluk Boyalı" ve "Kaput Değişen" tespit edildiğini varsayalım
-  final mockAdim4 = Adim4BoyaKaportaModel.empty();
-  mockAdim4.boyaliParcalar.add("Sol Ön Çamurluk");
-  mockAdim4.degisenParcalar.add("Kaput");
+  final mockAdim4 = Adim4BoyaKaportaModel(
+    boyaliParcalar: const ["Sol Ön Çamurluk"],
+    degisenParcalar: const ["Kaput"],
+  );
 
   final adim1 = Adim1AracSaticiModel(
     gorevId: aracRapor.id,

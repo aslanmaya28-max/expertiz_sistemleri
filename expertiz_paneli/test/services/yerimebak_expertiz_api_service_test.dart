@@ -194,11 +194,10 @@ void main() {
 
     expect(result['must_change_password'], isTrue);
   });
-  test('triggerCentralAnalysis posts report id to central analysis trigger endpoint', () async {
+  test('triggerCentralAnalysis posts to admin reanalyze endpoint', () async {
     final client = MockClient((request) async {
       expect(request.method, 'POST');
-      expect(request.url.toString(), 'http://localhost:8000/api/v1/trigger');
-      expect(jsonDecode(request.body), {'report_id': 'report-9'});
+      expect(request.url.toString(), 'http://localhost:8000/api/v1/expertiz/admin/reports/report-9/reanalyze');
       return http.Response(jsonEncode({'success': true, 'status': 'pending_admin'}), 200);
     });
 
