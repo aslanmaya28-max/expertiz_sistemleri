@@ -19,6 +19,7 @@ import '../../../providers/user_provider.dart';
 import '../../../models/dashboard_stats.dart';
 import '../../../models/chart_data.dart';
 import '../../../services/dashboard_service.dart';
+import '../services/admin_preferences.dart';
 import '../widgets/admin_stats_card.dart';
 import '../widgets/status_distribution_card.dart';
 import '../widgets/charts/admin_line_chart.dart';
@@ -198,14 +199,20 @@ class _DashboardModuleState extends State<DashboardModule> {
 
         // Haptic feedback for pending admin status
         if (event.newStatus == 'pending_admin') {
-          _triggerHapticFeedback();
-          _showPendingAdminNotification();
+          _alertPendingAdmin();
         }
       },
       onError: (error) {
         debugPrint('❌ Dashboard update error: $error');
       },
     );
+  }
+
+  /// Ayarlar'daki "Yeni rapor uyarıları" açıksa titreşim + bildirim gösterir.
+  Future<void> _alertPendingAdmin() async {
+    if (!await AdminPreferences.newReportAlertsEnabled()) return;
+    _triggerHapticFeedback();
+    _showPendingAdminNotification();
   }
 
   /// Trigger haptic feedback

@@ -126,6 +126,14 @@ class YerimebakExpertizApiService {
     });
   }
 
+  /// Giriş yapmış kullanıcının şifresini değiştirir (merkezi hesap).
+  Future<Map<String, dynamic>> changePassword({required String currentPassword, required String newPassword}) {
+    return _post(
+      '/auth/change-password',
+      body: {'current_password': currentPassword, 'new_password': newPassword},
+    );
+  }
+
   /// Admin müşteri listesi (arama: e-posta, ad veya telefon).
   Future<Map<String, dynamic>> getAdminCustomers({String? search}) {
     final term = search?.trim() ?? '';

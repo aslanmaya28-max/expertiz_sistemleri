@@ -35,6 +35,11 @@ class RegisterRequest(BaseModel):
         return v
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -409,6 +414,17 @@ async def login(request: LoginRequest) -> Dict[str, Any]:
 
     token = _create_token_payload(result["user"])
     result["token"] = token
+    return result
+
+
+@router.post("/change-password")
+async def change_password(
+    payload: ChangePasswordRequest,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    result = get_auth_service().change_password(user.get("id"), payload.current_password, payload.new_password)
+    if "error" in result:
+        raise HTTPException(status_code=int(result.get("http_status") or 400), detail=result["error"])
     return result
 
 
