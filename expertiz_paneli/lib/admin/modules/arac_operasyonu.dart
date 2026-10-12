@@ -33,13 +33,14 @@ class AracOperasyonu extends StatefulWidget {
 }
 
 class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProviderStateMixin {
-  static const _buckets = ['waiting_assignment', 'in_progress', 'pending_approval', 'completed'];
-  static const _bucketTitles = ['Atama Bekleyen', 'İşlemdeki', 'Onay Bekleyen', 'Tamamlanan'];
+  static const _buckets = ['waiting_assignment', 'in_progress', 'pending_approval', 'completed', 'cancelled'];
+  static const _bucketTitles = ['Atama Bekleyen', 'İşlemdeki', 'Onay Bekleyen', 'Tamamlanan', 'İptal Edilen'];
   static const _emptyMessages = [
     'Atama bekleyen talep yok',
     'İşlemde talep yok',
     'Onay bekleyen rapor yok',
     'Tamamlanan rapor yok',
+    'İptal edilen talep yok',
   ];
 
   late final TabController _tabController;
@@ -267,6 +268,9 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
             : (label: 'Admin onayı bekliyor', color: Colors.greenAccent);
       case 'completed':
         return (label: 'Yayınlandı', color: Colors.green);
+      case 'cancelled':
+        final refunded = (_map(request['cancellation'])['refunded_tl'] as num?) ?? 0;
+        return (label: refunded > 0 ? 'İptal + iade edildi' : 'İptal edildi', color: Colors.grey);
     }
     if (request['needs_revision'] == true) return (label: 'Düzeltme bekliyor', color: Colors.redAccent);
     switch (assignment['status']) {
@@ -308,7 +312,8 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
         'Personel raporu gönderdi • İncelemek ve yayınlamak için "Raporlar" sekmesini açın',
         style: TextStyle(color: Colors.white54, fontSize: 12),
       ));
-    } else if (bucket == 'in_progress') {
+    }
+    if (bucket == 'in_progress') {
       actions.addAll([
         OutlinedButton.icon(
           onPressed: () => _openAssignDialog(request),
@@ -321,6 +326,14 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
           label: const Text('Atamayı Kaldır', style: TextStyle(color: Colors.redAccent)),
         ),
       ]);
+    }
+    if (bucket != 'completed' && bucket != 'cancelled') {
+      actions.add(TextButton.icon(
+        key: Key('cancel-${request['id']}'),
+        onPressed: () => _confirmCancel(request),
+        icon: const Icon(Icons.money_off, size: 18, color: Colors.orangeAccent),
+        label: const Text('İptal / İade', style: TextStyle(color: Colors.orangeAccent)),
+      ));
     }
 
     return Card(
@@ -373,6 +386,10 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
                   if (assignedName.isNotEmpty) _info(Icons.badge, 'Personel: $assignedName', color: Colors.purpleAccent),
                 ],
               ),
+              if (bucket == 'cancelled' && _map(request['cancellation']).isNotEmpty) ...[
+                const SizedBox(height: 6),
+                _info(Icons.cancel_outlined, 'İptal nedeni: ${_orDash(_map(request['cancellation'])['reason'])}', color: Colors.white54),
+              ],
               if (request['needs_revision'] == true && (request['rejection_reason'] ?? '').toString().isNotEmpty) ...[
                 const SizedBox(height: 6),
                 _info(Icons.report_gmailerrorred, 'Red nedeni: ${request['rejection_reason']}', color: Colors.redAccent),
@@ -535,6 +552,24 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
     if (assigned == true) {
       _toast('Talep personele gönderildi. Personel panelinde görünür.');
       await _load(silent: true);
+    }
+  }
+
+  Future<void> _confirmCancel(Map<String, dynamic> request) async {
+    final result = await showDialog<({String reason, bool refund})>(
+      context: context,
+      builder: (_) => _IptalDialog(request: request),
+    );
+    if (result == null) return;
+    try {
+      final response = await _api.cancelRequest(request['id'].toString(), reason: result.reason, refund: result.refund);
+      final refunded = (response['refunded_tl'] as num?)?.toDouble() ?? 0;
+      _toast(refunded > 0
+          ? 'Talep iptal edildi, ${NumberFormat.decimalPattern('tr').format(refunded)} TL müşteriye iade edildi'
+          : 'Talep iptal edildi');
+      await _load(silent: true);
+    } catch (e) {
+      _toast('İptal edilemedi: ${e is ApiException ? e.message : e}', error: true);
     }
   }
 
@@ -796,6 +831,81 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
               ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.send),
           label: const Text('Personele Gönder'),
+        ),
+      ],
+    );
+  }
+}
+
+
+/// İptal nedeni + iade seçimi. Ödeme iadesi PayTR üzerinden yapılır.
+class _IptalDialog extends StatefulWidget {
+  const _IptalDialog({required this.request});
+
+  final Map<String, dynamic> request;
+
+  @override
+  State<_IptalDialog> createState() => _IptalDialogState();
+}
+
+class _IptalDialogState extends State<_IptalDialog> {
+  final TextEditingController _reason = TextEditingController();
+  bool _refund = true;
+  String? _error;
+
+  @override
+  void dispose() {
+    _reason.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final total = (widget.request['total_tl'] as num?)?.toDouble() ?? 0;
+    final paid = widget.request['is_paid'] == true ||
+        ['paid', 'paid_simulation'].contains(widget.request['payment_status']);
+    return AlertDialog(
+      title: const Text('Talebi iptal et'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Talep iptal edilir, personel ataması kaldırılır; müşteriye ve personele bildirim gider.'),
+            const SizedBox(height: 12),
+            TextField(
+              key: const Key('cancelReasonField'),
+              controller: _reason,
+              maxLines: 2,
+              decoration: const InputDecoration(labelText: 'İptal nedeni *', border: OutlineInputBorder()),
+            ),
+            if (paid)
+              CheckboxListTile(
+                key: const Key('refundCheckbox'),
+                contentPadding: EdgeInsets.zero,
+                value: _refund,
+                onChanged: (v) => setState(() => _refund = v ?? true),
+                title: Text('${NumberFormat.decimalPattern('tr').format(total)} TL ödemeyi karta iade et (PayTR)'),
+              ),
+            if (_error != null) Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Vazgeç')),
+        FilledButton(
+          key: const Key('confirmCancelButton'),
+          style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade800),
+          onPressed: () {
+            final reason = _reason.text.trim();
+            if (reason.isEmpty) {
+              setState(() => _error = 'İptal nedeni zorunludur');
+              return;
+            }
+            Navigator.pop(context, (reason: reason, refund: paid && _refund));
+          },
+          child: const Text('İptal Et'),
         ),
       ],
     );

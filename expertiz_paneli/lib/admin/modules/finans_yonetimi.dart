@@ -1,4 +1,8 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../../core/constants/yerimebak_colors.dart';
 import '../../../services/yerimebak_expertiz_api_service.dart';
 
@@ -25,6 +29,9 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
   Map<String, dynamic> _ekspertiz = const {};
   Map<String, dynamic> _kredi = const {};
   Map<String, dynamic> _personel = const {};
+  Map<String, dynamic> _iade = const {};
+  List<Map<String, dynamic>> _orders = const [];
+  bool _exporting = false;
 
   @override
   void initState() {
@@ -40,12 +47,19 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
       _error = null;
     });
     try {
-      final response = await _api.getAdminFinanceSummary();
+      final results = await Future.wait([_api.getAdminFinanceSummary(), _api.getCreditOrders()]);
+      final response = results[0];
       if (!mounted) return;
       setState(() {
         _ekspertiz = _map(response['ekspertiz']);
         _kredi = _map(response['kredi_satislari']);
         _personel = _map(response['personel']);
+        _iade = _map(response['iadeler']);
+        _orders = (results[1]['orders'] as List? ?? const [])
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .where((o) => ['approved', 'refunded'].contains(o['status']))
+            .toList();
         _loading = false;
       });
     } catch (e) {
@@ -54,6 +68,85 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
         _loading = false;
         _error = e.toString();
       });
+    }
+  }
+
+  void _snack(String text, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text), backgroundColor: error ? Colors.red.shade700 : null),
+    );
+  }
+
+  /// Muhasebe / e-Arşiv entegratörü için tahsilat dökümü (satış + iade satırları).
+  Future<void> _exportCsv() async {
+    final now = DateTime.now();
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 3),
+      lastDate: now,
+      initialDateRange: DateTimeRange(start: DateTime(now.year, now.month, 1), end: now),
+      helpText: 'Tahsilat dökümü tarih aralığı',
+    );
+    if (range == null) return;
+    final fmt = DateFormat('yyyy-MM-dd');
+    setState(() => _exporting = true);
+    try {
+      final bytes = await _api.downloadInvoiceCsv(start: fmt.format(range.start), end: fmt.format(range.end));
+      final name = 'yerimebak_tahsilatlar_${fmt.format(range.start)}_${fmt.format(range.end)}.csv';
+      await FilePicker.platform.saveFile(
+        dialogTitle: 'Tahsilat dökümünü kaydet',
+        fileName: name,
+        bytes: Uint8List.fromList(bytes),
+        type: FileType.custom,
+        allowedExtensions: const ['csv'],
+      );
+      _snack('Döküm hazır: $name');
+    } catch (e) {
+      _snack('Döküm alınamadı: ${e is ApiException ? e.message : e}', error: true);
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  Future<void> _refundOrder(Map<String, dynamic> order) async {
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Kredi paketini iade et'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('${order['package_name'] ?? 'Paket'} • ${_tl(((order['amount_tl'] as num?) ?? 0).toDouble())} • '
+                '${order['user_email'] ?? ''}\nYalnızca hiç kullanılmamış paketler iade edilebilir; krediler bakiyeden düşülür.'),
+            const SizedBox(height: 12),
+            TextField(
+              key: const Key('refundReasonField'),
+              controller: controller,
+              decoration: const InputDecoration(labelText: 'İade nedeni *', border: OutlineInputBorder()),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Vazgeç')),
+          FilledButton(
+            key: const Key('confirmRefundButton'),
+            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('İade Et'),
+          ),
+        ],
+      ),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
+    if (reason == null) return;
+    if (reason.isEmpty) return _snack('İade nedeni zorunludur', error: true);
+    try {
+      await _api.refundCreditOrder('${order['id']}', reason: reason);
+      _snack('Paket iade edildi');
+      await _load();
+    } catch (e) {
+      _snack('İade yapılamadı: ${e is ApiException ? e.message : e}', error: true);
     }
   }
 
@@ -107,6 +200,14 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: textColor),
                   ),
                 ),
+                OutlinedButton.icon(
+                  key: const Key('exportCsvButton'),
+                  onPressed: _exporting ? null : _exportCsv,
+                  icon: _exporting
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.download),
+                  label: const Text('Tahsilat Dökümü (CSV)'),
+                ),
                 IconButton(onPressed: _load, icon: const Icon(Icons.refresh), tooltip: 'Yenile'),
               ],
             ),
@@ -153,8 +254,13 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
                         _buildFinansSatir('KDV hariç tutar', _tl(net), Icons.calculate),
                         _buildFinansSatir('Onaylı kredi satışı (${_kredi['approved_count'] ?? 0})',
                             _tl(krediOnayli), Icons.credit_card),
-                        _buildFinansSatir('Onay bekleyen kredi (${_kredi['pending_count'] ?? 0})',
+                        _buildFinansSatir('Ödemesi bekleyen kredi (${_kredi['pending_count'] ?? 0})',
                             _tl(krediBekleyen), Icons.hourglass_top),
+                        _buildFinansSatir(
+                            'İade edilen ekspertiz (${_iade['expertiz_count'] ?? 0}) — ciroya dahil değil',
+                            _tl(_num(_iade, 'expertiz_tl')), Icons.undo),
+                        _buildFinansSatir('İade edilen kredi (${_iade['kredi_count'] ?? 0}) — ciroya dahil değil',
+                            _tl(_num(_iade, 'kredi_tl')), Icons.undo),
                       ],
                       Icons.arrow_downward,
                       Colors.green,
@@ -177,6 +283,43 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
                 ),
               ),
             ),
+            const SizedBox(height: 30),
+            Text('Kredi Paketi Satışları',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)),
+            const SizedBox(height: 8),
+            if (_orders.isEmpty)
+              Text('Henüz ödenmiş kredi paketi yok.',
+                  style: TextStyle(color: isDarkMode ? Colors.grey[400] : Colors.grey[600]))
+            else
+              ..._orders.map((o) {
+                final refunded = o['status'] == 'refunded';
+                return Card(
+                  key: Key('order-${o['id']}'),
+                  color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+                  child: ListTile(
+                    leading: Icon(refunded ? Icons.undo : Icons.credit_card,
+                        color: refunded ? Colors.grey : Colors.purple),
+                    title: Text('${o['package_name'] ?? o['package_key'] ?? 'Paket'} • ${o['credits'] ?? 0} kredi',
+                        style: TextStyle(color: textColor)),
+                    subtitle: Text('${o['user_email'] ?? ''} • ${'${o['approved_at'] ?? o['created_at'] ?? ''}'.split('.').first}'
+                        '${refunded ? ' • İADE EDİLDİ' : ''}'),
+                    trailing: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      children: [
+                        Text(_tl(((o['amount_tl'] as num?) ?? 0).toDouble()),
+                            style: const TextStyle(fontWeight: FontWeight.bold)),
+                        if (!refunded)
+                          TextButton(
+                            key: Key('refund-${o['id']}'),
+                            onPressed: () => _refundOrder(o),
+                            child: const Text('İade Et'),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
             const SizedBox(height: 30),
             Text('Personel Hakedişleri',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)),

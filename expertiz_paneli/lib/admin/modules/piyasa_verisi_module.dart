@@ -109,11 +109,30 @@ class _PiyasaVerisiModuleState extends State<PiyasaVerisiModule> {
     }
   }
 
+  /// Vitrin toplu işlemleri (önceden web'deki /yonetim/vitrin sayfasındaydı).
+  Future<void> _vitrinIslemi(String islem) async {
+    setState(() => _busy = 'vitrin');
+    try {
+      if (islem == 'reanalyze') {
+        final r = await _api.vitrinReanalyze();
+        _toast('${r['analyzed'] ?? 0}/${r['total'] ?? 0} ilanın analizi yenilendi');
+      } else {
+        final r = await _api.vitrinActivateHidden();
+        _toast('${r['activated'] ?? 0} gizli ilan tekrar vitrine alındı');
+      }
+    } catch (e) {
+      _toast(e is ApiException ? e.message : e.toString(), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = null);
+      await _loadAll();
+    }
+  }
+
   void _toast(String message, {bool error = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: error ? Colors.red.shade700 : Colors.green.shade700),
-    );
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message), backgroundColor: error ? Colors.red.shade700 : Colors.green.shade700));
   }
 
   static String _tl(num value) {
@@ -195,6 +214,30 @@ class _PiyasaVerisiModuleState extends State<PiyasaVerisiModule> {
           ),
           const SizedBox(height: 8),
           ..._sources.map((s) => _buildScraperCard(s, cardColor, textColor, subColor)),
+          const SizedBox(height: 24),
+
+          // VİTRİN
+          Text('Vitrin', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                key: const Key('vitrinReanalyzeButton'),
+                onPressed: _busy != null ? null : () => _vitrinIslemi('reanalyze'),
+                icon: const Icon(Icons.auto_graph),
+                label: const Text('Vitrin analizlerini yenile'),
+              ),
+              OutlinedButton.icon(
+                key: const Key('vitrinActivateButton'),
+                onPressed: _busy != null ? null : () => _vitrinIslemi('activate'),
+                icon: const Icon(Icons.visibility),
+                label: const Text('Gizlenen ilanları vitrine al'),
+              ),
+              if (_busy == 'vitrin') const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+            ],
+          ),
           const SizedBox(height: 24),
 
           // GÜNCEL PİYASA

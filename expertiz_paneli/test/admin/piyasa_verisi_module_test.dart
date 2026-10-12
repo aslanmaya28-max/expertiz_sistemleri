@@ -103,6 +103,39 @@ void main() {
     expect(find.text('Kazıyıcılar (0/2 çalışıyor)'), findsOneWidget);
   });
 
+  testWidgets('vitrin toplu islemleri merkezi API ye gider', (tester) async {
+    final calls = <String>[];
+    final client = MockClient((request) async {
+      calls.add('${request.method} ${request.url.path}');
+      final path = request.url.path;
+      if (path.endsWith('/scrapers/status')) return _json(_status('idle'));
+      if (path.endsWith('/vitrin/stats')) return _json(_stats);
+      if (path.endsWith('/market-coverage/summary')) return _json(_coverage);
+      if (path.endsWith('/vitrin/admin/reanalyze')) return _json({'success': true, 'analyzed': 12, 'total': 13});
+      if (path.endsWith('/vitrin/admin/activate-hidden')) return _json({'success': true, 'activated': 4});
+      return _json({'detail': 'Not Found'}, 404);
+    });
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: PiyasaVerisiModule(
+          refreshInterval: const Duration(hours: 1),
+          apiService: YerimebakExpertizApiService(baseUrl: 'http://api.test/api/v1', client: client, accessToken: 'admin-token'),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('vitrinReanalyzeButton')));
+    await tester.pumpAndSettle();
+    expect(calls, contains('POST /api/v1/vitrin/admin/reanalyze'));
+    expect(find.text('12/13 ilanın analizi yenilendi'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('vitrinActivateButton')));
+    await tester.pumpAndSettle();
+    expect(calls, contains('POST /api/v1/vitrin/admin/activate-hidden'));
+    expect(find.text('4 gizli ilan tekrar vitrine alındı'), findsOneWidget);
+  });
+
   testWidgets('yetkisiz kullanici icin hata ve tekrar dene', (tester) async {
     final client = MockClient((_) async => _json({'detail': 'Admin yetkisi gerekli'}, 403));
     await tester.pumpWidget(MaterialApp(
