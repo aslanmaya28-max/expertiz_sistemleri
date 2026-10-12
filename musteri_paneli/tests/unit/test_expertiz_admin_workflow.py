@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import patch
 
 from yerimebak_ai_v5.api.v1.router import api_router
+from tests.unit.route_paths import api_paths
 from yerimebak_ai_v5.services import expertiz_service
 
 
@@ -72,7 +73,7 @@ def pending_admin_report(report_id: str, data=None, ai_result=None):
 
 class ExpertizAdminWorkflowTests(unittest.TestCase):
     def test_admin_expertiz_routes_are_registered(self):
-        paths = {route.path for route in api_router.routes}
+        paths = api_paths(api_router)
 
         self.assertIn("/expertiz/admin/reports", paths)
         self.assertIn("/expertiz/admin/reports/{report_id}", paths)

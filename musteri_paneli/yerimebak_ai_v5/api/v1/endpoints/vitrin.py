@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from yerimebak_ai_v5.core.database_config import DatabaseConfig
 from yerimebak_ai_v5.core.auto_analyzer import analyze_listing
 from yerimebak_ai_v5.core.redis_cache import cache_get, cache_set, cache_invalidate_vitrin
-from yerimebak_ai_v5.api.v1.endpoints.auth import get_current_user, get_current_user_optional
+from yerimebak_ai_v5.api.v1.endpoints.auth import get_admin_user, get_current_user_optional
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -405,11 +405,16 @@ def _sync_update_vehicle_status(vehicle_id: int, new_status: str) -> Dict[str, A
     try:
         cursor = conn.cursor()
         cursor.execute("UPDATE listings SET status = %s WHERE id = %s", (new_status, vehicle_id))
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Araç bulunamadı")
+        conn.commit()
         return {"id": vehicle_id, "status": new_status}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        conn.close()
+        DatabaseConfig.return_connection(conn)
 
 
 # ──────────────────────────────────────────────
@@ -475,7 +480,7 @@ async def get_stats() -> Dict[str, Any]:
 
 
 @router.post("/{vehicle_id}/analyze")
-async def analyze_vehicle(vehicle_id: int, user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+async def analyze_vehicle(vehicle_id: int, admin: Dict[str, Any] = Depends(get_admin_user)) -> Dict[str, Any]:
     cache_invalidate_vitrin()
     result = analyze_listing(vehicle_id)
     if not result:
@@ -494,11 +499,13 @@ async def search_vehicles(
 
 
 @router.patch("/{vehicle_id}/status")
-async def update_vehicle_status(vehicle_id: int, payload: Dict[str, str] = None, user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+async def update_vehicle_status(vehicle_id: int, payload: Dict[str, str] = None, admin: Dict[str, Any] = Depends(get_admin_user)) -> Dict[str, Any]:
     if not payload or 'status' not in payload:
         raise HTTPException(status_code=400, detail="status alanı gerekli")
     new_status = payload['status']
     if new_status not in ('active', 'hidden', 'featured', 'sold'):
         raise HTTPException(status_code=400, detail="Geçersiz durum. Aktif/gizli/öne çıkarılmış/satıldı olmalı")
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _sync_update_vehicle_status, vehicle_id, new_status)
+    result = await loop.run_in_executor(None, _sync_update_vehicle_status, vehicle_id, new_status)
+    cache_invalidate_vitrin()
+    return result

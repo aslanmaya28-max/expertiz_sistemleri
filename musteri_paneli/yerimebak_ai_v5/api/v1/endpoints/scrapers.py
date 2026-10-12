@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any
 
 from yerimebak_ai_v5.workers.scraper_manager import get_scraper_manager
-from yerimebak_ai_v5.api.v1.endpoints.auth import get_authenticated_user
+from yerimebak_ai_v5.api.v1.endpoints.auth import get_admin_user
 
 router = APIRouter()
 
@@ -24,7 +24,7 @@ def _format_status(source: str, status: Dict) -> Dict[str, Any]:
 
 @router.get("/status")
 async def get_scraper_status(
-    user: Dict[str, Any] = Depends(get_authenticated_user),
+    admin: Dict[str, Any] = Depends(get_admin_user),
 ) -> Dict[str, Any]:
     """Get real status of all scrapers from ScraperManager"""
     manager = get_scraper_manager()
@@ -43,7 +43,7 @@ async def get_scraper_status(
 @router.post("/start/{source}")
 async def start_scraper(
     source: str,
-    user: Dict[str, Any] = Depends(get_authenticated_user),
+    admin: Dict[str, Any] = Depends(get_admin_user),
 ):
     """
     Start scraper for specific source (arabam, borusan, all)
@@ -90,7 +90,7 @@ async def start_scraper(
 @router.post("/stop/{source}")
 async def stop_scraper(
     source: str,
-    user: Dict[str, Any] = Depends(get_authenticated_user),
+    admin: Dict[str, Any] = Depends(get_admin_user),
 ):
     """
     Stop scraper for specific source
@@ -136,7 +136,7 @@ async def stop_scraper(
 
 @router.get("/config")
 async def get_scraper_config(
-    user: Dict[str, Any] = Depends(get_authenticated_user),
+    admin: Dict[str, Any] = Depends(get_admin_user),
 ) -> Dict[str, Any]:
     """Get scraper configuration"""
     return {

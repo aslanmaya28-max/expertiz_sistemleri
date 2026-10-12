@@ -80,6 +80,7 @@ def _sync_add_favorite(user_id: int, listing_id: int) -> Dict[str, Any]:
             """,
             (user_id, listing_id),
         )
+        conn.commit()
         return {"success": True, "listing_id": listing_id}
     finally:
         DatabaseConfig.return_connection(conn)
@@ -94,6 +95,7 @@ def _sync_remove_favorite(user_id: int, listing_id: int) -> Dict[str, Any]:
             "DELETE FROM user_favorites WHERE user_id = %s AND listing_id = %s",
             (user_id, listing_id),
         )
+        conn.commit()
         return {"success": True, "listing_id": listing_id}
     finally:
         DatabaseConfig.return_connection(conn)
