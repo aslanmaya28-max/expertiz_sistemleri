@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from yerimebak_ai_v5.api.v1.endpoints import cases, scrapers, listings, analysis, auth, payments, credits, extension, vitrin, expertiz, favorites, personnel, market_coverage
+from yerimebak_ai_v5.api.v1.endpoints import cases, scrapers, listings, analysis, auth, payments, credits, extension, vitrin, expertiz, favorites, personnel, market_coverage, valuation
 
 api_router = APIRouter()
 api_router.include_router(cases.router, prefix="/cases", tags=["cases"])
@@ -15,3 +15,4 @@ api_router.include_router(expertiz.router, prefix="/expertiz", tags=["expertiz"]
 api_router.include_router(favorites.router, prefix="/favorites", tags=["favorites"])
 api_router.include_router(personnel.router, prefix="/personnel", tags=["personnel"])
 api_router.include_router(market_coverage.router, prefix="/market-coverage", tags=["market-coverage"])
+api_router.include_router(valuation.router, prefix="/valuation", tags=["valuation"])

@@ -13,127 +13,31 @@ from psycopg2.extras import Json
 from yerimebak_ai_v5.core.database_config import DatabaseConfig
 
 
-# 🔒 GÜVENLİK: Sabit değerler .env'den alinir
-YERIMEBAK_SERVICE_FEE_TL = float(os.getenv("YERIMEBAK_SERVICE_FEE_TL", "6500.0"))
-VAT_RATE = float(os.getenv("VAT_RATE", "0.20"))
+from yerimebak_ai_v5.services import pricing_service
 
-EXPERTIZ_FIRMS: List[Dict[str, Any]] = [
-    {
-        "id": "FIRM_001",
-        "name": "Pilot Garage",
-        "packages": [
-            {"id": "PG_ECO", "name": "Ekonomik Paket", "price": 3500.0, "features": ["Kaporta/Boya", "Motor Mekanik", "Dyno Test"]},
-            {"id": "PG_STD", "name": "Standart Paket", "price": 4500.0, "features": ["Kaporta/Boya", "Motor Mekanik", "Dyno Test", "Fren Testi", "Suspansiyon Testi"]},
-            {"id": "PG_FULL", "name": "Full Paket", "price": 6000.0, "features": ["Kaporta/Boya", "Motor Mekanik", "Dyno Test", "Fren Testi", "Suspansiyon Testi", "OBD Beyin Kontrol", "Airbag Kontrol"]},
-        ],
-    },
-    {
-        "id": "FIRM_002",
-        "name": "Otorapor",
-        "packages": [
-            {"id": "OR_BRONZE", "name": "Bronz Paket", "price": 3250.0, "features": ["Kaporta", "Motor", "Sanziman"]},
-            {"id": "OR_SILVER", "name": "Gumus Paket", "price": 4250.0, "features": ["Kaporta", "Motor", "Sanziman", "Alt Kontrol", "Yanal Kayma"]},
-            {"id": "OR_GOLD", "name": "Altin Paket", "price": 5750.0, "features": ["Full Mekanik", "Kaporta Boya", "OBD", "Airbag", "Conta Kacak Testi"]},
-        ],
-    },
-    {
-        "id": "FIRM_003",
-        "name": "Tarcanlar Ekspertiz",
-        "packages": [
-            {"id": "TR_STD", "name": "Standart Kontrol", "price": 4000.0, "features": ["Motor", "Kaporta", "Sase Kontrol"]},
-            {"id": "TR_PRO", "name": "Profesyonel Kontrol", "price": 5500.0, "features": ["Motor", "Kaporta", "Sase", "Airbag", "Kilometre Teyit"]},
-            {"id": "TR_ELITE", "name": "Elit Kontrol", "price": 7000.0, "features": ["Full Detayli Ekspertiz + Yol Testi"]},
-        ],
-    },
-    {
-        "id": "FIRM_004",
-        "name": "Dynomoss",
-        "packages": [
-            {"id": "DM_1", "name": "Eko", "price": 3000.0, "features": ["Dyno", "Boya"]},
-            {"id": "DM_2", "name": "Orta", "price": 4000.0, "features": ["Dyno", "Boya", "Mekanik"]},
-            {"id": "DM_3", "name": "Full", "price": 5000.0, "features": ["Full Paket"]},
-        ],
-    },
-    {
-        "id": "FIRM_005",
-        "name": "Umran Oto Ekspertiz",
-        "packages": [
-            {"id": "UM_1", "name": "Baz Paket", "price": 3200.0, "features": ["Kaporta", "Motor"]},
-            {"id": "UM_2", "name": "Klasik Paket", "price": 4200.0, "features": ["Kaporta", "Motor", "Alt Takim"]},
-            {"id": "UM_3", "name": "Premium Paket", "price": 5500.0, "features": ["Full + Conta Testi"]},
-        ],
-    },
-    {
-        "id": "FIRM_006",
-        "name": "Eksperix",
-        "packages": [
-            {"id": "EX_1", "name": "Eko", "price": 2900.0, "features": ["Boya", "Motor"]},
-            {"id": "EX_2", "name": "Full", "price": 4500.0, "features": ["Boya", "Motor", "Mekanik"]},
-            {"id": "EX_3", "name": "VIP", "price": 5900.0, "features": ["Full + Airbag"]},
-        ],
-    },
-    {
-        "id": "FIRM_007",
-        "name": "Computest",
-        "packages": [
-            {"id": "CT_1", "name": "Mobil", "price": 3100.0, "features": ["Temel Kontrol"]},
-            {"id": "CT_2", "name": "Gold", "price": 4100.0, "features": ["Standart Kontrol"]},
-            {"id": "CT_3", "name": "Platinum", "price": 5200.0, "features": ["Gelismis Kontrol"]},
-        ],
-    },
-    {
-        "id": "FIRM_008",
-        "name": "Garantili Arabam",
-        "packages": [
-            {"id": "GA_1", "name": "Paket 1", "price": 3300.0, "features": ["Kaporta"]},
-            {"id": "GA_2", "name": "Paket 2", "price": 4400.0, "features": ["Kaporta + Motor"]},
-            {"id": "GA_3", "name": "Paket 3", "price": 5600.0, "features": ["Full"]},
-        ],
-    },
-    {
-        "id": "FIRM_009",
-        "name": "Dynobil",
-        "packages": [
-            {"id": "DB_1", "name": "BASIC", "price": 3000.0, "features": ["Motor %"]},
-            {"id": "DB_2", "name": "PLUS", "price": 4000.0, "features": ["Motor % + Kaporta"]},
-            {"id": "DB_3", "name": "PREMIUM", "price": 5300.0, "features": ["Full Check-up"]},
-        ],
-    },
-    {
-        "id": "FIRM_010",
-        "name": "Auto King Ekspertiz",
-        "packages": [
-            {"id": "AK_1", "name": "King Eko", "price": 3750.0, "features": ["Temel"]},
-            {"id": "AK_2", "name": "King Star", "price": 4950.0, "features": ["Orta"]},
-            {"id": "AK_3", "name": "King Gold", "price": 6500.0, "features": ["Gelismis"]},
-        ],
-    },
-]
+VAT_RATE = pricing_service.VAT_RATE
 
 
 def get_expertiz_packages() -> Dict[str, Any]:
+    """Musteriye gosterilen guncel katalog (admin panelinden yonetilir)."""
+    settings = pricing_service.get_pricing_settings()
     return {
-        "service_fee_tl": YERIMEBAK_SERVICE_FEE_TL,
-        "vat_rate": VAT_RATE,
-        "firms": EXPERTIZ_FIRMS,
+        "service_fee_tl": settings["service_fee_tl"],
+        "vat_rate": settings["vat_rate"],
+        "firms": pricing_service.list_firms(),
     }
 
 
 def find_package(firm_id: str, package_id: str) -> Optional[Dict[str, Any]]:
-    for firm in EXPERTIZ_FIRMS:
-        if firm["id"] != firm_id:
-            continue
-        for package in firm["packages"]:
-            if package["id"] == package_id:
-                return {"firm": firm, "package": package}
-    return None
+    return pricing_service.find_package(firm_id, package_id)
 
 
 def calculate_total(package_price: float) -> Dict[str, float]:
-    subtotal = YERIMEBAK_SERVICE_FEE_TL + package_price
+    fee = pricing_service.get_service_fee_tl()
+    subtotal = fee + package_price
     vat = subtotal * VAT_RATE
     return {
-        "service_fee_tl": YERIMEBAK_SERVICE_FEE_TL,
+        "service_fee_tl": fee,
         "package_price_tl": package_price,
         "vat_tl": vat,
         "total_tl": subtotal + vat,
@@ -365,17 +269,22 @@ def _upsert_report_from_request(
     selected: Dict[str, Any],
     totals: Dict[str, float],
     now: str,
+    payment_status: str = "paid_simulation",
 ) -> str:
     _ensure_reports_schema(cursor)
 
     profile_id = _expertiz_profile_id(user)
     _upsert_profile(cursor, profile_id, user)
 
-    listing = _get_listing_snapshot(cursor, payload.get("listing_id"))
+    # Vitrin ilani varsa onun bilgisi, yoksa musterinin linkle/elle girdigi arac
+    listing = dict(_get_listing_snapshot(cursor, payload.get("listing_id")) or {})
+    for key, value in (payload.get("vehicle") or {}).items():
+        if value not in (None, "") and not listing.get(key):
+            listing[key] = value
     data = {
         "source": "yerimebak_sistemleri",
         "expertiz_request_id": request_id,
-        "payment_status": "paid_simulation",
+        "payment_status": payment_status,
         "customer_name": user.get("full_name") or user.get("email") or "YerimeBak Musteri",
         "customer_email": user.get("email") or "",
         "customer_phone": user.get("phone") or "",
@@ -412,6 +321,8 @@ def _upsert_report_from_request(
             "yil": listing.get("year"),
             "km": listing.get("km"),
             "price": listing.get("price"),
+            "yakit": listing.get("fuel"),
+            "sanziman": listing.get("transmission"),
             "title": listing.get("title"),
             "image_url": listing.get("image_url"),
             "location": listing.get("location"),
@@ -435,7 +346,7 @@ def _upsert_report_from_request(
         "odendi_mi": True,
         "durum": "Islemde",
         "status": "draft",
-        "payment_status": "paid_simulation",
+        "payment_status": payment_status,
         "ai_analizi_yapildi_mi": False,
         "data": Json(data),
         "status_updated_at": now,
@@ -638,7 +549,37 @@ def list_customer_requests(user: Dict[str, Any]) -> Dict[str, Any]:
             (profile_id, profile_id, str(user.get("id", ""))),
         )
         rows = [_row_to_dict(row) for row in cursor.fetchall()]
-        return {"success": True, "requests": [_public_request(row) for row in rows]}
+        requests = [_public_request(row) for row in rows]
+
+        # Odemesi tamamlanmamis talepler (rapor henuz olusmadi): musteri gorup tekrar odeyebilsin
+        cursor.execute(
+            """
+            SELECT * FROM expertiz_requests
+            WHERE user_id = %s AND payment_status IN ('pending', 'failed')
+            ORDER BY created_at DESC
+            LIMIT 20
+            """,
+            (str(user.get("id", "")),),
+        )
+        for row in cursor.fetchall():
+            row = _row_to_dict(row)
+            snapshot = _json_loads(row.get("data"), {}) or {}
+            requests.insert(0, {
+                "id": row["id"],
+                "report_id": None,
+                "order_id": row.get("paytr_oid"),
+                "status": "payment_pending" if row.get("payment_status") == "pending" else "payment_failed",
+                "payment_status": row.get("payment_status"),
+                "plate": row.get("plate"),
+                "city": row.get("city"),
+                "firm_name": row.get("firm_name"),
+                "package_name": row.get("package_name"),
+                "total_tl": float(row.get("total_tl") or 0),
+                "created_at": row.get("created_at"),
+                "updated_at": row.get("updated_at"),
+                "vehicle": (snapshot.get("payload") or {}).get("vehicle") or {},
+            })
+        return {"success": True, "requests": requests}
     finally:
         DatabaseConfig.return_connection(conn)
 
@@ -884,75 +825,4 @@ def reject_admin_report(report_id: str, reason: str, admin: Dict[str, Any]) -> D
     finally:
         DatabaseConfig.return_connection(conn)
 
-
-def create_expertiz_request(payload: Dict[str, Any], user: Dict[str, Any]) -> Dict[str, Any]:
-    selected = find_package(payload["firm_id"], payload["package_id"])
-    if not selected:
-        return {"error": "Gecersiz ekspertiz firma/paket secimi"}
-
-    request_id = str(uuid.uuid4())
-    totals = calculate_total(float(selected["package"]["price"]))
-    now = datetime.now(timezone.utc).isoformat()
-
-    conn = DatabaseConfig.get_connection()
-    try:
-        cursor = conn.cursor()
-        p = "%s"
-        _ensure_expertiz_requests_schema(cursor)
-        cursor.execute(
-            f"""
-            INSERT INTO expertiz_requests (
-                id, user_id, user_email, listing_id, listing_url, plate, city,
-                firm_id, firm_name, package_id, package_name, service_fee_tl,
-                package_price_tl, vat_tl, total_tl, status, payment_status,
-                data, created_at, updated_at
-            ) VALUES ({p}, {p}, {p}, {p}, {p}, {p}, {p}, {p}, {p}, {p}, {p}, {p}, {p}, {p}, {p}, {p}, {p}, {p}, {p}, {p})
-            """,
-            (
-                request_id,
-                str(user.get("id", "")),
-                user.get("email", ""),
-                str(payload.get("listing_id") or ""),
-                payload.get("listing_url") or "",
-                payload.get("plate") or "",
-                payload.get("city") or "",
-                payload["firm_id"],
-                selected["firm"]["name"],
-                payload["package_id"],
-                selected["package"]["name"],
-                totals["service_fee_tl"],
-                totals["package_price_tl"],
-                totals["vat_tl"],
-                totals["total_tl"],
-                "Islemde",
-                "paid_simulation",
-                json.dumps(payload, ensure_ascii=False),
-                now,
-                now,
-            ),
-        )
-        profile_id = _upsert_report_from_request(
-            cursor=cursor,
-            request_id=request_id,
-            payload=payload,
-            user=user,
-            selected=selected,
-            totals=totals,
-            now=now,
-        )
-        conn.commit()
-    finally:
-        DatabaseConfig.return_connection(conn)
-
-    return {
-        "success": True,
-        "request_id": request_id,
-        "report_id": request_id,
-        "customer_profile_id": profile_id,
-        "status": "Islemde",
-        "payment_status": "paid_simulation",
-        "firm": {"id": selected["firm"]["id"], "name": selected["firm"]["name"]},
-        "package": selected["package"],
-        **totals,
-    }
 

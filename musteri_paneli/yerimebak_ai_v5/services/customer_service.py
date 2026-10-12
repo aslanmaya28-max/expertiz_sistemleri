@@ -56,8 +56,8 @@ def list_customers(search: Optional[str] = None, limit: int = 200) -> Dict[str, 
             f"""
             SELECT u.id, u.email, u.full_name, u.phone, u.credits, u.tier, u.is_active,
                    u.created_at, u.last_login,
-                   COUNT(q.id) FILTER (WHERE coalesce(q.status, '') <> 'Iptal') AS request_count,
-                   COALESCE(SUM(q.total_tl) FILTER (WHERE coalesce(q.status, '') <> 'Iptal'), 0) AS total_spent_tl,
+                   COUNT(q.id) FILTER (WHERE coalesce(q.status, '') <> 'Iptal' AND q.payment_status IN ('paid', 'paid_simulation')) AS request_count,
+                   COALESCE(SUM(q.total_tl) FILTER (WHERE coalesce(q.status, '') <> 'Iptal' AND q.payment_status IN ('paid', 'paid_simulation')), 0) AS total_spent_tl,
                    MAX(q.created_at) AS last_request_at
             FROM users u
             LEFT JOIN expertiz_requests q ON q.user_id = u.id::text
@@ -99,7 +99,7 @@ def get_customer(customer_id: int) -> Dict[str, Any]:
         _ensure_expertiz_requests_schema(cursor)
         cursor.execute(
             """
-            SELECT q.id, q.plate, q.city, q.firm_name, q.package_name, q.total_tl,
+            SELECT q.id, q.plate, q.city, q.firm_name, q.package_name, q.total_tl, q.paid_at,
                    q.status, q.payment_status, q.created_at, r.status AS report_status
             FROM expertiz_requests q
             LEFT JOIN reports r ON r.id::text = q.id
@@ -110,7 +110,10 @@ def get_customer(customer_id: int) -> Dict[str, Any]:
         )
         requests = [dict(row) for row in cursor.fetchall()]
         conn.commit()
-        active_requests = [r for r in requests if r.get("status") != "Iptal"]
+        active_requests = [
+            r for r in requests
+            if r.get("status") != "Iptal" and r.get("payment_status") in ("paid", "paid_simulation")
+        ]
         customer["request_count"] = len(active_requests)
         customer["total_spent_tl"] = sum(float(r.get("total_tl") or 0) for r in active_requests)
         customer["last_request_at"] = requests[0]["created_at"] if requests else None
