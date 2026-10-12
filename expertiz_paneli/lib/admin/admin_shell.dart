@@ -6,7 +6,7 @@
 /// 1. ROLE GUARD: Sadece admin kullanıcıları içeri alır
 /// 2. SINGLE ENTRY POINT: Admin paneline girişi kontrol eder
 /// 3. SIDEBAR/DRAWER: Navigation'ı yönetir
-/// 4. TAB ROUTING: 9 sekme için modül routing sağlar
+/// 4. TAB ROUTING: 10 sekme için modül routing sağlar
 /// 
 /// ❌ Business logic YOK - Her modül kendi işini halleder
 /// ✅ Sadece auth check ve navigation
@@ -27,6 +27,7 @@ import 'modules/musteri_yonetimi_module.dart';
 import 'modules/rapor_inceleme_module.dart';
 import 'modules/ai_merkezi.dart';
 import 'modules/piyasa_verisi_module.dart';
+import 'modules/fiyatlandirma_module.dart';
 import 'modules/finans_yonetimi.dart';
 import 'modules/ayarlar_module.dart';
 
@@ -48,7 +49,7 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 9, vsync: this);
+    _tabController = TabController(length: 10, vsync: this);
   }
 
   @override
@@ -85,7 +86,7 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
             body: TabBarView(
               controller: _tabController,
               children: [
-                // 9 Modül - Her biri kendi işini halleder
+                // 10 Modül - Her biri kendi işini halleder
                 const DashboardModule(),
                 const AracOperasyonu(),
                 _buildPersonelModule(context),
@@ -94,6 +95,7 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
                 const AIMerkezi(),
                 const PiyasaVerisiModule(),
                 const FinansYonetimi(),
+                const FiyatlandirmaModule(),
                 const AyarlarModule(),
               ],
             ),
@@ -179,6 +181,7 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
           Tab(icon: Icon(Icons.psychology), text: 'AI Merkezi'),
           Tab(icon: Icon(Icons.travel_explore), text: 'Piyasa Verisi'),
           Tab(icon: Icon(Icons.attach_money), text: 'Finans Yönetimi'),
+          Tab(icon: Icon(Icons.sell), text: 'Fiyatlandırma'),
           Tab(icon: Icon(Icons.settings), text: 'Ayarlar'),
         ],
         onTap: (index) => setState(() => _selectedIndex = index),
@@ -289,7 +292,8 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
                 _buildDrawerItem(Icons.psychology, 'AI Merkezi', 5, isDarkMode),
                 _buildDrawerItem(Icons.travel_explore, 'Piyasa Verisi', 6, isDarkMode),
                 _buildDrawerItem(Icons.attach_money, 'Finans Yönetimi', 7, isDarkMode),
-                _buildDrawerItem(Icons.settings, 'Ayarlar', 8, isDarkMode),
+                _buildDrawerItem(Icons.sell, 'Fiyatlandırma', 8, isDarkMode),
+                _buildDrawerItem(Icons.settings, 'Ayarlar', 9, isDarkMode),
 
                 // DIVIDER
                 Divider(color: Colors.white.withAlpha(25), thickness: 1),
