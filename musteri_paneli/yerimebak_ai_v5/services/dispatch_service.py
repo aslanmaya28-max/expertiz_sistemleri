@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 PERSONNEL_ROLES = personnel_service.PERSONNEL_ROLES
 ASSIGNABLE_STATUSES = ("draft", "rejected")
 APPROVAL_STATUSES = ("pending_ai", "pending_admin")
-BUCKETS = ("waiting_assignment", "in_progress", "pending_approval", "completed")
+BUCKETS = ("waiting_assignment", "in_progress", "pending_approval", "completed", "cancelled")
 
 DURUM_BY_ASSIGNMENT = task_progress.DURUM_BY_STAGE
 
@@ -121,6 +121,8 @@ def _bucket(status: Optional[str], data: Dict[str, Any]) -> str:
     status = (status or "draft").lower()
     if status == "published":
         return "completed"
+    if status == "cancelled":
+        return "cancelled"
     if status in APPROVAL_STATUSES:
         return "pending_approval"
     if _assigned_id(data):
@@ -147,6 +149,8 @@ def _personnel_bucket(status: str) -> str:
     """Personel panelindeki bolum: aktif / beklemede / reddedildi / onaylandi."""
     if status == "published":
         return "approved"
+    if status == "cancelled":
+        return "cancelled"
     if status in APPROVAL_STATUSES:
         return "pending"
     if status == "rejected":
@@ -219,6 +223,7 @@ def _admin_request(row: Dict[str, Any]) -> Dict[str, Any]:
         "submitted_at": assignment.get("submitted_at"),
         "rejected_at": data.get("rejected_at") if status == "rejected" else None,
         "published_at": data.get("published_at"),
+        "cancellation": data.get("cancellation"),
         "next_actions": task_progress.next_actions(stage, status, corporate["required"]) if assigned_id else [],
         "assignment": {
             "status": _assignment_status(data),
@@ -600,7 +605,7 @@ def list_personnel_tasks(user: Dict[str, Any]) -> Dict[str, Any]:
     for task in tasks:
         task["is_active"] = task["status"] in ASSIGNABLE_STATUSES
     active = [t for t in tasks if t["is_active"]]
-    buckets = {name: 0 for name in ("active", "pending", "rejected", "approved")}
+    buckets = {name: 0 for name in ("active", "pending", "rejected", "approved", "cancelled")}
     for task in tasks:
         buckets[task["personnel_bucket"]] += 1
     return {

@@ -50,9 +50,10 @@ def _ensure_schema() -> None:
     Her istekte ALTER TABLE calistirmak tablo kilitleri aldigi icin (ve okuma
     yollarinda commit edilmedigi icin) kaldirildi.
     """
-    from yerimebak_ai_v5.services import dispatch_service
+    from yerimebak_ai_v5.services import account_service, dispatch_service
 
     dispatch_service.ensure_workflow_schema_once()
+    account_service.ensure_schema()
 
 
 def _ensure_personnel_schema(cursor: Any) -> None:
@@ -270,9 +271,10 @@ def create_personnel(payload: Dict[str, Any], admin: Dict[str, Any]) -> Dict[str
             """
             INSERT INTO users (
                 email, password, full_name, phone, api_key, credits, tier, role,
-                is_active, must_change_password, city, district, expertise, il_id, region_id
+                is_active, must_change_password, city, district, expertise, il_id, region_id,
+                email_verified, welcome_credits_granted
             )
-            VALUES (%s, %s, %s, %s, %s, 0, 'staff', 'personel', 1, TRUE, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, 0, 'staff', 'personel', 1, TRUE, %s, %s, %s, %s, %s, TRUE, TRUE)
             RETURNING id, created_at
             """,
             (

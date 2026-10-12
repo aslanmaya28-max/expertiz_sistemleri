@@ -45,6 +45,7 @@ python-dateutil>=2.8.0
 tzdata>=2023.3
 
 # Logging & Monitoring
+sentry-sdk[fastapi]>=2.19.2
 loguru>=0.7.0
 
 # Redis
@@ -54,9 +55,5 @@ redis>=5.0.0
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
 
-# Dashboard & UI
-streamlit>=1.28.0
-plotly>=5.18.0
-streamlit-autorefresh>=0.0.1
 pdfplumber>=0.10.3
 nest-asyncio>=1.5.8

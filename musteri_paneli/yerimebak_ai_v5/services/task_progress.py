@@ -103,6 +103,10 @@ def customer_timeline(
 ) -> Dict[str, Any]:
     """Musteriye gosterilen canli durum. Admin reddi musteriye gosterilmez ('kontrol ediliyor')."""
     assignment = assignment if isinstance(assignment, dict) else {}
+    if report_status == "cancelled":
+        return {"stage": "cancelled", "label": "Talep iptal edildi", "next_label": None,
+                "person_name": "", "steps": [_step("received", "Talebiniz alındı", created_at, True),
+                                             _step("cancelled", "Talep iptal edildi", None, True)]}
     stage = assignment.get("status") if assignment.get("personnel_id") else "unassigned"
     idx = stage_index(stage) if stage != "unassigned" else -1
     in_review = report_status in ("pending_ai", "pending_admin", "rejected")

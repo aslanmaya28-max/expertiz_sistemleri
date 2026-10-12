@@ -8,6 +8,7 @@ Bildirimler cagiran fonksiyonun transaction'i icinde yazilir; is adimi commit
 edilmezse bildirim de olusmaz. Paneller listeyi periyodik olarak ceker.
 """
 import logging
+import os
 from typing import Any, Dict, Iterable, List, Optional
 
 from yerimebak_ai_v5.core.database_config import DatabaseConfig
@@ -38,6 +39,42 @@ def ensure_schema(cursor: Any) -> None:
     )
 
 
+# Uygulama ici bildirime ek olarak e-posta da gonderilen turler
+EMAIL_KINDS = {
+    # musteri
+    "expert_assigned", "task_depart", "task_arrive", "task_corporate", "report_ready",
+    "request_cancelled",
+    # personel
+    "task_assigned", "task_unassigned", "report_rejected", "report_approved",
+}
+PERSONNEL_ROLES = ("personel", "field_staff", "staff", "personnel")
+
+
+def _admin_site_url() -> str:
+    return os.getenv("ADMIN_SITE_URL", "https://admin.yerimebak.com.tr")
+
+
+def _email_copy(cursor: Any, user_id: Any, kind: str, title: str, body: str) -> None:
+    from yerimebak_ai_v5.services import email_service
+
+    if not email_service.is_configured():
+        return
+    try:
+        cursor.execute("SELECT email, role FROM users WHERE id::text = %s", (str(user_id),))
+        row = cursor.fetchone()
+    except Exception as exc:  # pragma: no cover - bildirim islemi bozulmasin
+        logger.warning("Bildirim e-postasi icin kullanici okunamadi: %s", exc)
+        return
+    if not row:
+        return
+    row = dict(row)
+    if str(row.get("role") or "").lower() in PERSONNEL_ROLES:
+        button = ("Personel paneline git", _admin_site_url())
+    else:
+        button = ("Panelimi aç", email_service.site_url("/panel"))
+    email_service.send(row.get("email"), f"YerimeBak - {title}", title, [body] if body else [], button)
+
+
 def notify_user(cursor: Any, user_id: Any, kind: str, title: str, body: str = "", report_id: Optional[str] = None) -> None:
     if user_id in (None, ""):
         return
@@ -45,6 +82,12 @@ def notify_user(cursor: Any, user_id: Any, kind: str, title: str, body: str = ""
         "INSERT INTO notifications (audience, user_id, kind, title, body, report_id) VALUES ('user', %s, %s, %s, %s, %s)",
         (str(user_id), kind, title[:200], (body or "")[:1000], report_id),
     )
+    if kind in EMAIL_KINDS:
+        _email_copy(cursor, user_id, kind, title, body)
+
+
+# Admine e-posta ile de bildirilen turler (ADMIN_NOTIFY_EMAIL tanimliysa)
+ADMIN_EMAIL_KINDS = {"request_paid", "report_submitted"}
 
 
 def notify_admins(cursor: Any, kind: str, title: str, body: str = "", report_id: Optional[str] = None) -> None:
@@ -52,6 +95,13 @@ def notify_admins(cursor: Any, kind: str, title: str, body: str = "", report_id:
         "INSERT INTO notifications (audience, user_id, kind, title, body, report_id) VALUES ('admin', NULL, %s, %s, %s, %s)",
         (kind, title[:200], (body or "")[:1000], report_id),
     )
+    admin_email = os.getenv("ADMIN_NOTIFY_EMAIL")
+    if admin_email and kind in ADMIN_EMAIL_KINDS:
+        from yerimebak_ai_v5.services import email_service
+
+        for address in [a.strip() for a in admin_email.split(",") if a.strip()]:
+            email_service.send(address, f"YerimeBak Admin - {title}", title, [body] if body else [],
+                               ("Admin paneline git", _admin_site_url()))
 
 
 def customer_user_id(cursor: Any, data: Dict[str, Any]) -> Optional[str]:

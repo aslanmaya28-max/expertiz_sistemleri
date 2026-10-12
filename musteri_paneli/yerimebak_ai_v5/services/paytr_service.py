@@ -133,6 +133,44 @@ def create_payment(merchant_oid: str, email: str, amount_tl: float, basket: Sequ
     return {"provider": "paytr", "merchant_oid": merchant_oid, "token": token, "iframe_url": IFRAME_URL.format(token=token)}
 
 
+REFUND_URL = "https://www.paytr.com/odeme/iade"
+
+
+def build_refund_request(merchant_oid: str, amount_tl: float) -> Dict[str, str]:
+    """Iade API istegi (imzali); saf fonksiyon, test edilebilir.
+
+    paytr_token = base64(hmac_sha256(merchant_id + merchant_oid + return_amount + salt, merchant_key))
+    return_amount TL cinsinden, nokta ondalikli ("150.00").
+    """
+    merchant_id = _env("PAYTR_MERCHANT_ID")
+    return_amount = f"{float(amount_tl):.2f}"
+    return {
+        "merchant_id": merchant_id,
+        "merchant_oid": merchant_oid,
+        "return_amount": return_amount,
+        "paytr_token": _sign(f"{merchant_id}{merchant_oid}{return_amount}{_env('PAYTR_MERCHANT_SALT')}"),
+    }
+
+
+def refund(merchant_oid: str, amount_tl: float) -> Dict[str, Any]:
+    """PayTR uzerinden iade. Simulasyonda ag cagrisi yapilmaz."""
+    if simulation_enabled():
+        return {"status": "success", "simulated": True, "return_amount": f"{float(amount_tl):.2f}"}
+    if not is_configured():
+        raise PaytrError("Odeme altyapisi yapilandirilmamis; iade yapilamadi")
+    body = build_refund_request(merchant_oid, amount_tl)
+    try:
+        response = requests.post(REFUND_URL, data=body, timeout=30)
+        result = response.json()
+    except Exception as exc:
+        logger.error("[PAYTR] iade istegi basarisiz: %s", exc)
+        raise PaytrError("PayTR'ye ulasilamadi; iade yapilamadi, tekrar deneyin") from exc
+    if result.get("status") != "success":
+        logger.error("[PAYTR] iade reddedildi: %s", result)
+        raise PaytrError(f"PayTR iadeyi reddetti: {result.get('err_msg') or result.get('err_no') or 'bilinmeyen hata'}")
+    return result
+
+
 def callback_hash(merchant_oid: str, status: str, total_amount: str) -> str:
     return _sign(f"{merchant_oid}{_env('PAYTR_MERCHANT_SALT')}{status}{total_amount}")
 
