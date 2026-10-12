@@ -293,19 +293,46 @@ class RaporService {
       
       final response = await _supabaseClient!
           .from('reports')
-          .select('data->tam_rapor')
+          .select('id, data, ai_analiz_detay')
           .not('data->tam_rapor', 'is', null)
           .order('created_at', ascending: false);
-      
-      final raporlar = response
-          .where((row) => row['tam_rapor'] != null)
-          .map((row) => TamRaporModel.fromJson(
-              Map<String, dynamic>.from(row['tam_rapor'] as Map)))
-          .toList();
-      
+
+      final raporlar = <TamRaporModel>[];
+      for (final row in response) {
+        final rapor = tamRaporFromRow(row);
+        if (rapor != null) raporlar.add(rapor);
+      }
+
       return Result.success(raporlar);
     } catch (e) {
       return Result.failure("Raporlar getirilemedi: $e");
+    }
+  }
+
+  /// `reports` satırından TamRaporModel üretir.
+  ///
+  /// Merkezi AI (backend) sonucu `data.ai_analiz_sonucu` ve `ai_analiz_detay`
+  /// alanlarına yazar; personelin gönderdiği `data.tam_rapor` içinde AI sonucu
+  /// bulunmaz. Bu yüzden AI sonucu bu alanlardan rapora eklenir.
+  @visibleForTesting
+  static TamRaporModel? tamRaporFromRow(Map<String, dynamic> row) {
+    try {
+      final data = row['data'];
+      if (data is! Map || data['tam_rapor'] is! Map) return null;
+      final json = Map<String, dynamic>.from(data['tam_rapor'] as Map);
+
+      final aiSonucu = data['ai_analiz_sonucu'] ?? row['ai_analiz_detay'];
+      if (aiSonucu is Map) {
+        final ai = Map<String, dynamic>.from(aiSonucu);
+        ai['gorevId'] ??= row['id']?.toString();
+        json['aiAnalizSonucu'] = ai;
+      }
+      // Rapor ekranları reports.id ile çalışır.
+      if (row['id'] != null) json['gorevId'] = row['id'].toString();
+      return TamRaporModel.fromJson(json);
+    } catch (e) {
+      debugPrint('Rapor parse edilemedi (${row['id']}): $e');
+      return null;
     }
   }
 
