@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useAuth, useCredits } from "@/kancalar/yetkiKullan";
+import BildirimZili from "@/bilesenler/BildirimZili";
 
 export default function UstCubuk() {
   const [menuAcik, setMenuAcik] = useState(false);
@@ -46,6 +47,9 @@ export default function UstCubuk() {
             )}
           </div>
 
+          {/* Tek zil (masaustu + mobil): yoklama iki kez calismasin */}
+          <div className="flex items-center">
+          {!loading && user ? <BildirimZili /> : null}
           <button onClick={() => setMenuAcik(!menuAcik)} className="md:hidden p-2 text-metin-ikincil">
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               {menuAcik
@@ -54,6 +58,7 @@ export default function UstCubuk() {
               }
             </svg>
           </button>
+          </div>
         </div>
 
         {menuAcik && (

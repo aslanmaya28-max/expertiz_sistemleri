@@ -431,7 +431,7 @@ class _GonderimOzeti extends StatelessWidget {
                   provider.adimGecerli(step) ? Icons.check_circle : Icons.error_outline,
                   color: provider.adimGecerli(step) ? Colors.green : Colors.orange,
                 ),
-                title: Text('${step}. ${ExpertizProvider.stepTitles[step - 1]}'),
+                title: Text('$step. ${ExpertizProvider.stepTitles[step - 1]}'),
                 subtitle: provider.adimGecerli(step) ? null : Text('${provider.adimEksikleri(step).length} eksik'),
                 onTap: () => provider.goToStep(step),
               ),

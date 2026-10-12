@@ -111,6 +111,40 @@ export interface ExpertizRequestSummary {
   created_at?: string;
   updated_at?: string;
   vehicle?: Record<string, unknown>;
+  district?: string;
+  progress?: RequestProgress;
+}
+
+/** Talebin canli durumu: uzman atandi, harekete gecti, arac basinda, kurumsal ekspertizde... */
+export interface ProgressStep {
+  key: string;
+  label: string;
+  at?: string | null;
+  done: boolean;
+}
+
+export interface RequestProgress {
+  stage: string;
+  label: string;
+  next_label?: string | null;
+  person_name?: string;
+  steps: ProgressStep[];
+}
+
+export interface AppNotification {
+  id: number;
+  kind: string;
+  title: string;
+  body: string;
+  report_id?: string | null;
+  created_at: string;
+  read: boolean;
+}
+
+export interface NotificationsResponse {
+  success: boolean;
+  unread: number;
+  notifications: AppNotification[];
 }
 
 /** Ekspertiz fotografi veya kurumsal rapor dosyasi (sureli imzali baglanti) */
@@ -315,6 +349,7 @@ export interface CreateExpertizRequestPayload {
   listing_url?: string;
   plate?: string;
   city?: string;
+  district?: string;
   note?: string;
   vehicle?: VehicleInput;
 }
@@ -594,6 +629,14 @@ export function createExpertizRequest(payload: CreateExpertizRequestPayload): Pr
 
 export function getMyExpertizRequests(): Promise<ExpertizRequestsResponse> {
   return fetchAPI<ExpertizRequestsResponse>("/expertiz/requests");
+}
+
+export function getMyNotifications(limit = 30): Promise<NotificationsResponse> {
+  return fetchAPI<NotificationsResponse>(`/expertiz/notifications?limit=${limit}`);
+}
+
+export function markNotificationsRead(ids?: number[]): Promise<{ success: boolean; updated: number }> {
+  return fetchAPI("/expertiz/notifications/read", { method: "POST", body: JSON.stringify(ids ? { ids } : {}) });
 }
 
 export function getMyExpertizReports(): Promise<ExpertizReportsResponse> {

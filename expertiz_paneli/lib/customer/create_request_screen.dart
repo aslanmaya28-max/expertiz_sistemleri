@@ -77,6 +77,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   // Adım 1: Araç Bilgileri
   final _ilanLinkController = TextEditingController();
   final _plakaController = TextEditingController();
+  final _ilceController = TextEditingController();
   String? _secilenSehir;
 
   // Adım 2: Kurumsal Ekspertiz Seçimi
@@ -97,6 +98,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   void dispose() {
     _ilanLinkController.dispose();
     _plakaController.dispose();
+    _ilceController.dispose();
     super.dispose();
   }
 
@@ -107,7 +109,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   double get _toplamTutar => _altToplam + _kdv;
 
   bool get _adim1Valid =>
-      _plakaController.text.isNotEmpty && _secilenSehir != null;
+      _plakaController.text.isNotEmpty && _secilenSehir != null && _ilceController.text.trim().isNotEmpty;
 
   bool get _adim2Valid => _secilenFirma != null && _secilenPaket != null;
 
@@ -403,6 +405,21 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                   _secilenPaket = null;
                 });
               },
+            ),
+            const SizedBox(height: 16),
+            // Talep, aracın bulunduğu ilçedeki görev için aktif uzmana yönlendirilir
+            TextField(
+              key: const Key('ilceField'),
+              controller: _ilceController,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                labelText: 'İlçe *',
+                hintText: 'Kadıköy',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                prefixIcon: const Icon(Icons.place, color: Color(0xFF1976D2)),
+                filled: true,
+                fillColor: Colors.white,
+              ),
             ),
           ],
         ),
@@ -833,8 +850,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
           ),
           const Divider(height: 24),
           _buildSummaryItem(
-            'Şehir',
-            _secilenSehir ?? '-',
+            'İl / İlçe',
+            '${_secilenSehir ?? '-'} / ${_ilceController.text.trim()}',
             Icons.location_city,
           ),
           const Divider(height: 24),
@@ -1026,6 +1043,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
         packageId: _secilenPaket!.id,
         plate: _plakaController.text.trim().toUpperCase(),
         city: _secilenSehir,
+        district: _ilceController.text.trim(),
         listingUrl: _ilanLinkController.text.trim(),
         note: 'Mobil uygulama talebi',
       );
