@@ -3,8 +3,10 @@
 FROM buildpack-deps:bookworm AS build
 ARG FLUTTER_VERSION=3.47.7
 ARG YERIMEBAK_API_BASE_URL=https://admin.yerimebak.com.tr/api/v1
-RUN curl -fsSL "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" \
-      | tar -xJ -C /opt \
+RUN curl -fsSL -o /tmp/flutter.tar.xz \
+      "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" \
+    && tar -xJf /tmp/flutter.tar.xz -C /opt \
+    && rm /tmp/flutter.tar.xz \
     && git config --global --add safe.directory /opt/flutter
 ENV PATH="/opt/flutter/bin:${PATH}" \
     FLUTTER_SUPPRESS_ANALYTICS=true \

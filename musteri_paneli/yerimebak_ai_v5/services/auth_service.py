@@ -316,14 +316,39 @@ class AuthService:
         if not hmac.compare_digest(str(admin_key or ""), expected_key):
             return {"error": "Gecersiz admin anahtari"}
 
+        return self._insert_admin(email, password)
+
+    def ensure_initial_admin(self) -> Optional[str]:
+        """Sunucu ilk acilista INITIAL_ADMIN_EMAIL / INITIAL_ADMIN_PASSWORD (.env)
+        tanimliysa ve bu e-postada hesap yoksa admin hesabini olusturur.
+        Sifre kod deposuna yazilmaz; yalnizca sunucudaki .env dosyasinda durur."""
+        email = (os.getenv("INITIAL_ADMIN_EMAIL") or "").strip().lower()
+        password = os.getenv("INITIAL_ADMIN_PASSWORD") or ""
+        if not email or not password:
+            return None
+        if not _validate_email(email):
+            logger.error("INITIAL_ADMIN_EMAIL gecersiz: %s", email)
+            return None
+        weak = _validate_password_strength(password)
+        if weak:
+            logger.error("INITIAL_ADMIN_PASSWORD yeterince guclu degil: %s", weak)
+            return None
+        result = self._insert_admin(email, password)
+        if result.get("success"):
+            logger.info("Ilk admin hesabi olusturuldu: %s", email)
+            return email
+        return None
+
+    def _insert_admin(self, email: str, password: str) -> Dict[str, Any]:
         from yerimebak_ai_v5.services import account_service
         account_service.ensure_schema()
 
         conn = DatabaseConfig.get_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute(f"SELECT id FROM users WHERE email = {self._p}", (email,))
+            cursor.execute(f"SELECT id FROM users WHERE lower(email) = lower({self._p})", (email,))
             if cursor.fetchone():
+                conn.commit()
                 return {"error": "Bu email zaten kayitli"}
 
             import uuid
