@@ -8,6 +8,11 @@ import 'package:yerimebak_sistemleri/services/yerimebak_expertiz_api_service.dar
 /// finance_service.summarize() (backend) çıktısı.
 const _ozetJson = r'''{"success": true, "ekspertiz": {"request_count": 1, "ciro_tl": 12000.0, "kdv_tl": 2000.0, "net_tl": 10000.0, "simulated_payment_count": 1, "report_status_counts": {"published": 1}}, "kredi_satislari": {"approved_tl": 1500.0, "approved_count": 2, "pending_tl": 0.0, "pending_count": 0}, "personel": {"share_rate": 0.25, "hakedis_tl": 2500.0, "by_personnel": [{"personnel_id": "7", "personnel_name": "Ayse Yilmaz", "report_count": 1, "hakedis_tl": 2500.0}], "payout_tracking": false}}''';
 
+const _siparisJson = r'''{"success": true, "orders": [{"id": "CRX1", "status": "approved", "package_name": "3 Analiz", "credits": 3, "amount_tl": 100.0, "user_email": "a@b.com", "created_at": "2026-10-01T10:00:00"}]}''';
+
+http.Response _json(String body) =>
+    http.Response(body, 200, headers: {'content-type': 'application/json; charset=utf-8'});
+
 Widget _app(http.Client client) => MaterialApp(
       home: Scaffold(
         body: FinansYonetimi(
@@ -22,17 +27,40 @@ Widget _app(http.Client client) => MaterialApp(
 
 void main() {
   testWidgets('finans ozeti merkezi API verisiyle gosterilir', (tester) async {
-    late Uri istek;
+    final istekler = <String>[];
     await tester.pumpWidget(_app(MockClient((request) async {
-      istek = request.url;
-      return http.Response(_ozetJson, 200, headers: {'content-type': 'application/json; charset=utf-8'});
+      istekler.add(request.url.path);
+      return _json(request.url.path.endsWith('/payments/admin/orders') ? _siparisJson : _ozetJson);
     })));
     await tester.pumpAndSettle();
 
-    expect(istek.path, '/api/v1/expertiz/admin/finance/summary');
+    expect(istekler, containsAll(['/api/v1/expertiz/admin/finance/summary', '/api/v1/payments/admin/orders']));
     expect(find.text('12.000,00 TL'), findsWidgets); // kart + detay satırı
     expect(find.text('Ayse Yilmaz'), findsOneWidget);
     expect(find.textContaining('simülasyon'), findsOneWidget);
+  });
+
+  testWidgets('kredi paketi iadesi gerekce ile gonderilir', (tester) async {
+    http.Request? iade;
+    await tester.pumpWidget(_app(MockClient((request) async {
+      if (request.method == 'POST') {
+        iade = request;
+        return _json('{"success": true}');
+      }
+      return _json(request.url.path.endsWith('/payments/admin/orders') ? _siparisJson : _ozetJson);
+    })));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(find.byKey(const Key('refund-CRX1')), 200, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.byKey(const Key('refund-CRX1')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('refundReasonField')), 'Musteri talebi');
+    await tester.tap(find.byKey(const Key('confirmRefundButton')));
+    await tester.pumpAndSettle();
+
+    expect(iade, isNotNull);
+    expect(iade!.url.path, '/api/v1/payments/admin/orders/CRX1/refund');
+    expect(iade!.body, contains('Musteri talebi'));
   });
 
   testWidgets('API hatasinda tekrar dene ekrani gosterilir', (tester) async {
