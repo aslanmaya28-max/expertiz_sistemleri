@@ -22,12 +22,8 @@ import 'services/personel_service.dart';
 import 'services/rapor_service.dart';
 import 'services/vision_engine_service.dart';
 import 'services/shared_preferences_manager.dart';
+import 'services/central_auth_client.dart';
 import 'repositories/auth_repository.dart';
-import 'admin/admin_dashboard.dart';
-import 'personnel/personnel_dashboard.dart';
-import 'customer/customer_dashboard.dart';
-import 'screens/login_screen.dart';
-import 'widgets/auth_wrapper.dart';
 import 'routing/app_router.dart';
 
 
@@ -40,26 +36,24 @@ void main() async {
   const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY',
       defaultValue: 'YOUR_SUPABASE_ANON_KEY');
 
-  // 🔒 DÜZELTİLDİ (B13): Placeholder credentials ile crash önlendi.
-  if (supabaseUrl == 'YOUR_SUPABASE_URL' ||
-      supabaseAnonKey == 'YOUR_SUPABASE_ANON_KEY') {
-    debugPrint('''
-    ============================================================
-    KRITIK UYARI: Supabase credentials placeholder!
-    Uygulama baslatilamiyor.
-    Calistirmak icin:
-      flutter run --dart-define=SUPABASE_URL=https://xxx.supabase.co --dart-define=SUPABASE_ANON_KEY=eyJ...
-    ============================================================
-    ''');
-    // 🔒 Placeholder ile crash verme, dummy credentials ile devam etme
-    // Gerçek deployment'ta --dart-define zorunludur.
-    runApp(const ProviderScope(child: _ConfigErrorApp()));
-    return;
+  // Admin ve personel ekranlari merkezi API'yi (YERIMEBAK_API_BASE_URL) kullanir;
+  // Supabase yalnizca eski musteri ekranlari icin istege baglidir. Adres verilmezse
+  // istemci etkisiz bir adresle olusturulur (ag cagrisi yapmaz) ve Supabase'e dayali
+  // eski yedek yollar kapali kalir; uygulama yine de acilir.
+  final supabaseConfigured = supabaseUrl != 'YOUR_SUPABASE_URL' &&
+      supabaseAnonKey != 'YOUR_SUPABASE_ANON_KEY' &&
+      supabaseUrl.isNotEmpty &&
+      supabaseAnonKey.isNotEmpty;
+  await Supabase.initialize(
+    url: supabaseConfigured ? supabaseUrl : 'https://supabase-devre-disi.invalid',
+    anonKey: supabaseConfigured ? supabaseAnonKey : 'devre-disi',
+  );
+  if (supabaseConfigured) {
+    RaporService.initSupabase(Supabase.instance.client);
   }
 
-  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
-
-  RaporService.initSupabase(Supabase.instance.client);
+  // Onceki oturum (sayfa yenilendiginde / uygulama yeniden acildiginda) geri yuklenir
+  await CentralAuthTokenStore.restore();
 
   final authRepository =
       AuthRepository(supabase: Supabase.instance.client);
@@ -73,43 +67,6 @@ void main() async {
   WidgetsBinding.instance.addObserver(lifecycleHandler);
 
   runApp(const ProviderScope(child: ExpertizSistemiApp()));
-}
-
-/// 🔒 DÜZELTİLDİ (B13): Config hatası durumunda gösterilecek basit uygulama
-class _ConfigErrorApp extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return MaterialApp(
-      title: 'YerimeBak - Config Hatası',
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        backgroundColor: const Color(0xFF0D0D0D),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, color: Colors.red, size: 64),
-                const SizedBox(height: 24),
-                const Text(
-                  'Supabase Yapılandırması Eksik',
-                  style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Lütfen --dart-define ile SUPABASE_URL ve SUPABASE_ANON_KEY parametrelerini sağlayın.',
-                  style: TextStyle(color: Colors.grey, fontSize: 14),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class ExpertizSistemiApp extends StatelessWidget {

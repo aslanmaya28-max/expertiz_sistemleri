@@ -15,6 +15,7 @@
 data/*.db
 data/*.db-journal
 data/backups/
+data/media/
 *.db
 *.db-journal
 
@@ -107,6 +108,7 @@ data/exports/
 data/reports/
 data/logs/
 data/backups/
+data/media/
 data/session_data/
 
 # Vault & cache inside yerimebak_ai_v5
@@ -128,3 +130,6 @@ _agents/
 
 # 🔒 DÜZELTİLDİ (Bug #10): Frontend bağımlılıkları
 node_modules/
+
+# Kaziyici calisma ani PID dosyalari
+*.pid

@@ -54,8 +54,15 @@ class ScraperManager:
                 return str(pid) in result.stdout
             else:
                 # Unix/Linux: os.kill ile kontrol et
-                import signal
                 os.kill(pid, 0)
+                # Coken cocuk surec zombi kalir ve os.kill basarili olur; topla.
+                try:
+                    done, _ = os.waitpid(pid, os.WNOHANG)
+                    if done == pid:
+                        pid_path.unlink(missing_ok=True)
+                        return False
+                except ChildProcessError:
+                    pass
                 return True
         except (ValueError, ProcessLookupError, OSError):
             # PID dosyası var ama process yok → temizle
@@ -88,7 +95,10 @@ class ScraperManager:
                 stderr=log_file,
                 env=env,
                 cwd=str(self.base_dir),
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == 'win32' else 0
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == 'win32' else 0,
+                # Kendi surec grubu: durdururken Playwright'in actigi Chromium
+                # alt surecleri de birlikte kapatilabilsin.
+                start_new_session=(sys.platform != 'win32'),
             )
             
             # PID'yi kaydet
@@ -121,9 +131,8 @@ class ScraperManager:
                 subprocess.run(['taskkill', '/F', '/PID', str(pid)], 
                              capture_output=True)
             else:
-                # Unix/Linux: SIGTERM gönder
-                import signal
-                os.kill(pid, signal.SIGTERM)
+                if not self._terminate_posix(pid):
+                    return False, f"{source.title()} durdurulamadi (PID: {pid})"
             
             # PID dosyasını sil
             pid_path.unlink(missing_ok=True)
@@ -133,6 +142,61 @@ class ScraperManager:
         except Exception as e:
             return False, f"Hata: {str(e)}"
     
+    @staticmethod
+    def _terminate_posix(pid: int, timeout: float = 15.0) -> bool:
+        """SIGTERM gonderir, kapanmasini bekler; kapanmazsa surec grubunu SIGKILL ile bitirir."""
+        import signal
+
+        def alive() -> bool:
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                return False
+            except PermissionError:
+                return True
+            # Kendi baslattigimiz cocuk zombi kaldiysa topla
+            try:
+                done, _ = os.waitpid(pid, os.WNOHANG)
+                if done == pid:
+                    return False
+            except ChildProcessError:
+                pass
+            return True
+
+        try:
+            pgid = os.getpgid(pid)
+        except ProcessLookupError:
+            return True
+        # Sadece kendi surec grubunu yoneten (start_new_session) sureclerde grubu hedefle
+        target_group = pgid == pid
+
+        try:
+            if target_group:
+                os.killpg(pgid, signal.SIGTERM)
+            else:
+                os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            return True
+
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if not alive():
+                return True
+            time.sleep(0.2)
+
+        try:
+            if target_group:
+                os.killpg(pgid, signal.SIGKILL)
+            else:
+                os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            return True
+        for _ in range(25):
+            if not alive():
+                return True
+            time.sleep(0.2)
+        return False
+
     def get_status(self, source: str) -> Dict:
         """Scraper durumunu getir"""
         if source not in self.sources:

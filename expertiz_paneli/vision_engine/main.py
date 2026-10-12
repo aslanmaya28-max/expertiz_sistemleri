@@ -48,6 +48,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://yerimebak.com.tr",
+        "https://www.yerimebak.com.tr",
         "https://app.yerimebak.com.tr",
         "https://api.yerimebak.com.tr",
     ],

@@ -206,3 +206,220 @@ def build_ai_analiz_sonucu(
         "tamamlandiMi": True,
         "hataMesaji": None,
     }
+
+
+# ---------------------------------------------------------------------------
+# Ekspertiz bazlı değerleme (inspection_valuation) → AIAnalizSonucu
+# ---------------------------------------------------------------------------
+def _tl(value: Any) -> str:
+    try:
+        return f"{float(value):,.0f} TL".replace(",", ".")
+    except (TypeError, ValueError):
+        return "-"
+
+
+def _pct(value: Any) -> str:
+    try:
+        return ("%" + f"{float(value):.1f}").replace(".", ",")
+    except (TypeError, ValueError):
+        return "-"
+
+
+_LOSS_CATEGORY_TO_STEP = {"dis": 2, "ic": 3, "kaporta": 4, "yapisal": 4, "hasar_kaydi": 4, "mekanik": 5, "tramer": 1}
+
+
+def _onay_onerisi(degerleme: Dict[str, Any], genel_puan: float) -> str:
+    yorum = degerleme.get("fiyatYorumu") or {}
+    onerilen = degerleme.get("onerilenAlimFiyati")
+    if degerleme.get("agirHasar"):
+        return "Dikkat: ağır hasar bulgusu var — ancak ciddi indirimle ve uzman görüşüyle alınmalı"
+    karar = yorum.get("karar")
+    if karar == "AVANTAJLI":
+        return "Alınması önerilir — fiyat ekspertiz sonucuna göre avantajlı"
+    if karar == "MAKUL":
+        return "Alınabilir — fiyat ekspertiz sonucuyla uyumlu"
+    if karar == "PAZARLIK":
+        return f"Pazarlıkla alınabilir — önerilen fiyat {_tl(onerilen)}"
+    if karar == "YUKSEK":
+        return f"Bu fiyattan önerilmez — önerilen fiyat {_tl(onerilen)}"
+    seviye = degerleme.get("hasarSeviyesi")
+    aralik = degerleme.get("adilFiyatAraligi") or {}
+    fiyat = (f" (adil fiyat {_tl(aralik.get('min'))} – {_tl(aralik.get('max'))})"
+             if aralik.get("min") else "")
+    if seviye == "MEDIUM" and genel_puan >= 55:
+        return f"Alınabilir — değişen/boyalı parçalar fiyata yansıtılmalı{fiyat}"
+    if genel_puan >= 75:
+        return f"Araç durumu iyi — alınabilir{fiyat}"
+    if genel_puan >= 55:
+        return "Araç durumu orta — bulgular dikkate alınarak pazarlık yapılmalı"
+    return "Araç durumu zayıf — alınması önerilmez"
+
+
+def inspection_to_ai_analiz(
+    degerleme: Dict[str, Any],
+    report_id: Optional[str] = None,
+    liquidity: Optional[Dict[str, Any]] = None,
+    vehicle: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """inspection_valuation.evaluate() çıktısını Flutter AIAnalizSonucu şemasına çevirir.
+
+    Tam değerleme dökümü (kalem kalem değer kaybı, piyasa yöntemi, fiyat yorumu)
+    ``ekspertizDegerleme`` anahtarında aynen saklanır; admin paneli ve müşteri
+    web paneli bu bloğu gösterir.
+    """
+    vehicle = vehicle or {}
+    liquidity = liquidity or {}
+    skor = degerleme.get("skorlar") or {}
+    genel_puan = float(skor.get("genelPuan") or 0)
+    kalemler: List[Dict[str, Any]] = degerleme.get("kalemler") or []
+    ai_degeri = degerleme.get("aiDegeri")
+    yorum = degerleme.get("fiyatYorumu") or {}
+
+    # --- Anahtar bulgular
+    bulgular: List[str] = []
+    if ai_degeri:
+        bulgular.append(f"Temiz piyasa değeri: {_tl(degerleme.get('temizPiyasaDegeri'))}")
+    for k in kalemler[:6]:
+        satir = f"{k['baslik']} – {k['durum']}: -{_pct(k['yuzde'])}"
+        if k.get("tutar"):
+            satir += f" (-{_tl(k['tutar'])})"
+        bulgular.append(satir)
+    if not kalemler:
+        bulgular.append("Değer kaybettiren bulgu tespit edilmedi")
+    if ai_degeri:
+        bulgular.append(f"Ekspertiz düzeltmeli değer: {_tl(ai_degeri)}")
+    if yorum:
+        bulgular.append(f"İlan fiyatı: {_tl(degerleme.get('ilanFiyati'))} ({yorum.get('aciklama')})")
+
+    # --- Öneriler
+    oneriler: List[Dict[str, Any]] = []
+    now = datetime.now().isoformat()
+
+    def oneri(kategori, baslik, aciklama, eylem, oncelik, onem, adim=None, alan=None, hedef="herkes"):
+        oneriler.append({
+            "kategori": kategori, "baslik": baslik, "aciklama": aciklama,
+            "onerilenEylem": eylem, "oncelik": int(oncelik), "onemDerecesi": onem,
+            "ilgiliAdim": adim, "ilgiliAlan": alan, "olusturmaZamani": now,
+            # "admin": yalnızca admin incelemesi içindir, müşteri raporunda gösterilmez
+            "hedef": hedef,
+        })
+
+    if degerleme.get("agirHasar"):
+        agir = [k for k in kalemler if k["kategori"] in ("yapisal",) or "ağır" in (k.get("aciklama") or "").lower()]
+        oneri("Kritik", "Ağır hasar bulgusu",
+              "; ".join(f"{k['baslik']} ({k['durum']})" for k in agir[:4]) or "Ağır hasar sınıfında bulgu mevcut",
+              "Kurumsal ekspertiz ve şasi ölçümü olmadan alım yapılmamalı", 1, "Yüksek", 4, "yapisal")
+    for k in kalemler:
+        if k["kategori"] == "mekanik" and k["durum"] in ("Sorunlu", "Kötü", "Ağır Hasar"):
+            oneri("Kritik" if k["durum"] != "Sorunlu" else "Önemli", f"{k['baslik']} sorunu",
+                  f"{k['baslik']}: {k['durum']} — tahmini değer etkisi -{_pct(k['yuzde'])}",
+                  "Yetkili serviste arıza tespiti yaptırın, onarım bedelini fiyattan düşün", 2, "Yüksek", 5, k["anahtar"])
+        if k["kategori"] == "ic" and k["anahtar"] == "kokuNem":
+            oneri("Kritik", "Su baskını şüphesi", f"Koku/nem bulgusu: {k['durum']}",
+                  "Halı altı, emniyet kemeri ve elektrik tesisatı detaylı kontrol edilmeli", 1, "Yüksek", 3, "kokuNem")
+    karar = yorum.get("karar")
+    if karar in ("PAZARLIK", "YUKSEK"):
+        oneri("Önemli", "Fiyat pazarlığı",
+              f"İlan fiyatı ekspertiz düzeltmeli değerin {_pct(yorum.get('farkYuzde'))} üzerinde",
+              f"Önerilen alım fiyatı {_tl(degerleme.get('onerilenAlimFiyati'))}; "
+              f"adil aralık {_tl((degerleme.get('adilFiyatAraligi') or {}).get('min'))} – "
+              f"{_tl((degerleme.get('adilFiyatAraligi') or {}).get('max'))}",
+              3, "Orta")
+    elif karar in ("AVANTAJLI", "MAKUL"):
+        oneri("Öneri", "Fiyat uygun", yorum.get("aciklama", ""),
+              "Belgeler (ruhsat, tramer, bakım) teyit edilerek alım değerlendirilebilir", 7, "Düşük")
+    kozmetik = [k for k in kalemler if k["kategori"] in ("kaporta", "hasar_kaydi") and k["yuzde"] >= 1]
+    if kozmetik:
+        oneri("Önemli", "Kaporta işlemleri değeri düşürüyor",
+              ", ".join(f"{k['baslik']} ({k['durum'].lower()})" for k in kozmetik[:5]),
+              "Pazarlıkta bu kalemlerin TL karşılığını referans alın", 4, "Orta", 4, "kaporta")
+    if not skor.get("mekanikVeriVar"):
+        oneri("Öneri", "Mekanik test önerilir",
+              "Raporda motor/şanzıman değerlendirmesi bulunmuyor; mekanik puan nötr kabul edildi",
+              "Kurumsal ekspertizde motor, şanzıman ve OBD testi yaptırın", 5, "Orta", 5, "mekanik")
+    if not degerleme.get("degerlemeYapildi"):
+        oneri("Önemli", "Piyasa verisi yetersiz",
+              "Bu marka/model/yıl için yeterli güncel emsal ilan bulunamadı",
+              "Admin TL değerini manuel kontrol etmeli", 2, "Yüksek", hedef="admin")
+    elif (degerleme.get("guvenSkoru") or 0) < 50:
+        oneri("Önemli", "Düşük güvenli piyasa değeri", degerleme.get("piyasaYontemi", ""),
+              "Değeri yayınlamadan önce emsal ilanlarla karşılaştırın", 3, "Orta", hedef="admin")
+    oneriler.sort(key=lambda o: o["oncelik"])
+
+    # --- Kritik sorunlar
+    kritik: List[str] = []
+    if degerleme.get("agirHasar"):
+        kritik.append("Ağır hasar sınıfında bulgu (yapısal işlem / tavan değişimi / su baskını / motor)")
+    for k in kalemler:
+        if k["kategori"] == "mekanik" and k["durum"] in ("Kötü", "Ağır Hasar"):
+            kritik.append(f"{k['baslik']}: {k['durum']}")
+    if karar == "YUKSEK":
+        kritik.append(f"İlan fiyatı ekspertiz değerinin {_pct(yorum.get('farkYuzde'))} üzerinde")
+    if not degerleme.get("degerlemeYapildi"):
+        kritik.append("Piyasa referansı bulunamadı — TL değeri hesaplanamadı")
+    if degerleme.get("eskiPiyasaVerisi"):
+        kritik.append("Piyasa verisi 90 günden eski ilanlara dayanıyor")
+
+    rapor_ozeti = {
+        "genelSonuc": _genel_sonuc_from_score(genel_puan),
+        "anahtarBulgular": bulgular,
+        "ozetAciklama": degerleme.get("ozet", ""),
+        "onayRedOnerisi": _onay_onerisi(degerleme, genel_puan),
+        "tahminiDeger": float(ai_degeri or 0),
+        "degerKaybiYuzde": float(degerleme.get("toplamDegerKaybiYuzde") or 0),
+        # Spekülatif getiri/projeksiyon üretilmez (önceki sürümde kâr yazılıyordu)
+        "degerProjeksiyonu1Yil": 0.0,
+        "altiAylikGetiri": 0.0,
+        "olusturmaZamani": now,
+    }
+
+    detay = {
+        "toplamDegerKaybiYuzde": float(degerleme.get("toplamDegerKaybiYuzde") or 0),
+        "guvenSkoru": float(degerleme.get("guvenSkoru") or 0),
+        "boyaliParca": float(degerleme.get("boyaliParcaSayisi") or 0),
+        "degisenParca": float(degerleme.get("degisenParcaSayisi") or 0),
+        "yapisalIslem": float(degerleme.get("yapisalIslemSayisi") or 0),
+    }
+    if liquidity.get("liquidity_score") is not None:
+        detay["likiditeSkoru"] = float(liquidity["liquidity_score"])
+        detay["tahminiSatisGunu"] = float(liquidity.get("estimated_days_to_sell") or 0)
+
+    skorlar = {
+        "aracDurumuPuan": float(skor.get("aracDurumuPuan") or 0),
+        "motorMekanikPuan": float(skor.get("motorMekanikPuan") or 0),
+        "hasarPuan": float(skor.get("hasarPuan") or 0),
+        "genelPuan": genel_puan,
+        "detayliPuanlar": detay,
+        "hesaplamaZamani": now,
+        "puanDegerlendirmesi": _puan_degerlendirmesi(genel_puan),
+        "puanRengi": _puan_rengi(genel_puan),
+    }
+
+    fiyat = degerleme.get("adilFiyatAraligi") or {}
+    finansal = {
+        "ai_piyasa_degeri": float(degerleme.get("temizPiyasaDegeri") or 0),
+        "ai_deger": float(ai_degeri or 0),
+        "ai_onerilen_alim_fiyati": float(degerleme.get("onerilenAlimFiyati") or 0),
+        "ai_adil_fiyat_min": float(fiyat.get("min") or 0),
+        "ai_adil_fiyat_max": float(fiyat.get("max") or 0),
+        "ai_deger_kaybi": float(degerleme.get("toplamDegerKaybiYuzde") or 0),
+        "ai_deger_kaybi_tutar": float(degerleme.get("toplamDegerKaybiTutar") or 0),
+        "ilan_fiyati": float(degerleme.get("ilanFiyati") or 0),
+    }
+
+    result = build_ai_analiz_sonucu(
+        skorlar=skorlar,
+        oneriler=oneriler,
+        rapor_ozeti=rapor_ozeti,
+        finansal=finansal,
+        kritik_sorunlar=kritik,
+        report_id=report_id,
+    )
+    result["ekspertizDegerleme"] = degerleme
+    result["arac"] = {
+        "marka": vehicle.get("brand"), "model": vehicle.get("model"),
+        "yil": vehicle.get("year"), "km": vehicle.get("km"),
+    }
+    if liquidity:
+        result["likidite"] = liquidity
+    return result

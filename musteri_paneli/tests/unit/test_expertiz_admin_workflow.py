@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import patch
 
 from yerimebak_ai_v5.api.v1.router import api_router
+from tests.unit.route_paths import api_paths
 from yerimebak_ai_v5.services import expertiz_service
 
 
@@ -18,7 +19,7 @@ class FakeCursor:
             self.updated_data = params[2]
             report_id = params[3]
             status = "published" if "status = 'published'" in query else "rejected"
-            durum = "Tamamlandi" if status == "published" else "Iptal"
+            durum = "Tamamlandı" if status == "published" else "Düzeltme Gerekli"
             self.rows.append(
                 {
                     "id": report_id,
@@ -72,7 +73,7 @@ def pending_admin_report(report_id: str, data=None, ai_result=None):
 
 class ExpertizAdminWorkflowTests(unittest.TestCase):
     def test_admin_expertiz_routes_are_registered(self):
-        paths = {route.path for route in api_router.routes}
+        paths = api_paths(api_router)
 
         self.assertIn("/expertiz/admin/reports", paths)
         self.assertIn("/expertiz/admin/reports/{report_id}", paths)
@@ -97,7 +98,7 @@ class ExpertizAdminWorkflowTests(unittest.TestCase):
 
         self.assertTrue(result["success"])
         self.assertEqual(result["report"]["status"], "published")
-        self.assertEqual(result["report"]["durum"], "Tamamlandi")
+        self.assertEqual(result["report"]["durum"], "Tamamlandı")
         self.assertEqual(result["report"]["data"]["published_by"], "admin@yerimebak.ai")
         self.assertTrue(conn.committed)
         self.assertTrue(
@@ -170,7 +171,8 @@ class ExpertizAdminWorkflowTests(unittest.TestCase):
 
         self.assertTrue(result["success"])
         self.assertEqual(result["report"]["status"], "rejected")
-        self.assertEqual(result["report"]["durum"], "Iptal")
+        # Red musteriye "Iptal" olarak gorunmemeli
+        self.assertEqual(result["report"]["durum"], "Düzeltme Gerekli")
         self.assertEqual(result["report"]["data"]["rejection_reason"], "Eksik fotograf var")
         self.assertEqual(result["report"]["data"]["rejected_by"], "admin@yerimebak.ai")
         self.assertTrue(conn.committed)
@@ -179,14 +181,14 @@ class ExpertizAdminWorkflowTests(unittest.TestCase):
             any("CREATE TABLE IF NOT EXISTS audit_logs" in query for query, _ in conn.cursor_instance.executed)
         )
 
-    def test_reject_admin_report_requires_pending_admin_status(self):
+    def test_reject_admin_report_requires_pending_status(self):
         report_id = str(uuid.uuid4())
         conn = FakeConnection(
             [
                 {
                     "id": report_id,
-                    "status": "pending_ai",
-                    "durum": "AI Bekliyor",
+                    "status": "draft",
+                    "durum": "Personele Atandı",
                     "data": {"existing": True},
                     "version_id": 1,
                 }
@@ -200,7 +202,7 @@ class ExpertizAdminWorkflowTests(unittest.TestCase):
                 {"email": "admin@yerimebak.ai"},
             )
 
-        self.assertEqual(result["error"], "Sadece admin onayi bekleyen rapor reddedilebilir")
+        self.assertEqual(result["error"], "Sadece onay bekleyen rapor reddedilebilir")
         self.assertEqual(result.get("http_status"), 400)
         self.assertFalse(conn.committed)
         self.assertIsNone(conn.cursor_instance.updated_data)

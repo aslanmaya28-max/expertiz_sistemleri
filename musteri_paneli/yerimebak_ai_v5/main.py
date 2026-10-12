@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import os
 import re
@@ -21,14 +22,34 @@ from yerimebak_ai_v5.api.v1.router import api_router
 
 logger = logging.getLogger(__name__)
 
+# Hata takibi (istege bagli): .env'de SENTRY_DSN tanimliysa hatalar Sentry'ye gider.
+if os.getenv("SENTRY_DSN"):
+    try:
+        import sentry_sdk
+
+        sentry_sdk.init(
+            dsn=os.getenv("SENTRY_DSN"),
+            environment=os.getenv("SENTRY_ENVIRONMENT", "production"),
+            traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0")),
+            send_default_pii=False,
+        )
+    except Exception as exc:  # pragma: no cover
+        logger.error(f"Sentry baslatilamadi: {exc}")
+
 
 # 🔒 GÜVENLİK: Rate limiting state
 _rate_limit_store: dict = {}
 
+_RATE_LIMIT_MAX_KEYS = 50_000
+
+
 def _rate_limit_key(request: Request) -> str:
-    """Client IP bazli rate limit anahtari."""
-    forwarded = request.headers.get("X-Forwarded-For", "")
-    client_ip = forwarded.split(",")[0].strip() if forwarded else request.client.host if request.client else "unknown"
+    """Client IP bazli rate limit anahtari.
+
+    X-Real-IP nginx tarafindan yazilir (istemci degistiremez). X-Forwarded-For'un
+    ilk degeri istemcinin gonderdigi sahte bir deger olabilecegi icin kullanilmaz.
+    """
+    client_ip = request.headers.get("X-Real-IP") or (request.client.host if request.client else "unknown")
     return f"rl:{client_ip}:{request.url.path}"
 
 def _check_rate_limit(request: Request, max_requests: int = 60, window_seconds: int = 60) -> bool:
@@ -37,7 +58,10 @@ def _check_rate_limit(request: Request, max_requests: int = 60, window_seconds: 
     now = time.time()
     window_start = now - window_seconds
     
-    # Eski kayitlari temizle
+    # Eski kayitlari temizle; bos anahtarlar silinir (bellek sismesin)
+    if len(_rate_limit_store) > _RATE_LIMIT_MAX_KEYS:
+        for stale in [k for k, v in _rate_limit_store.items() if not v or v[-1] <= window_start]:
+            _rate_limit_store.pop(stale, None)
     _rate_limit_store[key] = [t for t in _rate_limit_store.get(key, []) if t > window_start]
     
     if len(_rate_limit_store[key]) >= max_requests:
@@ -54,11 +78,43 @@ async def lifespan(app: FastAPI):
     try:
         DatabaseConfig.bootstrap()
         DatabaseConfig.alignment()
+        # Personel / talep / atama tablolarini commit ederek hazirla
+        from yerimebak_ai_v5.services.dispatch_service import ensure_workflow_schema_once
+        ensure_workflow_schema_once()
+        # Fiyatlandirma katalogu + PayTR odeme kolonlari
+        from yerimebak_ai_v5.services import checkout_service, pricing_service
+        pricing_service.ensure_schema()
+        checkout_service.ensure_schema()
+        # E-posta dogrulama / sifre sifirlama
+        from yerimebak_ai_v5.services import account_service
+        account_service.ensure_schema()
+        # Ilk admin (.env: INITIAL_ADMIN_EMAIL / INITIAL_ADMIN_PASSWORD); varsa dokunulmaz
+        from yerimebak_ai_v5.services.auth_service import get_auth_service
+        get_auth_service().ensure_initial_admin()
         logger.info("[STARTUP] Database ready.")
     except Exception as e:
-        logger.error(f"[STARTUP] Database init failed")
+        logger.error(f"[STARTUP] Database init failed: {e}", exc_info=True)
+
+    # Merkezi AI analiz robotu: gonderimde arka planda hemen calisir; bu dongu
+    # basarisiz olan / sunucu yeniden baslarken yarim kalan pending_ai raporlarini toplar.
+    ai_worker = None
+    ai_task = None
+    if os.getenv("AI_WORKER_ENABLED", "true").lower() in ("1", "true", "yes"):
+        try:
+            from yerimebak_ai_v5.workers.ai_analysis_worker import get_ai_analysis_worker
+            ai_worker = get_ai_analysis_worker()
+            ai_task = asyncio.create_task(
+                ai_worker.run_loop(int(os.getenv("AI_WORKER_INTERVAL", "30")))
+            )
+            logger.info("[STARTUP] AI analysis worker loop started.")
+        except Exception as e:
+            logger.error(f"[STARTUP] AI worker could not start: {e}")
     yield
     logger.info("[SHUTDOWN] Cleaning up...")
+    if ai_worker is not None:
+        ai_worker.stop()
+    if ai_task is not None:
+        ai_task.cancel()
 
 
 # 🔒 GÜVENLİK: CORS - Sadece izin verilen originler
@@ -95,6 +151,8 @@ app.add_middleware(
     allowed_hosts=[
         "localhost",
         "127.0.0.1",
+        # Docker ic agi (healthcheck / servisler arasi cagrilar)
+        "app",
         "*.yerimebak.com.tr",
         "yerimebak.com.tr",
         "app.yerimebak.com.tr",

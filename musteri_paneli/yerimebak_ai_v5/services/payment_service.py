@@ -15,11 +15,13 @@ from yerimebak_ai_v5.core.database_config import DatabaseConfig
 logger = logging.getLogger(__name__)
 
 # 🔒 GÜVENLİK: Sabit değerler .env'den alinir
+# Arac degerleme kredi paketleri (fiyatlar KDV dahil). CREDIT_PACKAGES ortam
+# degiskeniyle (ayni JSON yapisi) kod degismeden ezilebilir.
 CREDIT_PACKAGES = json.loads(os.getenv("CREDIT_PACKAGES", json.dumps({
-    "tek": {"credits": 1, "price": 100, "name": "Tek Analiz", "popular": False},
-    "besli": {"credits": 5, "price": 400, "name": "5 Analiz", "popular": False},
-    "onlu": {"credits": 10, "price": 750, "name": "10 Analiz", "popular": True},
-    "kurumsal": {"credits": 50, "price": 3000, "name": "Kurumsal 50 Analiz", "popular": False},
+    "paket3": {"credits": 3, "price": 100, "name": "3 Analiz", "popular": False},
+    "paket5": {"credits": 5, "price": 250, "name": "5 Analiz", "popular": False},
+    "paket10": {"credits": 10, "price": 400, "name": "10 Analiz", "popular": True},
+    "paket11": {"credits": 11, "price": 750, "name": "11 Analiz", "popular": False},
 })))
 
 FREE_CREDITS_ON_REGISTER = int(os.getenv("FREE_CREDITS_ON_REGISTER", "3"))

@@ -5,6 +5,7 @@ import '../../core/constants/yerimebak_colors.dart';
 import '../../models/expertiz/adim1_arac_satici_model.dart';
 import '../../providers/expertiz_provider.dart';
 import 'widgets/adim1_arac_satici_form_widget.dart';
+import 'widgets/kontrol_listesi_widget.dart';
 
 /// Adim 1: Arac ve satici bilgileri.
 ///
@@ -27,30 +28,21 @@ class _Adim1SayfasiState extends State<Adim1Sayfasi> {
           return const Center(child: Text('Model yukleniyor...'));
         }
 
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text(
-              '1. Arac & Satici Bilgileri',
-              style: TextStyle(color: YerimeBakColors.blue),
-            ),
-            backgroundColor: Colors.white,
-            elevation: 0,
-            iconTheme: const IconThemeData(color: YerimeBakColors.blue),
-          ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Adim1AracSaticiFormWidget(
-                  model: model,
-                  enabled: true,
-                  onChanged: provider.updateAdim1,
-                ),
-                const SizedBox(height: 24),
-                _buildPaketOzeti(model),
-              ],
-            ),
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AdimEksikleriKarti(eksikler: provider.adimEksikleri(1)),
+              const SizedBox(height: 12),
+              Adim1AracSaticiFormWidget(
+                model: model,
+                enabled: provider.duzenlenebilir,
+                onChanged: provider.updateAdim1,
+              ),
+              const SizedBox(height: 24),
+              _buildPaketOzeti(model),
+            ],
           ),
         );
       },

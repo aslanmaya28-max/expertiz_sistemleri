@@ -11,7 +11,7 @@ from yerimebak_ai_v5.core.engine_v8 import YerimebakEngineV8, VehicleData, Deman
 from yerimebak_ai_v5.core.market_reference_service import get_market_reference_service
 from yerimebak_ai_v5.services.payment_service import get_payment_service
 from yerimebak_ai_v5.services.auth_service import get_auth_service
-from yerimebak_ai_v5.api.v1.endpoints.auth import get_authenticated_user
+from yerimebak_ai_v5.api.v1.endpoints.auth import get_authenticated_user, get_admin_user
 
 router = APIRouter()
 
@@ -194,12 +194,13 @@ class TriggerAnalysisRequest(BaseModel):
 @router.post("/trigger")
 async def trigger_ai_analysis(
     request: TriggerAnalysisRequest,
-    user: Dict[str, Any] = Depends(get_authenticated_user),
+    user: Dict[str, Any] = Depends(get_admin_user),
 ) -> Dict[str, Any]:
     """
-    Trigger AI analysis for a specific report.
-    Sets status to 'pending_ai' so the worker picks it up,
-    or processes synchronously.
+    Trigger (or re-run) the central AI analysis for a submitted report. Admin only.
+
+    Yalnizca personelin gonderdigi raporlar (pending_ai / pending_admin) analiz
+    edilir; taslak rapor AI'ya gonderilemez (personel gonderimini atlamamak icin).
     """
     from yerimebak_ai_v5.core.supabase_bridge import get_supabase_bridge
     from yerimebak_ai_v5.workers.ai_analysis_worker import get_ai_analysis_worker
@@ -210,13 +211,11 @@ async def trigger_ai_analysis(
     if not report:
         raise HTTPException(status_code=404, detail="Rapor bulunamadi")
 
-    if report.get("status") not in ("draft", "pending_ai"):
+    if report.get("status") not in ("pending_ai", "pending_admin"):
         raise HTTPException(
             status_code=400,
-            detail=f"Rapor durumu uygun degil: {report.get('status')}. Gerekli: draft veya pending_ai"
+            detail=f"Rapor durumu uygun degil: {report.get('status')}. Gerekli: pending_ai veya pending_admin"
         )
-
-    bridge.update_report_status(request.report_id, "pending_ai", old_status=report.get("status"))
 
     worker = get_ai_analysis_worker()
     success = await worker.process_single_report(request.report_id)
@@ -236,7 +235,7 @@ async def trigger_ai_analysis(
 @router.get("/status/{report_id}")
 async def get_analysis_status(
     report_id: str,
-    user: Dict[str, Any] = Depends(get_authenticated_user),
+    user: Dict[str, Any] = Depends(get_admin_user),
 ) -> Dict[str, Any]:
     """Get the AI analysis status for a specific report."""
     from yerimebak_ai_v5.core.supabase_bridge import get_supabase_bridge

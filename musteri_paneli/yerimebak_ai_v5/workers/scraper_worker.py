@@ -25,6 +25,7 @@ class ScraperWorker:
 
         self.scraper_source = os.getenv("SCRAPER_SOURCE", "all").lower()
         self.scrapers = {}
+        self._main_task = None
 
     def _init_scrapers(self):
         """Lazy load scrapers based on SCRAPER_SOURCE."""
@@ -48,11 +49,23 @@ class ScraperWorker:
             }
             logger.info("Scrapers initialized: arabam, borusan (all)")
 
+    def _install_signal_handlers(self):
+        # Sinyal, asyncio.run'in olusturdugu (calisan) donguye baglanmali; aksi halde
+        # SIGTERM yok sayilir ve panelden "durdur" sureci kapatmaz.
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            try:
+                loop.add_signal_handler(sig, self.stop)
+            except (NotImplementedError, RuntimeError):
+                pass
+
     async def run(self):
         pid_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scraper_worker.pid")
         with open(pid_path, "w") as f:
             f.write(str(os.getpid()))
 
+        self._main_task = asyncio.current_task()
+        self._install_signal_handlers()
         try:
             logger.info(f"Starting Production Market Data Lake Scraper Worker (PID: {os.getpid()})...")
             self._init_scrapers()
@@ -136,22 +149,19 @@ class ScraperWorker:
     def stop(self):
         logger.info("Stopping worker...")
         self.running = False
+        # Uyku veya kazima ortasinda da hemen cik; Playwright tarayicisi
+        # async with bloklarinda duzgun kapanir.
+        if self._main_task is not None and not self._main_task.done():
+            self._main_task.cancel()
 
 
 def main():
     worker = ScraperWorker()
 
-    loop = asyncio.get_event_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        try:
-            loop.add_signal_handler(sig, worker.stop)
-        except NotImplementedError:
-            pass
-
     try:
         asyncio.run(worker.run())
-    except KeyboardInterrupt:
-        logger.info("Worker stopped by user")
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        logger.info("Worker stopped")
     except Exception as exc:
         logger.critical(f"Worker crashed: {exc}", exc_info=True)
         sys.exit(1)

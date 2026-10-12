@@ -99,6 +99,9 @@ class PersonelModel extends Equatable {
   /// ID card photo URL
   final String? kimlikFotografUrl;
 
+  /// Görev için aktif mi (hesap aktifliğinden ayrı). Pasif personele görev atanmaz.
+  final bool gorevAktif;
+
   const PersonelModel({
     required this.id,
     required this.ad,
@@ -130,6 +133,7 @@ class PersonelModel extends Equatable {
     this.ortalamaPuan,
     this.profilFotografUrl,
     this.kimlikFotografUrl,
+    this.gorevAktif = true,
   });
 
   /// Create PersonelModel from Map
@@ -180,6 +184,7 @@ class PersonelModel extends Equatable {
           : double.tryParse(map['ortalamaPuan']?.toString() ?? '0'),
       profilFotografUrl: map['profilFotografUrl']?.toString(),
       kimlikFotografUrl: map['kimlikFotografUrl']?.toString(),
+      gorevAktif: map['gorevAktif'] as bool? ?? map['on_duty'] as bool? ?? true,
     );
   }
 
@@ -221,6 +226,7 @@ class PersonelModel extends Equatable {
       'ortalamaPuan': ortalamaPuan,
       'profilFotografUrl': profilFotografUrl,
       'kimlikFotografUrl': kimlikFotografUrl,
+      'gorevAktif': gorevAktif,
     };
   }
 
@@ -264,6 +270,7 @@ class PersonelModel extends Equatable {
     double? ortalamaPuan,
     String? profilFotografUrl,
     String? kimlikFotografUrl,
+    bool? gorevAktif,
   }) {
     return PersonelModel(
       id: id ?? this.id,
@@ -297,6 +304,7 @@ class PersonelModel extends Equatable {
       ortalamaPuan: ortalamaPuan ?? this.ortalamaPuan,
       profilFotografUrl: profilFotografUrl ?? this.profilFotografUrl,
       kimlikFotografUrl: kimlikFotografUrl ?? this.kimlikFotografUrl,
+      gorevAktif: gorevAktif ?? this.gorevAktif,
     );
   }
 

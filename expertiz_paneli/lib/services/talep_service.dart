@@ -1,13 +1,32 @@
 ﻿import 'package:flutter/foundation.dart';
 import '../models/talep_model.dart';
 import 'rapor_service.dart';
+import 'yerimebak_expertiz_api_service.dart';
 
 class TalepService {
+  TalepService({YerimebakExpertizApiService? apiService}) : _apiService = apiService ?? YerimebakExpertizApiService();
+
+  final YerimebakExpertizApiService _apiService;
+
   static final RegExp _uuidRegex = RegExp(
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
   );
 
+  /// Admin için tüm müşteri talepleri (merkezi API).
+  ///
+  /// Müşteri talepleri merkezi veritabanına yazılır; admin paneli de oradan
+  /// okur. API'ye ulaşılamazsa eski Supabase okumasına düşer.
   Future<List<TalepModel>> getTalepler() async {
+    try {
+      final response = await _apiService.getAdminRequests();
+      final rows = (response['requests'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => fromApiRequest(Map<String, dynamic>.from(e)))
+          .toList();
+      return rows..sort((a, b) => b.olusturulma.compareTo(a.olusturulma));
+    } catch (e) {
+      debugPrint('Merkezi talep listesi alinamadi, Supabase deneniyor: $e');
+    }
     try {
       final supabaseTalepler = await _getSupabaseTalepler();
       return supabaseTalepler
@@ -16,6 +35,68 @@ class TalepService {
       debugPrint('Talep listesi alma hatası: $e');
       return [];
     }
+  }
+
+  /// Personel atar (merkezi API). Hata durumunda exception fırlatır.
+  Future<void> personelAta(String talepId, String personelId, {String? not}) async {
+    await _apiService.assignRequest(talepId, personelId, note: not);
+  }
+
+  /// Merkezi API talep/görev kaydını [TalepModel]'e çevirir.
+  static TalepModel fromApiRequest(Map<String, dynamic> json) {
+    Map<String, dynamic> asMap(dynamic value) =>
+        value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};
+    double asDouble(dynamic value) => value is num ? value.toDouble() : double.tryParse('${value ?? ''}') ?? 0.0;
+
+    final vehicle = asMap(json['vehicle']);
+    final customer = asMap(json['customer']);
+    final assignment = asMap(json['assignment']);
+    final assignedId = assignment['personnel_id']?.toString();
+    final status = json['status']?.toString();
+
+    String durum;
+    switch (json['bucket']) {
+      case 'completed':
+        durum = 'Tamamlandı';
+        break;
+      case 'pending_approval':
+        durum = 'Raporlandı';
+        break;
+      case 'in_progress':
+        if (status == 'rejected') {
+          durum = 'Düzeltme Gerekli';
+        } else if (assignment['status'] == 'in_progress') {
+          durum = 'İncelemede';
+        } else if (assignment['status'] == 'accepted') {
+          durum = 'Kabul Edildi';
+        } else {
+          durum = 'Personele Atandı';
+        }
+        break;
+      default:
+        durum = 'Beklemede';
+    }
+
+    final note = json['note']?.toString() ?? '';
+    final listingUrl = vehicle['listing_url']?.toString() ?? '';
+    return TalepModel(
+      id: json['id']?.toString() ?? '',
+      musteriAdi: customer['name']?.toString() ?? 'Müşteri',
+      musteriId: customer['id']?.toString() ?? '',
+      telefon: customer['phone']?.toString() ?? '',
+      aracPlaka: vehicle['plate']?.toString() ?? '',
+      aracMarka: (vehicle['brand']?.toString() ?? '').isEmpty ? 'Belirtilmedi' : vehicle['brand'].toString(),
+      aracModel: (vehicle['model']?.toString() ?? '').isEmpty ? (vehicle['title']?.toString() ?? '') : vehicle['model'].toString(),
+      durum: durum,
+      olusturulma: DateTime.tryParse(json['created_at']?.toString() ?? '')?.toLocal() ?? DateTime.now(),
+      atananPersonel: (assignedId == null || assignedId.isEmpty) ? null : assignedId,
+      aciklama: [note, listingUrl].where((e) => e.isNotEmpty).join(' • '),
+      sehir: json['city']?.toString() ?? '',
+      expertizFirmasi: json['firm_name']?.toString() ?? '',
+      expertizPaketi: json['package_name']?.toString() ?? '',
+      toplamTutar: asDouble(json['total_tl']),
+      isPaid: json['is_paid'] == true,
+    );
   }
 
   Future<List<TalepModel>> _getSupabaseTalepler() async {

@@ -12,7 +12,7 @@ import '../screens/login_screen.dart';
 import '../screens/register_screen.dart';
 import '../screens/ana_sayfa.dart';
 import '../admin/admin_shell.dart';
-import '../screens/admin_finans_dashboard.dart';
+import '../admin/modules/finans_yonetimi.dart';
 import '../personnel/personnel_dashboard.dart';
 import '../customer/customer_dashboard.dart';
 import '../customer/create_request_screen.dart';
@@ -163,7 +163,7 @@ GoRouter createRouter(BuildContext context) {
             path: 'finans',
             pageBuilder: (context, state) => MaterialPage(
               key: state.pageKey,
-              child: AdminFinansDashboard(),
+              child: const Scaffold(body: SafeArea(child: FinansYonetimi())),
             ),
           ),
           GoRoute(

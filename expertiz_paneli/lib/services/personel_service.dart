@@ -1,17 +1,19 @@
-﻿/// PersonelService - Enterprise Grade Authority Layer
+/// PersonelService - Admin personel ve bölge yönetimi
 ///
-/// ⚠️ SINGLE SOURCE OF TRUTH: Supabase DB
-/// SharedPreferences KULLANILMAZ - sadece API üzerinden çalışır
-/// AuthServicePro KULLANILMAZ - UserProvider üzerinden yetkilendirme yapılır
+/// ⚠️ SINGLE SOURCE OF TRUTH: Merkezi API (FastAPI) → PostgreSQL `users`
+/// - Personel ekleme / düzenleme / pasife alma / aktif etme / sistemden çıkarma
+/// - İl ve 7 coğrafi bölge bazlı kapsama raporu
+///
+/// Önceki sürüm API hatalarında personeli sadece yerel listeye ekleyip
+/// "başarılı" gibi davranıyordu; kayıtlar uygulama kapanınca kayboluyordu.
+/// Artık her hata çağırana iletilir ve UI kullanıcıya gösterir.
 library;
 
 import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/mappers/location_mapper.dart';
 import '../models/personel_model.dart';
 import '../ui/viewmodels/personel_viewmodel.dart';
 import 'yerimebak_expertiz_api_service.dart';
-import 'task_reassignment_service.dart';
 
 class PersonelService extends ChangeNotifier {
   // Singleton pattern
@@ -19,71 +21,74 @@ class PersonelService extends ChangeNotifier {
   factory PersonelService() => _instance;
   PersonelService._internal();
 
-  // Internal storage
+  /// Testler için API istemcisini değiştirmeye izin verir.
+  @visibleForTesting
+  set apiServiceForTesting(YerimebakExpertizApiService service) => _apiService = service;
+
   final List<PersonelModel> _personeller = [];
   final LocationMapper _locationMapper = LocationMapper();
-  final YerimebakExpertizApiService _apiService = YerimebakExpertizApiService();
-  final Map<int, int> _ilSayaclari = {};
+  YerimebakExpertizApiService _apiService = YerimebakExpertizApiService();
   Map<String, dynamic>? _coverage;
+  bool _isLoading = false;
+  String? _lastError;
 
-  // Getters
   List<PersonelModel> get personeller => List.unmodifiable(_personeller);
   int get personelCount => _personeller.length;
   Map<String, dynamic>? get coverage => _coverage;
+  bool get isLoading => _isLoading;
+  String? get lastError => _lastError;
 
-  /// Load personnel from Supabase
+  List<PersonelModel> get aktifPersoneller => _personeller.where((p) => p.aktif).toList();
+
+  /// API yanıtındaki personeli modele çevirir (il/bölge ID'leri dahil).
+  PersonelModel fromApi(Map<String, dynamic> json) {
+    final model = PersonelModel.fromMap(json);
+    final apiIlId = json['il_id'] is int ? json['il_id'] as int : int.tryParse('${json['il_id'] ?? ''}');
+    final ilId = (apiIlId != null && apiIlId > 0) ? apiIlId : _locationMapper.getIlId(model.il ?? '');
+    final apiBolgeId = json['region_id'] is int ? json['region_id'] as int : int.tryParse('${json['region_id'] ?? ''}');
+    final bolgeId = (apiBolgeId != null && apiBolgeId > 0) ? apiBolgeId : _locationMapper.getBolgeIdFromIlId(ilId);
+    final doneTasks = json['completed_task_count'] is int
+        ? json['completed_task_count'] as int
+        : int.tryParse('${json['completed_task_count'] ?? 0}') ?? 0;
+    final expertise = json['expertise']?.toString() ?? '';
+    return model.copyWith(
+      ilId: ilId,
+      bolgeId: bolgeId,
+      bolge: json['region']?.toString() ?? _locationMapper.getBolgeAdi(bolgeId),
+      unvan: model.unvan.isNotEmpty ? model.unvan : (expertise.isNotEmpty ? expertise : 'Saha Personeli'),
+      tamamlananGorevSayisi: doneTasks,
+      kayitTarihi: DateTime.tryParse(json['created_at']?.toString() ?? ''),
+    );
+  }
+
+  /// Personelin üzerindeki açık (atanmış, raporlanmamış) görev sayısı.
+  final Map<String, int> _openTaskCounts = {};
+  int acikGorevSayisi(String personelId) => _openTaskCounts[personelId] ?? 0;
+
+  /// Personelleri merkezi API'den yükler. Hata olursa [lastError] dolar.
   Future<void> loadPersoneller() async {
-    try {
-      if (await _loadPersonellerFromApi()) {
-        return;
-      }
-      // API başarısız olursa Supabase'den yükle
-      await _loadPersonellerFromSupabase();
-    } catch (e) {
-      debugPrint('❌ Personel yükleme hatası: $e');
-    }
-  }
-
-  Future<void> _loadPersonellerFromSupabase() async {
-    try {
-      final supabase = Supabase.instance.client;
-      final response = await supabase
-          .from('profiles')
-          .select()
-          .eq('role', 'field_staff')
-          .order('created_at', ascending: false);
-
-      final loaded = (response as List)
-          .map((json) => PersonelModel.fromMap(json as Map<String, dynamic>))
-          .toList();
-
-      _personeller
-        ..clear()
-        ..addAll(loaded);
-      notifyListeners();
-    } catch (e) {
-      debugPrint('❌ Supabase personel yükleme hatası: $e');
-    }
-  }
-
-  Future<bool> _loadPersonellerFromApi() async {
+    _isLoading = true;
+    notifyListeners();
     try {
       final response = await _apiService.getPersonnel();
       final data = response['personnel'];
-      if (data is! List) return false;
-
-      final loaded = data
-          .whereType<Map<String, dynamic>>()
-          .map(PersonelModel.fromMap)
-          .toList();
+      final rows = data is List ? data.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList() : <Map<String, dynamic>>[];
+      _openTaskCounts
+        ..clear()
+        ..addEntries(rows.map((row) => MapEntry(
+              row['id']?.toString() ?? '',
+              row['open_task_count'] is int ? row['open_task_count'] as int : int.tryParse('${row['open_task_count'] ?? 0}') ?? 0,
+            )));
       _personeller
         ..clear()
-        ..addAll(loaded);
-      notifyListeners();
-      return true;
+        ..addAll(rows.map(fromApi));
+      _lastError = null;
     } catch (e) {
-      debugPrint('Personel API yukleme fallback: $e');
-      return false;
+      _lastError = 'Personel listesi yüklenemedi: $e';
+      debugPrint('❌ $_lastError');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
@@ -92,16 +97,25 @@ class PersonelService extends ChangeNotifier {
       _coverage = await _apiService.getPersonnelCoverage();
       notifyListeners();
     } catch (e) {
-      debugPrint('Personel coverage yukleme hatasi: $e');
+      _lastError = 'Kapsama raporu yüklenemedi: $e';
+      debugPrint('❌ $_lastError');
+      notifyListeners();
     }
   }
 
+  /// Personel ve kapsama verisini birlikte yeniler.
+  Future<void> refreshAll() async {
+    await loadPersoneller();
+    await loadCoverage();
+  }
+
   Map<String, dynamic> _toApiPayload(PersonelModel personel, {bool includePassword = false}) {
+    final city = (personel.il != null && personel.il!.isNotEmpty) ? personel.il! : _locationMapper.getIlAdi(personel.ilId);
     return {
-      'full_name': personel.tamAd,
-      'email': personel.email,
-      'phone': personel.telefon,
-      'city': personel.il ?? _locationMapper.getIlAdi(personel.ilId),
+      'full_name': personel.tamAd.trim(),
+      'email': personel.email?.trim(),
+      'phone': personel.telefon?.trim() ?? '',
+      'city': city,
       'district': personel.ilce ?? '',
       'expertise': personel.uzmanlikAlani ?? personel.unvan,
       if (includePassword) 'temporary_password': personel.sifre,
@@ -114,122 +128,106 @@ class PersonelService extends ChangeNotifier {
       _personeller[index] = personel;
     } else {
       _personeller.add(personel);
-      _ilSayaclari[personel.ilId] = (_ilSayaclari[personel.ilId] ?? 0) + 1;
     }
   }
 
-  /// Add or update personnel
-  Future<void> addPersonel(PersonelModel personel) async {
-    try {
-      try {
-        if (personel.email?.isNotEmpty == true && personel.sifre?.isNotEmpty == true) {
-          final response = await _apiService.createPersonnel(
-            _toApiPayload(personel, includePassword: true),
-          );
-          final apiPersonel = response['personnel'];
-          if (apiPersonel is Map<String, dynamic>) {
-            _upsertLocal(PersonelModel.fromMap(apiPersonel));
-          } else {
-            _upsertLocal(personel);
-          }
-        } else {
-          _upsertLocal(personel);
-        }
-      } catch (e) {
-        debugPrint('Personel API ekleme fallback: $e');
-        _upsertLocal(personel);
-      }
-      
-      notifyListeners();
-    } catch (e) {
-      debugPrint('❌ Personel ekleme hatası: $e');
-      rethrow;
+  /// Yeni personel ekler. Başarısız olursa hata fırlatır (UI gösterir).
+  Future<PersonelModel> addPersonel(PersonelModel personel) async {
+    if ((personel.email ?? '').isEmpty || (personel.sifre ?? '').isEmpty) {
+      throw ArgumentError('E-posta ve geçici şifre zorunludur');
     }
-  }
-
-  /// Update personnel
-  Future<void> updatePersonel(PersonelModel updatedPersonel) async {
-    try {
-      try {
-        await _apiService.updatePersonnel(
-          updatedPersonel.id,
-          _toApiPayload(updatedPersonel),
-        );
-      } catch (e) {
-        debugPrint('Personel API guncelleme fallback: $e');
-      }
-      _upsertLocal(updatedPersonel);
-      notifyListeners();
-    } catch (e) {
-      debugPrint('❌ Personel güncelleme hatası: $e');
-      rethrow;
+    final response = await _apiService.createPersonnel(_toApiPayload(personel, includePassword: true));
+    final apiPersonel = response['personnel'];
+    if (apiPersonel is! Map) {
+      throw StateError('Sunucu personel bilgisini döndürmedi');
     }
-  }
-
-  /// Delete personnel
-  Future<void> deletePersonel(String personelId) async {
-    try {
-      _personeller.removeWhere((p) => p.id == personelId);
-      notifyListeners();
-    } catch (e) {
-      debugPrint('❌ Personel silme hatası: $e');
-      rethrow;
-    }
-  }
-
-  Future<ReassignmentResult> deactivatePersonel(
-    String personelId,
-    String reason, {
-    String? triggeredByUserId,
-  }) async {
-    final personel = _personeller.firstWhere((p) => p.id == personelId);
-    final personelName = personel.tamAd;
-
-    // 1. Deactivate via API
-    await _apiService.deactivatePersonnel(personelId, reason);
-
-    // 2. Reassign all open tasks automatically
-    final reassignmentService = TaskReassignmentService(
-      supabase: Supabase.instance.client,
-    );
-
-    final reassignmentResult = await reassignmentService.reassignOpenTasks(
-      deactivatedPersonelId: personelId,
-      deactivatedPersonelName: personelName,
-      reason: reason,
-      triggeredByUserId: triggeredByUserId,
-    );
-
-    // 3. Update local state
-    _upsertLocal(personel.copyWith(aktif: false));
-    await loadCoverage();
+    final created = fromApi(Map<String, dynamic>.from(apiPersonel));
+    _upsertLocal(created);
     notifyListeners();
+    await loadCoverage();
+    return created;
+  }
 
-    debugPrint(
-      '👤 Personel pasife alındı: $personelName | '
-      '${reassignmentResult.totalReassigned} görev yeniden atandı, '
-      '${reassignmentResult.totalFailed} başarısız',
-    );
+  /// Personel bilgilerini günceller (ad, telefon, il/ilçe, uzmanlık).
+  Future<PersonelModel> updatePersonel(PersonelModel updatedPersonel) async {
+    final payload = _toApiPayload(updatedPersonel)..remove('email');
+    final response = await _apiService.updatePersonnel(updatedPersonel.id, payload);
+    final apiPersonel = response['personnel'];
+    final updated = apiPersonel is Map ? fromApi(Map<String, dynamic>.from(apiPersonel)) : updatedPersonel;
+    _upsertLocal(updated);
+    notifyListeners();
+    await loadCoverage();
+    return updated;
+  }
 
-    return reassignmentResult;
+  /// Personeli sistemden çıkarır. Açık görevleri otomatik olarak admin
+  /// kuyruğuna geri döner. Geri dönen görev sayısını verir.
+  Future<int> deletePersonel(String personelId, {String? reason}) async {
+    final response = await _apiService.removePersonnel(personelId, reason: reason);
+    _personeller.removeWhere((p) => p.id == personelId);
+    _openTaskCounts.remove(personelId);
+    notifyListeners();
+    await loadCoverage();
+    return _releasedCount(response);
+  }
+
+  /// Personeli pasife alır. Açık görevleri backend tarafından admin
+  /// kuyruğuna geri düşürülür; geri dönen görev sayısını verir.
+  Future<int> deactivatePersonel(String personelId, String reason) async {
+    final response = await _apiService.deactivatePersonnel(personelId, reason);
+    final apiPersonel = response['personnel'];
+    final index = _personeller.indexWhere((p) => p.id == personelId);
+    if (apiPersonel is Map) {
+      _upsertLocal(fromApi(Map<String, dynamic>.from(apiPersonel)));
+    } else if (index != -1) {
+      _personeller[index] = _personeller[index].copyWith(aktif: false);
+    }
+    _openTaskCounts[personelId] = 0;
+    notifyListeners();
+    await loadCoverage();
+    final released = _releasedCount(response);
+    debugPrint('👤 Personel pasife alındı: $personelId | $released görev admin kuyruğuna döndü');
+    return released;
+  }
+
+  /// Görev için aktif/pasif (hesap açık kalır). Pasif personele görev atanmaz.
+  Future<void> setGorevDurumu(String personelId, bool aktif) async {
+    final response = await _apiService.setPersonnelDuty(personelId, aktif);
+    final apiPersonel = response['personnel'];
+    final index = _personeller.indexWhere((p) => p.id == personelId);
+    if (apiPersonel is Map) {
+      _upsertLocal(fromApi(Map<String, dynamic>.from(apiPersonel)));
+    } else if (index != -1) {
+      _personeller[index] = _personeller[index].copyWith(gorevAktif: aktif);
+    }
+    notifyListeners();
   }
 
   Future<void> activatePersonel(String personelId) async {
-    final personel = _personeller.firstWhere((p) => p.id == personelId);
-    await _apiService.activatePersonnel(personelId);
-    _upsertLocal(personel.copyWith(aktif: true));
-    await loadCoverage();
+    final response = await _apiService.activatePersonnel(personelId);
+    final apiPersonel = response['personnel'];
+    final index = _personeller.indexWhere((p) => p.id == personelId);
+    if (apiPersonel is Map) {
+      _upsertLocal(fromApi(Map<String, dynamic>.from(apiPersonel)));
+    } else if (index != -1) {
+      _personeller[index] = _personeller[index].copyWith(aktif: true);
+    }
     notifyListeners();
+    await loadCoverage();
   }
 
   Future<void> resetPersonelPassword(String personelId, String temporaryPassword) async {
     await _apiService.resetPersonnelPassword(personelId, temporaryPassword);
   }
 
+  int _releasedCount(Map<String, dynamic> response) {
+    final value = response['released_task_count'];
+    if (value is int) return value;
+    return int.tryParse('${value ?? 0}') ?? 0;
+  }
+
   /// Get filtered personnel
   Future<List<PersonelModel>> getFilteredPersoneller() async {
-    // UserProvider üzerinden yetkilendirme yapılır
-    // Bu metod UI tarafında context.read<UserProvider>() ile kullanılır
     return List.from(_personeller);
   }
 
@@ -241,23 +239,15 @@ class PersonelService extends ChangeNotifier {
 
   /// Submit TamRapor to cloud (sync with admin dashboard)
   Future<void> submitTamRapor(dynamic tamRapor) async {
-    try {
-      // In production, this would send to a backend API
-      final personelId = tamRapor.personelId;
-      final personelIndex = _personeller.indexWhere((p) => p.id == personelId);
-      if (personelIndex != -1) {
-        final personel = _personeller[personelIndex];
-        final updatedPersonel = personel.copyWith(
-          tamamlananGorevSayisi: (personel.tamamlananGorevSayisi ?? 0) + 1,
-        );
-        _personeller[personelIndex] = updatedPersonel;
-      }
-      
-      notifyListeners();
-      debugPrint('✅ TamRapor başarıyla kaydedildi: ${tamRapor.gorevId}');
-    } catch (e) {
-      debugPrint('❌ TamRapor kaydetme hatası: $e');
-      rethrow;
+    final personelId = tamRapor.personelId;
+    final personelIndex = _personeller.indexWhere((p) => p.id == personelId);
+    if (personelIndex != -1) {
+      final personel = _personeller[personelIndex];
+      _personeller[personelIndex] = personel.copyWith(
+        tamamlananGorevSayisi: (personel.tamamlananGorevSayisi ?? 0) + 1,
+      );
     }
+    notifyListeners();
+    debugPrint('✅ TamRapor başarıyla kaydedildi: ${tamRapor.gorevId}');
   }
 }

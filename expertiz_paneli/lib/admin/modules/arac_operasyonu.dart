@@ -1,110 +1,130 @@
-﻿import 'package:flutter/material.dart';
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import '../../../core/mappers/location_mapper.dart';
 import '../../../core/theme/futuristic_theme.dart';
-import '../../../widgets/cyber/cyber_shimmer_loading.dart';
+import '../../../services/yerimebak_expertiz_api_service.dart';
 import '../../../widgets/cyber/cyber_error_widget.dart';
 import '../../../widgets/cyber/cyber_radar_scan.dart';
-import '../../../models/personel_model.dart';
-import '../../../services/personel_service.dart';
-import '../../../core/constants/roles.dart';
+import '../../../widgets/cyber/cyber_shimmer_loading.dart';
 
 /// Araç Operasyonu Modülü
-/// Araç operasyonlarını 4 sekme üzerinden yönetir:
-/// - Atama Bekleyen
-/// - İşlemdeki
-/// - Onay Bekleyen
-/// - Tamamlanan
+///
+/// Müşteri talepleri merkezi API'den gelir ve 4 sekmede izlenir:
+/// - Atama Bekleyen: müşteri talebi oluşturdu, personel atanmadı
+/// - İşlemdeki: personele atandı (kabul / inceleme / düzeltme)
+/// - Onay Bekleyen: personel raporu gönderdi (AI / admin onayı)
+/// - Tamamlanan: rapor yayınlandı
+///
+/// Atama, bölge sistemine göre önerilen personel listesinden yapılır
+/// (önce aynı ilçe, sonra aynı il, sonra aynı bölge; görev için pasif personel
+/// atanamaz). İşlemdeki taleplerde personelin saha adımı (harekete geçti, araç
+/// başında, kurumsal ekspertizde) canlı görünür.
 class AracOperasyonu extends StatefulWidget {
-  const AracOperasyonu({super.key});
+  const AracOperasyonu({super.key, this.apiService});
+
+  /// Testler için enjekte edilebilir.
+  final YerimebakExpertizApiService? apiService;
 
   @override
   State<AracOperasyonu> createState() => _AracOperasyonuState();
 }
 
 class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  
-  // Mock veriler
-  final List<Map<String, dynamic>> _atamaBekleyenRaporlar = [
-    {
-      'id': 'AR001',
-      'baslik': 'BMW 320i Motor Ses İncelemesi',
-      'musteriAdi': 'Ahmet Yılmaz',
-      'musteriId': 'M001',
-      'aracPlaka': '34ABC123',
-      'aciklama': 'Araç çalıştığında motor bölgesinden anormal ses geliyor',
-      'talepTarihi': DateTime.now().subtract(const Duration(hours: 2)),
-      'ucret': 2500,
-    },
-    {
-      'id': 'AR002',
-      'baslik': 'Mercedes C200 Değerleme Talebi',
-      'musteriAdi': 'Mehmet Kaya',
-      'musteriId': 'M002',
-      'aracPlaka': '06XYZ789',
-      'aciklama': 'Satın almak için ekspertiz raporu gerekiyor',
-      'talepTarihi': DateTime.now().subtract(const Duration(hours: 5)),
-      'ucret': 3500,
-    },
+  static const _buckets = ['waiting_assignment', 'in_progress', 'pending_approval', 'completed', 'cancelled'];
+  static const _bucketTitles = ['Atama Bekleyen', 'İşlemdeki', 'Onay Bekleyen', 'Tamamlanan', 'İptal Edilen'];
+  static const _emptyMessages = [
+    'Atama bekleyen talep yok',
+    'İşlemde talep yok',
+    'Onay bekleyen rapor yok',
+    'Tamamlanan rapor yok',
+    'İptal edilen talep yok',
   ];
-  
-  final List<Map<String, dynamic>> _islemdekiRaporlar = [
-    {
-      'id': 'AR003',
-      'baslik': 'Audi A4 Kaza Sonrası Hasar Tespiti',
-      'musteriAdi': 'Ayşe Demir',
-      'musteriId': 'M003',
-      'aracPlaka': '34DEF456',
-      'aciklama': 'Arka çamurlukta hafif çizik ve çökme var',
-      'talepTarihi': DateTime.now().subtract(const Duration(hours: 8)),
-      'ucret': 4200,
-      'personelId': 'P001',
-      'personelAdi': 'Ahmet Yılmaz',
-    },
-    {
-      'id': 'AR004',
-      'baslik': 'Volkswagen Golf 8 Full Paket Expertiz',
-      'musteriAdi': 'Fatma Şahin',
-      'musteriId': 'M004',
-      'aracPlaka': '34GHI789',
-      'aciklama': 'Sıfıra yakın araç, detaylı inceleme istiyor',
-      'talepTarihi': DateTime.now().subtract(const Duration(hours: 12)),
-      'ucret': 3000,
-      'personelId': 'P002',
-      'personelAdi': 'Mehmet Kaya',
-    },
-  ];
-  
-  final List<Map<String, dynamic>> _onayBekleyenRaporlar = [
-    {
-      'id': 'AR005',
-      'baslik': 'Toyota Corolla 2021 Expertiz Raporu',
-      'musteriAdi': 'Ali Veli',
-      'musteriId': 'M005',
-      'aracPlaka': '35JKL012',
-      'aciklama': 'Rapor tamamlandı, müşteriye gönderim bekliyor',
-      'talepTarihi': DateTime.now().subtract(const Duration(days: 1)),
-      'ucret': 2800,
-      'personelId': 'P003',
-      'personelAdi': 'Ayşe Demir',
-    },
-    {
-      'id': 'AR006',
-      'baslik': 'Renault Megane 2019 Değerleme Raporu',
-      'musteriAdi': 'Zeynep Korkmaz',
-      'musteriId': 'M006',
-      'aracPlaka': '34MNO345',
-      'aciklama': 'Rapor hazırlanıyor',
-      'talepTarihi': DateTime.now().subtract(const Duration(hours: 6)),
-      'ucret': 3200,
-      'personelId': 'P004',
-      'personelAdi': 'Fatma Şahin',
-    },
-  ];
-  
-  final List<Map<String, dynamic>> _tamamlananRaporlar = [];
 
-  bool _isLoading = false;
-  bool _hasError = false;
+  late final TabController _tabController;
+  late final YerimebakExpertizApiService _api;
+  final LocationMapper _locationMapper = LocationMapper();
+  Timer? _autoRefresh;
+
+  List<Map<String, dynamic>> _requests = [];
+  Map<String, int> _counts = {};
+  bool _isLoading = true;
+  String? _error;
+  int _regionId = 0;
+  DateTime? _lastUpdated;
+
+  @override
+  void initState() {
+    super.initState();
+    _api = widget.apiService ?? YerimebakExpertizApiService();
+    _tabController = TabController(length: _buckets.length, vsync: this);
+    _load();
+    // Yeni müşteri talepleri admin açık ekranda beklerken de düşsün
+    _autoRefresh = Timer.periodic(const Duration(seconds: 30), (_) => _load(silent: true));
+  }
+
+  @override
+  void dispose() {
+    _autoRefresh?.cancel();
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    if (!mounted) return;
+    if (!silent) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+    }
+    try {
+      final response = await _api.getAdminRequests(regionId: _regionId == 0 ? null : _regionId);
+      final rows = (response['requests'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      final counts = <String, int>{};
+      final rawCounts = response['counts'];
+      if (rawCounts is Map) {
+        rawCounts.forEach((key, value) => counts['$key'] = (value as num?)?.toInt() ?? 0);
+      }
+      if (!mounted) return;
+      setState(() {
+        _requests = rows;
+        _counts = counts;
+        _isLoading = false;
+        _error = null;
+        _lastUpdated = DateTime.now();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        // Sessiz yenilemede mevcut listeyi koru, sadece ilk yüklemede hata ekranı göster
+        if (!silent || _requests.isEmpty) _error = e.toString();
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> _itemsFor(String bucket) => _requests.where((r) => r['bucket'] == bucket).toList();
+
+  void _toast(String message, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: error ? Colors.red.shade700 : Colors.green.shade700,
+        duration: Duration(seconds: error ? 5 : 3),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Build
+  // ---------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -114,28 +134,60 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
         children: [
           Container(
             color: FuturisticTheme.bgSecondary,
+            padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+            child: Row(
+              children: [
+                const Icon(Icons.filter_alt_outlined, color: Colors.white54, size: 18),
+                const SizedBox(width: 8),
+                DropdownButtonHideUnderline(
+                  child: DropdownButton<int>(
+                    value: _regionId,
+                    dropdownColor: FuturisticTheme.bgSecondary,
+                    style: const TextStyle(color: Colors.white),
+                    items: [
+                      const DropdownMenuItem(value: 0, child: Text('Tüm bölgeler')),
+                      ..._locationMapper.getAllBolgeIds().map(
+                            (id) => DropdownMenuItem(value: id, child: Text(_locationMapper.getBolgeAdi(id))),
+                          ),
+                    ],
+                    onChanged: (value) {
+                      setState(() => _regionId = value ?? 0);
+                      _load();
+                    },
+                  ),
+                ),
+                const Spacer(),
+                if (_lastUpdated != null)
+                  Text(
+                    'Güncellendi ${DateFormat('HH:mm:ss').format(_lastUpdated!)}',
+                    style: const TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+                IconButton(
+                  tooltip: 'Yenile',
+                  icon: const Icon(Icons.refresh, color: FuturisticTheme.neon),
+                  onPressed: _load,
+                ),
+              ],
+            ),
+          ),
+          Container(
+            color: FuturisticTheme.bgSecondary,
             child: TabBar(
               controller: _tabController,
+              isScrollable: true,
               labelColor: FuturisticTheme.neon,
               unselectedLabelColor: Colors.white.withValues(alpha: 0.54),
               indicatorColor: FuturisticTheme.neon,
-              tabs: const [
-                Tab(text: 'Atama Bekleyen'),
-                Tab(text: 'İşlemdeki'),
-                Tab(text: 'Onay Bekleyen'),
-                Tab(text: 'Tamamlanan'),
-              ],
+              tabs: List.generate(_buckets.length, (i) {
+                final count = _counts[_buckets[i]] ?? _itemsFor(_buckets[i]).length;
+                return Tab(text: '${_bucketTitles[i]} ($count)');
+              }),
             ),
           ),
           Expanded(
             child: TabBarView(
               controller: _tabController,
-              children: [
-                _buildListTab(_atamaBekleyenRaporlar, _buildAtamaBekleyenItem, 'Atama bekleyen rapor bulunamadı'),
-                _buildListTab(_islemdekiRaporlar, _buildIslemdekiItem, 'İşlemdeki rapor bulunamadı'),
-                _buildListTab(_onayBekleyenRaporlar, _buildOnayBekleyenItem, 'Onay bekleyen rapor bulunamadı'),
-                _buildListTab(_tamamlananRaporlar, _buildTamamlananItem, 'Tamamlanan rapor bulunamadı'),
-              ],
+              children: List.generate(_buckets.length, (i) => _buildListTab(_buckets[i], _emptyMessages[i])),
             ),
           ),
         ],
@@ -143,67 +195,30 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
     );
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 4, vsync: this);
-    
-    _tabController.addListener(() {
-      if (_tabController.indexIsChanging) {
-        _simulateDataFetch();
-      }
-    });
-
-    _simulateDataFetch();
-  }
-
-  Future<void> _simulateDataFetch() async {
-    if (!mounted) return;
-    
-    setState(() {
-      _isLoading = true;
-      _hasError = false;
-    });
-
-    await Future.delayed(const Duration(milliseconds: 1500));
-
-    if (!mounted) return;
-    
-    setState(() {
-      _isLoading = false;
-      _hasError = false;
-    });
-  }
-  
-  void _retryLoading() {
-     if (!mounted) return;
-     _simulateDataFetch();
-  }
-
-  Widget _buildListTab(List<Map<String, dynamic>> items, Widget Function(Map<String, dynamic>) itemBuilder, String emptyMessage) {
-    if (_hasError) {
-      return CyberErrorWidget(onRetry: _retryLoading);
+  Widget _buildListTab(String bucket, String emptyMessage) {
+    if (_error != null && _requests.isEmpty) {
+      return CyberErrorWidget(message: _error, onRetry: _load);
     }
-
-    if (_isLoading) {
+    if (_isLoading && _requests.isEmpty) {
       return ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: 5,
+        itemCount: 4,
         itemBuilder: (context, index) => const Padding(
           padding: EdgeInsets.only(bottom: 12),
-          child: CyberShimmerLoading(height: 100),
+          child: CyberShimmerLoading(height: 110),
         ),
       );
     }
-
-    if (items.isEmpty) {
-      return _buildEmptyState(emptyMessage);
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: items.length,
-      itemBuilder: (context, index) => itemBuilder(items[index]),
+    final items = _itemsFor(bucket);
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: items.isEmpty
+          ? ListView(children: [SizedBox(height: 420, child: _buildEmptyState(emptyMessage))])
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: items.length,
+              itemBuilder: (context, index) => _buildRequestCard(items[index]),
+            ),
     );
   }
 
@@ -220,20 +235,8 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
               color: Colors.white.withValues(alpha: 0.9),
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              letterSpacing: 1.5,
-              shadows: [
-                Shadow(color: FuturisticTheme.neon.withValues(alpha: 0.8), blurRadius: 15),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            "HENÜZ KAYIT BULUNAMADI",
-            style: TextStyle(
-              color: FuturisticTheme.neon.withValues(alpha: 0.7),
-              fontSize: 12,
-              letterSpacing: 3.0,
-              fontWeight: FontWeight.w600
+              letterSpacing: 1.2,
+              shadows: [Shadow(color: FuturisticTheme.neon.withValues(alpha: 0.8), blurRadius: 15)],
             ),
           ),
         ],
@@ -241,82 +244,98 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
     );
   }
 
-  Widget _buildAtamaBekleyenItem(Map<String, dynamic> rapor) {
-    return _buildCyberCard(
-      rapor: rapor,
-      leadingIcon: Icons.directions_car,
-      statusColor: _getDurumColor(rapor['durum'] ?? 'Beklemede'),
-      trailing: IconButton(
-        icon: const Icon(Icons.person_add, color: FuturisticTheme.neon),
-        onPressed: () => _personelAtamaDialog(rapor),
-        tooltip: 'Personel Ata',
-      ),
-    );
+  // ---------------------------------------------------------------------------
+  // Kart
+  // ---------------------------------------------------------------------------
+
+  Map<String, dynamic> _map(dynamic value) => value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};
+
+  String _formatDate(dynamic value) {
+    final date = DateTime.tryParse(value?.toString() ?? '');
+    if (date == null) return '-';
+    return DateFormat('dd.MM.yyyy HH:mm').format(date.toLocal());
   }
 
-  Widget _buildIslemdekiItem(Map<String, dynamic> rapor) {
-    return _buildCyberCard(
-      rapor: rapor,
-      leadingIcon: Icons.settings_suggest,
-      statusColor: _getDurumColor(rapor['durum'] ?? 'İncelemede'),
-      trailing: IconButton(
-        icon: const Icon(Icons.visibility, color: FuturisticTheme.neon),
-        onPressed: () {
-          if (!mounted) return;
-        },
-        tooltip: 'Detay',
-      ),
-    );
+  ({String label, Color color}) _statusOf(Map<String, dynamic> request) {
+    final assignment = _map(request['assignment']);
+    final status = request['status']?.toString();
+    switch (request['bucket']) {
+      case 'waiting_assignment':
+        return (label: 'Atama bekliyor', color: Colors.orange);
+      case 'pending_approval':
+        return status == 'pending_ai'
+            ? (label: 'AI analizi bekliyor', color: Colors.lightBlueAccent)
+            : (label: 'Admin onayı bekliyor', color: Colors.greenAccent);
+      case 'completed':
+        return (label: 'Yayınlandı', color: Colors.green);
+      case 'cancelled':
+        final refunded = (_map(request['cancellation'])['refunded_tl'] as num?) ?? 0;
+        return (label: refunded > 0 ? 'İptal + iade edildi' : 'İptal edildi', color: Colors.grey);
+    }
+    if (request['needs_revision'] == true) return (label: 'Düzeltme bekliyor', color: Colors.redAccent);
+    switch (assignment['status']) {
+      case 'accepted':
+        return (label: 'Personel kabul etti', color: Colors.tealAccent);
+      case 'on_the_way':
+        return (label: 'Harekete geçti', color: Colors.amberAccent);
+      case 'at_vehicle':
+        return (label: 'Araç başında', color: Colors.lightGreenAccent);
+      case 'at_corporate':
+        return (label: 'Kurumsal ekspertizde', color: Colors.cyanAccent);
+      case 'in_progress':
+        return (label: 'Rapor hazırlanıyor', color: Colors.blueAccent);
+      default:
+        return (label: 'Personele atandı', color: Colors.purpleAccent);
+    }
   }
 
-  Widget _buildOnayBekleyenItem(Map<String, dynamic> rapor) {
-    return _buildCyberCard(
-      rapor: rapor,
-      leadingIcon: Icons.verified_user,
-      statusColor: Colors.greenAccent,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.check_circle, color: Colors.greenAccent),
-            onPressed: () {
-              if (!mounted) return;
-            },
-            tooltip: 'Onayla',
-          ),
-          IconButton(
-            icon: const Icon(Icons.cancel, color: Colors.redAccent),
-            onPressed: () {
-              if (!mounted) return;
-            },
-            tooltip: 'Reddet',
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildRequestCard(Map<String, dynamic> request) {
+    final vehicle = _map(request['vehicle']);
+    final customer = _map(request['customer']);
+    final assignment = _map(request['assignment']);
+    final status = _statusOf(request);
+    final bucket = request['bucket'];
+    final district = request['district']?.toString() ?? '';
+    final city = [request['city']?.toString() ?? '', district].where((e) => e.isNotEmpty).join(' / ');
+    final region = request['region']?.toString() ?? '';
+    final assignedName = assignment['personnel_name']?.toString() ?? '';
 
-  Widget _buildTamamlananItem(Map<String, dynamic> rapor) {
-    return _buildCyberCard(
-      rapor: rapor,
-      leadingIcon: Icons.task_alt,
-      statusColor: _getDurumColor(rapor['durum'] ?? 'Tamamlandı'),
-      trailing: IconButton(
-        icon: const Icon(Icons.visibility, color: FuturisticTheme.neon),
-        onPressed: () {
-          if (!mounted) return;
-        },
-        tooltip: 'Detay',
-      ),
-    );
-  }
+    final actions = <Widget>[];
+    if (bucket == 'waiting_assignment') {
+      actions.add(FilledButton.icon(
+        onPressed: () => _openAssignDialog(request),
+        icon: const Icon(Icons.person_add, size: 18),
+        label: const Text('Personel Ata'),
+      ));
+    } else if (bucket == 'pending_approval') {
+      actions.add(const Text(
+        'Personel raporu gönderdi • İncelemek ve yayınlamak için "Raporlar" sekmesini açın',
+        style: TextStyle(color: Colors.white54, fontSize: 12),
+      ));
+    }
+    if (bucket == 'in_progress') {
+      actions.addAll([
+        OutlinedButton.icon(
+          onPressed: () => _openAssignDialog(request),
+          icon: const Icon(Icons.swap_horiz, size: 18),
+          label: const Text('Yeniden Ata'),
+        ),
+        TextButton.icon(
+          onPressed: () => _confirmUnassign(request),
+          icon: const Icon(Icons.person_off_outlined, size: 18, color: Colors.redAccent),
+          label: const Text('Atamayı Kaldır', style: TextStyle(color: Colors.redAccent)),
+        ),
+      ]);
+    }
+    if (bucket != 'completed' && bucket != 'cancelled') {
+      actions.add(TextButton.icon(
+        key: Key('cancel-${request['id']}'),
+        onPressed: () => _confirmCancel(request),
+        icon: const Icon(Icons.money_off, size: 18, color: Colors.orangeAccent),
+        label: const Text('İptal / İade', style: TextStyle(color: Colors.orangeAccent)),
+      ));
+    }
 
-  Widget _buildCyberCard({
-    required Map<String, dynamic> rapor,
-    required IconData leadingIcon,
-    required Color statusColor,
-    required Widget trailing,
-  }) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 4,
@@ -324,298 +343,569 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
       color: FuturisticTheme.bgSecondary,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+        side: BorderSide(color: status.color.withValues(alpha: 0.35)),
       ),
-      child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: statusColor.withValues(alpha: 0.2),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(leadingIcon, color: statusColor),
-        ),
-        title: Text(
-          rapor['baslik']?.toString() ?? '---',
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 8.0),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _showDetail(request),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildInfoRow(Icons.pin, 'Plaka: ${rapor['aracPlaka']?.toString() ?? '---'}'),
-              _buildInfoRow(Icons.person, 'Müşteri: ${rapor['musteriAdi']?.toString() ?? '---'}'),
-              if (rapor.containsKey('personelAdi') && rapor['personelAdi'] != null)
-                 _buildInfoRow(Icons.badge, 'Personel: ${rapor['personelAdi']?.toString() ?? '---'}'),
-              _buildInfoRow(Icons.info_outline, 'Durum: ${rapor['durum']?.toString() ?? '---'}', color: statusColor),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: status.color.withValues(alpha: 0.2), shape: BoxShape.circle),
+                    child: Icon(Icons.directions_car, color: status.color),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      vehicle['title']?.toString() ?? 'Araç',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  _chip(status.label, status.color),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 18,
+                runSpacing: 4,
+                children: [
+                  _info(Icons.pin, 'Plaka: ${_orDash(vehicle['plate'])}'),
+                  _info(Icons.person, 'Müşteri: ${_orDash(customer['name'])}'),
+                  _info(Icons.phone, _orDash(customer['phone'])),
+                  _info(Icons.location_on, region.isEmpty ? _orDash(city) : '$city • $region'),
+                  _info(Icons.inventory_2_outlined, '${_orDash(request['firm_name'])} – ${_orDash(request['package_name'])}'),
+                  _info(Icons.schedule, _formatDate(request['created_at'])),
+                  if (assignedName.isNotEmpty) _info(Icons.badge, 'Personel: $assignedName', color: Colors.purpleAccent),
+                ],
+              ),
+              if (bucket == 'cancelled' && _map(request['cancellation']).isNotEmpty) ...[
+                const SizedBox(height: 6),
+                _info(Icons.cancel_outlined, 'İptal nedeni: ${_orDash(_map(request['cancellation'])['reason'])}', color: Colors.white54),
+              ],
+              if (request['needs_revision'] == true && (request['rejection_reason'] ?? '').toString().isNotEmpty) ...[
+                const SizedBox(height: 6),
+                _info(Icons.report_gmailerrorred, 'Red nedeni: ${request['rejection_reason']}', color: Colors.redAccent),
+              ],
+              if (actions.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.end, children: actions),
+              ],
             ],
           ),
         ),
-        trailing: trailing,
-        contentPadding: const EdgeInsets.all(12),
       ),
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String text, {Color color = Colors.white70}) {
+  String _orDash(dynamic value) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? '-' : text;
+  }
+
+  Widget _chip(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color),
+      ),
+      child: Text(text, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Widget _info(IconData icon, String text, {Color color = Colors.white70}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: Colors.white38),
+        const SizedBox(width: 4),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 320),
+          child: Text(text, style: TextStyle(fontSize: 12, color: color), overflow: TextOverflow.ellipsis),
+        ),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Detay
+  // ---------------------------------------------------------------------------
+
+  void _showDetail(Map<String, dynamic> request) {
+    final vehicle = _map(request['vehicle']);
+    final customer = _map(request['customer']);
+    final assignment = _map(request['assignment']);
+    final history = (assignment['history'] as List? ?? const []).whereType<Map>().toList();
+    const actionLabels = {
+      'assigned': 'Atandı',
+      'reassigned': 'Yeniden atandı',
+      'unassigned': 'Atama kaldırıldı',
+      'released': 'Kuyruğa döndü',
+      'accept': 'Personel kabul etti',
+      'start': 'İnceleme başladı',
+    };
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: FuturisticTheme.bgSecondary,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        maxChildSize: 0.95,
+        builder: (context, controller) => ListView(
+          controller: controller,
+          padding: const EdgeInsets.all(20),
+          children: [
+            Text(vehicle['title']?.toString() ?? 'Talep',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+            const SizedBox(height: 4),
+            Text('Talep No: ${request['request_id'] ?? request['id']}', style: const TextStyle(color: Colors.white38, fontSize: 12)),
+            const SizedBox(height: 16),
+            _detailRow('Durum', _statusOf(request).label),
+            _detailRow('Plaka', _orDash(vehicle['plate'])),
+            _detailRow('İlan', _orDash(vehicle['listing_url'])),
+            _detailRow('Müşteri', _orDash(customer['name'])),
+            _detailRow('Telefon', _orDash(customer['phone'])),
+            _detailRow('E-posta', _orDash(customer['email'])),
+            _detailRow('İl / İlçe / Bölge',
+                '${_orDash(request['city'])} / ${_orDash(request['district'])} / ${_orDash(request['region'])}'),
+            _detailRow('Firma / Paket', '${_orDash(request['firm_name'])} / ${_orDash(request['package_name'])}'),
+            _detailRow('Tutar', '${NumberFormat.decimalPattern('tr').format(request['total_tl'] ?? 0)} TL'),
+            _detailRow('Müşteri notu', _orDash(request['note'])),
+            _detailRow('Oluşturma', _formatDate(request['created_at'])),
+            if ((assignment['personnel_name'] ?? '').toString().isNotEmpty) ...[
+              const Divider(color: Colors.white12, height: 28),
+              _detailRow('Atanan personel', _orDash(assignment['personnel_name'])),
+              _detailRow('Personel tel.', _orDash(assignment['personnel_phone'])),
+              _detailRow('Atama zamanı', _formatDate(assignment['assigned_at'])),
+              _detailRow('Atayan', _orDash(assignment['assigned_by'])),
+              _detailRow('Admin notu', _orDash(assignment['note'])),
+              const Divider(color: Colors.white12, height: 28),
+              const Text('Saha durumu', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              _detailRow('Kabul', _formatDate(assignment['accepted_at'])),
+              _detailRow('Harekete geçti', _formatDate(assignment['departed_at'])),
+              _detailRow('Araç başında', _formatDate(assignment['arrived_at'])),
+              if (request['corporate_required'] == true)
+                _detailRow('Kurumsal ekspertizde', _formatDate(assignment['corporate_at'])),
+              _detailRow('Rapora başladı', _formatDate(assignment['started_at'])),
+              _detailRow('Rapor gönderildi', _formatDate(assignment['submitted_at'])),
+            ],
+            if (history.isNotEmpty) ...[
+              const Divider(color: Colors.white12, height: 28),
+              const Text('Atama geçmişi', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              ...history.reversed.map((h) => ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.history, color: Colors.white38, size: 18),
+                    title: Text(
+                      '${actionLabels[h['action']] ?? h['action']}'
+                      '${(h['personnel_name'] ?? '').toString().isNotEmpty ? ' – ${h['personnel_name']}' : ''}',
+                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                    subtitle: Text(
+                      '${_formatDate(h['at'])} • ${_orDash(h['by'])}'
+                      '${(h['note'] ?? '').toString().isNotEmpty ? ' • ${h['note']}' : ''}',
+                      style: const TextStyle(color: Colors.white38, fontSize: 11),
+                    ),
+                  )),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 12, color: Colors.white38),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(fontSize: 12, color: color),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
+          SizedBox(width: 130, child: Text(label, style: const TextStyle(color: Colors.white54, fontSize: 13))),
+          Expanded(child: SelectableText(value, style: const TextStyle(color: Colors.white, fontSize: 13))),
         ],
       ),
     );
   }
 
-  Color _getDurumColor(String durum) {
-    switch (durum) {
-      case 'Beklemede':
-      case 'İnceleme Bekliyor':
-      case 'Onay Bekliyor': return Colors.orange;
-      case 'İncelemede':
-      case 'Düzeltme Gerekli': return Colors.blue;
-      case 'Personele Atandı': return Colors.purple;
-      case 'Hazır':
-      case 'Gönderim Bekliyor': return Colors.green;
-      case 'Gönderildi': return Colors.teal;
-      case 'Tamamlandı':
-      case 'Onaylandı':
-      case 'Arşivlendi': return Colors.green;
-      case 'Reddedildi': return Colors.red;
-      default: return Colors.grey;
+  // ---------------------------------------------------------------------------
+  // Atama
+  // ---------------------------------------------------------------------------
+
+  Future<void> _openAssignDialog(Map<String, dynamic> request) async {
+    final assigned = await showDialog<bool>(
+      context: context,
+      builder: (_) => _PersonelAtamaDialog(api: _api, request: request),
+    );
+    if (assigned == true) {
+      _toast('Talep personele gönderildi. Personel panelinde görünür.');
+      await _load(silent: true);
     }
   }
 
-  void _personelAtamaDialog(Map<String, dynamic> rapor) {
-    showDialog(
+  Future<void> _confirmCancel(Map<String, dynamic> request) async {
+    final result = await showDialog<({String reason, bool refund})>(
       context: context,
-      builder: (context) => _PersonelAtamaDialog(
-        rapor: rapor,
-        onPersonelAta: (personelId) {
-          _personelAta(rapor, personelId);
-        },
-      ),
+      builder: (_) => _IptalDialog(request: request),
     );
+    if (result == null) return;
+    try {
+      final response = await _api.cancelRequest(request['id'].toString(), reason: result.reason, refund: result.refund);
+      final refunded = (response['refunded_tl'] as num?)?.toDouble() ?? 0;
+      _toast(refunded > 0
+          ? 'Talep iptal edildi, ${NumberFormat.decimalPattern('tr').format(refunded)} TL müşteriye iade edildi'
+          : 'Talep iptal edildi');
+      await _load(silent: true);
+    } catch (e) {
+      _toast('İptal edilemedi: ${e is ApiException ? e.message : e}', error: true);
+    }
   }
 
-  Future<void> _personelAta(Map<String, dynamic> rapor, String personelId) async {
-    if (!mounted) return;
-    
+  Future<void> _confirmUnassign(Map<String, dynamic> request) async {
+    final reasonController = TextEditingController();
+    final assignment = _map(request['assignment']);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Atamayı kaldır'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('${_orDash(assignment['personnel_name'])} bu talepten alınacak ve talep "Atama Bekleyen" listesine dönecek.'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(labelText: 'Neden (isteğe bağlı)', border: OutlineInputBorder()),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Vazgeç')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Atamayı Kaldır')),
+        ],
+      ),
+    );
+    final reason = reasonController.text.trim();
+    reasonController.dispose();
+    if (confirmed != true) return;
     try {
-      final updatedRapor = Map<String, dynamic>.from(rapor);
-      updatedRapor['personelId'] = personelId;
-      updatedRapor['durum'] = 'Personele Atandı';
-      updatedRapor['personelAdi'] = personelId;
-
-      if (!mounted) return;
-
-      setState(() {
-        _atamaBekleyenRaporlar.removeWhere((r) => r['id'] == rapor['id']);
-        updatedRapor['durum'] = 'İncelemede';
-        _islemdekiRaporlar.add(updatedRapor);
-      });
-
-      if (!mounted) return;
-
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${rapor['aracPlaka']} için personel atandı'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
+      await _api.unassignRequest(request['id'].toString(), reason: reason.isEmpty ? null : reason);
+      _toast('Atama kaldırıldı');
+      await _load(silent: true);
     } catch (e) {
-      debugPrint('Personel atama hatası: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Personel atama hatası: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
+      _toast('Atama kaldırılamadı: $e', error: true);
     }
   }
 }
 
+/// Bölge sistemine göre personel önerisi ve atama dialogu.
 class _PersonelAtamaDialog extends StatefulWidget {
-  final Map<String, dynamic> rapor;
-  final Function(String) onPersonelAta;
+  const _PersonelAtamaDialog({required this.api, required this.request});
 
-  const _PersonelAtamaDialog({
-    required this.rapor,
-    required this.onPersonelAta,
-  });
+  final YerimebakExpertizApiService api;
+  final Map<String, dynamic> request;
 
   @override
   State<_PersonelAtamaDialog> createState() => _PersonelAtamaDialogState();
 }
 
 class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
-  String? _secilenPersonelId;
-  List<PersonelModel> _personeller = [];
+  static const _matchLabels = {
+    'same_district': 'Aynı ilçe',
+    'same_city': 'Aynı il',
+    'same_region': 'Aynı bölge',
+    'other_region': 'Bölge dışı',
+  };
+  static const _matchColors = {
+    'same_district': Colors.greenAccent,
+    'same_city': Colors.green,
+    'same_region': Colors.orange,
+    'other_region': Colors.grey,
+  };
+
+  final TextEditingController _noteController = TextEditingController();
+  List<Map<String, dynamic>> _candidates = [];
+  String? _selectedId;
   bool _loading = true;
+  bool _saving = false;
+  bool _showOtherRegions = false;
+  String? _error;
+
+  String get _requestId => widget.request['id'].toString();
 
   @override
   void initState() {
     super.initState();
-    _personelleriYukle();
+    _loadCandidates();
   }
 
-  Future<void> _personelleriYukle() async {
-    if (!mounted) return;
-    
-    try {
-      final personelService = PersonelService();
-      await personelService.loadPersoneller();
-      
-      if (!mounted) return;
-      
-      final filteredPersoneller = await personelService.getFilteredPersoneller();
-      
-      if (!mounted) return;
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
 
+  Future<void> _loadCandidates() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final response = await widget.api.getRequestCandidates(_requestId);
+      final rows = (response['candidates'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      if (!mounted) return;
+      final recommended = response['recommended_id']?.toString();
+      final current = rows.where((c) => c['is_current'] == true).map((c) => c['id'].toString()).firstOrNull;
       setState(() {
-        _personeller = filteredPersoneller.isNotEmpty
-            ? filteredPersoneller
-            : [
-                PersonelModel(
-                  id: 'P001',
-                  ad: 'Ahmet',
-                  soyad: 'Yılmaz',
-                  unvan: 'Saha Personeli',
-                  ilId: 34,
-                  bolgeId: 1,
-                  rol: UserRole.fieldStaff,
-                  il: 'İstanbul',
-                  bolge: 'Marmara',
-                  aktif: true,
-                ),
-                PersonelModel(
-                  id: 'P002',
-                  ad: 'Mehmet',
-                  soyad: 'Kaya',
-                  unvan: 'Saha Personeli',
-                  ilId: 6,
-                  bolgeId: 2,
-                  rol: UserRole.fieldStaff,
-                  il: 'Ankara',
-                  bolge: 'İç Anadolu',
-                  aktif: true,
-                ),
-                PersonelModel(
-                  id: 'P003',
-                  ad: 'Ayşe',
-                  soyad: 'Demir',
-                  unvan: 'Uzman Personel',
-                  ilId: 34,
-                  bolgeId: 1,
-                  rol: UserRole.fieldStaff,
-                  il: 'İstanbul',
-                  bolge: 'Marmara',
-                  aktif: true,
-                ),
-              ];
+        _candidates = rows;
+        // Mevcut atama varsa (yeniden atama) öneriyi farklı bir personelden seç
+        _selectedId = rows
+            .where((c) => c['id'].toString() != current && c['assignable'] != false)
+            .map((c) => c['id'].toString())
+            .firstOrNull;
+        if (_selectedId == null && recommended != null && recommended != current) _selectedId = recommended;
+        _showOtherRegions = !rows.any((c) => c['match'] != 'other_region');
         _loading = false;
       });
     } catch (e) {
-      debugPrint('Personel yükleme hatası: $e');
-      if (mounted) {
-        setState(() {
-          _loading = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
     }
   }
 
-  void _personelAta() {
-    if (!mounted) return;
-    
-    if (_secilenPersonelId == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Lütfen listeden bir personel seçin'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-      return;
+  Future<void> _assign() async {
+    final selected = _selectedId;
+    if (selected == null) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.api.assignRequest(_requestId, selected, note: _noteController.text.trim());
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = e.toString();
+      });
     }
-
-    if (!mounted) return;
-    widget.onPersonelAta(_secilenPersonelId!);
   }
 
   @override
   Widget build(BuildContext context) {
+    final vehicle = widget.request['vehicle'] is Map ? Map<String, dynamic>.from(widget.request['vehicle'] as Map) : {};
+    final district = widget.request['district']?.toString() ?? '';
+    final city = [widget.request['city']?.toString() ?? '', district].where((e) => e.isNotEmpty).join(' / ');
+    final region = widget.request['region']?.toString() ?? '';
+    final onDutyCount = _candidates.where((c) => c['assignable'] != false && c['is_current'] != true).length;
+    final current = _candidates.where((c) => c['is_current'] == true).firstOrNull;
+    final selectable = _candidates.where((c) => c['is_current'] != true).toList();
+    final visible = _showOtherRegions ? selectable : selectable.where((c) => c['match'] != 'other_region').toList();
+    final hiddenCount = selectable.length - visible.length;
+
     return AlertDialog(
-      title: Text('Personel Ata: ${widget.rapor['aracPlaka']}'),
+      title: Text('Personel Ata – ${vehicle['plate'] ?? vehicle['title'] ?? ''}'),
       content: SizedBox(
-        width: double.maxFinite,
+        width: 560,
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const SizedBox(height: 160, child: Center(child: CircularProgressIndicator()))
             : Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Atanacak personeli seçin:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  Text(
+                    city.isEmpty ? 'Talebin ili belirtilmemiş' : 'Talep konumu: $city${region.isEmpty ? '' : ' ($region)'}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Öneri sırası: aynı ilçe → aynı il → aynı bölge → en az açık görev. '
+                    'Görev için pasif personel seçilemez.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  if (current != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Şu an atanmış: ${current['full_name']} (${current['city'] ?? '-'})',
+                      style: const TextStyle(fontSize: 12, color: Colors.purpleAccent),
+                    ),
+                  ],
                   const SizedBox(height: 12),
-                  RadioGroup<String>(
-                    groupValue: _secilenPersonelId,
-                    onChanged: (value) {
-                      setState(() {
-                        _secilenPersonelId = value;
-                      });
-                    },
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: _personeller.map((personel) => RadioListTile<String>(
-                        title: Text('${personel.ad} ${personel.soyad}'),
-                        subtitle: Text('${personel.unvan} - ${personel.il}'),
-                        value: personel.id,
-                        secondary: personel.aktif
-                            ? const Icon(Icons.check_circle, color: Colors.green)
-                            : const Icon(Icons.block, color: Colors.grey),
-                      )).toList(),
+                  if (selectable.isEmpty || onDutyCount == 0)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        selectable.isEmpty
+                            ? 'Atanabilecek personel yok. Önce Personel sekmesinden personel ekleyin.'
+                            : 'Şu an görev için aktif personel yok; personel kendini aktif yaptığında atanabilir.',
+                        style: const TextStyle(color: Colors.orange),
+                      ),
+                    ),
+                  if (selectable.isNotEmpty)
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 340),
+                      child: SingleChildScrollView(
+                        child: RadioGroup<String>(
+                          groupValue: _selectedId,
+                          onChanged: (value) => setState(() => _selectedId = value),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: visible.map((c) {
+                              final match = c['match']?.toString() ?? 'other_region';
+                              final openTasks = (c['open_task_count'] as num?)?.toInt() ?? 0;
+                              final assignable = c['assignable'] != false;
+                              return RadioListTile<String>(
+                                value: c['id'].toString(),
+                                enabled: assignable,
+                                title: Text(
+                                  '${c['full_name']}',
+                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                subtitle: Text(
+                                  '${c['city'] ?? '-'} / ${c['district'] ?? '-'} • ${c['region'] ?? '-'}\n'
+                                  '${assignable ? '' : 'GÖREV İÇİN PASİF • '}$openTasks açık görev'
+                                  '${(c['expertise'] ?? '').toString().isNotEmpty ? ' • ${c['expertise']}' : ''}',
+                                ),
+                                isThreeLine: true,
+                                secondary: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: (_matchColors[match] ?? Colors.grey).withValues(alpha: .18),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    _matchLabels[match] ?? match,
+                                    style: TextStyle(fontSize: 11, color: _matchColors[match], fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (hiddenCount > 0)
+                    TextButton(
+                      onPressed: () => setState(() => _showOtherRegions = true),
+                      child: Text('Bölge dışındaki $hiddenCount personeli de göster'),
+                    ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _noteController,
+                    decoration: const InputDecoration(
+                      labelText: 'Personele not (isteğe bağlı)',
+                      border: OutlineInputBorder(),
                     ),
                   ),
-                  if (_personeller.isEmpty)
-                    const Text('Personel bulunamadı', style: TextStyle(color: Colors.grey)),
+                  if (_error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+                  ],
                 ],
               ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('İptal'),
+        TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('İptal')),
+        FilledButton.icon(
+          onPressed: (_saving || _selectedId == null) ? null : _assign,
+          icon: _saving
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.send),
+          label: const Text('Personele Gönder'),
         ),
-        ElevatedButton(
-          onPressed: _personelAta,
-          child: const Text('Ata'),
+      ],
+    );
+  }
+}
+
+
+/// İptal nedeni + iade seçimi. Ödeme iadesi PayTR üzerinden yapılır.
+class _IptalDialog extends StatefulWidget {
+  const _IptalDialog({required this.request});
+
+  final Map<String, dynamic> request;
+
+  @override
+  State<_IptalDialog> createState() => _IptalDialogState();
+}
+
+class _IptalDialogState extends State<_IptalDialog> {
+  final TextEditingController _reason = TextEditingController();
+  bool _refund = true;
+  String? _error;
+
+  @override
+  void dispose() {
+    _reason.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final total = (widget.request['total_tl'] as num?)?.toDouble() ?? 0;
+    final paid = widget.request['is_paid'] == true ||
+        ['paid', 'paid_simulation'].contains(widget.request['payment_status']);
+    return AlertDialog(
+      title: const Text('Talebi iptal et'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Talep iptal edilir, personel ataması kaldırılır; müşteriye ve personele bildirim gider.'),
+            const SizedBox(height: 12),
+            TextField(
+              key: const Key('cancelReasonField'),
+              controller: _reason,
+              maxLines: 2,
+              decoration: const InputDecoration(labelText: 'İptal nedeni *', border: OutlineInputBorder()),
+            ),
+            if (paid)
+              CheckboxListTile(
+                key: const Key('refundCheckbox'),
+                contentPadding: EdgeInsets.zero,
+                value: _refund,
+                onChanged: (v) => setState(() => _refund = v ?? true),
+                title: Text('${NumberFormat.decimalPattern('tr').format(total)} TL ödemeyi karta iade et (PayTR)'),
+              ),
+            if (_error != null) Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Vazgeç')),
+        FilledButton(
+          key: const Key('confirmCancelButton'),
+          style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade800),
+          onPressed: () {
+            final reason = _reason.text.trim();
+            if (reason.isEmpty) {
+              setState(() => _error = 'İptal nedeni zorunludur');
+              return;
+            }
+            Navigator.pop(context, (reason: reason, refund: paid && _refund));
+          },
+          child: const Text('İptal Et'),
         ),
       ],
     );

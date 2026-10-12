@@ -14,11 +14,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/yerimebak_expertiz_api_service.dart';
 import '../../../providers/user_provider.dart';
 import '../../../models/dashboard_stats.dart';
 import '../../../models/chart_data.dart';
 import '../../../services/dashboard_service.dart';
+import '../services/admin_preferences.dart';
 import '../widgets/admin_stats_card.dart';
 import '../widgets/status_distribution_card.dart';
 import '../widgets/charts/admin_line_chart.dart';
@@ -28,7 +29,10 @@ import 'package:intl/intl.dart';
 
 /// Dashboard Module - Real-time Command Center
 class DashboardModule extends StatefulWidget {
-  const DashboardModule({super.key});
+  const DashboardModule({super.key, this.apiService});
+
+  /// Testlerde sahte servis vermek için.
+  final YerimebakExpertizApiService? apiService;
 
   @override
   State<DashboardModule> createState() => _DashboardModuleState();
@@ -67,7 +71,7 @@ class _DashboardModuleState extends State<DashboardModule> {
   @override
   void initState() {
     super.initState();
-    _dashboardService = DashboardService(Supabase.instance.client);
+    _dashboardService = DashboardService(api: widget.apiService);
     _loadAllData();
     _subscribeToUpdates();
   }
@@ -198,14 +202,20 @@ class _DashboardModuleState extends State<DashboardModule> {
 
         // Haptic feedback for pending admin status
         if (event.newStatus == 'pending_admin') {
-          _triggerHapticFeedback();
-          _showPendingAdminNotification();
+          _alertPendingAdmin();
         }
       },
       onError: (error) {
         debugPrint('❌ Dashboard update error: $error');
       },
     );
+  }
+
+  /// Ayarlar'daki "Yeni rapor uyarıları" açıksa titreşim + bildirim gösterir.
+  Future<void> _alertPendingAdmin() async {
+    if (!await AdminPreferences.newReportAlertsEnabled()) return;
+    _triggerHapticFeedback();
+    _showPendingAdminNotification();
   }
 
   /// Trigger haptic feedback

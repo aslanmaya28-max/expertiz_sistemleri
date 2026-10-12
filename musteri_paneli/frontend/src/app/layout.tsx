@@ -11,24 +11,25 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.yerimebak.com.tr"),
   title: {
-    default: "yerimebak.ai — AI Destekli Araç Değerleme",
-    template: "%s | yerimebak.ai",
+    default: "YerimeBak — AI Destekli Araç Değerleme ve Ekspertiz",
+    template: "%s | YerimeBak",
   },
-  description: "20 yıllık galericilik tecrübesiyle, yapay zeka destekli araç değerleme, risk analizi ve piyasa karşılaştırması. Kayıt olana 3 ücretsiz analiz.",
+  description: "20 yıllık galericilik tecrübesiyle, yapay zeka destekli araç değerleme, risk analizi ve piyasa karşılaştırması. Üye olana 3 ücretsiz analiz.",
   keywords: ["araç değerleme", "otomobil analiz", "AI araç fiyat", "galerici araç değerleme", "2. el araç fiyat", "risk analizi"],
-  authors: [{ name: "yerimebak.ai" }],
+  authors: [{ name: "YerimeBak" }],
   manifest: "/manifest.json",
   openGraph: {
     type: "website",
     locale: "tr_TR",
-    siteName: "yerimebak.ai",
-    title: "yerimebak.ai — AI Destekli Araç Değerleme",
+    siteName: "YerimeBak",
+    title: "YerimeBak — AI Destekli Araç Değerleme ve Ekspertiz",
     description: "20 yıllık galericilik tecrübesiyle, yapay zeka destekli araç değerleme ve risk analizi.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "yerimebak.ai — AI Destekli Araç Değerleme",
+    title: "YerimeBak — AI Destekli Araç Değerleme ve Ekspertiz",
     description: "Yapay zeka ile araç değerleme, risk analizi ve piyasa karşılaştırması.",
   },
   robots: { index: true, follow: true },
@@ -38,7 +39,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="tr" className="h-full antialiased">
       <head>
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" href="/yerimebak-mark.svg" type="image/svg+xml" />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <script
           type="application/ld+json"
@@ -46,7 +48,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "WebApplication",
-              name: "yerimebak.ai",
+              name: "YerimeBak",
+              url: "https://www.yerimebak.com.tr",
               description: "AI destekli araç değerleme ve risk analizi platformu",
               applicationCategory: "BusinessApplication",
               operatingSystem: "Web",
@@ -54,7 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 "@type": "AggregateOffer",
                 priceCurrency: "TRY",
                 lowPrice: "100",
-                highPrice: "3000",
+                highPrice: "750",
               },
             }),
           }}
