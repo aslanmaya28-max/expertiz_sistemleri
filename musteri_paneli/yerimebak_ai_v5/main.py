@@ -88,6 +88,9 @@ async def lifespan(app: FastAPI):
         # E-posta dogrulama / sifre sifirlama
         from yerimebak_ai_v5.services import account_service
         account_service.ensure_schema()
+        # Ilk admin (.env: INITIAL_ADMIN_EMAIL / INITIAL_ADMIN_PASSWORD); varsa dokunulmaz
+        from yerimebak_ai_v5.services.auth_service import get_auth_service
+        get_auth_service().ensure_initial_admin()
         logger.info("[STARTUP] Database ready.")
     except Exception as e:
         logger.error(f"[STARTUP] Database init failed: {e}", exc_info=True)

@@ -796,3 +796,27 @@ def test_accounts_refunds_invoices_and_emails(client, admin_token):
         assert client.post("/api/v1/vitrin/admin/activate-hidden", headers=_auth(admin_token)).json()["success"] is True
     finally:
         email_service.stop_capture()
+
+
+def test_initial_admin_bootstrap_from_env(client, monkeypatch):
+    from yerimebak_ai_v5.services.auth_service import get_auth_service
+
+    email = f"ilk-admin-{uuid.uuid4().hex[:8]}@example.com"
+    monkeypatch.setenv("INITIAL_ADMIN_EMAIL", email)
+    monkeypatch.setenv("INITIAL_ADMIN_PASSWORD", "Baslangic123.")
+    auth = get_auth_service()
+    assert auth.ensure_initial_admin() == email
+    # Ikinci acilista dokunulmaz (sifre degismez, hata yok)
+    monkeypatch.setenv("INITIAL_ADMIN_PASSWORD", "BaskaSifre456")
+    assert auth.ensure_initial_admin() is None
+
+    login = client.post("/api/v1/auth/login", json={"email": email, "password": "Baslangic123."})
+    assert login.status_code == 200, login.text
+    body = login.json()
+    assert body["user"]["role"] == "admin"
+    assert client.post("/api/v1/auth/login", json={"email": email, "password": "BaskaSifre456"}).status_code != 200
+
+    # Zayif sifre ile olusturulmaz
+    monkeypatch.setenv("INITIAL_ADMIN_EMAIL", f"zayif-{uuid.uuid4().hex[:6]}@example.com")
+    monkeypatch.setenv("INITIAL_ADMIN_PASSWORD", "kisa")
+    assert auth.ensure_initial_admin() is None
