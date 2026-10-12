@@ -15,7 +15,9 @@ from yerimebak_ai_v5.services import (
     dispatch_service,
     finance_service,
     media_service,
+    notification_service,
     paytr_service,
+    personnel_service,
     pricing_service,
 )
 from yerimebak_ai_v5.services.expertiz_service import (
@@ -39,6 +41,7 @@ class CreateExpertizRequest(BaseModel):
     listing_url: Optional[str] = None
     plate: Optional[str] = None
     city: Optional[str] = None
+    district: Optional[str] = None
     note: Optional[str] = None
     # Linkle veya elle girilen arac: brand, model, year, km, price, fuel, transmission
     vehicle: Optional[Dict[str, Any]] = None
@@ -87,6 +90,15 @@ class UnassignRequest(BaseModel):
 class CustomerStatusRequest(BaseModel):
     active: bool
     reason: Optional[str] = None
+
+
+class DutyRequest(BaseModel):
+    on_duty: bool
+
+
+class NotificationReadRequest(BaseModel):
+    # Bos/None: tum okunmamislar okundu yapilir
+    ids: Optional[list] = None
 
 
 class TaskReportPayload(BaseModel):
@@ -359,6 +371,82 @@ async def personnel_accept_task(report_id: str, user: Dict[str, Any] = Depends(g
 @router.post("/personnel/tasks/{report_id}/start")
 async def personnel_start_task(report_id: str, user: Dict[str, Any] = Depends(get_personnel_user)) -> Dict[str, Any]:
     return _raise_if_error(dispatch_service.update_task_progress(report_id, user, "start"))
+
+
+@router.post("/personnel/tasks/{report_id}/depart")
+async def personnel_depart_task(report_id: str, user: Dict[str, Any] = Depends(get_personnel_user)) -> Dict[str, Any]:
+    """Harekete gecti: musteri ve admine anlik bildirim."""
+    return _raise_if_error(dispatch_service.update_task_progress(report_id, user, "depart"))
+
+
+@router.post("/personnel/tasks/{report_id}/arrive")
+async def personnel_arrive_task(report_id: str, user: Dict[str, Any] = Depends(get_personnel_user)) -> Dict[str, Any]:
+    """Arac basinda."""
+    return _raise_if_error(dispatch_service.update_task_progress(report_id, user, "arrive"))
+
+
+@router.post("/personnel/tasks/{report_id}/corporate")
+async def personnel_corporate_task(report_id: str, user: Dict[str, Any] = Depends(get_personnel_user)) -> Dict[str, Any]:
+    """Kurumsal ekspertiz noktasinda."""
+    return _raise_if_error(dispatch_service.update_task_progress(report_id, user, "corporate"))
+
+
+@router.get("/personnel/me")
+async def personnel_me(user: Dict[str, Any] = Depends(get_personnel_user)) -> Dict[str, Any]:
+    return _raise_if_error(personnel_service.get_me(user))
+
+
+@router.put("/personnel/me/duty")
+async def personnel_set_duty(request: DutyRequest, user: Dict[str, Any] = Depends(get_personnel_user)) -> Dict[str, Any]:
+    """Personel gorev icin aktif/pasif olur; pasif personele yeni gorev atanmaz."""
+    return _raise_if_error(personnel_service.set_duty(str(user.get("id")), request.on_duty, user))
+
+
+@router.put("/admin/personnel/{personnel_id}/duty")
+async def admin_set_personnel_duty(
+    personnel_id: str,
+    request: DutyRequest,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    return _raise_if_error(personnel_service.set_duty(personnel_id, request.on_duty, admin, by_admin=True))
+
+
+# ---------------------------------------------------------------------------
+# Bildirimler (musteri / personel / admin)
+# ---------------------------------------------------------------------------
+
+@router.get("/notifications")
+async def my_notifications(
+    limit: int = 30,
+    unread_only: bool = False,
+    user: Dict[str, Any] = Depends(get_authenticated_user),
+) -> Dict[str, Any]:
+    return notification_service.list_notifications(user, limit=limit, unread_only=unread_only)
+
+
+@router.post("/notifications/read")
+async def read_my_notifications(
+    request: Optional[NotificationReadRequest] = None,
+    user: Dict[str, Any] = Depends(get_authenticated_user),
+) -> Dict[str, Any]:
+    return notification_service.mark_read(user, request.ids if request else None)
+
+
+@router.get("/admin/notifications")
+async def admin_notifications(
+    limit: int = 30,
+    unread_only: bool = False,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    return notification_service.list_notifications(admin, limit=limit, unread_only=unread_only, admin=True)
+
+
+@router.post("/admin/notifications/read")
+async def admin_read_notifications(
+    request: Optional[NotificationReadRequest] = None,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    return notification_service.mark_read(admin, request.ids if request else None, admin=True)
 
 
 
