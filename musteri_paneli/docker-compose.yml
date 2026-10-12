@@ -1,6 +1,8 @@
 name: yerimebak_sistemleri
 
-# Canli kurulum (yerimebak.com.tr):
+# Canli kurulum (www.yerimebak.com.tr). Varsayilan: site + panel Vercel'de,
+# bu sunucuda API (api.yerimebak.com.tr) + veritabani + kazıyıcılar calisir.
+# Hepsi tek sunucuda: .env'de COMPOSE_PROFILES=tek-sunucu ve NGINX_CONF=nginx.conf
 #   1) .env.example -> .env kopyalayip doldurun (SECRET_KEY, sifreler, PayTR, SMTP...)
 #   2) docker compose up -d --build
 #   3) Ilk SSL sertifikasi: docs/CANLIYA_CIKIS.md
@@ -125,7 +127,9 @@ services:
       start_period: 20s
 
   # Musteri sitesi (Next.js)
+  # Musteri sitesi: Vercel kullaniliyorsa calismaz (yalnizca tek sunucu modu)
   frontend:
+    profiles: ["tek-sunucu"]
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -154,6 +158,7 @@ services:
 
   # Flutter admin + personel paneli (web) -> https://admin.yerimebak.com.tr
   admin:
+    profiles: ["tek-sunucu"]
     build:
       context: ../expertiz_paneli
       dockerfile: Dockerfile
@@ -260,11 +265,17 @@ services:
       - "80:80"
       - "443:443"
     depends_on:
-      - app
-      - frontend
-      - admin
+      app:
+        condition: service_started
+      frontend:
+        condition: service_started
+        required: false
+      admin:
+        condition: service_started
+        required: false
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      # Varsayilan: yalnizca API (site + panel Vercel'de). Tek sunucu: NGINX_CONF=nginx.conf
+      - ./${NGINX_CONF:-nginx-api.conf}:/etc/nginx/nginx.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - certbot_data:/var/www/certbot
     # Yenilenen sertifikalar icin 6 saatte bir yeniden yukle

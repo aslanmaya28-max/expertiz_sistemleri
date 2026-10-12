@@ -6,7 +6,7 @@ Ayarlar (.env):
   SMTP_HOST, SMTP_PORT (587), SMTP_USER, SMTP_PASSWORD,
   SMTP_SECURITY = starttls | ssl | none   (varsayilan starttls)
   SMTP_FROM = "YerimeBak <bildirim@yerimebak.com.tr>"
-  PUBLIC_SITE_URL = https://yerimebak.com.tr   (e-postadaki baglantilar)
+  PUBLIC_SITE_URL = https://www.yerimebak.com.tr   (e-postadaki baglantilar)
 
 Gonderim arka planda (thread) yapilir; istek yaniti beklemez. SMTP tanimli
 degilse e-posta gonderilmez, uyari loglanir (gelistirme ortami).
@@ -28,7 +28,7 @@ _test_outbox: Optional[List[EmailMessage]] = None
 
 
 def site_url(path: str = "") -> str:
-    base = os.getenv("PUBLIC_SITE_URL", "https://yerimebak.com.tr").rstrip("/")
+    base = os.getenv("PUBLIC_SITE_URL", "https://www.yerimebak.com.tr").rstrip("/")
     return f"{base}{path}"
 
 

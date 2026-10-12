@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { getToken, setToken, removeToken } from "@/lib/yetki";
+import { API_BASE } from "@/lib/api";
 
 interface User {
   id: number;
@@ -67,7 +68,7 @@ export function useAuth() {
   const user = useMemo(() => decodeUser(token), [token]);
 
   const login = async (email: string, password: string) => {
-    const res = await fetch("/api/v1/auth/login", {
+    const res = await fetch(`${API_BASE}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
@@ -80,7 +81,7 @@ export function useAuth() {
   };
 
   const register = async (email: string, password: string, full_name: string, phone: string | undefined, termsAccepted: boolean) => {
-    const res = await fetch("/api/v1/auth/register", {
+    const res = await fetch(`${API_BASE}/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password, full_name, phone, terms_accepted: termsAccepted }),
@@ -109,7 +110,7 @@ export function useCredits(): number | null {
     if (!user) return;
     let cancelled = false;
     const load = () => {
-      fetch("/api/v1/credits/balance", { headers: { Authorization: `Bearer ${getToken()}` } })
+      fetch(`${API_BASE}/credits/balance`, { headers: { Authorization: `Bearer ${getToken()}` } })
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
           if (!cancelled && d && typeof d.credits === "number") setCredits(d.credits);

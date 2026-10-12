@@ -93,7 +93,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 🔒 DÜZELTİLDİ (Bug #19): Production'da HTTPS kullan, development fallback
   DOM.apiUrl.value = state.apiUrl || (window.location.protocol === 'https:'
-    ? 'https://yerimebak.com.tr'
+    ? 'https://www.yerimebak.com.tr'
     : 'http://localhost:8000');
 
   if (state.apiKey && state.user) {
