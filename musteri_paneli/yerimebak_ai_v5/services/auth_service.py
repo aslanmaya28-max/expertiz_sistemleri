@@ -339,6 +339,36 @@ class AuthService:
         finally:
             DatabaseConfig.return_connection(conn)  # 🔒 DÜZELTİLDİ: conn.close() -> pool'a geri ver
 
+    def change_password(self, user_id: Any, current_password: str, new_password: str) -> Dict[str, Any]:
+        """Mevcut sifre dogrulanarak yeni sifre kaydedilir."""
+        if not current_password or not new_password:
+            return {"error": "Mevcut ve yeni sifre zorunludur"}
+        if current_password == new_password:
+            return {"error": "Yeni sifre mevcut sifreden farkli olmalidir"}
+        strength_error = _validate_password_strength(new_password)
+        if strength_error:
+            return {"error": strength_error}
+
+        conn = DatabaseConfig.get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT id, password FROM users WHERE id = {self._p}", (user_id,))
+            row = cursor.fetchone()
+            if not row:
+                return {"error": "Kullanici bulunamadi", "http_status": 404}
+            user = dict(row)
+            if not user.get('password') or not _verify_password(current_password, user['password']):
+                return {"error": "Mevcut sifre hatali", "http_status": 403}
+
+            cursor.execute(
+                f"UPDATE users SET password = {self._p} WHERE id = {self._p}",
+                (_hash_password(new_password), user['id']),
+            )
+            conn.commit()
+            return {"success": True}
+        finally:
+            DatabaseConfig.return_connection(conn)
+
     def verify_api_key(self, api_key: str) -> Optional[Dict[str, Any]]:
         if not api_key:
             return None
