@@ -126,6 +126,35 @@ class YerimebakExpertizApiService {
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // Piyasa verisi: kazıyıcı kontrolü (admin) ve güncel piyasa özeti
+  // ---------------------------------------------------------------------------
+
+  /// arabam / borusan kazıyıcılarının çalışma durumu.
+  Future<Map<String, dynamic>> getScraperStatus() {
+    return _get('/scrapers/status');
+  }
+
+  /// [source]: arabam | borusan | all
+  Future<Map<String, dynamic>> startScraper(String source) {
+    return _post('/scrapers/start/$source');
+  }
+
+  /// [source]: arabam | borusan | all
+  Future<Map<String, dynamic>> stopScraper(String source) {
+    return _post('/scrapers/stop/$source');
+  }
+
+  /// Kazınan ilanlardan güncel piyasa özeti (toplam, analiz edilen, kaynak dağılımı).
+  Future<Map<String, dynamic>> getMarketStats() {
+    return _get('/vitrin/stats');
+  }
+
+  /// Marka/model/yıl bazında piyasa verisi kapsamı (hedef emsal sayısına göre).
+  Future<Map<String, dynamic>> getMarketCoverageSummary() {
+    return _get('/market-coverage/summary');
+  }
+
   /// Giriş yapmış kullanıcının şifresini değiştirir (merkezi hesap).
   Future<Map<String, dynamic>> changePassword({required String currentPassword, required String newPassword}) {
     return _post(
