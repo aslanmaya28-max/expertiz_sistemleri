@@ -6,7 +6,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/yerimebak_expertiz_api_service.dart';
 import '../providers/user_provider.dart';
 import '../core/theme/futuristic_theme.dart';
 import '../core/widgets/glass_card.dart';
@@ -22,6 +22,7 @@ class ProfileEditScreen extends StatefulWidget {
 
 class _ProfileEditScreenState extends State<ProfileEditScreen> {
   final _formKey = GlobalKey<FormState>();
+  final YerimebakExpertizApiService _api = YerimebakExpertizApiService();
   final _adSoyadController = TextEditingController();
   final _telefonController = TextEditingController();
   final _firmaController = TextEditingController();
@@ -50,10 +51,22 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     _telefonController.text = user.phone ?? '';
     _selectedIlId = user.ilId ?? 0;
     _selectedIlce = user.district ?? '';
-    _firmaController.text = ''; // UserModel'de firma alanı yok
-    _vergiDaireController.text = ''; // UserModel'de vergiDairesi alanı yok
-    _vergiNoController.text = ''; // UserModel'de vergiNo alanı yok
     _adresController.text = user.address ?? '';
+    // Fatura bilgileri merkezi profilden
+    _api.getMyProfile().then((response) {
+      final profile = response['profile'] is Map ? Map<String, dynamic>.from(response['profile'] as Map) : const <String, dynamic>{};
+      if (!mounted) return;
+      setState(() {
+        _firmaController.text = profile['company_name']?.toString() ?? '';
+        _vergiDaireController.text = profile['tax_office']?.toString() ?? '';
+        _vergiNoController.text = profile['tax_number']?.toString() ?? '';
+        if ((profile['invoice_address']?.toString() ?? '').isNotEmpty) {
+          _adresController.text = profile['invoice_address'].toString();
+        }
+      });
+    }).catchError((Object e) {
+      debugPrint('Profil yüklenemedi: $e');
+    });
   }
 
   Future<void> _saveProfile() async {
@@ -70,17 +83,15 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       final userId = userProvider.userId;
       if (userId == null) throw Exception('Oturum bulunamadı');
 
-      await Supabase.instance.client.from('profiles').upsert({
-        'id': userId,
+      final il = LocationData.cities.where((c) => c.plakaKodu == _selectedIlId).map((c) => c.ilAdi).firstOrNull;
+      await _api.updateMyProfile({
         'full_name': _adSoyadController.text.trim(),
         'phone': _telefonController.text.trim(),
-        'firma': _firmaController.text.trim(),
-        'vergi_dairesi': _vergiDaireController.text.trim(),
-        'vergi_no': _vergiNoController.text.trim(),
-        'adres': _adresController.text.trim(),
-        'il_id': _selectedIlId > 0 ? _selectedIlId : null,
-        'ilce': _selectedIlce.isNotEmpty ? _selectedIlce : null,
-        'updated_at': DateTime.now().toIso8601String(),
+        'company_name': _firmaController.text.trim(),
+        'tax_office': _vergiDaireController.text.trim(),
+        'tax_number': _vergiNoController.text.trim(),
+        'invoice_address': _adresController.text.trim(),
+        if (il != null) 'city': il,
       });
 
       // UserProvider'ı güncelle

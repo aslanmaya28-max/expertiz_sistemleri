@@ -18,6 +18,7 @@ import 'package:provider/provider.dart';
 
 import '../core/theme/futuristic_theme.dart';
 import '../core/widgets/glass_card.dart';
+import '../core/widgets/sifre_degistir_dialog.dart';
 import '../providers/expertiz_provider.dart';
 import '../providers/user_provider.dart';
 import '../screens/login_screen.dart';
@@ -74,6 +75,7 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
   int _unread = 0;
   int? _lastNotificationId;
   bool _dutyBusy = false;
+  bool _passwordDialogOpen = false;
   final Set<String> _busyTasks = {};
 
   @override
@@ -113,6 +115,8 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
         _error = null;
         _loading = false;
       });
+      // Admin'in verdigi gecici sifre ile girildiyse once sifre degistirilir
+      if (_me['must_change_password'] == true) _changePassword(zorunlu: true);
       if (hasNew) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(content: Text(notifications.first['title']?.toString() ?? 'Yeni bildirim')),
@@ -193,6 +197,21 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
     _load();
   }
 
+  Future<void> _changePassword({bool zorunlu = false}) async {
+    if (_passwordDialogOpen) return;
+    _passwordDialogOpen = true;
+    final changed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: !zorunlu,
+      builder: (_) => SifreDegistirDialog(api: _api, zorunlu: zorunlu),
+    );
+    _passwordDialogOpen = false;
+    if (changed == true) {
+      if (mounted) setState(() => _me = {..._me, 'must_change_password': false});
+      _snack('Şifreniz değiştirildi');
+    }
+  }
+
   Future<void> _logout() async {
     final userProvider = context.read<UserProvider>();
     await userProvider.logout();
@@ -245,6 +264,12 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
               ),
             ),
             IconButton(tooltip: 'Yenile', onPressed: _load, icon: const Icon(Icons.refresh)),
+            IconButton(
+              key: const Key('changePasswordButton'),
+              tooltip: 'Şifre Değiştir',
+              onPressed: () => _changePassword(),
+              icon: const Icon(Icons.lock_reset),
+            ),
             IconButton(tooltip: 'Çıkış', onPressed: _logout, icon: const Icon(Icons.logout)),
           ],
           bottom: TabBar(

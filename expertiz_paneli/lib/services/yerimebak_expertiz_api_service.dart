@@ -321,6 +321,64 @@ class YerimebakExpertizApiService {
   }
 
   // ---------------------------------------------------------------------------
+  // Admin ana ekran, iptal/iade, fatura dökümü, vitrin toplu işlemleri
+  // ---------------------------------------------------------------------------
+
+  /// Kullanıcı profili (fatura bilgileri dahil).
+  Future<Map<String, dynamic>> getMyProfile() {
+    return _get('/auth/profile');
+  }
+
+  /// [fields]: full_name, phone, company_name, city, tax_number, tax_office, invoice_address
+  Future<Map<String, dynamic>> updateMyProfile(Map<String, dynamic> fields) {
+    return _send('PUT', '/auth/profile', body: fields);
+  }
+
+  /// Müşterinin kendi talepleri (canlı durum `progress` ile).
+  Future<Map<String, dynamic>> getMyRequests() {
+    return _get('/expertiz/requests');
+  }
+
+  Future<Map<String, dynamic>> getAdminDashboard() {
+    return _get('/expertiz/admin/dashboard');
+  }
+
+  /// Talebi iptal eder; [refund] true ise ödeme PayTR üzerinden iade edilir.
+  Future<Map<String, dynamic>> cancelRequest(String reportId, {required String reason, bool refund = true}) {
+    return _post('/expertiz/admin/requests/$reportId/cancel', body: {'reason': reason, 'refund': refund});
+  }
+
+  /// Kredi paketi siparişleri (admin). [status]: approved | refunded | pending | failed
+  Future<Map<String, dynamic>> getCreditOrders({String? status}) {
+    return _get('/payments/admin/orders${status == null ? '' : '?status=$status'}');
+  }
+
+  /// Kullanılmamış kredi paketini iade eder.
+  Future<Map<String, dynamic>> refundCreditOrder(String orderId, {required String reason}) {
+    return _post('/payments/admin/orders/$orderId/refund', body: {'reason': reason});
+  }
+
+  /// Muhasebe / e-Arşiv için tahsilat dökümü (CSV). Tarih: YYYY-AA-GG.
+  Future<List<int>> downloadInvoiceCsv({required String start, required String end}) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/expertiz/admin/finance/invoices.csv?start=$start&end=$end'),
+      headers: _headers(),
+    );
+    if (response.statusCode >= 400) {
+      throw ApiException(_errorMessage(_decodeResponse(response.body), response.statusCode), response.statusCode);
+    }
+    return response.bodyBytes;
+  }
+
+  Future<Map<String, dynamic>> vitrinActivateHidden() {
+    return _post('/vitrin/admin/activate-hidden');
+  }
+
+  Future<Map<String, dynamic>> vitrinReanalyze() {
+    return _post('/vitrin/admin/reanalyze');
+  }
+
+  // ---------------------------------------------------------------------------
   // Bildirimler
   // ---------------------------------------------------------------------------
 

@@ -3,9 +3,52 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/user_model.dart';
+import 'shared_preferences_manager.dart';
 
+/// Merkezi oturum anahtari. Bellekte tutulur ve cihazda saklanir; boylece web'de
+/// sayfa yenilenince veya mobilde uygulama yeniden acilinca oturum kapanmaz.
+/// Sunucu anahtari reddederse (suresi dolmus) [clear] ile silinir.
 class CentralAuthTokenStore {
-  static String? accessToken;
+  static const _prefsKey = 'yerimebak_central_token';
+  static String? _token;
+
+  static String? get accessToken => _token;
+
+  static set accessToken(String? value) {
+    _token = value;
+    // Kaydetme arka planda; hata olursa oturum yine bellekte surer
+    if (value == null) {
+      SharedPreferencesManager.remove(_prefsKey);
+    } else {
+      SharedPreferencesManager.setString(_prefsKey, value);
+    }
+  }
+
+  /// Uygulama acilisinda cagrilir.
+  static Future<void> restore() async {
+    final saved = await SharedPreferencesManager.getString(_prefsKey);
+    if (saved != null && saved.isNotEmpty && !_isExpired(saved)) {
+      _token = saved;
+    } else if (saved != null) {
+      await SharedPreferencesManager.remove(_prefsKey);
+    }
+  }
+
+  static void clear() => accessToken = null;
+
+  /// JWT 'exp' alanina bakar (imza dogrulamasini sunucu yapar).
+  static bool _isExpired(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return true;
+      final payload = jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts[1])))) as Map;
+      final exp = payload['exp'];
+      if (exp is! num) return false;
+      return DateTime.fromMillisecondsSinceEpoch(exp.toInt() * 1000).isBefore(DateTime.now());
+    } catch (_) {
+      return true;
+    }
+  }
 }
 
 class CentralAuthSession {

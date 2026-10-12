@@ -4,6 +4,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import '../../core/widgets/sifre_degistir_dialog.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/theme_provider.dart';
 import '../../../services/yerimebak_expertiz_api_service.dart';
@@ -52,7 +53,7 @@ class _AyarlarModuleState extends State<AyarlarModule> {
   Future<void> _openChangePassword() async {
     final changed = await showDialog<bool>(
       context: context,
-      builder: (_) => _SifreDegistirDialog(api: _api),
+      builder: (_) => SifreDegistirDialog(api: _api),
     );
     if (changed == true) _showMessage('Şifreniz değiştirildi');
   }
@@ -231,106 +232,3 @@ class _AyarlarModuleState extends State<AyarlarModule> {
 }
 
 /// Mevcut + yeni şifre ile merkezi hesap şifresini değiştirir.
-class _SifreDegistirDialog extends StatefulWidget {
-  const _SifreDegistirDialog({required this.api});
-
-  final YerimebakExpertizApiService api;
-
-  @override
-  State<_SifreDegistirDialog> createState() => _SifreDegistirDialogState();
-}
-
-class _SifreDegistirDialogState extends State<_SifreDegistirDialog> {
-  final _formKey = GlobalKey<FormState>();
-  final _current = TextEditingController();
-  final _new = TextEditingController();
-  final _repeat = TextEditingController();
-  bool _saving = false;
-  String? _error;
-
-  @override
-  void dispose() {
-    _current.dispose();
-    _new.dispose();
-    _repeat.dispose();
-    super.dispose();
-  }
-
-  /// Backend kuralıyla aynı: en az 8 karakter, büyük harf, küçük harf, rakam.
-  static String? _validateNew(String? value) {
-    final v = value ?? '';
-    if (v.length < 8) return 'En az 8 karakter';
-    if (!RegExp(r'[A-Z]').hasMatch(v)) return 'En az bir büyük harf';
-    if (!RegExp(r'[a-z]').hasMatch(v)) return 'En az bir küçük harf';
-    if (!RegExp(r'[0-9]').hasMatch(v)) return 'En az bir rakam';
-    return null;
-  }
-
-  Future<void> _submit() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-    try {
-      await widget.api.changePassword(currentPassword: _current.text, newPassword: _new.text);
-      if (mounted) Navigator.pop(context, true);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _saving = false;
-        _error = e is ApiException ? e.message : e.toString();
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Şifre Değiştir'),
-      content: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              controller: _current,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Mevcut şifre'),
-              validator: (v) => (v ?? '').isEmpty ? 'Zorunlu' : null,
-            ),
-            TextFormField(
-              controller: _new,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Yeni şifre'),
-              validator: (v) {
-                final error = _validateNew(v);
-                if (error != null) return error;
-                return v == _current.text ? 'Mevcut şifreden farklı olmalı' : null;
-              },
-            ),
-            TextFormField(
-              controller: _repeat,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Yeni şifre (tekrar)'),
-              validator: (v) => v != _new.text ? 'Şifreler eşleşmiyor' : null,
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(_error!, style: const TextStyle(color: Colors.redAccent)),
-            ],
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Vazgeç')),
-        FilledButton(
-          onPressed: _saving ? null : _submit,
-          child: _saving
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Kaydet'),
-        ),
-      ],
-    );
-  }
-}
