@@ -95,6 +95,9 @@ def _ensure_personnel_schema(cursor: Any) -> None:
         "il_id": "INTEGER",
         "region_id": "INTEGER",
         "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        # Gorev icin aktif/pasif (hesap aktifliginden ayri): pasif personele gorev atanmaz
+        "on_duty": "BOOLEAN DEFAULT TRUE",
+        "on_duty_changed_at": "TIMESTAMPTZ",
     }
     for column, column_type in user_columns.items():
         cursor.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {column} {column_type}")
@@ -144,6 +147,10 @@ def _is_active_value(value: Any) -> bool:
         return str(value).lower() in {"true", "t", "yes", "aktif"}
 
 
+def _iso_value(value: Any) -> Any:
+    return value.isoformat() if hasattr(value, "isoformat") else value
+
+
 def _public_personnel(row: Dict[str, Any]) -> Dict[str, Any]:
     city_raw = row.get("city") or row.get("il") or ""
     location = turkey_regions.describe_city(city_raw)
@@ -158,6 +165,8 @@ def _public_personnel(row: Dict[str, Any]) -> Dict[str, Any]:
         "phone": row.get("phone") or row.get("telefon"),
         "role": "field_staff",
         "active": _is_active_value(active_raw),
+        "on_duty": row.get("on_duty") is not False,
+        "on_duty_changed_at": _iso_value(row.get("on_duty_changed_at")),
         "city": turkey_regions.province_name(il_id) or location["city"] or "",
         "district": row.get("district") or row.get("ilce") or "",
         "il_id": il_id,
@@ -334,6 +343,7 @@ def _personnel_rows(cursor: Any, where_extra: str = "", params: tuple = ()) -> L
         SELECT
             u.id, u.full_name, u.email, u.phone, u.role, u.is_active, u.city, u.district,
             u.expertise, u.il_id, u.region_id, u.must_change_password, u.created_at,
+            u.on_duty, u.on_duty_changed_at,
             COALESCE(t.open_count, 0) AS open_task_count,
             COALESCE(t.done_count, 0) AS completed_task_count
         FROM users u
@@ -378,7 +388,8 @@ def list_personnel(
 def _get_personnel(cursor: Any, personnel_id: str) -> Optional[Dict[str, Any]]:
     cursor.execute(
         """
-        SELECT id, email, full_name, phone, role, is_active, city, district, expertise, il_id, region_id
+        SELECT id, email, full_name, phone, role, is_active, city, district, expertise, il_id, region_id,
+               on_duty, on_duty_changed_at
         FROM users
         WHERE (id::text = %s OR lower(email) = lower(%s))
           AND role IN %s
@@ -595,6 +606,62 @@ def reset_personnel_password(personnel_id: str, new_password: str, admin: Dict[s
         _write_audit(cursor, "PERSONNEL_PASSWORD_RESET", str(user_id), admin, {"email": email})
         conn.commit()
         return {"success": True, "personnel_id": str(user_id), "must_change_password": True}
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
+def set_duty(personnel_id: str, on_duty: bool, actor: Dict[str, Any], by_admin: bool = False) -> Dict[str, Any]:
+    """Personel gorev durumunu (aktif/pasif) degistirir; admin bildirimi olusur.
+
+    Acik gorevler pasife geciste personelde kalir: personel onlari bitirebilir,
+    yeni gorev atanmaz.
+    """
+    from yerimebak_ai_v5.services import notification_service
+
+    _ensure_schema()
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        personnel = _get_personnel(cursor, personnel_id)
+        if not personnel:
+            return _error("Personel bulunamadi", 404)
+        if not _is_active_value(personnel.get("is_active")):
+            return _error("Hesabi pasif personelin gorev durumu degistirilemez", 409)
+        on_duty = bool(on_duty)
+        if (personnel.get("on_duty") is not False) != on_duty:
+            cursor.execute(
+                "UPDATE users SET on_duty = %s, on_duty_changed_at = NOW() WHERE id = %s",
+                (on_duty, personnel["id"]),
+            )
+            name = personnel.get("full_name") or personnel.get("email")
+            state = "aktif" if on_duty else "pasif"
+            _write_audit(cursor, "PERSONNEL_DUTY_CHANGED", str(personnel["id"]), actor,
+                         {"on_duty": on_duty, "by_admin": by_admin})
+            if by_admin:
+                notification_service.notify_user(
+                    cursor, personnel["id"], "duty_changed",
+                    f"Görev durumunuz {state} yapıldı", "Değişikliği admin yaptı.",
+                )
+            else:
+                notification_service.notify_admins(
+                    cursor, "duty_changed", f"{name} görev için {state}",
+                    f"{personnel.get('city') or ''} / {personnel.get('district') or ''}".strip(" /"),
+                )
+            conn.commit()
+        return {"success": True, "personnel": _public_personnel(_get_personnel(cursor, personnel_id))}
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
+def get_me(user: Dict[str, Any]) -> Dict[str, Any]:
+    _ensure_schema()
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        rows = _personnel_rows(cursor, "AND u.id::text = %s", (str(user.get("id") or ""),))
+        if not rows:
+            return _error("Personel kaydi bulunamadi", 404)
+        return {"success": True, "personnel": _public_personnel(rows[0])}
     finally:
         DatabaseConfig.return_connection(conn)
 

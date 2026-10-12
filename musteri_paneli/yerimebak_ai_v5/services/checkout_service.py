@@ -194,6 +194,9 @@ def start_expertiz_checkout(payload: Dict[str, Any], user: Dict[str, Any], user_
         return _error("Arac icin ilan linki paylasin veya marka/model bilgilerini girin")
     if not user.get("email"):
         return _error("Odeme icin hesabinizda e-posta adresi olmali")
+    # Talep, aracin bulundugu il/ilcedeki gorev icin aktif personele yonlendirilir
+    if not str(payload.get("city") or "").strip() or not str(payload.get("district") or "").strip():
+        return _error("Aracin bulundugu il ve ilce zorunludur")
 
     quote = quote_expertiz(str(payload.get("firm_id") or ""), str(payload.get("package_id") or ""))
     if "error" in quote:
@@ -210,6 +213,7 @@ def start_expertiz_checkout(payload: Dict[str, Any], user: Dict[str, Any], user_
         "listing_url": (payload.get("listing_url") or "").strip()[:500],
         "plate": (payload.get("plate") or "").strip()[:20],
         "city": (payload.get("city") or "").strip()[:80],
+        "district": (payload.get("district") or "").strip()[:80],
         "note": (payload.get("note") or "").strip()[:1000],
         "vehicle": vehicle,
     }

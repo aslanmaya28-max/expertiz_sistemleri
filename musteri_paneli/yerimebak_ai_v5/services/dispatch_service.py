@@ -25,6 +25,8 @@ from yerimebak_ai_v5.core import turkey_regions
 from yerimebak_ai_v5.services import personnel_service
 from yerimebak_ai_v5.services import expertiz_service
 from yerimebak_ai_v5.services import media_service
+from yerimebak_ai_v5.services import notification_service
+from yerimebak_ai_v5.services import task_progress
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +35,7 @@ ASSIGNABLE_STATUSES = ("draft", "rejected")
 APPROVAL_STATUSES = ("pending_ai", "pending_admin")
 BUCKETS = ("waiting_assignment", "in_progress", "pending_approval", "completed")
 
-DURUM_BY_ASSIGNMENT = {
-    "unassigned": "Beklemede",
-    "assigned": "Personele Atandı",
-    "accepted": "Personel Kabul Etti",
-    "in_progress": "İncelemede",
-    "submitted": "Rapor Gönderildi",
-}
+DURUM_BY_ASSIGNMENT = task_progress.DURUM_BY_STAGE
 
 _schema_ready = False
 
@@ -66,6 +62,7 @@ def ensure_workflow_schema(cursor: Any) -> None:
     personnel_service._ensure_personnel_schema(cursor)
     ensure_reports_table(cursor)
     media_service.ensure_media_schema(cursor)
+    notification_service.ensure_schema(cursor)
 
 
 def ensure_workflow_schema_once() -> bool:
@@ -138,7 +135,29 @@ def _request_location(row: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, An
     location = turkey_regions.describe_city(raw_city)
     if not location["il_id"]:
         location["city"] = str(raw_city).strip()
+    location["district"] = str(row.get("ilce") or talep.get("ilce") or "").strip()
     return location
+
+
+def _same_text(a: Any, b: Any) -> bool:
+    return bool(a) and bool(b) and turkey_regions._fold(str(a)) == turkey_regions._fold(str(b))
+
+
+def _personnel_bucket(status: str) -> str:
+    """Personel panelindeki bolum: aktif / beklemede / reddedildi / onaylandi."""
+    if status == "published":
+        return "approved"
+    if status in APPROVAL_STATUSES:
+        return "pending"
+    if status == "rejected":
+        return "rejected"
+    return "active"
+
+
+def _vehicle_label(request: Dict[str, Any]) -> str:
+    vehicle = request.get("vehicle") or {}
+    parts = [vehicle.get("plate") or "", vehicle.get("title") or ""]
+    return " - ".join(p for p in parts if p) or "Araç"
 
 
 def _admin_request(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -149,6 +168,8 @@ def _admin_request(row: Dict[str, Any]) -> Dict[str, Any]:
     location = _request_location(row, data)
     assigned_id = _assigned_id(data)
     status = row.get("status") or "draft"
+    corporate = corporate_info(row, data)
+    stage = _assignment_status(data)
 
     brand = vehicle.get("marka") or talep.get("aracMarka") or ""
     model = vehicle.get("model") or talep.get("aracModel") or ""
@@ -181,7 +202,7 @@ def _admin_request(row: Dict[str, Any]) -> Dict[str, Any]:
             "image_url": vehicle.get("image_url") or "",
         },
         "city": location["city"],
-        "district": row.get("ilce") or "",
+        "district": location["district"],
         "il_id": location["il_id"],
         "region_id": location["region_id"],
         "region": location["region"],
@@ -191,6 +212,14 @@ def _admin_request(row: Dict[str, Any]) -> Dict[str, Any]:
         "is_paid": bool(row.get("odendi_mi")),
         "payment_status": row.get("payment_status") or data.get("payment_status"),
         "note": data.get("note") or "",
+        "corporate_required": corporate["required"],
+        "stage": stage,
+        "stage_label": task_progress.STAGE_LABELS.get(stage, stage),
+        "personnel_bucket": _personnel_bucket(status),
+        "submitted_at": assignment.get("submitted_at"),
+        "rejected_at": data.get("rejected_at") if status == "rejected" else None,
+        "published_at": data.get("published_at"),
+        "next_actions": task_progress.next_actions(stage, status, corporate["required"]) if assigned_id else [],
         "assignment": {
             "status": _assignment_status(data),
             "personnel_id": assigned_id,
@@ -199,7 +228,11 @@ def _admin_request(row: Dict[str, Any]) -> Dict[str, Any]:
             "assigned_at": assignment.get("assigned_at"),
             "assigned_by": assignment.get("assigned_by"),
             "accepted_at": assignment.get("accepted_at"),
+            "departed_at": assignment.get("departed_at"),
+            "arrived_at": assignment.get("arrived_at"),
+            "corporate_at": assignment.get("corporate_at"),
             "started_at": assignment.get("started_at"),
+            "submitted_at": assignment.get("submitted_at"),
             "note": assignment.get("note") or "",
             "history": assignment.get("history") or [],
         }
@@ -333,17 +366,22 @@ def get_admin_request(report_id: str) -> Dict[str, Any]:
 
 def _match_level(person: Dict[str, Any], request: Dict[str, Any]) -> str:
     if request["il_id"] and person["il_id"] == request["il_id"]:
+        if _same_text(person.get("district"), request.get("district")):
+            return "same_district"
         return "same_city"
     if request["region_id"] and person["region_id"] == request["region_id"]:
         return "same_region"
     return "other_region"
 
 
-_MATCH_ORDER = {"same_city": 0, "same_region": 1, "other_region": 2}
+_MATCH_ORDER = {"same_district": 0, "same_city": 1, "same_region": 2, "other_region": 3}
 
 
 def list_candidates(report_id: str) -> Dict[str, Any]:
-    """Bir talep icin atanabilecek aktif personeller (once ayni il, sonra ayni bolge)."""
+    """Bir talep icin personeller: once ayni ilce, sonra ayni il, sonra ayni bolge.
+
+    Gorev icin pasif personel listede gorunur ama atanamaz (assignable=False).
+    """
     detail = get_admin_request(report_id)
     if "error" in detail:
         return detail
@@ -352,13 +390,20 @@ def list_candidates(report_id: str) -> Dict[str, Any]:
     candidates = []
     for person in personnel:
         level = _match_level(person, request)
-        candidates.append({**person, "match": level, "is_current": person["id"] == request["assignment"].get("personnel_id")})
-    candidates.sort(key=lambda p: (_MATCH_ORDER[p["match"]], p["open_task_count"], p["full_name"]))
+        candidates.append({
+            **person,
+            "match": level,
+            "assignable": bool(person.get("on_duty")),
+            "is_current": person["id"] == request["assignment"].get("personnel_id"),
+        })
+    candidates.sort(key=lambda p: (not p["assignable"], _MATCH_ORDER[p["match"]], p["open_task_count"], p["full_name"]))
+    recommended = next((p for p in candidates if p["assignable"] and not p["is_current"]), None)
     return {
         "success": True,
         "request": request,
         "candidates": candidates,
-        "recommended_id": candidates[0]["id"] if candidates else None,
+        "on_duty_count": sum(1 for p in candidates if p["assignable"]),
+        "recommended_id": recommended["id"] if recommended else None,
     }
 
 
@@ -381,7 +426,9 @@ def assign_request(report_id: str, personnel_id: str, admin: Dict[str, Any], not
         if not personnel:
             return _error("Personel bulunamadi", 404)
         if not personnel_service._is_active_value(personnel.get("is_active")):
-            return _error("Pasif personele gorev atanamaz", 409)
+            return _error("Hesabi pasif personele gorev atanamaz", 409)
+        if personnel.get("on_duty") is False:
+            return _error("Personel su an gorev icin pasif; aktif bir personel secin", 409)
 
         data = _load_data(row.get("data"))
         previous_id = _assigned_id(data)
@@ -433,8 +480,26 @@ def assign_request(report_id: str, personnel_id: str, admin: Dict[str, Any], not
             admin,
             {"personnel_id": new_id, "previous_personnel_id": previous_id or None, "note": (note or "").strip()},
         )
+        result = _admin_request(_fetch_report(cursor, report_id))
+        place = " / ".join(p for p in (result["city"], result["district"]) if p)
+        notification_service.notify_user(
+            cursor, new_id, "task_assigned", "Yeni görev atandı",
+            f"{_vehicle_label(result)}{' - ' + place if place else ''}", str(row["id"]),
+        )
+        if previous_id:
+            notification_service.notify_user(
+                cursor, previous_id, "task_unassigned", "Görev başka personele aktarıldı",
+                _vehicle_label(result), str(row["id"]),
+            )
+        else:
+            notification_service.notify_user(
+                cursor, notification_service.customer_user_id(cursor, data), "expert_assigned",
+                "Ekspertiz uzmanınız atandı",
+                f"{task_progress.short_name(public_person['full_name'])} aracınızın ekspertizini yapacak.",
+                str(row["id"]),
+            )
         conn.commit()
-        return {"success": True, "request": _admin_request(_fetch_report(cursor, report_id))}
+        return {"success": True, "request": result}
     finally:
         DatabaseConfig.return_connection(conn)
 
@@ -457,6 +522,9 @@ def unassign_request(report_id: str, admin: Dict[str, Any], reason: Optional[str
         data = _clear_assignment(data, admin, note, "unassigned")
         _save_report_data(cursor, row, data, DURUM_BY_ASSIGNMENT["unassigned"])
         _write_audit(cursor, "REQUEST_UNASSIGNED", str(row["id"]), admin, {"personnel_id": previous_id, "reason": note})
+        notification_service.notify_user(
+            cursor, previous_id, "task_unassigned", "Görev sizden alındı", note, str(row["id"]),
+        )
         conn.commit()
         return {"success": True, "request": _admin_request(_fetch_report(cursor, report_id))}
     finally:
@@ -532,30 +600,34 @@ def list_personnel_tasks(user: Dict[str, Any]) -> Dict[str, Any]:
     for task in tasks:
         task["is_active"] = task["status"] in ASSIGNABLE_STATUSES
     active = [t for t in tasks if t["is_active"]]
+    buckets = {name: 0 for name in ("active", "pending", "rejected", "approved")}
+    for task in tasks:
+        buckets[task["personnel_bucket"]] += 1
     return {
         "success": True,
         "summary": {
             "active": len(active),
             "waiting_acceptance": sum(1 for t in active if t["assignment"]["status"] == "assigned"),
-            "in_progress": sum(1 for t in active if t["assignment"]["status"] in ("accepted", "in_progress")),
+            "in_progress": sum(1 for t in active if t["assignment"]["status"] not in ("assigned", "submitted")),
             "needs_revision": sum(1 for t in active if t["needs_revision"]),
+            "pending_approval": buckets["pending"],
+            "approved": buckets["approved"],
+            # Geriye uyumluluk: gonderilmis (artik aktif olmayan) gorevler
             "completed": len(tasks) - len(active),
+            "buckets": buckets,
         },
         "tasks": tasks,
     }
 
 
-_TASK_TRANSITIONS = {
-    "accept": {"from": ("assigned",), "to": "accepted", "stamp": "accepted_at"},
-    # "submitted": admin raporu reddettiyse personel duzeltmeye yeniden baslar
-    "start": {"from": ("assigned", "accepted", "submitted"), "to": "in_progress", "stamp": "started_at"},
-}
-
-
 def update_task_progress(report_id: str, user: Dict[str, Any], action: str) -> Dict[str, Any]:
-    transition = _TASK_TRANSITIONS.get(action)
-    if not transition:
+    """Personel saha adimi: accept / depart / arrive / corporate / start.
+
+    Her adim zaman damgasi alir; musteri ve admin anlik bildirim alir.
+    """
+    if action not in task_progress.ACTIONS:
         return _error("Gecersiz islem", 400)
+    target, stamp = task_progress.ACTIONS[action]
     ensure_workflow_schema_once()
     personnel_id = str(user.get("id") or "")
     conn = DatabaseConfig.get_connection()
@@ -567,14 +639,20 @@ def update_task_progress(report_id: str, user: Dict[str, Any], action: str) -> D
         data = _load_data(row.get("data"))
         if _assigned_id(data) != personnel_id:
             return _error("Bu gorev size atanmamis", 403)
-        if (row.get("status") or "draft") not in ASSIGNABLE_STATUSES:
+        report_status = row.get("status") or "draft"
+        if report_status not in ASSIGNABLE_STATUSES:
             return _error("Bu gorev artik guncellenemez", 409)
 
         current = _assignment_status(data)
-        if current == transition["to"]:
+        if current == target:
             return {"success": True, "task": _admin_request(row), "unchanged": True}
-        if current not in transition["from"]:
-            return _error(f"Gorev bu adima gecemez (mevcut: {current})", 409)
+        if not task_progress.can_transition(current, target, report_status):
+            return _error(
+                f"Gorev bu adima gecemez (mevcut: {task_progress.STAGE_LABELS.get(current, current)})", 409
+            )
+        corporate = corporate_info(row, data)
+        if action == "corporate" and not corporate["required"]:
+            return _error("Bu talepte kurumsal ekspertiz yok", 409)
 
         now = _now()
         assignment = data.get("assignment") if isinstance(data.get("assignment"), dict) else {
@@ -582,22 +660,45 @@ def update_task_progress(report_id: str, user: Dict[str, Any], action: str) -> D
             "personnel_name": data.get("assigned_personel_name") or user.get("full_name") or "",
             "history": [],
         }
-        assignment["status"] = transition["to"]
-        assignment[transition["stamp"]] = now
-        if transition["to"] == "in_progress" and not assignment.get("accepted_at"):
+        assignment["status"] = target
+        assignment[stamp] = now
+        if not assignment.get("accepted_at"):
             assignment["accepted_at"] = now
         history = list(assignment.get("history") or [])
         history.append({"action": action, "personnel_id": personnel_id, "by": _actor_label(user), "at": now})
         assignment["history"] = history
         data["assignment"] = assignment
-        durum = DURUM_BY_ASSIGNMENT[transition["to"]]
+        durum = DURUM_BY_ASSIGNMENT[target]
         if isinstance(data.get("talep"), dict):
             data["talep"]["durum"] = durum
 
         _save_report_data(cursor, row, data, durum)
         _write_audit(cursor, f"TASK_{action.upper()}", str(row["id"]), user, {"personnel_id": personnel_id})
+
+        task = _admin_request(_fetch_report(cursor, report_id))
+        person = assignment.get("personnel_name") or user.get("full_name") or "Personel"
+        values = {
+            "person": person,
+            "vehicle": _vehicle_label(task),
+            "firm": corporate["firm_name"] or "anlaşmalı firma",
+        }
+        # Duzeltme icin yeniden baslama musteriye bildirilmez (red musteriye gosterilmez)
+        customer_message = task_progress.CUSTOMER_MESSAGES.get(action)
+        if customer_message and report_status != "rejected":
+            title, body = customer_message
+            notification_service.notify_user(
+                cursor, notification_service.customer_user_id(cursor, data), f"task_{action}",
+                title, body.format(**{**values, "person": task_progress.short_name(person) or "Uzmanınız"}),
+                str(row["id"]),
+            )
+        admin_message = task_progress.ADMIN_MESSAGES.get(action)
+        if admin_message:
+            title, body = admin_message
+            if report_status == "rejected":
+                title, body = "Düzeltme başladı", "{person} reddedilen {vehicle} raporunu düzeltiyor."
+            notification_service.notify_admins(cursor, f"task_{action}", title, body.format(**values), str(row["id"]))
         conn.commit()
-        return {"success": True, "task": _admin_request(_fetch_report(cursor, report_id))}
+        return {"success": True, "task": task}
     finally:
         DatabaseConfig.return_connection(conn)
 
@@ -856,8 +957,21 @@ def submit_task_report(report_id: str, user: Dict[str, Any], tam_rapor: Any) -> 
             user,
             {"revision": data["inspection"]["revision"], "photos": counts.get("inspection_photo", 0)},
         )
+        task = _admin_request(_fetch_report(cursor, report_id))
+        person = user.get("full_name") or user.get("email") or "Personel"
+        notification_service.notify_admins(
+            cursor, "report_submitted",
+            "Düzeltilmiş rapor onaya geldi" if was_rejected else "Rapor onaya geldi",
+            f"{person} - {_vehicle_label(task)}", str(row["id"]),
+        )
+        if not was_rejected:
+            notification_service.notify_user(
+                cursor, notification_service.customer_user_id(cursor, data), "report_in_review",
+                "Raporunuz kontrol ediliyor", "Ekspertiz tamamlandı; raporunuz son kontrolden geçiyor.",
+                str(row["id"]),
+            )
         conn.commit()
-        return {"success": True, "task": _admin_request(_fetch_report(cursor, report_id))}
+        return {"success": True, "task": task}
     finally:
         DatabaseConfig.return_connection(conn)
 

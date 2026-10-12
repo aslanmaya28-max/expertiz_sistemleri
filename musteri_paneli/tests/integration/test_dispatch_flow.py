@@ -53,12 +53,12 @@ def _auth(token):
     return {"Authorization": f"Bearer {token}"}
 
 
-def _create_paid_request(client, token, plate, city, note=None, package_index=0):
+def _create_paid_request(client, token, plate, city, note=None, package_index=0, district="Merkez"):
     """Katalogdan paket secer, talep acar ve odemeyi (simulasyon) tamamlar; rapor id doner."""
     firm = client.get("/api/v1/expertiz/packages").json()["firms"][0]
     package = firm["packages"][min(package_index, len(firm["packages"]) - 1)]
     body = {
-        "firm_id": firm["id"], "package_id": package["id"], "plate": plate, "city": city,
+        "firm_id": firm["id"], "package_id": package["id"], "plate": plate, "city": city, "district": district,
         "vehicle": {"brand": "Fiat", "model": "Egea", "year": 2020, "km": 60000, "price": 850000},
     }
     if note:
@@ -512,3 +512,143 @@ def test_ai_worker_loop_recovers_stuck_reports(client):
     conn.close()
     assert statuses[stuck_id] == "pending_admin"
     assert statuses[fresh_id] == "pending_ai"  # yeni gönderilen, arka plan görevine bırakılır
+
+
+def _notes(client, token, admin=False):
+    path = "/api/v1/expertiz/admin/notifications" if admin else "/api/v1/expertiz/notifications"
+    response = client.get(f"{path}?limit=100", headers=_auth(token))
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def _customer_request(client, token, report_id):
+    rows = client.get("/api/v1/expertiz/requests", headers=_auth(token)).json()["requests"]
+    return next(r for r in rows if r["report_id"] == report_id)
+
+
+def test_field_flow_duty_district_live_status_and_notifications(client, admin_token, customer_token):
+    """Gorev icin aktif/pasif + ilce onceligi + saha adimlari + red/duzeltme + onay bildirimleri."""
+    a = _create_personnel(client, admin_token, "ksk1@yerimebak.test", "İzmir", "Karşıyaka", "Kemal Saha")
+    b = _create_personnel(client, admin_token, "brn@yerimebak.test", "İzmir", "Bornova", "Burak Bornova")
+    c = _create_personnel(client, admin_token, "ksk2@yerimebak.test", "İzmir", "Karşıyaka", "Cem Pasif")
+    a_token = _login(client, "ksk1@yerimebak.test", "Personel123")
+    c_token = _login(client, "ksk2@yerimebak.test", "Personel123")
+
+    # Il/ilce olmadan talep acilamaz
+    firm = client.get("/api/v1/expertiz/packages").json()["firms"][0]
+    no_district = client.post(
+        "/api/v1/expertiz/requests", headers=_auth(customer_token),
+        json={"firm_id": firm["id"], "package_id": firm["packages"][0]["id"], "city": "İzmir",
+              "vehicle": {"brand": "Fiat", "model": "Egea"}},
+    )
+    assert no_district.status_code == 400 and "ilce" in no_district.json()["detail"]
+
+    # Personel kendini gorev icin pasif yapar -> admin bildirimi
+    me = client.get("/api/v1/expertiz/personnel/me", headers=_auth(c_token)).json()["personnel"]
+    assert me["on_duty"] is True
+    off = client.put("/api/v1/expertiz/personnel/me/duty", headers=_auth(c_token), json={"on_duty": False})
+    assert off.status_code == 200 and off.json()["personnel"]["on_duty"] is False
+    assert any(n["kind"] == "duty_changed" and "Cem Pasif" in n["title"] for n in _notes(client, admin_token, admin=True)["notifications"])
+    # Musteri/admin personel endpointini kullanamaz
+    assert client.put("/api/v1/expertiz/personnel/me/duty", headers=_auth(customer_token), json={"on_duty": True}).status_code == 403
+
+    report_id = _create_paid_request(client, customer_token, "35 KSK 35", "İzmir", package_index=3, district="karsiyaka")
+
+    # Aday sirasi: ayni ilce -> ayni il -> diger; pasif personel en sonda ve atanamaz
+    cand = client.get(f"/api/v1/expertiz/admin/requests/{report_id}/candidates", headers=_auth(admin_token)).json()
+    ids = [p["id"] for p in cand["candidates"]]
+    assert cand["request"]["district"] == "karsiyaka"
+    assert ids[0] == a["id"] and cand["candidates"][0]["match"] == "same_district"
+    assert ids[1] == b["id"] and cand["candidates"][1]["match"] == "same_city"
+    assert ids[-1] == c["id"] and cand["candidates"][-1]["assignable"] is False
+    assert cand["recommended_id"] == a["id"]
+    blocked = client.post(f"/api/v1/expertiz/admin/requests/{report_id}/assign", headers=_auth(admin_token), json={"personnel_id": c["id"]})
+    assert blocked.status_code == 409 and "pasif" in blocked.json()["detail"]
+
+    assert client.post(f"/api/v1/expertiz/admin/requests/{report_id}/assign", headers=_auth(admin_token), json={"personnel_id": a["id"]}).status_code == 200
+    assert any(n["kind"] == "task_assigned" and n["report_id"] == report_id for n in _notes(client, a_token)["notifications"])
+    progress = _customer_request(client, customer_token, report_id)["progress"]
+    assert progress["label"] == "Ekspertiz uzmanı atandı" and progress["person_name"] == "Kemal S."
+
+    # Saha adimlari: her biri musteri + admin bildirimi uretir
+    task = client.get("/api/v1/expertiz/personnel/tasks", headers=_auth(a_token)).json()["tasks"][0]
+    assert task["next_actions"] == ["accept", "depart", "arrive", "corporate", "start"]
+    expected = [
+        ("accept", "accepted", "Ekspertiz uzmanı atandı"),
+        ("depart", "on_the_way", "Uzman harekete geçti"),
+        ("arrive", "at_vehicle", "Uzman araç başında"),
+        ("corporate", "at_corporate", "Kurumsal ekspertizde"),
+        ("start", "in_progress", "Rapor hazırlanıyor"),
+    ]
+    for action, stage, label in expected:
+        r = client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/{action}", headers=_auth(a_token))
+        assert r.status_code == 200, (action, r.text)
+        assert r.json()["task"]["assignment"]["status"] == stage
+        assert _customer_request(client, customer_token, report_id)["progress"]["label"] == label
+    # Geri adim yapilamaz
+    assert client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/depart", headers=_auth(a_token)).status_code == 409
+
+    customer_titles = [n["title"] for n in _notes(client, customer_token)["notifications"] if n["report_id"] == report_id]
+    for title in ("Ekspertiz uzmanınız atandı", "Uzmanınız yola çıktı", "Uzmanınız araç başında",
+                  "Aracınız kurumsal ekspertizde", "Raporunuz hazırlanıyor"):
+        assert title in customer_titles, (title, customer_titles)
+    admin_titles = [n["title"] for n in _notes(client, admin_token, admin=True)["notifications"] if n["report_id"] == report_id]
+    for title in ("Görev kabul edildi", "Personel harekete geçti", "Personel araç başında", "Kurumsal ekspertizde"):
+        assert title in admin_titles, (title, admin_titles)
+
+    # Rapor gonder -> personel "beklemede"
+    client.post(
+        f"/api/v1/expertiz/personnel/tasks/{report_id}/media", headers=_auth(a_token),
+        files={"file": ("kurumsal.pdf", PDF_BYTES, "application/pdf")}, data={"category": "corporate_report"},
+    )
+    rapor = _tam_rapor(report_id, a["id"])
+    assert client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/submit", headers=_auth(a_token), json={"tam_rapor": rapor}).status_code == 200
+    mine = client.get("/api/v1/expertiz/personnel/tasks", headers=_auth(a_token)).json()
+    assert mine["summary"]["buckets"]["pending"] == 1
+    assert "Rapor onaya geldi" in [n["title"] for n in _notes(client, admin_token, admin=True)["notifications"]]
+
+    # Admin reddeder -> personel "reddedildi" + bildirim; musteri reddi gormez
+    rejected = client.post(f"/api/v1/expertiz/admin/reports/{report_id}/reject", headers=_auth(admin_token), json={"reason": "Motor fotografi eksik"})
+    assert rejected.status_code == 200, rejected.text
+    assert rejected.json()["report"]["durum"] == "Düzeltme Gerekli"
+    mine = client.get("/api/v1/expertiz/personnel/tasks", headers=_auth(a_token)).json()
+    t = next(x for x in mine["tasks"] if x["id"] == report_id)
+    assert t["personnel_bucket"] == "rejected" and t["rejection_reason"] == "Motor fotografi eksik"
+    assert t["next_actions"] == ["start"]
+    rej = next(n for n in _notes(client, a_token)["notifications"] if n["kind"] == "report_rejected")
+    assert "Motor fotografi eksik" in rej["body"]
+    cust = _customer_request(client, customer_token, report_id)
+    assert cust["progress"]["stage"] == "review" and cust["progress"]["label"] == "Rapor kontrol ediliyor"
+    assert not any(n["kind"] == "report_rejected" for n in _notes(client, customer_token)["notifications"])
+
+    # Duzeltip tekrar gonderir
+    assert client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/start", headers=_auth(a_token)).status_code == 200
+    assert client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/submit", headers=_auth(a_token), json={"tam_rapor": rapor}).status_code == 200
+    assert "Düzeltilmiş rapor onaya geldi" in [n["title"] for n in _notes(client, admin_token, admin=True)["notifications"]]
+
+    admin_report = client.get(f"/api/v1/expertiz/admin/reports/{report_id}", headers=_auth(admin_token)).json()["report"]
+    assert admin_report["status"] == "pending_admin", admin_report.get("ai_meta")
+    assert client.post(f"/api/v1/expertiz/admin/reports/{report_id}/publish", headers=_auth(admin_token)).status_code == 200
+
+    # Onay -> personel "onaylandi" + bildirim, musteriye "raporunuz hazir"
+    mine = client.get("/api/v1/expertiz/personnel/tasks", headers=_auth(a_token)).json()
+    assert next(x for x in mine["tasks"] if x["id"] == report_id)["personnel_bucket"] == "approved"
+    assert mine["summary"]["approved"] == 1
+    assert any(n["kind"] == "report_approved" for n in _notes(client, a_token)["notifications"])
+    assert any(n["kind"] == "report_ready" for n in _notes(client, customer_token)["notifications"])
+    cust = _customer_request(client, customer_token, report_id)
+    assert cust["progress"]["stage"] == "published" and all(s["done"] for s in cust["progress"]["steps"])
+
+    # Okundu isaretleme
+    unread = _notes(client, a_token)["unread"]
+    assert unread >= 3
+    assert client.post("/api/v1/expertiz/notifications/read", headers=_auth(a_token), json={}).json()["updated"] == unread
+    assert _notes(client, a_token)["unread"] == 0
+    # Baskasinin bildirimini okuyamaz / gormez
+    assert not any(n["kind"] == "task_assigned" for n in _notes(client, c_token)["notifications"])
+
+    # Admin personeli tekrar aktif yapabilir; personel bildirim alir
+    on = client.put(f"/api/v1/expertiz/admin/personnel/{c['id']}/duty", headers=_auth(admin_token), json={"on_duty": True})
+    assert on.status_code == 200 and on.json()["personnel"]["on_duty"] is True
+    assert any(n["kind"] == "duty_changed" for n in _notes(client, c_token)["notifications"])
+    assert client.put(f"/api/v1/expertiz/admin/personnel/{c['id']}/duty", headers=_auth(c_token), json={"on_duty": True}).status_code == 403

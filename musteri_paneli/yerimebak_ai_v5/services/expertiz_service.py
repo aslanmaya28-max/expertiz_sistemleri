@@ -304,6 +304,7 @@ def _upsert_report_from_request(
             "olusturulma": now,
             "aciklama": payload.get("listing_url") or listing.get("url") or payload.get("note") or "",
             "sehir": payload.get("city") or listing.get("location") or "",
+            "ilce": payload.get("district") or "",
             "expertizFirmasi": selected["firm"]["name"],
             "expertizPaketi": selected["package"]["name"],
             "paketFiyati": totals["package_price_tl"],
@@ -337,6 +338,7 @@ def _upsert_report_from_request(
         "plaka": payload.get("plate") or "",
         "firma": selected["firm"]["name"],
         "sehir": _canonical_city(payload.get("city") or listing.get("location")),
+        "ilce": payload.get("district") or "",
         "ekspertiz_firmasi": selected["firm"]["name"],
         "secilen_paket": selected["package"]["id"],
         "hizmet_bedeli": totals["service_fee_tl"],
@@ -387,13 +389,35 @@ def _public_request(row: Dict[str, Any]) -> Dict[str, Any]:
         "payment_status": row.get("payment_status") or data.get("payment_status"),
         "plate": row.get("plaka") or vehicle.get("plaka") or (talep or {}).get("aracPlaka"),
         "city": row.get("sehir") or (talep or {}).get("sehir"),
+        "district": row.get("ilce") or (talep or {}).get("ilce") or "",
         "firm_name": row.get("ekspertiz_firmasi") or row.get("firma") or (talep or {}).get("expertizFirmasi"),
         "package_name": data.get("expertiz_paketi") or (talep or {}).get("expertizPaketi"),
         "total_tl": float(row.get("toplam_tutar") or (talep or {}).get("toplamTutar") or 0),
         "created_at": row.get("created_at"),
         "updated_at": row.get("updated_at") or row.get("status_updated_at"),
         "vehicle": vehicle,
+        "progress": _customer_progress(row, data),
     }
+
+
+def _customer_progress(row: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
+    from yerimebak_ai_v5.services import task_progress
+
+    assignment = data.get("assignment") if isinstance(data.get("assignment"), dict) else {}
+    if not assignment.get("personnel_id") and data.get("assigned_personel_id"):
+        assignment = {**assignment, "personnel_id": data.get("assigned_personel_id"), "status": "assigned"}
+    corporate = bool(data.get("firm_id") or data.get("expertiz_package_id"))
+    if "corporate_required" in data:
+        corporate = bool(data.get("corporate_required"))
+    created = row.get("created_at")
+    return task_progress.customer_timeline(
+        row.get("status") or "draft",
+        created.isoformat() if hasattr(created, "isoformat") else created,
+        assignment,
+        corporate,
+        published_at=data.get("published_at"),
+        person_name=assignment.get("personnel_name") or data.get("assigned_personel_name") or "",
+    )
 
 
 def _customer_ai(ai: Any) -> Optional[Dict[str, Any]]:
@@ -723,6 +747,36 @@ def _write_audit(cursor: Any, action: str, entity_type: str, entity_id: str,
     )
 
 
+def _notify_report_decision(
+    cursor: Any, row: Dict[str, Any], data: Dict[str, Any], approved: bool, reason: str = ""
+) -> None:
+    """Onay: personel + musteri bildirimi. Red: yalnizca personel (musteri gormez)."""
+    from yerimebak_ai_v5.services import notification_service
+
+    vehicle = data.get("vehicle_snapshot") if isinstance(data.get("vehicle_snapshot"), dict) else {}
+    label = " - ".join(
+        p for p in (row.get("plaka") or vehicle.get("plaka") or "",
+                    vehicle.get("title") or " ".join(x for x in (vehicle.get("marka"), vehicle.get("model")) if x))
+        if p
+    ) or "Araç"
+    personnel_id = data.get("assigned_personel_id") or (data.get("assignment") or {}).get("personnel_id")
+    report_id = str(row.get("id"))
+    if approved:
+        notification_service.notify_user(
+            cursor, personnel_id, "report_approved", "Raporunuz onaylandı",
+            f"{label} raporu onaylandı ve müşteriye gönderildi.", report_id,
+        )
+        notification_service.notify_user(
+            cursor, notification_service.customer_user_id(cursor, data), "report_ready",
+            "Ekspertiz raporunuz hazır", f"{label} raporunu görüntüleyebilirsiniz.", report_id,
+        )
+    else:
+        notification_service.notify_user(
+            cursor, personnel_id, "report_rejected", "Raporunuz düzeltme için geri gönderildi",
+            f"{label}: {reason}", report_id,
+        )
+
+
 def publish_admin_report(report_id: str, admin: Dict[str, Any], admin_note: Optional[str] = None) -> Dict[str, Any]:
     conn = DatabaseConfig.get_connection()
     try:
@@ -756,7 +810,7 @@ def publish_admin_report(report_id: str, admin: Dict[str, Any], admin_note: Opti
             """
             UPDATE reports
             SET status = 'published',
-                durum = 'Tamamlandi',
+                durum = 'Tamamlandı',
                 status_updated_at = %s,
                 updated_at = %s,
                 version_id = COALESCE(version_id, 0) + 1,
@@ -772,6 +826,7 @@ def publish_admin_report(report_id: str, admin: Dict[str, Any], admin_note: Opti
         _write_audit(cursor, "REPORT_PUBLISHED", "report", report_id, admin, {
             "old_status": row.get("status"), "new_status": "published",
         })
+        _notify_report_decision(cursor, updated, data, approved=True)
         conn.commit()
         return {"success": True, "report": _admin_report(updated)}
     finally:
@@ -791,8 +846,9 @@ def reject_admin_report(report_id: str, reason: str, admin: Dict[str, Any]) -> D
         row = _row_to_dict(cursor.fetchone())
         if not row:
             return {"error": "Rapor bulunamadi", "http_status": 404}
-        if row.get("status") != "pending_admin":
-            return {"error": "Sadece admin onayi bekleyen rapor reddedilebilir", "http_status": 400}
+        # pending_ai: AI analizi bitmeden de admin hatayi gorup personele geri gonderebilir
+        if row.get("status") not in ("pending_ai", "pending_admin"):
+            return {"error": "Sadece onay bekleyen rapor reddedilebilir", "http_status": 400}
 
         now = datetime.now(timezone.utc).isoformat()
         data = _json_loads(row.get("data"), {}) or {}
@@ -804,15 +860,15 @@ def reject_admin_report(report_id: str, reason: str, admin: Dict[str, Any]) -> D
             """
             UPDATE reports
             SET status = 'rejected',
-                durum = 'Iptal',
+                durum = 'Düzeltme Gerekli',
                 status_updated_at = %s,
                 updated_at = %s,
                 version_id = COALESCE(version_id, 0) + 1,
                 data = %s
-            WHERE id = %s AND status = 'pending_admin'
+            WHERE id = %s AND status = %s
             RETURNING *
             """,
-            (now, now, Json(data), report_id),
+            (now, now, Json(data), report_id, row.get("status")),
         )
         updated = _row_to_dict(cursor.fetchone())
         if not updated:
@@ -820,6 +876,7 @@ def reject_admin_report(report_id: str, reason: str, admin: Dict[str, Any]) -> D
         _write_audit(cursor, "REPORT_REJECTED", "report", report_id, admin, {
             "old_status": row.get("status"), "rejection_reason": clean_reason,
         })
+        _notify_report_decision(cursor, updated, data, approved=False, reason=clean_reason)
         conn.commit()
         return {"success": True, "report": _admin_report(updated)}
     finally:
