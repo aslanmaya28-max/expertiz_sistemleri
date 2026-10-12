@@ -1,669 +1,297 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../../providers/expertiz_provider.dart';
-import '../../models/expertiz/adim4_boya_kaporta_model.dart';
-import '../../core/constants/yerimebak_colors.dart';
-import 'widgets/tablo_satiri_widget.dart';
 
-/// Adım 4: Boya / Kaporta Sayfası
-class Adim4Sayfasi extends StatefulWidget {
+import '../../models/expertiz/adim4_boya_kaporta_model.dart';
+import '../../models/expertiz/kontrol_listesi.dart';
+import '../../providers/expertiz_provider.dart';
+import 'widgets/kontrol_listesi_widget.dart';
+
+/// Adım 4: Boya / Kaporta Ekspertizi
+///
+/// - 13 kaporta parçası için: Orijinal / Lokal Boyalı / Boyalı / Değişen /
+///   Sökülüp Takılmış / Hasarlı + opsiyonel boya kalınlığı (mikron)
+/// - Şasi, direkler, podye, marşpiyel, bagaj havuzu: Orijinal / İşlemli / Hasarlı
+/// - Ek hasar kayıtları (çizik, göçük, pas ...)
+/// Orijinal olmayan her parça ve işlemli/hasarlı yapısal eleman için fotoğraf zorunludur.
+class Adim4Sayfasi extends StatelessWidget {
   const Adim4Sayfasi({super.key});
 
   @override
-  State<Adim4Sayfasi> createState() => _Adim4SayfasiState();
+  Widget build(BuildContext context) {
+    final provider = context.watch<ExpertizProvider>();
+    final model = provider.adim4Model;
+    if (model == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final duzenlenebilir = provider.duzenlenebilir;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        AdimEksikleriKarti(eksikler: provider.adimEksikleri(4)),
+        const SizedBox(height: 12),
+        _BoyaOzeti(model: model),
+        const SizedBox(height: 12),
+        KontrolListesiBolumu(
+          baslik: '🎨 Kaporta Parçaları',
+          bolum: ExpertizProvider.bolumBoya,
+          maddeler: Adim4BoyaKaportaModel.parcalar,
+          secenekler: DurumSecenekleri.parca,
+          duzenlenebilir: duzenlenebilir,
+          durum: (key) => model.parcaDurumlari[key],
+          onDurum: (key, durum) => provider.updateAdim4(provider.adim4Model!.withParca(key, durum)),
+          not: model.not,
+          onNot: (key, not) => provider.updateAdim4(provider.adim4Model!.withNot(key, not)),
+          onToplu: (toplu) => provider.updateAdim4(
+            provider.adim4Model!.copyWith(parcaDurumlari: {...provider.adim4Model!.parcaDurumlari, ...toplu}),
+          ),
+          ekAlan: (madde) => _MikronAlani(
+            key: ValueKey('mikron-${madde.key}'),
+            deger: model.mikronlar[madde.key],
+            duzenlenebilir: duzenlenebilir,
+            onChanged: (value) => provider.updateAdim4(provider.adim4Model!.withMikron(madde.key, value)),
+          ),
+        ),
+        const SizedBox(height: 20),
+        KontrolListesiBolumu(
+          baslik: '🔩 Şasi ve Yapısal Elemanlar',
+          bolum: ExpertizProvider.bolumBoya,
+          maddeler: Adim4BoyaKaportaModel.yapisal,
+          secenekler: DurumSecenekleri.yapisal,
+          duzenlenebilir: duzenlenebilir,
+          durum: (key) => model.yapisalDurumlar[key],
+          onDurum: (key, durum) => provider.updateAdim4(provider.adim4Model!.withYapisal(key, durum)),
+          not: model.not,
+          onNot: (key, not) => provider.updateAdim4(provider.adim4Model!.withNot(key, not)),
+          onToplu: (toplu) => provider.updateAdim4(
+            provider.adim4Model!.copyWith(yapisalDurumlar: {...provider.adim4Model!.yapisalDurumlar, ...toplu}),
+          ),
+        ),
+        const SizedBox(height: 20),
+        _EkHasarKayitlari(model: model, duzenlenebilir: duzenlenebilir),
+        const SizedBox(height: 16),
+        GenelNotAlani(
+          deger: model.genelNot ?? '',
+          etiket: 'Boya / kaporta genel notu',
+          duzenlenebilir: duzenlenebilir,
+          onChanged: (value) => provider.updateAdim4(provider.adim4Model!.copyWith(genelNot: value)),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
 }
 
-class _Adim4SayfasiState extends State<Adim4Sayfasi> {
-  final ImagePicker _imagePicker = ImagePicker();
+/// Boyalı / değişen parça özeti
+class _BoyaOzeti extends StatelessWidget {
+  final Adim4BoyaKaportaModel model;
+  const _BoyaOzeti({required this.model});
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ExpertizProvider>(
-      builder: (context, provider, child) {
-        final model = provider.adim4Model;
-        if (model == null) {
-          return const Center(
-            child: Text('Model yükleniyor...'),
-          );
-        }
+    final boyali = model.boyaliParcalar;
+    final degisen = model.degisenParcalar;
+    final hasarli = Adim4BoyaKaportaModel.parcalar
+        .where((p) => model.parcaDurumlari[p.key] == ParcaDurumu.hasarli)
+        .map((p) => p.label)
+        .toList();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Özet', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            Text('Boyalı: ${boyali.isEmpty ? '-' : boyali.join(', ')}'),
+            Text('Değişen: ${degisen.isEmpty ? '-' : degisen.join(', ')}'),
+            Text('Hasarlı: ${hasarli.isEmpty ? '-' : hasarli.join(', ')}'),
+            Text('Ek hasar kaydı: ${model.hasarKayitlari.length}'),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-        final aciklamalar = model.aciklamalar ?? {};
-        final fotografUrl = model.fotografUrl ?? {};
-        final fotografYolu = model.fotografYolu ?? {};
+/// Boya kalınlığı (mikron) girişi
+class _MikronAlani extends StatefulWidget {
+  final int? deger;
+  final bool duzenlenebilir;
+  final ValueChanged<int?> onChanged;
 
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('4️⃣ Boya / Kaporta', style: TextStyle(color: YerimeBakColors.blue)),
-            backgroundColor: Colors.white,
-            foregroundColor: YerimeBakColors.blue,
-            elevation: 0,
-            iconTheme: const IconThemeData(color: YerimeBakColors.blue),
-          ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+  const _MikronAlani({super.key, required this.deger, required this.duzenlenebilir, required this.onChanged});
+
+  @override
+  State<_MikronAlani> createState() => _MikronAlaniState();
+}
+
+class _MikronAlaniState extends State<_MikronAlani> {
+  late final TextEditingController _controller = TextEditingController(text: widget.deger?.toString() ?? '');
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 220,
+      child: TextField(
+        controller: _controller,
+        enabled: widget.duzenlenebilir,
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(4)],
+        decoration: const InputDecoration(
+          isDense: true,
+          labelText: 'Boya kalınlığı (μm, opsiyonel)',
+          helperText: 'Orijinal genelde 90-160 μm',
+          border: OutlineInputBorder(),
+        ),
+        onChanged: (value) => widget.onChanged(int.tryParse(value)),
+      ),
+    );
+  }
+}
+
+/// Parça listesinde olmayan ek hasarlar (pas, göçük, alt hasarı ...)
+class _EkHasarKayitlari extends StatelessWidget {
+  final Adim4BoyaKaportaModel model;
+  final bool duzenlenebilir;
+
+  const _EkHasarKayitlari({required this.model, required this.duzenlenebilir});
+
+  Future<void> _ekle(BuildContext context) async {
+    final provider = context.read<ExpertizProvider>();
+    final konumController = TextEditingController();
+    final notController = TextEditingController();
+    String tip = Adim4BoyaKaportaModel.hasarTipleri.first;
+    String buyukluk = Adim4BoyaKaportaModel.hasarBuyuklukleri.first;
+
+    final kaydet = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Ek hasar kaydı'),
+          content: SingleChildScrollView(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // 🎨 BOYA
-                _buildSectionHeader('🎨 BOYA'),
-                const Divider(thickness: 1, color: YerimeBakColors.blue),
-                const SizedBox(height: 12),
-                 
-                TabloSatiriWidget(
-                  maddeAdi: 'Ön Kapı Boya',
-                  seciliDurum: model.onKapiBoya,
-                  onDurumDegisti: (durum) {
-                    provider.updateAdim4(model.copyWith(onKapiBoya: durum));
-                  },
-                  not: aciklamalar['onKapiBoya'] ?? '',
-                  onNotDegisti: (not) {
-                    final yeniAciklamalar = Map<String, String>.from(aciklamalar);
-                    yeniAciklamalar['onKapiBoya'] = not;
-                    provider.updateAdim4(model.copyWith(aciklamalar: yeniAciklamalar));
-                  },
-                  fotografSayisi: (fotografUrl['onKapiBoya'] ?? []).length,
-                  fotografYolu: fotografYolu['onKapiBoya'],
-                  onFotografEkle: () => _onFotografEkle('onKapiBoya', 'Ön Kapı Boya'),
-                ),
-                 
-                TabloSatiriWidget(
-                  maddeAdi: 'Arka Kapı Boya',
-                  seciliDurum: model.arkaKapiBoya,
-                  onDurumDegisti: (durum) {
-                    provider.updateAdim4(model.copyWith(arkaKapiBoya: durum));
-                  },
-                  not: aciklamalar['arkaKapiBoya'] ?? '',
-                  onNotDegisti: (not) {
-                    final yeniAciklamalar = Map<String, String>.from(aciklamalar);
-                    yeniAciklamalar['arkaKapiBoya'] = not;
-                    provider.updateAdim4(model.copyWith(aciklamalar: yeniAciklamalar));
-                  },
-                  fotografSayisi: (fotografUrl['arkaKapiBoya'] ?? []).length,
-                  fotografYolu: fotografYolu['arkaKapiBoya'],
-                  onFotografEkle: () => _onFotografEkle('arkaKapiBoya', 'Arka Kapı Boya'),
-                ),
-                 
-                TabloSatiriWidget(
-                  maddeAdi: 'Kaput Boya',
-                  seciliDurum: model.kaputBoya,
-                  onDurumDegisti: (durum) {
-                    provider.updateAdim4(model.copyWith(kaputBoya: durum));
-                  },
-                  not: aciklamalar['kaputBoya'] ?? '',
-                  onNotDegisti: (not) {
-                    final yeniAciklamalar = Map<String, String>.from(aciklamalar);
-                    yeniAciklamalar['kaputBoya'] = not;
-                    provider.updateAdim4(model.copyWith(aciklamalar: yeniAciklamalar));
-                  },
-                  fotografSayisi: (fotografUrl['kaputBoya'] ?? []).length,
-                  fotografYolu: fotografYolu['kaputBoya'],
-                  onFotografEkle: () => _onFotografEkle('kaputBoya', 'Kaput Boya'),
-                ),
-                 
-                TabloSatiriWidget(
-                  maddeAdi: 'Tampon Boya',
-                  seciliDurum: model.tamponBoya,
-                  onDurumDegisti: (durum) {
-                    provider.updateAdim4(model.copyWith(tamponBoya: durum));
-                  },
-                  not: aciklamalar['tamponBoya'] ?? '',
-                  onNotDegisti: (not) {
-                    final yeniAciklamalar = Map<String, String>.from(aciklamalar);
-                    yeniAciklamalar['tamponBoya'] = not;
-                    provider.updateAdim4(model.copyWith(aciklamalar: yeniAciklamalar));
-                  },
-                  fotografSayisi: (fotografUrl['tamponBoya'] ?? []).length,
-                  fotografYolu: fotografYolu['tamponBoya'],
-                  onFotografEkle: () => _onFotografEkle('tamponBoya', 'Tampon Boya'),
-                ),
-                 
-                TabloSatiriWidget(
-                  maddeAdi: 'Tavan Boya',
-                  seciliDurum: model.tavanBoya,
-                  onDurumDegisti: (durum) {
-                    provider.updateAdim4(model.copyWith(tavanBoya: durum));
-                  },
-                  not: aciklamalar['tavanBoya'] ?? '',
-                  onNotDegisti: (not) {
-                    final yeniAciklamalar = Map<String, String>.from(aciklamalar);
-                    yeniAciklamalar['tavanBoya'] = not;
-                    provider.updateAdim4(model.copyWith(aciklamalar: yeniAciklamalar));
-                  },
-                  fotografSayisi: (fotografUrl['tavanBoya'] ?? []).length,
-                  fotografYolu: fotografYolu['tavanBoya'],
-                  onFotografEkle: () => _onFotografEkle('tavanBoya', 'Tavan Boya'),
-                ),
-                 
-                const SizedBox(height: 24),
-
-                // 🔩 KAPORTA
-                _buildSectionHeader('🔩 KAPORTA'),
-                const Divider(thickness: 1, color: YerimeBakColors.blue),
-                const SizedBox(height: 12),
-                 
-                TabloSatiriWidget(
-                  maddeAdi: 'Ön Kapı Kaporta',
-                  seciliDurum: model.onKapiKaporta,
-                  onDurumDegisti: (durum) {
-                    provider.updateAdim4(model.copyWith(onKapiKaporta: durum));
-                  },
-                  not: aciklamalar['onKapiKaporta'] ?? '',
-                  onNotDegisti: (not) {
-                    final yeniAciklamalar = Map<String, String>.from(aciklamalar);
-                    yeniAciklamalar['onKapiKaporta'] = not;
-                    provider.updateAdim4(model.copyWith(aciklamalar: yeniAciklamalar));
-                  },
-                  fotografSayisi: (fotografUrl['onKapiKaporta'] ?? []).length,
-                  fotografYolu: fotografYolu['onKapiKaporta'],
-                  onFotografEkle: () => _onFotografEkle('onKapiKaporta', 'Ön Kapı Kaporta'),
-                ),
-                 
-                TabloSatiriWidget(
-                  maddeAdi: 'Arka Kapı Kaporta',
-                  seciliDurum: model.arkaKapiKaporta,
-                  onDurumDegisti: (durum) {
-                    provider.updateAdim4(model.copyWith(arkaKapiKaporta: durum));
-                  },
-                  not: aciklamalar['arkaKapiKaporta'] ?? '',
-                  onNotDegisti: (not) {
-                    final yeniAciklamalar = Map<String, String>.from(aciklamalar);
-                    yeniAciklamalar['arkaKapiKaporta'] = not;
-                    provider.updateAdim4(model.copyWith(aciklamalar: yeniAciklamalar));
-                  },
-                  fotografSayisi: (fotografUrl['arkaKapiKaporta'] ?? []).length,
-                  fotografYolu: fotografYolu['arkaKapiKaporta'],
-                  onFotografEkle: () => _onFotografEkle('arkaKapiKaporta', 'Arka Kapı Kaporta'),
-                ),
-                 
-                TabloSatiriWidget(
-                  maddeAdi: 'Kaput Kaporta',
-                  seciliDurum: model.kaputKaporta,
-                  onDurumDegisti: (durum) {
-                    provider.updateAdim4(model.copyWith(kaputKaporta: durum));
-                  },
-                  not: aciklamalar['kaputKaporta'] ?? '',
-                  onNotDegisti: (not) {
-                    final yeniAciklamalar = Map<String, String>.from(aciklamalar);
-                    yeniAciklamalar['kaputKaporta'] = not;
-                    provider.updateAdim4(model.copyWith(aciklamalar: yeniAciklamalar));
-                  },
-                  fotografSayisi: (fotografUrl['kaputKaporta'] ?? []).length,
-                  fotografYolu: fotografYolu['kaputKaporta'],
-                  onFotografEkle: () => _onFotografEkle('kaputKaporta', 'Kaput Kaporta'),
-                ),
-                 
-                const SizedBox(height: 24),
-
-                // 🚗 ŞASİ VE DİREKLER
-                _buildSectionHeader('🚗 ŞASİ VE DİREKLER'),
-                const Divider(thickness: 1, color: YerimeBakColors.blue),
-                const SizedBox(height: 12),
-                 
-                TabloSatiriWidget(
-                  maddeAdi: 'Ön Şasi',
-                  seciliDurum: model.onSasi,
-                  onDurumDegisti: (durum) {
-                    provider.updateAdim4(model.copyWith(onSasi: durum));
-                  },
-                  not: aciklamalar['onSasi'] ?? '',
-                  onNotDegisti: (not) {
-                    final yeniAciklamalar = Map<String, String>.from(aciklamalar);
-                    yeniAciklamalar['onSasi'] = not;
-                    provider.updateAdim4(model.copyWith(aciklamalar: yeniAciklamalar));
-                  },
-                  fotografSayisi: (fotografUrl['onSasi'] ?? []).length,
-                  fotografYolu: fotografYolu['onSasi'],
-                  onFotografEkle: () => _onFotografEkle('onSasi', 'Ön Şasi'),
-                ),
-                 
-                TabloSatiriWidget(
-                  maddeAdi: 'Arka Şasi',
-                  seciliDurum: model.arkaSasi,
-                  onDurumDegisti: (durum) {
-                    provider.updateAdim4(model.copyWith(arkaSasi: durum));
-                  },
-                  not: aciklamalar['arkaSasi'] ?? '',
-                  onNotDegisti: (not) {
-                    final yeniAciklamalar = Map<String, String>.from(aciklamalar);
-                    yeniAciklamalar['arkaSasi'] = not;
-                    provider.updateAdim4(model.copyWith(aciklamalar: yeniAciklamalar));
-                  },
-                  fotografSayisi: (fotografUrl['arkaSasi'] ?? []).length,
-                  fotografYolu: fotografYolu['arkaSasi'],
-                  onFotografEkle: () => _onFotografEkle('arkaSasi', 'Arka Şasi'),
-                ),
-                 
-                TabloSatiriWidget(
-                  maddeAdi: 'Ön Direkler',
-                  seciliDurum: model.onDirekler,
-                  onDurumDegisti: (durum) {
-                    provider.updateAdim4(model.copyWith(onDirekler: durum));
-                  },
-                  not: aciklamalar['onDirekler'] ?? '',
-                  onNotDegisti: (not) {
-                    final yeniAciklamalar = Map<String, String>.from(aciklamalar);
-                    yeniAciklamalar['onDirekler'] = not;
-                    provider.updateAdim4(model.copyWith(aciklamalar: yeniAciklamalar));
-                  },
-                  fotografSayisi: (fotografUrl['onDirekler'] ?? []).length,
-                  fotografYolu: fotografYolu['onDirekler'],
-                  onFotografEkle: () => _onFotografEkle('onDirekler', 'Ön Direkler'),
-                ),
-                 
-                TabloSatiriWidget(
-                  maddeAdi: 'Arka Direkler',
-                  seciliDurum: model.arkaDirekler,
-                  onDurumDegisti: (durum) {
-                    provider.updateAdim4(model.copyWith(arkaDirekler: durum));
-                  },
-                  not: aciklamalar['arkaDirekler'] ?? '',
-                  onNotDegisti: (not) {
-                    final yeniAciklamalar = Map<String, String>.from(aciklamalar);
-                    yeniAciklamalar['arkaDirekler'] = not;
-                    provider.updateAdim4(model.copyWith(aciklamalar: yeniAciklamalar));
-                  },
-                  fotografSayisi: (fotografUrl['arkaDirekler'] ?? []).length,
-                  fotografYolu: fotografYolu['arkaDirekler'],
-                  onFotografEkle: () => _onFotografEkle('arkaDirekler', 'Arka Direkler'),
-                ),
-                 
-                const SizedBox(height: 24),
-
-                // 🎯 EKSTRA KAPORTA PARÇALARI
-                _buildSectionHeader('🎯 EKSTRA KAPORTA PARÇALARI'),
-                const Divider(thickness: 1, color: YerimeBakColors.blue),
-                const SizedBox(height: 12),
-                 
-                TabloSatiriWidget(
-                  maddeAdi: 'Podye',
-                  seciliDurum: model.podye,
-                  onDurumDegisti: (durum) {
-                    provider.updateAdim4(model.copyWith(podye: durum));
-                  },
-                  not: aciklamalar['podye'] ?? '',
-                  onNotDegisti: (not) {
-                    final yeniAciklamalar = Map<String, String>.from(aciklamalar);
-                    yeniAciklamalar['podye'] = not;
-                    provider.updateAdim4(model.copyWith(aciklamalar: yeniAciklamalar));
-                  },
-                  fotografSayisi: (fotografUrl['podye'] ?? []).length,
-                  fotografYolu: fotografYolu['podye'],
-                  onFotografEkle: () => _onFotografEkle('podye', 'Podye'),
-                ),
-                 
-                TabloSatiriWidget(
-                  maddeAdi: 'Marsbiyel',
-                  seciliDurum: model.marsbiyel,
-                  onDurumDegisti: (durum) {
-                    provider.updateAdim4(model.copyWith(marsbiyel: durum));
-                  },
-                  not: aciklamalar['marsbiyel'] ?? '',
-                  onNotDegisti: (not) {
-                    final yeniAciklamalar = Map<String, String>.from(aciklamalar);
-                    yeniAciklamalar['marsbiyel'] = not;
-                    provider.updateAdim4(model.copyWith(aciklamalar: yeniAciklamalar));
-                  },
-                  fotografSayisi: (fotografUrl['marsbiyel'] ?? []).length,
-                  fotografYolu: fotografYolu['marsbiyel'],
-                  onFotografEkle: () => _onFotografEkle('marsbiyel', 'Marsbiyel'),
-                ),
-                 
-                const SizedBox(height: 24),
-
-                // ⚠️ HASAR KAYITLARI
-                _buildSectionHeader('⚠️ HASAR KAYITLARI (${model.hasarSayisi})'),
-                const Divider(thickness: 1, color: YerimeBakColors.blue),
-                const SizedBox(height: 12),
-                 
-                if (model.hasarKayitlari.isEmpty)
-                  Card(
-                    color: YerimeBakColors.lightGray,
-                    child: const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Center(
-                        child: Text(
-                          'Henüz hasar kaydı yok',
-                          style: TextStyle(color: YerimeBakColors.darkGray),
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  ...model.hasarKayitlari.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final hasar = entry.value;
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Hasar #${index + 1}',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: YerimeBakColors.blue,
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete, color: YerimeBakColors.red),
-                                  onPressed: () {
-                                    provider.updateAdim4(model.hasarSil(hasar.id));
-                                  },
-                                  tooltip: 'Hasarı Sil',
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: TextEditingController(text: hasar.konum),
-                                    decoration: const InputDecoration(
-                                      labelText: 'Konum',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    onChanged: (value) {
-                                      final yeniHasar = hasar.copyWith(konum: value);
-                                      provider.updateAdim4(model.hasarGuncelle(hasar.id, yeniHasar));
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: DropdownButtonFormField<String>(
-                                    initialValue: hasar.tip,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Tip',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    items: Adim4BoyaKaportaModel.hasarTipleri
-                                        .map((tip) => DropdownMenuItem(
-                                              value: tip,
-                                              child: Text(tip),
-                                            ))
-                                        .toList(),
-                                    onChanged: (value) {
-                                      if (value != null) {
-                                        final yeniHasar = hasar.copyWith(tip: value);
-                                        provider.updateAdim4(model.hasarGuncelle(hasar.id, yeniHasar));
-                                      }
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: DropdownButtonFormField<String>(
-                                    initialValue: hasar.buyukluk,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Büyüklük',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    items: Adim4BoyaKaportaModel.hasarBuyuklukleri
-                                        .map((buyukluk) => DropdownMenuItem(
-                                              value: buyukluk,
-                                              child: Text(buyukluk),
-                                            ))
-                                        .toList(),
-                                    onChanged: (value) {
-                                      if (value != null) {
-                                        final yeniHasar = hasar.copyWith(buyukluk: value);
-                                        provider.updateAdim4(model.hasarGuncelle(hasar.id, yeniHasar));
-                                      }
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: TextEditingController(text: hasar.not ?? ''),
-                              decoration: const InputDecoration(
-                                labelText: 'Not',
-                                border: OutlineInputBorder(),
-                              ),
-                              onChanged: (value) {
-                                final yeniHasar = hasar.copyWith(not: value);
-                                provider.updateAdim4(model.hasarGuncelle(hasar.id, yeniHasar));
-                              },
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                ElevatedButton.icon(
-                                  onPressed: () {
-                                    _onHasarFotografEkle(hasar.id);
-                                  },
-                                  icon: const Icon(Icons.camera_alt),
-                                  label: Text('Fotoğraf Ekle (${(hasar.fotografUrl != null && hasar.fotografUrl!.isNotEmpty) ? 1 : 0})'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: YerimeBakColors.blue,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-                 
-                const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  onPressed: () => _onHasarEkle(context, provider, model),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Hasar Ekle'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: YerimeBakColors.red,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-                 
-                const SizedBox(height: 24),
-
-                // 📝 GENEL NOTLAR
-                _buildSectionHeader('📝 GENEL NOTLAR'),
-                const Divider(thickness: 1, color: YerimeBakColors.blue),
-                const SizedBox(height: 12),
-                 
                 TextField(
-                  controller: TextEditingController(text: model.genelNot ?? ''),
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Genel Notlar',
-                    border: OutlineInputBorder(),
-                    hintText: 'Boya/Kaporta hakkında notlarınız...',
-                  ),
-                  onChanged: (value) {
-                    provider.updateAdim4(model.copyWith(genelNot: value));
-                  },
+                  controller: konumController,
+                  decoration: const InputDecoration(labelText: 'Konum (ör. sağ arka jant, alt koruma)'),
                 ),
-                 
-                const SizedBox(height: 24),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: tip,
+                  decoration: const InputDecoration(labelText: 'Hasar tipi'),
+                  items: Adim4BoyaKaportaModel.hasarTipleri
+                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                      .toList(),
+                  onChanged: (v) => setState(() => tip = v ?? tip),
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: buyukluk,
+                  decoration: const InputDecoration(labelText: 'Büyüklük'),
+                  items: Adim4BoyaKaportaModel.hasarBuyuklukleri
+                      .map((b) => DropdownMenuItem(value: b, child: Text(b)))
+                      .toList(),
+                  onChanged: (v) => setState(() => buyukluk = v ?? buyukluk),
+                ),
+                TextField(controller: notController, decoration: const InputDecoration(labelText: 'Not')),
               ],
             ),
           ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: YerimeBakColors.blue,
-        ),
-      ),
-    );
-  }
-
-  Future<void> _onFotografEkle(String maddeAdi, String maddeGorunenAdi) async {
-    try {
-      final XFile? image = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 80,
-      );
-      
-      if (image != null && mounted) {
-        final provider = Provider.of<ExpertizProvider>(context, listen: false);
-        final model = provider.adim4Model;
-        if (model == null) return;
-
-        // fotografUrl listesine ekle
-        final yeniFotografUrl = Map<String, List<String>>.from(model.fotografUrl ?? {});
-        if (!yeniFotografUrl.containsKey(maddeAdi)) {
-          yeniFotografUrl[maddeAdi] = [];
-        }
-        yeniFotografUrl[maddeAdi]!.add(image.path);
-
-        // fotografYolu'na ilk fotoğrafı kaydet (thumbnail için)
-        final yeniFotografYolu = Map<String, String>.from(model.fotografYolu ?? {});
-        yeniFotografYolu[maddeAdi] = image.path;
-
-        provider.updateAdim4(model.copyWith(
-          fotografUrl: yeniFotografUrl,
-          fotografYolu: yeniFotografYolu,
-        ));
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('$maddeGorunenAdi için fotoğraf eklendi'),
-              backgroundColor: YerimeBakColors.green,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Fotoğraf seçimi hatası: $e'),
-            backgroundColor: YerimeBakColors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    }
-  }
-
-  void _onHasarFotografEkle(String hasarId) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Hasar #$hasarId için fotoğraf ekleme özelliği geliştiriliyor...'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  void _onHasarEkle(BuildContext context, ExpertizProvider provider, dynamic model) {
-    String konum = '';
-    String tip = Adim4BoyaKaportaModel.hasarTipleri.first;
-    String buyukluk = Adim4BoyaKaportaModel.hasarBuyuklukleri.first;
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Hasar Ekle'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              decoration: const InputDecoration(
-                labelText: 'Konum',
-                border: OutlineInputBorder(),
-              ),
-              onChanged: (value) => konum = value,
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(
-                labelText: 'Tip',
-                border: OutlineInputBorder(),
-              ),
-              initialValue: tip,
-              items: Adim4BoyaKaportaModel.hasarTipleri
-                  .map((t) => DropdownMenuItem(
-                        value: t,
-                        child: Text(t),
-                      ))
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) tip = value;
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
+            FilledButton(
+              onPressed: () {
+                if (konumController.text.trim().isEmpty) return;
+                Navigator.pop(ctx, true);
               },
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(
-                labelText: 'Büyüklük',
-                border: OutlineInputBorder(),
-              ),
-              initialValue: buyukluk,
-              items: Adim4BoyaKaportaModel.hasarBuyuklukleri
-                  .map((b) => DropdownMenuItem(
-                        value: b,
-                        child: Text(b),
-                      ))
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) buyukluk = value;
-              },
+              child: const Text('Ekle'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('İptal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (konum.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Konum alanı zorunludur'),
-                    backgroundColor: YerimeBakColors.red,
-                  ),
-                );
-                return;
-              }
-               
-              final yeniHasar = HasarKaydi(
-                id: DateTime.now().millisecondsSinceEpoch.toString(),
-                konum: konum,
-                tip: tip,
-                buyukluk: buyukluk,
-              );
-               
-              provider.updateAdim4(model.hasarEkle(yeniHasar));
-              Navigator.pop(context);
-               
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Hasar başarıyla eklendi'),
-                  backgroundColor: YerimeBakColors.green,
-                ),
-              );
-            },
-            child: const Text('Ekle'),
-          ),
-        ],
       ),
     );
+    if (kaydet == true) {
+      final model = provider.adim4Model!;
+      provider.updateAdim4(model.hasarEkle(HasarKaydi(
+        id: 'hasar_${DateTime.now().millisecondsSinceEpoch}',
+        konum: konumController.text.trim(),
+        tip: tip,
+        buyukluk: buyukluk,
+        not: notController.text.trim().isEmpty ? null : notController.text.trim(),
+      )));
+    }
+    konumController.dispose();
+    notController.dispose();
   }
 
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<ExpertizProvider>();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                '⚠️ Ek Hasar Kayıtları',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            if (duzenlenebilir)
+              TextButton.icon(
+                onPressed: () => _ekle(context),
+                icon: const Icon(Icons.add),
+                label: const Text('Hasar Ekle'),
+              ),
+          ],
+        ),
+        if (model.hasarKayitlari.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text('Parça listesi dışında ek hasar yok.'),
+          )
+        else if (duzenlenebilir)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Her hasar için fotoğraf zorunludur. Kaydı silmek için "Hasarlı" etiketine tekrar dokunun.',
+              style: TextStyle(fontSize: 12),
+            ),
+          ),
+        for (final hasar in model.hasarKayitlari)
+          KontrolMaddesiKarti(
+            key: ValueKey('hasar-${hasar.id}'),
+            madde: KontrolMaddesi(hasar.id, '${hasar.konum} – ${hasar.tip} (${hasar.buyukluk})', 'Ek Hasar'),
+            bolum: ExpertizProvider.bolumBoya,
+            secenekler: const DurumSecenekleri(
+              degerler: [ParcaDurumu.hasarli],
+              etiket: ParcaDurumu.etiket,
+              renk: ParcaDurumu.renk,
+              eksiklikMi: ParcaDurumu.eksiklikMi,
+              varsayilan: ParcaDurumu.hasarli,
+            ),
+            seciliDurum: ParcaDurumu.hasarli,
+            onDurum: (durum) {
+              if (durum == null && duzenlenebilir) {
+                provider.updateAdim4(provider.adim4Model!.hasarSil(hasar.id));
+              }
+            },
+            not: hasar.not ?? '',
+            onNot: (not) => provider.updateAdim4(
+              provider.adim4Model!.hasarGuncelle(hasar.id, hasar.copyWith(not: not)),
+            ),
+            duzenlenebilir: duzenlenebilir,
+          ),
+      ],
+    );
+  }
 }

@@ -1,6 +1,7 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
+import '../core/widgets/yerimebak_logo.dart';
 import 'dart:ui';
 import 'package:provider/provider.dart';
 import 'package:yerimebak_sistemleri/providers/user_provider.dart';
@@ -108,16 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             _buildLogo(),
-                            const SizedBox(height: 12),
-                            const Text(
-                              "YerimeBak",
-                              style: TextStyle(
-                                color: FuturisticTheme.textPrimary,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 32),
+                                                        const SizedBox(height: 32),
                             _buildLoginForm(),
                           ],
                         ),
@@ -136,16 +128,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       _buildLogo(),
-                      const SizedBox(height: 12),
-                      const Text(
-                        "YerimeBak",
-                        style: TextStyle(
-                          color: FuturisticTheme.textPrimary,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 32),
+                                            const SizedBox(height: 32),
                       _buildLoginForm(),
                       const SizedBox(height: 30),
                       _buildInfoPanel(),
@@ -162,27 +145,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // 1. LOGO BİLEŞENİ (Y Harfi)
   Widget _buildLogo() {
-    return Container(
-      width: 52,
-      height: 52,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: FuturisticTheme.accentCyan.withValues(alpha: 0.1),
-      ),
-      child: Center(
-         child: Text(
-           "Y",
-           style: TextStyle(
-             fontSize: 32,
-             fontWeight: FontWeight.w900,
-             color: FuturisticTheme.accentCyan,
-             shadows: [
-               Shadow(color: FuturisticTheme.accentCyan, blurRadius: 15),
-             ]
-           ),
-         ),
-      ),
-    );
+    return const YerimeBakLogo(height: 84, onDark: true);
   }
 
   // 2. LOGIN FORM (SOL)
@@ -376,16 +339,7 @@ class _LoginScreenState extends State<LoginScreen> {
                  padding: const EdgeInsets.all(20),
                  child: Row(
                    children: [
-                     const Icon(Icons.shield_moon, color: FuturisticTheme.accentCyan, size: 28),
-                     const SizedBox(width: 10),
-                     const Text(
-                       "YerimeBak",
-                       style: TextStyle(
-                         color: FuturisticTheme.textPrimary,
-                         fontSize: 22,
-                         fontWeight: FontWeight.bold,
-                       ),
-                     )
+                     const YerimeBakLogo(height: 36, onDark: true)
                    ],
                  ),
               ),

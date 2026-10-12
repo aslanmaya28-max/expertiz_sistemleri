@@ -6,7 +6,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/yerimebak_expertiz_api_service.dart';
 import '../providers/user_provider.dart';
 import '../core/theme/futuristic_theme.dart';
 import '../core/widgets/glass_card.dart';
@@ -48,14 +48,23 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
         return;
       }
 
-      final response = await Supabase.instance.client
-          .from('reports')
-          .select('id, plaka, marka, model, yil, status, created_at, ai_analysis_result')
-          .eq('customer_id', userId)
-          .order('created_at', ascending: false);
+      final response = await YerimebakExpertizApiService().getMyRequests();
+      final rows = (response['requests'] as List? ?? const []).whereType<Map>().map((r) {
+        final vehicle = r['vehicle'] is Map ? r['vehicle'] as Map : const {};
+        return <String, dynamic>{
+          'id': r['report_id'] ?? r['id'],
+          'plaka': r['plate'],
+          'marka': vehicle['marka'] ?? vehicle['brand'],
+          'model': vehicle['model'],
+          'yil': vehicle['yil'] ?? vehicle['year'],
+          'status': r['status'],
+          'created_at': r['created_at'],
+        };
+      }).toList();
 
+      if (!mounted) return;
       setState(() {
-        _analyses = (response as List).cast<Map<String, dynamic>>();
+        _analyses = rows;
         _isLoading = false;
       });
     } catch (e) {

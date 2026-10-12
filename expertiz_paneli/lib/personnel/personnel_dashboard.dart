@@ -1,959 +1,591 @@
-import "dart:async";
-import "package:flutter/material.dart";
-import "package:intl/intl.dart";
-import "package:provider/provider.dart";
-import "package:supabase_flutter/supabase_flutter.dart";
-import "package:yerimebak_sistemleri/models/user_model.dart";
-import "package:yerimebak_sistemleri/screens/login_screen.dart";
-import "../../core/theme/futuristic_theme.dart";
-import "../../core/widgets/glass_card.dart";
-import "../../core/widgets/neon_button.dart";
-import "../../core/layout/base_scaffold.dart";
-import "../../providers/expertiz_provider.dart";
-import "../../providers/admin_provider.dart";
-import "../../providers/user_provider.dart";
-import "../../models/talep_model.dart";
-import "../../screens/personel/expertiz_sihirbazi.dart";
+/// PERSONEL PANELİ
+///
+/// - Görev için aktif / pasif anahtarı (pasif personele yeni görev atanmaz)
+/// - Görevler: Aktif, Beklemede (admin kontrolünde), Reddedildi (düzelt ve
+///   tekrar gönder), Tamamlanan (admin onayladı, müşteriye gönderildi)
+/// - Saha adımları: Kabul et → Harekete geçtim → Araç başındayım →
+///   Kurumsal ekspertizdeyim → Rapora başla. Her adım müşteriye ve admine
+///   anlık bildirim olarak düşer.
+/// - Bildirimler: yeni görev, red (nedeniyle), onay.
+library;
 
-// ANA PERSONEL DASHBOARD SINIFI
+import 'dart:async';
+import '../core/widgets/yerimebak_logo.dart';
+
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+
+import '../core/theme/futuristic_theme.dart';
+import '../core/widgets/glass_card.dart';
+import '../core/widgets/sifre_degistir_dialog.dart';
+import '../providers/expertiz_provider.dart';
+import '../providers/user_provider.dart';
+import '../screens/login_screen.dart';
+import '../screens/personel/expertiz_sihirbazi.dart';
+import '../services/yerimebak_expertiz_api_service.dart';
+
+/// Saha adımı düğmeleri (backend task_progress.ACTIONS ile aynı sıra).
+const Map<String, String> kGorevAdimEtiketleri = {
+  'accept': 'Görevi Kabul Et',
+  'depart': 'Harekete Geçtim',
+  'arrive': 'Araç Başındayım',
+  'corporate': 'Kurumsal Ekspertizdeyim',
+  'start': 'Rapora Başla',
+};
+
+const Map<String, IconData> _adimIkonlari = {
+  'accept': Icons.check,
+  'depart': Icons.directions_car,
+  'arrive': Icons.place,
+  'corporate': Icons.business,
+  'start': Icons.edit_note,
+};
+
+const Map<String, String> _asamaEtiketleri = {
+  'assigned': 'Personele atandı',
+  'accepted': 'Kabul edildi',
+  'on_the_way': 'Harekete geçti',
+  'at_vehicle': 'Araç başında',
+  'at_corporate': 'Kurumsal ekspertizde',
+  'in_progress': 'Rapor hazırlanıyor',
+  'submitted': 'Rapor gönderildi',
+};
+
 class PersonnelDashboard extends StatefulWidget {
-  const PersonnelDashboard({super.key});
+  const PersonnelDashboard({super.key, this.apiService, this.refreshInterval = const Duration(seconds: 20)});
+
+  /// Testlerde sahte servis vermek için.
+  final YerimebakExpertizApiService? apiService;
+  final Duration refreshInterval;
 
   @override
   State<PersonnelDashboard> createState() => _PersonnelDashboardState();
 }
 
 class _PersonnelDashboardState extends State<PersonnelDashboard> {
-  final int _currentIndex = 0;
-  UserModel? _currentUser;
-  List<TalepModel> _supabaseGorevler = [];
-  StreamSubscription? _gorevSubscription;
+  late final YerimebakExpertizApiService _api;
+  Timer? _timer;
+
+  bool _loading = true;
+  String? _error;
+  Map<String, dynamic> _me = const {};
+  List<Map<String, dynamic>> _tasks = [];
+  List<Map<String, dynamic>> _notifications = [];
+  int _unread = 0;
+  int? _lastNotificationId;
+  bool _dutyBusy = false;
+  bool _passwordDialogOpen = false;
+  final Set<String> _busyTasks = {};
 
   @override
   void initState() {
     super.initState();
-    _loadCurrentUser();
+    _api = widget.apiService ?? YerimebakExpertizApiService();
+    _load(initial: true);
+    _timer = Timer.periodic(widget.refreshInterval, (_) => _load());
   }
 
   @override
   void dispose() {
-    _gorevSubscription?.cancel();
+    _timer?.cancel();
     super.dispose();
   }
 
-  Future<void> _loadCurrentUser() async {
-    final userProvider = context.read<UserProvider>();
-    final user = userProvider.currentUser;
-    if (mounted) {
-      if (user != null) {
-        setState(() {
-          _currentUser = user;
-        });
-        context.read<AdminProvider>().loadTalepler();
-        _loadSupabaseGorevler();
-        _subscribeGorevler();
-      } else {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
-      }
-    }
-  }
+  static List<Map<String, dynamic>> _rows(dynamic value) =>
+      (value as List? ?? const []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
 
-  Future<void> _loadSupabaseGorevler() async {
-    if (_currentUser == null) return;
+  Future<void> _load({bool initial = false}) async {
     try {
-      final client = Supabase.instance.client;
-      final userId = _currentUser!.id;
-      final userName = _currentUser!.fullName;
-      final response = await client
-          .from('reports')
-          .select()
-          .or('assigned_personel_id.eq.$userId,data->assigned_personel_id.eq.$userId,data->assigned_personel_id.eq.$userName')
-          .order('created_at', ascending: false);
-      if (mounted) {
-        setState(() {
-          _supabaseGorevler = response
-              .whereType<Map<String, dynamic>>()
-              .map(_mapReportToTalep)
-              .whereType<TalepModel>()
-              .toList();
-        });
-      }
-    } catch (e) {
-      debugPrint('Supabase gorev yukleme hatasi: $e');
-    }
-  }
-
-  void _subscribeGorevler() {
-    if (_currentUser == null) return;
-    try {
-      final stream = Supabase.instance.client
-          .from('reports')
-          .stream(primaryKey: ['id']);
-      _gorevSubscription = stream.listen((data) {
-        if (mounted && _currentUser != null) {
-          final userId = _currentUser!.id;
-          final userName = _currentUser!.fullName;
-          setState(() {
-            _supabaseGorevler = data
-                .whereType<Map<String, dynamic>>()
-                .where((row) {
-                  final data = row['data'];
-                  final assignedInData = data is Map
-                      ? data['assigned_personel_id']?.toString()
-                      : null;
-                  return assignedInData == userId ||
-                      assignedInData == userName;
-                })
-                .map(_mapReportToTalep)
-                .whereType<TalepModel>()
-                .toList();
-          });
-        }
+      final results = await Future.wait([
+        _api.getPersonnelMe(),
+        _api.getMyTasks(),
+        _api.getNotifications(limit: 30),
+      ]);
+      if (!mounted) return;
+      final notifications = _rows(results[2]['notifications']);
+      final newestId = notifications.isEmpty ? null : (notifications.first['id'] as num?)?.toInt();
+      final hasNew = !initial && newestId != null && _lastNotificationId != null && newestId != _lastNotificationId;
+      setState(() {
+        _me = Map<String, dynamic>.from(results[0]['personnel'] as Map? ?? const {});
+        _tasks = _rows(results[1]['tasks']);
+        _notifications = notifications;
+        _unread = (results[2]['unread'] as num?)?.toInt() ?? 0;
+        _lastNotificationId = newestId ?? _lastNotificationId;
+        _error = null;
+        _loading = false;
       });
+      // Admin'in verdigi gecici sifre ile girildiyse once sifre degistirilir
+      if (_me['must_change_password'] == true) _changePassword(zorunlu: true);
+      if (hasNew) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text(notifications.first['title']?.toString() ?? 'Yeni bildirim')),
+        );
+      }
     } catch (e) {
-      debugPrint('Gorev stream hatasi: $e');
+      if (!mounted) return;
+      setState(() {
+        _error = e is ApiException ? e.message : 'Veriler yüklenemedi: $e';
+        _loading = false;
+      });
     }
   }
 
-  TalepModel? _mapReportToTalep(Map<String, dynamic> row) {
+  bool get _onDuty => _me['on_duty'] != false;
+
+  Future<void> _setDuty(bool value) async {
+    setState(() => _dutyBusy = true);
     try {
-      final data = row['data'] is Map
-          ? Map<String, dynamic>.from(row['data'] as Map)
-          : <String, dynamic>{};
-      final assignedPersonel = data['assigned_personel_id']?.toString();
-      final status = row['status']?.toString();
-      String durum;
-      switch (status) {
-        case 'published':
-          durum = 'Tamamlandi';
-          break;
-        case 'rejected':
-          durum = 'Iptal';
-          break;
-        case 'pending_admin':
-          durum = 'Raporland\u0131';
-          break;
-        case 'pending_ai':
-          durum = 'Raporland\u0131';
-          break;
-        case 'draft':
-          durum = assignedPersonel != null && assignedPersonel.isNotEmpty
-              ? 'Islemde'
-              : 'Beklemede';
-          break;
-        default:
-          durum = row['durum']?.toString() ?? 'Beklemede';
-      }
-      return TalepModel(
-        id: row['id']?.toString() ?? '',
-        musteriAdi: data['customer_name']?.toString() ?? row['user_id']?.toString() ?? 'Musteri',
-        musteriId: row['user_id']?.toString() ?? '',
-        telefon: data['customer_phone']?.toString() ?? '',
-        aracPlaka: row['plaka']?.toString() ?? '',
-        aracMarka: data['vehicle_snapshot'] is Map
-            ? (data['vehicle_snapshot']['marka']?.toString() ?? 'Belirtilmedi')
-            : 'Belirtilmedi',
-        aracModel: data['vehicle_snapshot'] is Map
-            ? (data['vehicle_snapshot']['model']?.toString() ?? 'Belirtilmedi')
-            : 'Belirtilmedi',
-        durum: durum,
-        olusturulma: DateTime.tryParse(row['created_at']?.toString() ?? '') ?? DateTime.now(),
-        atananPersonel: assignedPersonel,
-        aciklama: row['ilan_linki']?.toString() ?? '',
-        sehir: row['sehir']?.toString() ?? '',
-        expertizFirmasi: row['ekspertiz_firmasi']?.toString() ?? '',
-        expertizPaketi: data['expertiz_paketi']?.toString() ?? 'Belirtilmedi',
-        paketFiyati: (row['paket_fiyati'] as num?)?.toDouble() ?? 0.0,
-        hizmetBedeli: (row['hizmet_bedeli'] as num?)?.toDouble() ?? 6500.0,
-        toplamTutar: (row['toplam_tutar'] as num?)?.toDouble() ?? 0.0,
-        isPaid: row['odendi_mi'] == true,
-      );
+      final response = await _api.setMyDuty(value);
+      if (!mounted) return;
+      setState(() => _me = Map<String, dynamic>.from(response['personnel'] as Map? ?? _me));
+      _snack(value ? 'Görev için aktifsiniz; yeni görev alabilirsiniz' : 'Görev için pasifsiniz; yeni görev atanmayacak');
     } catch (e) {
-      debugPrint('Report->Talep map hatasi: $e');
-      return null;
+      _snack('Görev durumu değiştirilemedi: ${e is ApiException ? e.message : e}', error: true);
+    } finally {
+      if (mounted) setState(() => _dutyBusy = false);
     }
   }
+
+  Future<void> _step(Map<String, dynamic> task, String action) async {
+    final id = task['id']?.toString() ?? '';
+    if (_busyTasks.contains(id)) return;
+    setState(() => _busyTasks.add(id));
+    try {
+      await _api.updateMyTask(id, action);
+      await _load();
+      if (action == 'start') _openReport(task);
+    } catch (e) {
+      _snack('İşlem başarısız: ${e is ApiException ? e.message : e}', error: true);
+    } finally {
+      if (mounted) setState(() => _busyTasks.remove(id));
+    }
+  }
+
+  void _openReport(Map<String, dynamic> task) {
+    final vehicle = Map<String, dynamic>.from(task['vehicle'] as Map? ?? const {});
+    final customer = Map<String, dynamic>.from(task['customer'] as Map? ?? const {});
+    Navigator.of(context)
+        .push(MaterialPageRoute(
+          builder: (_) => ChangeNotifierProvider(
+            create: (_) => ExpertizProvider(),
+            child: ExpertizSihirbazi(
+              gorevId: task['id']?.toString() ?? '',
+              musteriAdi: customer['name']?.toString() ?? '',
+              aracPlaka: vehicle['plate']?.toString() ?? '',
+            ),
+          ),
+        ))
+        .then((_) => _load());
+  }
+
+  Future<void> _openNotifications() async {
+    if (_unread > 0) {
+      setState(() => _unread = 0);
+      try {
+        await _api.markNotificationsRead();
+      } catch (_) {
+        // bir sonraki yenilemede düzelir
+      }
+    }
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: FuturisticTheme.bgSecondary,
+      builder: (_) => _NotificationList(items: _notifications),
+    );
+    _load();
+  }
+
+  Future<void> _changePassword({bool zorunlu = false}) async {
+    if (_passwordDialogOpen) return;
+    _passwordDialogOpen = true;
+    final changed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: !zorunlu,
+      builder: (_) => SifreDegistirDialog(api: _api, zorunlu: zorunlu),
+    );
+    _passwordDialogOpen = false;
+    if (changed == true) {
+      if (mounted) setState(() => _me = {..._me, 'must_change_password': false});
+      _snack('Şifreniz değiştirildi');
+    }
+  }
+
+  Future<void> _logout() async {
+    final userProvider = context.read<UserProvider>();
+    await userProvider.logout();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
+  void _snack(String text, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text), backgroundColor: error ? Colors.red.shade700 : null),
+    );
+  }
+
+  List<Map<String, dynamic>> _bucket(String name) =>
+      _tasks.where((t) => (t['personnel_bucket'] ?? 'active') == name).toList();
 
   @override
   Widget build(BuildContext context) {
-    if (_currentUser == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    final active = _bucket('active');
+    final pending = _bucket('pending');
+    final rejected = _bucket('rejected');
+    final approved = _bucket('approved');
 
-    final pages = [
-      _buildDashboard(),
-      _buildGorevler(),
-      _buildProfil(),
-    ];
-
-    return BaseScaffold(
-      role: UserRole.fieldStaff,
-      body: pages[_currentIndex],
-    );
-  }
-
-  List<TalepModel> _getPersonelTalepleri(List<TalepModel> tumTalepler) {
-    if (_currentUser == null) return [];
-    final merged = <String, TalepModel>{};
-    for (final t in tumTalepler) {
-      if (t.atananPersonel == _currentUser!.id ||
-          t.atananPersonel == _currentUser!.fullName) {
-        merged[t.id] = t;
-      }
-    }
-    for (final t in _supabaseGorevler) {
-      merged[t.id] = t;
-    }
-    return merged.values.toList()
-      ..sort((a, b) => b.olusturulma.compareTo(a.olusturulma));
-  }
-
-  // ========== DASHBOARD ==========
-  Widget _buildDashboard() {
-    return Consumer<AdminProvider>(
-      builder: (context, adminProvider, child) {
-        final myTasks = _getPersonelTalepleri(adminProvider.talepler);
-        final assignedTasks = myTasks.where((t) => t.durum != 'Raporlandı' && t.durum != 'Tamamlandı').toList();
-        final completedTasks = myTasks.where((t) => t.durum == 'Raporlandı' || t.durum == 'Tamamlandı').toList();
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
+        backgroundColor: FuturisticTheme.bgPrimary,
+        appBar: AppBar(
+          title: const Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Hoş Geldiniz Kartı - GlassCard ile
-              GlassCard(
-                child: Row(
-                  children: [
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: FuturisticTheme.neon.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      child: const Icon(Icons.person, size: 30, color: FuturisticTheme.neon),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Hoş Geldiniz, ${_currentUser!.fullName}!',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'ID: ${_currentUser!.id}',
-                            style: TextStyle(color: Colors.white.withValues(alpha: 0.54)),
-                          ),
-                          Text(
-                            DateFormat('dd.MM.yyyy').format(DateTime.now()),
-                            style: TextStyle(color: Colors.white.withValues(alpha: 0.38), fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+              YerimeBakLogo(height: 32, onDark: true),
+              SizedBox(width: 12),
+              Text('Personel Paneli'),
+            ],
+          ),
+          actions: [
+            IconButton(
+              key: const Key('notificationsButton'),
+              tooltip: 'Bildirimler',
+              onPressed: _openNotifications,
+              icon: Badge(
+                isLabelVisible: _unread > 0,
+                label: Text(_unread > 9 ? '9+' : '$_unread'),
+                child: const Icon(Icons.notifications_outlined),
               ),
-              
-              const SizedBox(height: 24),
-              
-              // İstatistikler - GlassCard ile
-              Row(
+            ),
+            IconButton(tooltip: 'Yenile', onPressed: _load, icon: const Icon(Icons.refresh)),
+            IconButton(
+              key: const Key('changePasswordButton'),
+              tooltip: 'Şifre Değiştir',
+              onPressed: () => _changePassword(),
+              icon: const Icon(Icons.lock_reset),
+            ),
+            IconButton(tooltip: 'Çıkış', onPressed: _logout, icon: const Icon(Icons.logout)),
+          ],
+          bottom: TabBar(
+            isScrollable: true,
+            labelColor: FuturisticTheme.neon,
+            indicatorColor: FuturisticTheme.neon,
+            unselectedLabelColor: Colors.white54,
+            tabs: [
+              Tab(text: 'Aktif (${active.length})'),
+              Tab(text: 'Beklemede (${pending.length})'),
+              Tab(text: 'Reddedildi (${rejected.length})'),
+              Tab(text: 'Tamamlanan (${approved.length})'),
+            ],
+          ),
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
                 children: [
+                  if (_error != null) _errorBanner(),
+                  _dutyCard(),
                   Expanded(
-                    child: _buildGlassStatCard('Atanan', assignedTasks.length.toString(), Icons.assignment, Colors.orange),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildGlassStatCard('Tamamlanan', completedTasks.length.toString(), Icons.check_circle, Colors.green),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildGlassStatCard('Toplam', '${myTasks.length}', Icons.work, Colors.blue),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 24),
-              
-              // Bugünün Görevleri
-              if (assignedTasks.isNotEmpty) ...[
-                const Text(
-                  "📋 Atanan Görevler",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-                ),
-                Text(
-                  "(${assignedTasks.length} adet)",
-                  style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.7)),
-                ),
-                const SizedBox(height: 12),
-                ...assignedTasks.map((gorev) => _buildGorevCard(gorev)),
-              ] else ...[
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(40),
-                    child: Column(
+                    child: TabBarView(
                       children: [
-                        Icon(Icons.assignment_outlined, size: 64, color: Colors.white.withValues(alpha: 0.24)),
-                        const SizedBox(height: 16),
-                        Text('Atanan aktif görev bulunmuyor', style: TextStyle(color: Colors.white.withValues(alpha: 0.54))),
+                        _list(active, 'Aktif göreviniz yok', _onDuty ? 'Admin size görev atadığında burada görünür.' : 'Görev için pasifsiniz; yeni görev atanmaz.'),
+                        _list(pending, 'Admin kontrolünde rapor yok', 'Gönderdiğiniz raporlar onaylanana kadar burada bekler.'),
+                        _list(rejected, 'Reddedilen rapor yok', 'Admin hata bulursa rapor nedeniyle buraya döner.'),
+                        _list(approved, 'Tamamlanan görev yok', 'Admin onaylayıp müşteriye gönderdiği raporlar.'),
                       ],
                     ),
                   ),
-                ),
-              ],
-            ],
-          ),
-        );
-      },
+                ],
+              ),
+      ),
     );
   }
 
-  Widget _buildGlassStatCard(String title, String value, IconData icon, Color color) {
-    return GlassCard(
-      child: Column(
+  Widget _errorBanner() {
+    return Container(
+      width: double.infinity,
+      color: Colors.red.withValues(alpha: 0.15),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
         children: [
-          Icon(icon, size: 24, color: color),
-          const SizedBox(height: 8),
-          Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
-          const SizedBox(height: 4),
-          Text(title, style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.70))),
+          const Icon(Icons.error_outline, color: Colors.redAccent, size: 18),
+          const SizedBox(width: 8),
+          Expanded(child: Text(_error!, style: const TextStyle(color: Colors.white70))),
+          TextButton(onPressed: _load, child: const Text('Tekrar dene')),
         ],
       ),
     );
   }
 
-  // ========== GÖREVLER SAYFASI ==========
-  Widget _buildGorevler() {
-    return Consumer<AdminProvider>(
-      builder: (context, adminProvider, child) {
-        final myTasks = _getPersonelTalepleri(adminProvider.talepler);
-        final assignedTasks = myTasks.where((t) => t.durum != 'Raporlandı' && t.durum != 'Tamamlandı').toList();
-        final completedTasks = myTasks.where((t) => t.durum == 'Raporlandı' || t.durum == 'Tamamlandı').toList();
-
-        return DefaultTabController(
-          length: 2,
-          child: Column(
-            children: [
-              Container(
-                color: FuturisticTheme.bgSecondary,
-                child: TabBar(
-                  labelColor: FuturisticTheme.neon,
-                  unselectedLabelColor: Colors.white.withValues(alpha: 0.54),
-                  indicatorColor: FuturisticTheme.neon,
-                  tabs: [
-                    Tab(text: 'Aktif (${assignedTasks.length})'),
-                    Tab(text: 'Geçmiş (${completedTasks.length})'),
-                  ],
-                ),
+  Widget _dutyCard() {
+    final name = _me['full_name']?.toString() ?? '';
+    final place = [_me['city'], _me['district']].where((e) => (e?.toString() ?? '').isNotEmpty).join(' / ');
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: GlassCard(
+        child: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: (_onDuty ? Colors.green : Colors.grey).withValues(alpha: 0.25),
+              child: Icon(_onDuty ? Icons.work : Icons.work_off, color: _onDuty ? Colors.greenAccent : Colors.grey),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name.isEmpty ? 'Personel' : name,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  if (place.isNotEmpty) Text(place, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                  const SizedBox(height: 2),
+                  Text(
+                    _onDuty ? 'Görev için AKTİF — yeni görev alabilirsiniz' : 'Görev için PASİF — yeni görev atanmaz',
+                    style: TextStyle(color: _onDuty ? Colors.greenAccent : Colors.orangeAccent, fontSize: 12),
+                  ),
+                ],
               ),
-              Expanded(
-                child: TabBarView(
-                  children: [
-                    _buildGorevListesi(assignedTasks, false),
-                    _buildGorevListesi(completedTasks, true),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      }
+            ),
+            if (_dutyBusy)
+              const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+            else
+              Switch(key: const Key('dutySwitch'), value: _onDuty, onChanged: _setDuty),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildGorevListesi(List<TalepModel> gorevler, bool tamamlandi) {
-    if (gorevler.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+  Widget _list(List<Map<String, dynamic>> tasks, String emptyTitle, String emptyHint) {
+    if (tasks.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
           children: [
-            Icon(
-              tamamlandi ? Icons.check_circle_outline : Icons.assignment_outlined,
-              size: 64,
-              color: Colors.white.withValues(alpha: 0.24),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              tamamlandi ? 'Tamamlanan görev bulunmuyor' : 'Aktif görev bulunmuyor',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.54)),
+            const SizedBox(height: 60),
+            const Icon(Icons.assignment_outlined, size: 56, color: Colors.white24),
+            const SizedBox(height: 12),
+            Center(child: Text(emptyTitle, style: const TextStyle(color: Colors.white70))),
+            const SizedBox(height: 4),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(emptyHint, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+              ),
             ),
           ],
         ),
       );
     }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: gorevler.length,
-      itemBuilder: (context, index) => _buildGorevCard(gorevler[index]),
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: tasks.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (_, i) => _taskCard(tasks[i]),
+      ),
     );
   }
 
-  Widget _buildGorevCard(TalepModel gorev) {
-    void navigateToWorkflow() {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ChangeNotifierProvider(
-            create: (_) => ExpertizProvider(),
-            child: ExpertizSihirbazi(
-              gorevId: gorev.id,
-              musteriAdi: gorev.musteriAdi,
-              aracPlaka: gorev.aracPlaka,
-            ),
-          ),
-        ),
-      ).then((_) {
-        if (mounted) {
-          context.read<AdminProvider>().loadTalepler();
-        }
-      });
-    }
+  static String _date(dynamic value) {
+    final parsed = DateTime.tryParse(value?.toString() ?? '');
+    return parsed == null ? '' : DateFormat('dd.MM.yyyy HH:mm').format(parsed.toLocal());
+  }
+
+  Widget _taskCard(Map<String, dynamic> task) {
+    final id = task['id']?.toString() ?? '';
+    final vehicle = Map<String, dynamic>.from(task['vehicle'] as Map? ?? const {});
+    final customer = Map<String, dynamic>.from(task['customer'] as Map? ?? const {});
+    final assignment = Map<String, dynamic>.from(task['assignment'] as Map? ?? const {});
+    final bucket = task['personnel_bucket']?.toString() ?? 'active';
+    final stage = assignment['status']?.toString() ?? 'assigned';
+    final actions = (task['next_actions'] as List? ?? const []).map((e) => e.toString()).toList();
+    final busy = _busyTasks.contains(id);
+    final place = [task['city'], task['district']].where((e) => (e?.toString() ?? '').isNotEmpty).join(' / ');
+
+    final (chipText, chipColor) = switch (bucket) {
+      'pending' => ('Admin kontrolünde', Colors.orangeAccent),
+      'rejected' => ('Reddedildi — düzeltin', Colors.redAccent),
+      'approved' => ('Onaylandı', Colors.greenAccent),
+      _ => (_asamaEtiketleri[stage] ?? stage, FuturisticTheme.neon),
+    };
+
+    final steps = <(String, dynamic)>[
+      ('Atandı', assignment['assigned_at']),
+      ('Kabul', assignment['accepted_at']),
+      ('Harekete geçti', assignment['departed_at']),
+      ('Araç başında', assignment['arrived_at']),
+      if (task['corporate_required'] == true) ('Kurumsal ekspertiz', assignment['corporate_at']),
+      ('Rapor', assignment['started_at']),
+      ('Gönderildi', assignment['submitted_at']),
+    ].where((s) => s.$2 != null).toList();
 
     return GlassCard(
+      key: Key('task-$id'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Text(
-                  "${gorev.aracMarka} ${gorev.aracModel}",
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                  vehicle['title']?.toString() ?? 'Araç',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _getDurumColor(gorev.durum).withValues(alpha: 0.2),
+                  color: chipColor.withValues(alpha: 0.15),
+                  border: Border.all(color: chipColor),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _getDurumColor(gorev.durum)),
                 ),
-                child: Text(
-                  gorev.durum,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: _getDurumColor(gorev.durum),
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                child: Text(chipText, style: TextStyle(color: chipColor, fontSize: 11, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            gorev.aracPlaka,
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.70), fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            gorev.aciklama,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.54)),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              const Icon(Icons.location_on, size: 14, color: Colors.white54),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  gorev.sehir.isNotEmpty ? gorev.sehir : "İstanbul",
-                  style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.54)),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.calendar_month, size: 14, color: Colors.white54),
-              const SizedBox(width: 4),
-              Text(
-                DateFormat('dd.MM.yyyy HH:mm').format(gorev.olusturulma),
-                style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.54)),
-              ),
-            ],
-          ),
-          
-          // Aksiyon Butonları
-          if (gorev.durum != 'Raporlandı' && gorev.durum != 'Tamamlandı') ...[
-            const SizedBox(height: 12),
-            SizedBox(
+          const SizedBox(height: 6),
+          if ((vehicle['plate']?.toString() ?? '').isNotEmpty)
+            Text(vehicle['plate'].toString(), style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+          _line(Icons.location_on, place.isEmpty ? 'Konum belirtilmedi' : place),
+          _line(Icons.person_outline, [customer['name'], customer['phone']].where((e) => (e?.toString() ?? '').isNotEmpty).join(' • ')),
+          if ((task['firm_name']?.toString() ?? '').isNotEmpty)
+            _line(Icons.business, '${task['firm_name']} — ${task['package_name'] ?? ''}'),
+          if ((task['note']?.toString() ?? '').isNotEmpty) _line(Icons.notes, task['note'].toString()),
+          if (bucket == 'rejected' && (task['rejection_reason']?.toString() ?? '').isNotEmpty)
+            Container(
               width: double.infinity,
-              child: NeonButton(
-                text: 'GÖREVİ BAŞLAT',
-                onTap: navigateToWorkflow,
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.6)),
               ),
+              child: Text('Admin notu: ${task['rejection_reason']}', style: const TextStyle(color: Colors.redAccent)),
             ),
+          if (bucket == 'pending') _line(Icons.hourglass_top, 'Gönderildi: ${_date(task['submitted_at'])}'),
+          if (bucket == 'approved') _line(Icons.verified, 'Onaylandı: ${_date(task['published_at'])}'),
+          if (steps.isNotEmpty && bucket != 'approved') ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: steps
+                  .map((s) => Chip(
+                        visualDensity: VisualDensity.compact,
+                        label: Text('${s.$1} ${_date(s.$2).split(' ').last}', style: const TextStyle(fontSize: 11)),
+                      ))
+                  .toList(),
+            ),
+          ],
+          if (bucket == 'active' || bucket == 'rejected') ...[
+            const SizedBox(height: 12),
+            if (busy)
+              const Center(child: CircularProgressIndicator())
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final action in actions)
+                    action == actions.first
+                        ? FilledButton.icon(
+                            key: Key('action-$id-$action'),
+                            onPressed: () => _step(task, action),
+                            icon: Icon(_adimIkonlari[action]),
+                            label: Text(action == 'start' && bucket == 'rejected' ? 'Düzeltmeye Başla' : kGorevAdimEtiketleri[action] ?? action),
+                          )
+                        : OutlinedButton.icon(
+                            key: Key('action-$id-$action'),
+                            onPressed: () => _step(task, action),
+                            icon: Icon(_adimIkonlari[action]),
+                            label: Text(kGorevAdimEtiketleri[action] ?? action),
+                          ),
+                  if (stage == 'in_progress')
+                    FilledButton.icon(
+                      key: Key('report-$id'),
+                      onPressed: () => _openReport(task),
+                      icon: const Icon(Icons.edit_document),
+                      label: const Text('Rapora Devam Et'),
+                    ),
+                ],
+              ),
           ],
         ],
       ),
     );
   }
 
-  Color _getDurumColor(String durum) {
-    switch (durum) {
-      case 'Onaylandı':
-        return Colors.orange;
-      case 'Raporlandı':
-      case 'Tamamlandı':
-        return Colors.green;
-      case 'Beklemede':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
+  Widget _line(IconData icon, String text) {
+    if (text.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 14, color: Colors.white54),
+          const SizedBox(width: 6),
+          Expanded(child: Text(text, style: const TextStyle(color: Colors.white60, fontSize: 12))),
+        ],
+      ),
+    );
   }
+}
 
-  // ========== PROFİL SAYFASI ==========
-  Widget _buildProfil() {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: loadPersonelData(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+class _NotificationList extends StatelessWidget {
+  const _NotificationList({required this.items});
 
-        if (snapshot.hasError) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.error_outline, size: 48, color: Colors.red.withValues(alpha: 0.7)),
-                const SizedBox(height: 16),
-                Text('Veri yüklenemedi: ${snapshot.error}', style: const TextStyle(color: Colors.white70)),
-              ],
-            ),
-          );
-        }
+  final List<Map<String, dynamic>> items;
 
-        final personelData = snapshot.data ?? {
-          'id': _currentUser!.id,
-          'adSoyad': _currentUser!.fullName,
-          'email': _currentUser!.email,
-          'rol': _currentUser!.role.displayName,
-          'aktif': false,
-          'musait': false,
-          'uzmanlikAlani': 'Belirtilmemiş',
-          'performansSkoru': 0.0,
-          'aktifGorevSayisi': 0,
-          'il': '---',
-          'ilce': '---',
-        };
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              // Dijital Kimlik Kartı
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      FuturisticTheme.bgSecondary,
-                      FuturisticTheme.bgPrimary,
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: FuturisticTheme.neon.withValues(alpha: 0.3),
-                    width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: FuturisticTheme.neon.withValues(alpha: 0.2),
-                      blurRadius: 30,
-                      spreadRadius: 5,
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 80,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  FuturisticTheme.neon.withValues(alpha: 0.3),
-                                  FuturisticTheme.neon.withValues(alpha: 0.1),
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(40),
-                              border: Border.all(
-                                color: FuturisticTheme.neon.withValues(alpha: 0.5),
-                                width: 2,
-                              ),
-                            ),
-                            child: const Icon(Icons.person, size: 40, color: FuturisticTheme.neon),
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  personelData['adSoyad']?.toString() ?? '---',
-                                  style: const TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: (personelData['aktif'] as bool? ?? false) ? Colors.green.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.2),
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
-                                          color: (personelData['aktif'] as bool? ?? false) ? Colors.green : Colors.grey,
-                                          width: 1,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.circle,
-                                            size: 8,
-                                            color: (personelData['aktif'] as bool? ?? false) ? Colors.green : Colors.grey,
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            (personelData['aktif'] as bool? ?? false) ? 'Online' : 'Offline',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                              color: (personelData['aktif'] as bool? ?? false) ? Colors.green : Colors.grey,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: (personelData['musait'] as bool? ?? false) ? Colors.blue.withValues(alpha: 0.2) : Colors.orange.withValues(alpha: 0.2),
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
-                                          color: (personelData['musait'] as bool? ?? false) ? Colors.blue : Colors.orange,
-                                          width: 1,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            (personelData['musait'] as bool? ?? false) ? Icons.check_circle : Icons.work,
-                                            size: 12,
-                                            color: (personelData['musait'] as bool? ?? false) ? Colors.blue : Colors.orange,
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            (personelData['musait'] as bool? ?? false) ? 'Müsait' : 'Meşgul',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                              color: (personelData['musait'] as bool? ?? false) ? Colors.blue : Colors.orange,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    Container(
-                      height: 1,
-                      margin: const EdgeInsets.symmetric(horizontal: 24),
-                      color: FuturisticTheme.neon.withValues(alpha: 0.2),
-                    ),
-                    
-                    Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        children: [
-                          buildStatRow(
-                            Icons.trending_up,
-                            'Performans Skoru',
-                            '${personelData['performansSkoru']}',
-                            FuturisticTheme.neon,
-                          ),
-                          const SizedBox(height: 16),
-                          buildStatRow(
-                            Icons.assignment_turned_in,
-                            'Aktif Görev',
-                            '${personelData['aktifGorevSayisi']}',
-                            Colors.orange,
-                          ),
-                          const SizedBox(height: 16),
-                          buildStatRow(
-                            Icons.engineering,
-                            'Uzmanlık Alanı',
-                            personelData['uzmanlikAlani']?.toString() ?? '---',
-                            Colors.purple,
-                          ),
-                          const SizedBox(height: 16),
-                          buildStatRow(
-                            Icons.badge,
-                            'Rol',
-                            (personelData['rol'] as String?)?.toUpperCase() ?? '---',
-                            Colors.blue,
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    Container(
-                      height: 1,
-                      margin: const EdgeInsets.symmetric(horizontal: 24),
-                      color: FuturisticTheme.neon.withValues(alpha: 0.2),
-                    ),
-                    
-                    Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: buildActionButton(
-                                  Icons.add_task,
-                                  'Görev Ata',
-                                  Colors.green,
-                                  () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Görev atama modülü açılıyor...'),
-                                        backgroundColor: FuturisticTheme.neon,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: buildActionButton(
-                                  Icons.show_chart,
-                                  'Performans İzle',
-                                  Colors.blue,
-                                  () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Performans analizi açılıyor...'),
-                                        backgroundColor: FuturisticTheme.neon,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          buildActionButton(
-                            Icons.chat,
-                            'İletişime Geç',
-                            FuturisticTheme.neon,
-                            () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Sohbet açılıyor...'),
-                                  backgroundColor: FuturisticTheme.neon,
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              const SizedBox(height: 20),
-              
-              GlassCard(
-                child: ListTile(
-                  leading: const Icon(Icons.logout, color: Colors.red),
-                  title: const Text('Çıkış Yap', style: TextStyle(color: Colors.white)),
-                  onTap: () async {
-                    await context.read<UserProvider>().logout();
-                    if (context.mounted) {
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (context) => const LoginScreen()),
-                        (route) => false,
-                      );
-                    }
-                  },
-                ),
-              ),
-            ],
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return const SizedBox(
+        height: 160,
+        child: Center(child: Text('Henüz bildirim yok', style: TextStyle(color: Colors.white60))),
+      );
+    }
+    return ListView.separated(
+      shrinkWrap: true,
+      padding: const EdgeInsets.all(16),
+      itemCount: items.length,
+      separatorBuilder: (_, __) => const Divider(color: Colors.white12),
+      itemBuilder: (_, i) {
+        final n = items[i];
+        final kind = n['kind']?.toString() ?? '';
+        final color = kind == 'report_rejected'
+            ? Colors.redAccent
+            : kind == 'report_approved'
+                ? Colors.greenAccent
+                : FuturisticTheme.neon;
+        final created = DateTime.tryParse(n['created_at']?.toString() ?? '');
+        return ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(
+            kind == 'report_rejected'
+                ? Icons.report_problem
+                : kind == 'report_approved'
+                    ? Icons.verified
+                    : Icons.notifications,
+            color: color,
+          ),
+          title: Text(n['title']?.toString() ?? '', style: const TextStyle(color: Colors.white)),
+          subtitle: Text(
+            [n['body']?.toString() ?? '', if (created != null) DateFormat('dd.MM HH:mm').format(created.toLocal())]
+                .where((e) => e.isNotEmpty)
+                .join('\n'),
+            style: const TextStyle(color: Colors.white54),
           ),
         );
       },
-    );
-  }
-
-  Future<Map<String, dynamic>> loadPersonelData() async {
-    try {
-      final userProvider = context.read<UserProvider>();
-      final userId = userProvider.userId;
-
-      if (userId == null) {
-        throw Exception('Oturum açılmadı');
-      }
-
-      final response = await Supabase.instance.client.rpc(
-        'get_personnel_dashboard_stats',
-        params: {'p_personnel_id': userId},
-      );
-
-      if (response != null) {
-        return Map<String, dynamic>.from(response);
-      }
-
-      return {
-        'id': _currentUser!.id,
-        'adSoyad': _currentUser!.fullName,
-        'email': _currentUser!.email,
-        'rol': _currentUser!.role.displayName,
-        'aktif': false,
-        'musait': false,
-        'uzmanlikAlani': 'Belirtilmemiş',
-        'performansSkoru': 0.0,
-        'aktifGorevSayisi': 0,
-        'il': '---',
-        'ilce': '---',
-      };
-    } catch (e) {
-      return {
-        'id': _currentUser!.id,
-        'adSoyad': _currentUser!.fullName,
-        'email': _currentUser!.email,
-        'rol': _currentUser!.role.displayName,
-        'aktif': false,
-        'musait': false,
-        'uzmanlikAlani': 'Belirtilmemiş',
-        'performansSkoru': 0.0,
-        'aktifGorevSayisi': 0,
-        'il': '---',
-        'ilce': '---',
-      };
-    }
-  }
-  
-  Widget buildStatRow(IconData icon, String label, String value, Color color) {
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: color),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.white.withValues(alpha: 0.7),
-                ),
-              ),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-  
-  Widget buildActionButton(IconData icon, String label, Color color, VoidCallback onTap) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            color.withValues(alpha: 0.3),
-            color.withValues(alpha: 0.1),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: color.withValues(alpha: 0.5),
-          width: 1,
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 20, color: color),
-                const SizedBox(width: 12),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

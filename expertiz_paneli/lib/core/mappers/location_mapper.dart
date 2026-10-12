@@ -36,25 +36,28 @@ class LocationMapper {
   };
 
   // ==================== PROVINCE DATA ====================
-  // Turkey's 81 Provinces with their Region mappings
+  // Türkiye'nin 81 ili, plaka kodu ve resmi 7 coğrafi bölge eşleşmesi.
+  // Backend: musteri_paneli/yerimebak_ai_v5/core/turkey_regions.py ile birebir aynıdır.
   static const Map<int, _ProvinceInfo> _provinces = {
-    // Marmara Region (bolgeId: 1)
-    34: _ProvinceInfo('İstanbul', 1),
+    // Marmara (bolgeId: 1)
+    10: _ProvinceInfo('Balıkesir', 1),
+    11: _ProvinceInfo('Bilecik', 1),
     16: _ProvinceInfo('Bursa', 1),
     17: _ProvinceInfo('Çanakkale', 1),
     22: _ProvinceInfo('Edirne', 1),
+    34: _ProvinceInfo('İstanbul', 1),
     39: _ProvinceInfo('Kırklareli', 1),
+    41: _ProvinceInfo('Kocaeli', 1),
     54: _ProvinceInfo('Sakarya', 1),
     59: _ProvinceInfo('Tekirdağ', 1),
     77: _ProvinceInfo('Yalova', 1),
-    11: _ProvinceInfo('Bilecik', 1),
-    41: _ProvinceInfo('Kocaeli', 1),
-    10: _ProvinceInfo('Balıkesir', 1),
-    
-    // İç Anadolu Region (bolgeId: 2)
+
+    // İç Anadolu (bolgeId: 2)
     6: _ProvinceInfo('Ankara', 2),
+    18: _ProvinceInfo('Çankırı', 2),
     26: _ProvinceInfo('Eskişehir', 2),
     38: _ProvinceInfo('Kayseri', 2),
+    40: _ProvinceInfo('Kırşehir', 2),
     42: _ProvinceInfo('Konya', 2),
     50: _ProvinceInfo('Nevşehir', 2),
     51: _ProvinceInfo('Niğde', 2),
@@ -63,57 +66,65 @@ class LocationMapper {
     68: _ProvinceInfo('Aksaray', 2),
     70: _ProvinceInfo('Karaman', 2),
     71: _ProvinceInfo('Kırıkkale', 2),
-    78: _ProvinceInfo('Karabük', 2),
-    
-    // Ege Region (bolgeId: 3)
-    35: _ProvinceInfo('İzmir', 3),
+
+    // Ege (bolgeId: 3)
+    3: _ProvinceInfo('Afyonkarahisar', 3),
     9: _ProvinceInfo('Aydın', 3),
     20: _ProvinceInfo('Denizli', 3),
+    35: _ProvinceInfo('İzmir', 3),
+    43: _ProvinceInfo('Kütahya', 3),
     45: _ProvinceInfo('Manisa', 3),
     48: _ProvinceInfo('Muğla', 3),
-    3: _ProvinceInfo('Afyonkarahisar', 3),
-    43: _ProvinceInfo('Kütahya', 3),
     64: _ProvinceInfo('Uşak', 3),
-    
-    // Akdeniz Region (bolgeId: 4)
+
+    // Akdeniz (bolgeId: 4)
+    1: _ProvinceInfo('Adana', 4),
     7: _ProvinceInfo('Antalya', 4),
+    15: _ProvinceInfo('Burdur', 4),
+    31: _ProvinceInfo('Hatay', 4),
     32: _ProvinceInfo('Isparta', 4),
     33: _ProvinceInfo('Mersin', 4),
-    31: _ProvinceInfo('Hatay', 4),
-    80: _ProvinceInfo('Osmaniye', 4),
-    15: _ProvinceInfo('Burdur', 4),
     46: _ProvinceInfo('Kahramanmaraş', 4),
-    
-    // Karadeniz Region (bolgeId: 5)
-    55: _ProvinceInfo('Samsun', 5),
-    52: _ProvinceInfo('Ordu', 5),
-    53: _ProvinceInfo('Rize', 5),
-    61: _ProvinceInfo('Trabzon', 5),
+    80: _ProvinceInfo('Osmaniye', 4),
+
+    // Karadeniz (bolgeId: 5)
+    5: _ProvinceInfo('Amasya', 5),
+    8: _ProvinceInfo('Artvin', 5),
+    14: _ProvinceInfo('Bolu', 5),
+    19: _ProvinceInfo('Çorum', 5),
     28: _ProvinceInfo('Giresun', 5),
     29: _ProvinceInfo('Gümüşhane', 5),
-    36: _ProvinceInfo('Kars', 5),
     37: _ProvinceInfo('Kastamonu', 5),
+    52: _ProvinceInfo('Ordu', 5),
+    53: _ProvinceInfo('Rize', 5),
+    55: _ProvinceInfo('Samsun', 5),
     57: _ProvinceInfo('Sinop', 5),
-    74: _ProvinceInfo('Bartın', 5),
-    75: _ProvinceInfo('Ardahan', 5),
-    76: _ProvinceInfo('Iğdır', 5),
-    8: _ProvinceInfo('Artvin', 5),
+    60: _ProvinceInfo('Tokat', 5),
+    61: _ProvinceInfo('Trabzon', 5),
+    67: _ProvinceInfo('Zonguldak', 5),
     69: _ProvinceInfo('Bayburt', 5),
+    74: _ProvinceInfo('Bartın', 5),
+    78: _ProvinceInfo('Karabük', 5),
     81: _ProvinceInfo('Düzce', 5),
-    
-    // Doğu Anadolu Region (bolgeId: 6)
+
+    // Doğu Anadolu (bolgeId: 6)
+    4: _ProvinceInfo('Ağrı', 6),
+    12: _ProvinceInfo('Bingöl', 6),
+    13: _ProvinceInfo('Bitlis', 6),
     23: _ProvinceInfo('Elazığ', 6),
-    30: _ProvinceInfo('Hakkâri', 6),
+    24: _ProvinceInfo('Erzincan', 6),
+    25: _ProvinceInfo('Erzurum', 6),
+    30: _ProvinceInfo('Hakkari', 6),
+    36: _ProvinceInfo('Kars', 6),
     44: _ProvinceInfo('Malatya', 6),
     49: _ProvinceInfo('Muş', 6),
     62: _ProvinceInfo('Tunceli', 6),
     65: _ProvinceInfo('Van', 6),
-    4: _ProvinceInfo('Ağrı', 6),
-    12: _ProvinceInfo('Bingöl', 6),
-    13: _ProvinceInfo('Bitlis', 6),
-    19: _ProvinceInfo('Çorum', 6),
-    
-    // Güneydoğu Anadolu Region (bolgeId: 7)
+    75: _ProvinceInfo('Ardahan', 6),
+    76: _ProvinceInfo('Iğdır', 6),
+
+    // Güneydoğu Anadolu (bolgeId: 7)
+    2: _ProvinceInfo('Adıyaman', 7),
     21: _ProvinceInfo('Diyarbakır', 7),
     27: _ProvinceInfo('Gaziantep', 7),
     47: _ProvinceInfo('Mardin', 7),
@@ -121,7 +132,6 @@ class LocationMapper {
     63: _ProvinceInfo('Şanlıurfa', 7),
     72: _ProvinceInfo('Batman', 7),
     73: _ProvinceInfo('Şırnak', 7),
-    2: _ProvinceInfo('Adıyaman', 7),
     79: _ProvinceInfo('Kilis', 7),
   };
 
@@ -229,13 +239,44 @@ class LocationMapper {
   }
 
   /// Get ilId from ilAdi (reverse mapping)
+  ///
+  /// Büyük/küçük harf ve Türkçe karakter farklarını tolere eder:
+  /// 'İstanbul', 'ISTANBUL', 'istanbul', 'İstanbul / Kadıköy' → 34
   int getIlId(String ilAdi) {
-    for (final entry in _provinces.entries) {
-      if (entry.value.name == ilAdi) {
-        return entry.key;
+    final raw = ilAdi.trim();
+    if (raw.isEmpty) return 0;
+    final asNumber = int.tryParse(raw);
+    if (asNumber != null) return _provinces.containsKey(asNumber) ? asNumber : 0;
+
+    final candidates = <String>{raw};
+    for (final separator in ['/', ',', '-', '(', ' ']) {
+      if (raw.contains(separator)) {
+        candidates.addAll(
+          raw.split(separator).map((p) => p.replaceAll(')', '').trim()).where((p) => p.isNotEmpty),
+        );
+      }
+    }
+    for (final candidate in candidates) {
+      final folded = _fold(candidate);
+      for (final entry in _provinces.entries) {
+        if (_fold(entry.value.name) == folded) {
+          return entry.key;
+        }
       }
     }
     return 0;
+  }
+
+  static String _fold(String value) {
+    const map = {
+      'ç': 'c', 'ğ': 'g', 'ı': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u', 'â': 'a', 'î': 'i', 'û': 'u',
+    };
+    final lowered = value.trim().replaceAll('İ', 'i').replaceAll('I', 'ı').toLowerCase();
+    final buffer = StringBuffer();
+    for (final char in lowered.split('')) {
+      buffer.write(map[char] ?? char);
+    }
+    return buffer.toString();
   }
 
   /// Get bolgeId from bolgeAdi (reverse mapping)

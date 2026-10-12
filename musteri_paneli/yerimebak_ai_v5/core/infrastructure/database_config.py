@@ -30,6 +30,30 @@ _pool = None
 _pool_lock = threading.Lock()
 
 
+class _PooledConnection(psycopg2.extensions.connection):
+    """Havuzdan gelen baglanti.
+
+    psycopg2'nin C seviyesindeki connection nesnesinde `close` salt-okunurdur;
+    eski kod `conn.close = ...` ile monkey-patch yapmaya calistigi icin HER
+    baglanti isteginde AttributeError aliniyordu. Bu alt sinif `close()`
+    cagrisini havuza geri iade olarak yorumlar (eski conn.close() cagrilari
+    calismaya devam eder).
+    """
+
+    _return_to_pool = None
+
+    def close(self):
+        release = self._return_to_pool
+        if release is not None:
+            self._return_to_pool = None
+            try:
+                release(self)
+                return
+            except Exception:
+                pass
+        super().close()
+
+
 def _get_pool() -> ThreadedConnectionPool:
     global _pool
     if _pool is None:
@@ -41,6 +65,7 @@ def _get_pool() -> ThreadedConnectionPool:
                     maxconn=20,
                     dsn=url,
                     cursor_factory=DictCursor,
+                    connection_factory=_PooledConnection,
                 )
                 logger.info("[FORENSIC DB POOL] ThreadedConnectionPool created (2-20)")
     return _pool
@@ -68,17 +93,15 @@ class DatabaseConfig:
             pool = _get_pool()
             conn = pool.getconn()
             conn.autocommit = False
-            # Monkey-patch close() to return connection to pool instead of closing it
-            original_close = conn.close
-            def _pool_close():
-                try:
-                    # 🔒 DÜZELTİLDİ (Bug #9): Pool'a dönmeden önce connection state'i resetle
-                    conn.rollback()
-                    conn.autocommit = False
-                    pool.putconn(conn)
-                except Exception:
-                    pass
-            conn.close = _pool_close
+
+            def _release(connection):
+                # 🔒 DÜZELTİLDİ (Bug #9): Pool'a dönmeden önce connection state'i resetle
+                connection.rollback()
+                connection.autocommit = False
+                pool.putconn(connection)
+
+            if isinstance(conn, _PooledConnection):
+                conn._return_to_pool = _release
             return conn
         except Exception as e:
             logger.error(f"[FORENSIC DB CONNECTION FAILURE] {e}")
@@ -90,6 +113,18 @@ class DatabaseConfig:
         global _pool
         if _pool is not None and conn is not None:
             try:
+                if isinstance(conn, _PooledConnection):
+                    conn._return_to_pool = None
+                # Commit edilmemis islem bir sonraki istege devredilmesin: yarim kalan
+                # yazma baskasinin commit'iyle kaydedilmez, hatali islem sonraki
+                # kullaniciya "current transaction is aborted" olarak yansimaz.
+                if not conn.closed:
+                    try:
+                        conn.rollback()
+                        conn.autocommit = False
+                    except Exception:
+                        _pool.putconn(conn, close=True)
+                        return
                 _pool.putconn(conn)
             except Exception:
                 pass
@@ -246,6 +281,8 @@ class DatabaseConfig:
             except Exception:
                 pass
 
+            # DDL kalici olsun diye commit edilir (pool'a donuste rollback yapilir).
+            conn.commit()
             logger.info("[FORENSIC DB BOOTSTRAP] Schema initialized successfully.")
         finally:
             DatabaseConfig.return_connection(conn)  # 🔒 DÜZELTİLDİ: conn.close() -> pool'a geri ver
@@ -294,6 +331,12 @@ class DatabaseConfig:
         conn = DatabaseConfig.get_connection()
         try:
             cursor = conn.cursor()
+            # init.sql, users tablosuna updated_at dolduran bir tetikleyici ekler; eski
+            # kurulumlarda kolon yoksa users uzerindeki her UPDATE (giris, kredi) patlar.
+            # Asagidaki listings adimlarindan bagimsiz olsun diye ayri commit edilir.
+            cursor.execute("ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+            conn.commit()
+
             cursor.execute("""
                 SELECT column_name FROM information_schema.columns
                 WHERE table_name = 'listings'
@@ -308,6 +351,7 @@ class DatabaseConfig:
                     except Exception as e:
                         logger.error(f"[FORENSIC DB ALIGNMENT] Failed to add {col}: {e}")
 
+            conn.commit()
             logger.info("[FORENSIC DB ALIGNMENT] Database schema is now aligned.")
         finally:
             DatabaseConfig.return_connection(conn)  # 🔒 DÜZELTİLDİ: conn.close() -> pool'a geri ver

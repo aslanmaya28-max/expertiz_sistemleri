@@ -1,10 +1,10 @@
 {
-    "name": "YerimeBak Sistemleri",
+    "name": "YerimeBak Yönetim",
     "short_name": "YerimeBak",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
+    "background_color": "#060912",
+    "theme_color": "#0E4A78",
     "description": "YerimeBak Sistemleri panel uygulaması.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,

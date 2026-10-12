@@ -6,13 +6,14 @@
 /// 1. ROLE GUARD: Sadece admin kullanıcıları içeri alır
 /// 2. SINGLE ENTRY POINT: Admin paneline girişi kontrol eder
 /// 3. SIDEBAR/DRAWER: Navigation'ı yönetir
-/// 4. TAB ROUTING: 8 sekme için modül routing sağlar
+/// 4. TAB ROUTING: 10 sekme için modül routing sağlar
 /// 
 /// ❌ Business logic YOK - Her modül kendi işini halleder
 /// ✅ Sadece auth check ve navigation
 library;
 
 import 'dart:ui';
+import '../core/widgets/yerimebak_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/user_provider.dart';
@@ -20,12 +21,15 @@ import '../../providers/theme_provider.dart';
 import '../../widgets/cyber/cyber_background.dart';
 import '../../core/constants/yerimebak_colors.dart';
 import 'unauthorized_screen.dart';
+import 'widgets/admin_notification_bell.dart';
 import 'modules/dashboard_module.dart';
 import 'modules/arac_operasyonu.dart';
 import '../../screens/personel/personel_bolge_sistemi.dart';
 import 'modules/musteri_yonetimi_module.dart';
 import 'modules/rapor_inceleme_module.dart';
 import 'modules/ai_merkezi.dart';
+import 'modules/piyasa_verisi_module.dart';
+import 'modules/fiyatlandirma_module.dart';
 import 'modules/finans_yonetimi.dart';
 import 'modules/ayarlar_module.dart';
 
@@ -47,7 +51,7 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 8, vsync: this);
+    _tabController = TabController(length: 10, vsync: this);
   }
 
   @override
@@ -84,14 +88,16 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
             body: TabBarView(
               controller: _tabController,
               children: [
-                // 8 Modül - Her biri kendi işini halleder
+                // 10 Modül - Her biri kendi işini halleder
                 const DashboardModule(),
                 const AracOperasyonu(),
                 _buildPersonelModule(context),
                 const MusteriYonetimiModule(),
                 const RaporIncelemeModule(),
                 const AIMerkezi(),
+                const PiyasaVerisiModule(),
                 const FinansYonetimi(),
+                const FiyatlandirmaModule(),
                 const AyarlarModule(),
               ],
             ),
@@ -122,8 +128,8 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
     return AppBar(
       title: Row(
         children: [
-          const Icon(Icons.admin_panel_settings, color: YerimeBakColors.blue),
-          const SizedBox(width: 10),
+          YerimeBakLogo(height: 34, onDark: isDarkMode),
+          const SizedBox(width: 12),
           Text(
             'Admin Paneli',
             style: TextStyle(
@@ -147,13 +153,10 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
           tooltip: isDarkMode ? 'Aydınlık Mod' : 'Gece Modu',
         ),
         // Notifications
-        IconButton(
-          icon: Icon(
-            Icons.notifications,
-            color: isDarkMode ? Colors.white : YerimeBakColors.blue,
-          ),
-          onPressed: () => _showMessage('Bildirimler'),
-          tooltip: 'Bildirimler',
+        // Saha adımları, onaya gelen raporlar; tıklanınca Araç Operasyonu açılır
+        AdminNotificationBell(
+          color: isDarkMode ? Colors.white : YerimeBakColors.blue,
+          onOpenReport: (_) => _tabController.animateTo(1),
         ),
         // Logout
         IconButton(
@@ -175,7 +178,9 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
           Tab(icon: Icon(Icons.person), text: 'Müşteriler'),
           Tab(icon: Icon(Icons.description), text: 'Raporlar'),
           Tab(icon: Icon(Icons.psychology), text: 'AI Merkezi'),
+          Tab(icon: Icon(Icons.travel_explore), text: 'Piyasa Verisi'),
           Tab(icon: Icon(Icons.attach_money), text: 'Finans Yönetimi'),
+          Tab(icon: Icon(Icons.sell), text: 'Fiyatlandırma'),
           Tab(icon: Icon(Icons.settings), text: 'Ayarlar'),
         ],
         onTap: (index) => setState(() => _selectedIndex = index),
@@ -284,8 +289,10 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
                 _buildDrawerItem(Icons.person, 'Müşteriler', 3, isDarkMode),
                 _buildDrawerItem(Icons.description, 'Raporlar', 4, isDarkMode),
                 _buildDrawerItem(Icons.psychology, 'AI Merkezi', 5, isDarkMode),
-                _buildDrawerItem(Icons.attach_money, 'Finans Yönetimi', 6, isDarkMode),
-                _buildDrawerItem(Icons.settings, 'Ayarlar', 7, isDarkMode),
+                _buildDrawerItem(Icons.travel_explore, 'Piyasa Verisi', 6, isDarkMode),
+                _buildDrawerItem(Icons.attach_money, 'Finans Yönetimi', 7, isDarkMode),
+                _buildDrawerItem(Icons.sell, 'Fiyatlandırma', 8, isDarkMode),
+                _buildDrawerItem(Icons.settings, 'Ayarlar', 9, isDarkMode),
 
                 // DIVIDER
                 Divider(color: Colors.white.withAlpha(25), thickness: 1),
@@ -429,13 +436,8 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
 
   /// Personel modülü - PersonelService'i inject et
   Widget _buildPersonelModule(BuildContext context) {
-    return PersonelBolgePaneli(
-      personeller: [], // Provider'dan çekilecek
-      onPersonelEkle: (p) => _showMessage('Personel eklendi'),
-      onPersonelDuzenle: (p) => _showMessage('Personel düzenlendi'),
-      onPersonelSil: (p) => _showMessage('Personel silindi'),
-      onPersonelAktiflikDegistir: (p) => _showMessage('Personel durumu değiştirildi'),
-    );
+    // Panel verisini merkezi API'den kendisi yükler ve kaydeder.
+    return const PersonelBolgePaneli();
   }
 
   /// =====================================================
