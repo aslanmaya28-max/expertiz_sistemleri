@@ -5,7 +5,6 @@ import re
 import time
 import logging
 from pathlib import Path
-from typing import Callable
 
 BASE_DIR = Path(__file__).resolve().parent
 if str(BASE_DIR.parent) not in sys.path:
@@ -15,6 +14,7 @@ from fastapi import FastAPI, WebSocket, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from starlette.datastructures import MutableHeaders
 from contextlib import asynccontextmanager
 import uvicorn
 
@@ -50,9 +50,14 @@ def _rate_limit_key(request: Request) -> str:
     ilk degeri istemcinin gonderdigi sahte bir deger olabilecegi icin kullanilmaz.
     """
     client_ip = request.headers.get("X-Real-IP") or (request.client.host if request.client else "unknown")
-    return f"rl:{client_ip}:{request.url.path}"
+    return f"rl:{client_ip}:{request.scope.get('path', '')}"
 
-def _check_rate_limit(request: Request, max_requests: int = 60, window_seconds: int = 60) -> bool:
+# Asil hiz siniri nginx'tedir (tum calisanlar icin ortak). Bu ikinci savunma hattidir;
+# mobil operatorlerde bircok kullanici ayni IP'yi paylastigi icin cok dusuk tutulmaz.
+_APP_RATE_LIMIT = int(os.getenv("APP_RATE_LIMIT_PER_MIN", "600"))
+
+
+def _check_rate_limit(request: Request, max_requests: int = _APP_RATE_LIMIT, window_seconds: int = 60) -> bool:
     """🔒 Rate limit kontrolu. True = izin ver, False = limit asildi."""
     key = _rate_limit_key(request)
     now = time.time()
@@ -162,30 +167,49 @@ app.add_middleware(
 
 
 # 🔒 GÜVENLİK: Security headers + rate limiting middleware
-@app.middleware("http")
-async def security_middleware(request: Request, call_next: Callable) -> Response:
-    # Rate limiting
-    if not _check_rate_limit(request):
-        return Response(
-            content='{"error": "Cok fazla istek. Lutfen bekleyin."}',
-            status_code=429,
-            media_type="application/json",
-            headers={"Retry-After": "60", "X-RateLimit-Reset": str(int(time.time() + 60))},
-        )
-    
-    response = await call_next(request)
-    
-    # 🔒 GÜVENLİK: Security headers
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-    response.headers["Cache-Control"] = "no-store, max-age=0"
-    
-    return response
+# Saf ASGI katmani (BaseHTTPMiddleware yerine): her istekte ek gorev/kuyruk acmaz,
+# yuksek trafikte istek basina islemci maliyeti belirgin sekilde dusuk.
+_SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "X-XSS-Protection": "1; mode=block",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Cache-Control": "no-store, max-age=0",
+}
+
+
+class SecurityMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        if not _check_rate_limit(Request(scope)):
+            response = Response(
+                content='{"error": "Cok fazla istek. Lutfen bekleyin."}',
+                status_code=429,
+                media_type="application/json",
+                headers={"Retry-After": "60", "X-RateLimit-Reset": str(int(time.time() + 60))},
+            )
+            await response(scope, receive, send)
+            return
+
+        async def send_with_headers(message):
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                for key, value in _SECURITY_HEADERS.items():
+                    headers[key] = value
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
+
+
+app.add_middleware(SecurityMiddleware)
 
 static_dir = BASE_DIR / "dashboard" / "static"
 if not static_dir.exists():

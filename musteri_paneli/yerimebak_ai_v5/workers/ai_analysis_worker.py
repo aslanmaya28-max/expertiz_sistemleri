@@ -20,6 +20,37 @@ POLL_INTERVAL_SECONDS = 30
 # bu sureden uzun suredir pending_ai'da bekleyen (takilmis) raporlari toplar.
 STUCK_REPORT_AGE_SECONDS = 60
 
+# Birden fazla calisan islem (uvicorn --workers) varken kurtarma taramasini
+# ayni anda yalnizca biri yapsin: PostgreSQL danisma kilidi.
+SWEEP_LOCK_KEY = 72_410_051
+
+
+def _try_sweep_lock():
+    """Kilidi alirsa baglantiyi dondurur (birakmak icin), alamazsa None."""
+    from yerimebak_ai_v5.core.database_config import DatabaseConfig
+
+    conn = DatabaseConfig.get_connection()
+    try:
+        conn.autocommit = True
+        cur = conn.cursor()
+        cur.execute("SELECT pg_try_advisory_lock(%s)", (SWEEP_LOCK_KEY,))
+        if cur.fetchone()[0]:
+            return conn
+    except Exception as e:
+        logger.warning(f"[AI WORKER] Sweep lock check failed: {e}")
+    DatabaseConfig.return_connection(conn)
+    return None
+
+
+def _release_sweep_lock(conn) -> None:
+    from yerimebak_ai_v5.core.database_config import DatabaseConfig
+
+    try:
+        conn.cursor().execute("SELECT pg_advisory_unlock(%s)", (SWEEP_LOCK_KEY,))
+    except Exception:
+        pass
+    DatabaseConfig.return_connection(conn)
+
 
 def _to_int(value: Any) -> int:
     try:
@@ -234,12 +265,18 @@ class AIAnalysisWorker:
         logger.info(f"[AI WORKER] Starting polling loop (interval={interval}s)")
 
         while self._running:
+            lock_conn = None
             try:
-                count = await self.run_once(min_age_seconds=STUCK_REPORT_AGE_SECONDS)
-                if count > 0:
-                    logger.info(f"[AI WORKER] Processed {count} reports")
+                lock_conn = await asyncio.to_thread(_try_sweep_lock)
+                if lock_conn is not None:
+                    count = await self.run_once(min_age_seconds=STUCK_REPORT_AGE_SECONDS)
+                    if count > 0:
+                        logger.info(f"[AI WORKER] Processed {count} reports")
             except Exception as e:
                 logger.error(f"[AI WORKER] Loop error: {e}")
+            finally:
+                if lock_conn is not None:
+                    await asyncio.to_thread(_release_sweep_lock, lock_conn)
 
             await asyncio.sleep(interval)
 

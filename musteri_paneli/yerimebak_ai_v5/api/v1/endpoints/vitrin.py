@@ -244,6 +244,12 @@ def _sync_get_vehicles(
 
 
 def _sync_get_vehicle_detail(vehicle_id: int, user_id: Optional[int]) -> Dict[str, Any]:
+    # Girissiz ziyaretciler icin kisa sureli onbellek (favori bilgisi kullaniciya ozel)
+    cache_key = f"vitrin:detail:{vehicle_id}"
+    if not user_id:
+        cached = cache_get(cache_key)
+        if cached is not None:
+            return cached
     p = _p()
     conn = DatabaseConfig.get_connection()
     try:
@@ -263,6 +269,8 @@ def _sync_get_vehicle_detail(vehicle_id: int, user_id: Optional[int]) -> Dict[st
         if listing.get('action_recommendation'):
             response["action_recommendation"] = listing.get('action_recommendation')
 
+        if not user_id:
+            cache_set(cache_key, response, ttl=60)
         return response
     except HTTPException:
         raise
@@ -274,6 +282,9 @@ def _sync_get_vehicle_detail(vehicle_id: int, user_id: Optional[int]) -> Dict[st
 
 
 def _sync_get_brands() -> List[Dict[str, Any]]:
+    cached = cache_get("vitrin:brands")
+    if cached is not None:
+        return cached
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
@@ -285,7 +296,9 @@ def _sync_get_brands() -> List[Dict[str, Any]]:
             ORDER BY count DESC
         """)
         rows = [_row_to_dict(row, cursor) for row in cursor.fetchall()]
-        return [{"brand": r['brand'], "count": r['count']} for r in rows]
+        result = [{"brand": r['brand'], "count": r['count']} for r in rows]
+        cache_set("vitrin:brands", result, ttl=300)
+        return result
     except Exception as e:
         logger.error(f"[VITRIN] get_brands error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

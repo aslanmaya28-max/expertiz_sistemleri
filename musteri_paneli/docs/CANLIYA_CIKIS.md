@@ -149,3 +149,39 @@ Veritabanı şeması uygulama açılışında otomatik güncellenir.
 - [ ] SMTP hesabı (ör. kurumsal e-posta / Brevo / SES) açılmalı. SPF ve DKIM kayıtları eklenmeli.
 - [ ] Kurumsal ekspertiz firmalarının fiyatları admin panelinden girilmeli.
 - [ ] SMS ile doğrulama istenirse bir SMS sağlayıcısı (Netgsm, İleti Merkezi vb.) seçilmeli. Şu an doğrulama e-posta ile yapılıyor.
+
+## 9. Kapasite ve hız
+
+Yük testi k6 ile yapıldı: 20.813 ilanlık veritabanı, 4 vCPU. Yük aracı da aynı makinede çalıştı.
+
+**Senaryo:** Kullanıcı ortalama 5 saniyede bir tıklıyor. İsteklerin dağılımı:
+- %40 vitrin sayfası
+- %20 marka filtresi
+- %20 rastgele araç detayı
+- %20 istatistik / marka listesi
+
+| Eşzamanlı kullanıcı | İstek/sn | Ortanca | %95 | Hata |
+|---|---|---|---|---|
+| 5.000 | 818 | 0,7 ms | 8 ms | %0 |
+| 10.000 | 1.327 | 102 ms | 2,3 sn | %0 (makine dolu; yük aracı tek başına 1 çekirdek kullanıyor) |
+
+Optimizasyon öncesi (tek işlem, önbelleksiz) 1.000 kullanıcıda ortanca yanıt 2 saniyeydi.
+
+**Hızı sağlayanlar:**
+- **nginx önbelleği:** Herkese açık vitrin istekleri 30 saniye önbellekte tutulur, Python'a gitmez. Giriş yapmış kullanıcıda önbellek kapalıdır.
+- **Redis önbelleği:** Araç detayı (60 sn), liste (120 sn), istatistik ve marka listesi (300 sn).
+- **Çoklu çalışan:** `WEB_CONCURRENCY` ayarı ve uvloop. Güvenlik katmanı saf ASGI'ye çevrildi. İstek başına işlemci maliyeti yaklaşık 3 kat düştü.
+- **Tek AI taraması:** Çok işlemde kurtarma taramasını PostgreSQL kilidiyle yalnızca bir işlem yapar.
+- **Görsel optimizasyonu kapalı:** Vercel'de ilan görselleri doğrudan kaynak CDN'den gelir; kota/ücret aşımı olmaz.
+
+**Sunucu boyutu önerisi:**
+
+| Beklenen eşzamanlı kullanıcı | Sunucu (Hetzner) | Ayar |
+|---|---|---|
+| ~1.000'e kadar | CX23 (2 vCPU, 4 GB) | `WEB_CONCURRENCY=2` |
+| ~5.000 | 4 vCPU / 8 GB (CPX31 veya CCX13) | `WEB_CONCURRENCY=4` |
+| ~10.000 | 8 vCPU / 16 GB (CPX51 veya CCX33) | `WEB_CONCURRENCY=8` |
+
+- Hetzner'de sunucu büyütme (Rescale) birkaç dakikalık kesintiyle yapılır. Veriler korunur.
+- Kazıyıcılar Chromium çalıştırır ve yoğun işlemci kullanır. Yoğun saatlerde çalıştırmayın veya ayrı küçük bir sunucuya taşıyın.
+- Vercel'in ücretsiz Hobby planı ticari kullanıma izin vermez. Canlıda **Pro** plan gerekir.
