@@ -63,5 +63,6 @@ ENV PYTHONUNBUFFERED=1
 # Expose ports
 EXPOSE 8000
 
-# Default command
-CMD ["python", "-m", "uvicorn", "yerimebak_ai_v5.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Calisan islem sayisi: WEB_CONCURRENCY (varsayilan 2). Sunucudaki vCPU basina 1-2 onerilir.
+# Erisim kayitlari nginx'te tutulur (uygulamada kapali: hiz icin).
+CMD ["sh", "-c", "exec python -m uvicorn yerimebak_ai_v5.main:app --host 0.0.0.0 --port 8000 --workers ${WEB_CONCURRENCY:-2} --no-access-log --timeout-keep-alive 30"]
