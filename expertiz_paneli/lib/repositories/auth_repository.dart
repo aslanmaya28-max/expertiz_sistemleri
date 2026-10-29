@@ -54,7 +54,7 @@ class AuthRepository {
   })  : _supabase = supabase,
         _centralAuthClient = centralAuthClient ?? CentralAuthClient();
 
-  String? get centralAccessToken => _centralAccessToken;
+  String? get centralAccessToken => _centralAccessToken ?? CentralAuthTokenStore.accessToken;
 
   /// =====================================================
   // SIGN IN
@@ -121,11 +121,16 @@ class AuthRepository {
         try {
           final user = await _centralAuthClient.me(centralToken);
           return AuthResult.success(user);
-        } catch (e) {
+        } on CentralAuthException catch (e) {
+          if (e.statusCode != 401) {
+            return AuthResult.failure('Oturum bilgileri alınamadı: $e');
+          }
           // Suresi dolmus / gecersiz oturum: saklanan anahtar silinir, giris ekranina donulur
           _centralAccessToken = null;
           CentralAuthTokenStore.clear();
           return AuthResult.failure('Oturumunuzun süresi doldu, lütfen tekrar giriş yapın');
+        } catch (e) {
+          return AuthResult.failure('Oturum bilgileri alınamadı: $e');
         }
       }
 
@@ -198,6 +203,7 @@ class AuthRepository {
     required String email,
     required String password,
     required String fullName,
+    required bool termsAccepted,
     String? phone,
   }) async {
     try {
@@ -205,6 +211,7 @@ class AuthRepository {
         email: email,
         password: password,
         fullName: fullName,
+        termsAccepted: termsAccepted,
         phone: phone,
       );
       _centralAccessToken = centralSession.token;

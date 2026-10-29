@@ -364,8 +364,6 @@ export interface CreateExpertizRequestPayload {
   district?: string;
   note?: string;
   vehicle?: VehicleInput;
-  /** On Bilgilendirme Formu + Mesafeli Satis Sozlesmesi onayi */
-  contract_accepted: boolean;
 }
 
 export interface ExpertizTotals {
@@ -533,9 +531,9 @@ export function getExpertizQuote(firmId: string, packageId: string): Promise<{ s
   return fetchAPI(`/expertiz/quote?firm_id=${encodeURIComponent(firmId)}&package_id=${encodeURIComponent(packageId)}`);
 }
 
-/** Talep olusturur ve odemeyi baslatir; talep odeme onaylaninca isleme alinir. */
-export function createExpertizRequest(payload: CreateExpertizRequestPayload): Promise<CheckoutStart> {
-  return fetchAPI<CheckoutStart>("/expertiz/requests", {
+/** Tahsilat yapmadan talebi yonetici kuyruguna iletir. */
+export function createExpertizRequest(payload: CreateExpertizRequestPayload): Promise<{ success: boolean; request_id: string; payment_status: string }> {
+  return fetchAPI<{ success: boolean; request_id: string; payment_status: string }>("/expertiz/requests/unpaid", {
     method: "POST",
     body: JSON.stringify(payload),
   });

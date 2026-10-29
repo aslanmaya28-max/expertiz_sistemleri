@@ -11,7 +11,9 @@ class FakeCentralAuthClient extends CentralAuthClient {
   String? registerPassword;
   String? registerFullName;
   String? registerPhone;
+  bool? registerTermsAccepted;
   String? lastMeToken;
+  Object? meError;
 
   FakeCentralAuthClient();
 
@@ -33,12 +35,14 @@ class FakeCentralAuthClient extends CentralAuthClient {
     required String email,
     required String password,
     required String fullName,
+    required bool termsAccepted,
     String? phone,
   }) async {
     registerEmail = email;
     registerPassword = password;
     registerFullName = fullName;
     registerPhone = phone;
+    registerTermsAccepted = termsAccepted;
     return CentralAuthSession(
       token: 'registered-token',
       user: _user(email: email, fullName: fullName, phone: phone),
@@ -48,6 +52,7 @@ class FakeCentralAuthClient extends CentralAuthClient {
   @override
   Future<UserModel> me(String token) async {
     lastMeToken = token;
+    if (meError != null) throw meError!;
     return _user(email: 'ali@yerimebak.com', fullName: 'Ali Veli');
   }
 
@@ -98,6 +103,7 @@ void main() {
       password: 'secret-123',
       fullName: 'Ayse Yilmaz',
       phone: '+905551112233',
+      termsAccepted: true,
     );
 
     expect(result.isSuccess, isTrue);
@@ -106,6 +112,7 @@ void main() {
     expect(centralAuth.registerEmail, 'ayse@yerimebak.com');
     expect(centralAuth.registerFullName, 'Ayse Yilmaz');
     expect(centralAuth.registerPhone, '+905551112233');
+    expect(centralAuth.registerTermsAccepted, isTrue);
   });
 
   test('getCurrentUser reads current profile from central token', () async {
@@ -119,5 +126,23 @@ void main() {
     expect(result.isSuccess, isTrue);
     expect(result.user!.fullName, 'Ali Veli');
     expect(centralAuth.lastMeToken, 'central-token');
+  });
+
+  test('gecici baglanti hatasi oturum anahtarini silmez', () async {
+    await repository.signIn(email: 'ali@yerimebak.com', password: 'secret-123');
+    centralAuth.meError = Exception('network unavailable');
+    final result = await repository.getCurrentUser();
+    expect(result.isSuccess, isFalse);
+    expect(repository.centralAccessToken, 'central-token');
+    expect(CentralAuthTokenStore.accessToken, 'central-token');
+  });
+
+  test('sunucu oturumu reddederse anahtar silinir', () async {
+    await repository.signIn(email: 'ali@yerimebak.com', password: 'secret-123');
+    centralAuth.meError = CentralAuthException(401, 'unauthorized');
+    final result = await repository.getCurrentUser();
+    expect(result.isSuccess, isFalse);
+    expect(repository.centralAccessToken, isNull);
+    expect(CentralAuthTokenStore.accessToken, isNull);
   });
 }

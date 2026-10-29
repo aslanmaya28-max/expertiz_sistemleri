@@ -14,6 +14,7 @@ import '../core/services/service_orchestrator.dart';
 
 /// User Provider State
 class UserProviderState {
+  static const _unchanged = Object();
   final UserModel? currentUser;
   final bool isLoading;
   final String? error;
@@ -27,13 +28,13 @@ class UserProviderState {
   });
 
   UserProviderState copyWith({
-    UserModel? currentUser,
+    Object? currentUser = _unchanged,
     bool? isLoading,
     String? error,
     Map<String, dynamic>? dashboardStats,
   }) {
     return UserProviderState(
-      currentUser: currentUser ?? this.currentUser,
+      currentUser: identical(currentUser, _unchanged) ? this.currentUser : currentUser as UserModel?,
       isLoading: isLoading ?? this.isLoading,
       error: error ?? this.error,
       dashboardStats: dashboardStats ?? this.dashboardStats,
@@ -223,6 +224,8 @@ class UserProvider extends ChangeNotifier {
   /// Session'dan user state'i türet
   void _handleSessionChange(dynamic session) {
     if (session == null) {
+      // Merkezi oturum Supabase oturumundan bağımsızdır.
+      if (_authRepository.centralAccessToken != null) return;
       // Session yok → user düşür
       debugPrint('🚪 Session yok → unauthenticated');
       _setUnauthenticated();
@@ -353,6 +356,7 @@ class UserProvider extends ChangeNotifier {
     required String email,
     required String password,
     required String fullName,
+    required bool termsAccepted,
     String? phone,
   }) async {
     _updateState(isLoading: true, error: null);
@@ -362,6 +366,7 @@ class UserProvider extends ChangeNotifier {
         email: email,
         password: password,
         fullName: fullName,
+        termsAccepted: termsAccepted,
         phone: phone,
       );
 

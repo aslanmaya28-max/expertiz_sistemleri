@@ -314,7 +314,6 @@ class RaporService {
   /// Merkezi AI (backend) sonucu `data.ai_analiz_sonucu` ve `ai_analiz_detay`
   /// alanlarına yazar; personelin gönderdiği `data.tam_rapor` içinde AI sonucu
   /// bulunmaz. Bu yüzden AI sonucu bu alanlardan rapora eklenir.
-  @visibleForTesting
   static TamRaporModel? tamRaporFromRow(Map<String, dynamic> row) {
     try {
       final data = row['data'];
