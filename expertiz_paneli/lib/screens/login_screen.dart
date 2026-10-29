@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../core/widgets/yerimebak_logo.dart';
 import 'dart:ui';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import 'package:yerimebak_sistemleri/providers/user_provider.dart';
 import 'package:yerimebak_sistemleri/screens/register_screen.dart';
 import '../core/widgets/glass_card.dart';
@@ -54,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       // AuthWrapper'ı tetiklemek için kök dizine (home) dön
-      Navigator.pushReplacementNamed(context, '/');
+      context.go('/');
       
       final user = userProvider.currentUser;
       if (!mounted) return;
@@ -346,8 +347,9 @@ class _LoginScreenState extends State<LoginScreen> {
               const Divider(color: Colors.white10),
               
               // Sections
-              Expanded(
-                child: ListView(
+              ListView(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
                   padding: const EdgeInsets.all(20),
                   children: [
                     _buildInfoSection(
@@ -381,7 +383,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       icon: Icons.verified_user,
                     ),
                   ],
-                ),
               )
             ],
           ),

@@ -410,6 +410,65 @@ def _seed_listings(count=12, base_price=900_000):
     conn.close()
 
 
+def test_unpaid_customer_to_staff_to_approved_customer_report(client, admin_token, customer_token):
+    """Izole DB: odemesiz talep, ilce atamasi, AI ve admin onayi."""
+    _seed_listings()
+    person = _create_personnel(client, admin_token, 'e2e-unpaid@yerimebak.test', 'İstanbul', 'Kadıköy', 'Test Personel')
+    staff_token = _login(client, 'e2e-unpaid@yerimebak.test', 'Personel123')
+    catalog = client.get('/api/v1/expertiz/packages').json()
+    firm = catalog['firms'][0]
+    package = firm['packages'][0]
+    created = client.post('/api/v1/expertiz/requests/unpaid', headers=_auth(customer_token), json={
+        'firm_id': firm['id'], 'package_id': package['id'], 'city': 'İstanbul', 'district': 'Kadıköy',
+        'plate': '34 TEST 01', 'vehicle': {'brand': 'Fiat', 'model': 'Egea', 'year': 2021, 'km': 45000},
+    })
+    assert created.status_code == 200, created.text
+    assert created.json()['payment_status'] == 'not_collected'
+    report_id = created.json()['request_id']
+    assert client.get('/api/v1/expertiz/admin/requests', headers=_auth(customer_token)).status_code == 403
+    assert client.get('/api/v1/expertiz/admin/requests', headers=_auth(staff_token)).status_code == 403
+    queue = client.get('/api/v1/expertiz/admin/requests?bucket=waiting_assignment', headers=_auth(admin_token)).json()
+    entry = next(r for r in queue['requests'] if r['id'] == report_id)
+    assert entry['is_paid'] is False and entry['district'] == 'Kadıköy'
+    candidates = client.get(f'/api/v1/expertiz/admin/requests/{report_id}/candidates', headers=_auth(admin_token)).json()
+    assert candidates['recommended_id'] == person['id']
+    assert candidates['candidates'][0]['match'] == 'same_district'
+    assigned = client.post(f'/api/v1/expertiz/admin/requests/{report_id}/assign', headers=_auth(admin_token), json={'personnel_id': person['id']})
+    assert assigned.status_code == 200, assigned.text
+    tasks = client.get('/api/v1/expertiz/personnel/tasks', headers=_auth(staff_token)).json()['tasks']
+    assert any(task['id'] == report_id for task in tasks)
+    assert client.post(f'/api/v1/expertiz/personnel/tasks/{report_id}/start', headers=_auth(staff_token)).status_code == 200
+    assert client.get(f'/api/v1/expertiz/reports/{report_id}', headers=_auth(customer_token)).status_code == 404
+    media = client.post(f'/api/v1/expertiz/personnel/tasks/{report_id}/media', headers=_auth(staff_token),
+                        files={'file': ('test.pdf', PDF_BYTES, 'application/pdf')}, data={'category': 'corporate_report'})
+    assert media.status_code == 200, media.text
+    submitted = client.post(f'/api/v1/expertiz/personnel/tasks/{report_id}/submit', headers=_auth(staff_token),
+                            json={'tam_rapor': _tam_rapor(report_id, person['id'])})
+    assert submitted.status_code == 200, submitted.text
+    admin_report = client.get(f'/api/v1/expertiz/admin/reports/{report_id}', headers=_auth(admin_token)).json()['report']
+    assert admin_report['status'] == 'pending_admin', admin_report.get('ai_meta')
+    assert admin_report['can_publish'] is True
+    assert admin_report['ai_analiz_detay']['marketReference']['source'] == 'listings'
+    assert client.get(f'/api/v1/expertiz/reports/{report_id}', headers=_auth(customer_token)).status_code == 404
+    rejected = client.post(f'/api/v1/expertiz/admin/reports/{report_id}/reject', headers=_auth(admin_token),
+                           json={'reason': 'Kontrol fotoğrafı eksik'})
+    assert rejected.status_code == 200, rejected.text
+    draft = client.get(f'/api/v1/expertiz/personnel/tasks/{report_id}/report', headers=_auth(staff_token)).json()
+    assert draft['editable'] and draft['rejection_reason'] == 'Kontrol fotoğrafı eksik'
+    assert client.get(f'/api/v1/expertiz/reports/{report_id}', headers=_auth(customer_token)).status_code == 404
+    assert client.post(f'/api/v1/expertiz/personnel/tasks/{report_id}/start', headers=_auth(staff_token)).status_code == 200
+    resubmitted = client.post(f'/api/v1/expertiz/personnel/tasks/{report_id}/submit', headers=_auth(staff_token),
+                              json={'tam_rapor': _tam_rapor(report_id, person['id'])})
+    assert resubmitted.status_code == 200, resubmitted.text
+    admin_report = client.get(f'/api/v1/expertiz/admin/reports/{report_id}', headers=_auth(admin_token)).json()['report']
+    assert admin_report['status'] == 'pending_admin' and admin_report['can_publish'] is True
+    published = client.post(f'/api/v1/expertiz/admin/reports/{report_id}/publish', headers=_auth(admin_token))
+    assert published.status_code == 200, published.text
+    customer = client.get(f'/api/v1/expertiz/reports/{report_id}', headers=_auth(customer_token))
+    assert customer.status_code == 200, customer.text
+    assert customer.json()['report']['status'] == 'published'
+
+
 def test_ai_valuation_admin_approval_and_customer_view(client, admin_token, customer_token):
     """Personel raporu -> merkezi AI (piyasa - ekspertiz değer kaybı) -> admin onayı -> müşteri."""
     _seed_listings()

@@ -14,6 +14,7 @@ import '../screens/ana_sayfa.dart';
 import '../admin/admin_shell.dart';
 import '../admin/modules/finans_yonetimi.dart';
 import '../personnel/personnel_dashboard.dart';
+import '../screens/personel/personel_bolge_sistemi.dart';
 import '../customer/customer_dashboard.dart';
 import '../customer/create_request_screen.dart';
 import '../customer/report_upload_screen.dart';
@@ -22,6 +23,30 @@ import '../screens/kategori_secimi.dart';
 import '../screens/maps_screen.dart';
 import '../screens/error_screen.dart';
 import 'route_paths.dart';
+
+/// Başlangıç ve rol bazlı panel erişimi. API yetkilendirmesi ayrıca uygulanır.
+String? panelRedirect(String path, UserModel? user) {
+  if (path == RoutePaths.splash) {
+    if (user == null) return RoutePaths.login;
+    switch (user.role) {
+      case UserRole.admin: return RoutePaths.admin;
+      case UserRole.fieldStaff: return RoutePaths.personel;
+      case UserRole.customer: return RoutePaths.musteri;
+      case UserRole.unauthorized: return RoutePaths.unauthorized;
+    }
+  }
+  final admin = path == '/admin' || path.startsWith('/admin/');
+  final personnel = path == '/personel' || path.startsWith('/personel/');
+  final customer = path == '/musteri' || path.startsWith('/musteri/');
+  if (!admin && !personnel && !customer) return null;
+  if (user == null) return RoutePaths.login;
+  if ((admin && user.role != UserRole.admin) ||
+      (personnel && user.role != UserRole.fieldStaff) ||
+      (customer && user.role != UserRole.customer)) {
+    return RoutePaths.unauthorized;
+  }
+  return null;
+}
 
 /// Create GoRouter
 /// 
@@ -66,7 +91,6 @@ GoRouter createRouter(BuildContext context) {
       final userProvider = context.read<UserProvider>();
       final user = userProvider.currentUser;
       final bool isLoading = userProvider.isLoading;
-      final bool isAdminPage = state.matchedLocation.startsWith('/admin');
       final String currentLocation = state.matchedLocation;
 
       // 🛡️ 0. CIRCULAR REDIRECT KORUMASI (KRİTİK!)
@@ -89,20 +113,8 @@ GoRouter createRouter(BuildContext context) {
       // 🛡️ 2. ADMIN AREA ROLE GUARD (KRİTİK!)
       // Admin UI'ye sadece admin kullanıcılar girebilir
       // Admin olmayan kullanıcı ASLA admin panelini GÖREMEZ
-      if (isAdminPage) {
-        if (user == null) {
-          debugPrint('🚫 Admin area koruması: Kullanıcı giriş yapmamış -> /unauthorized');
-          return RoutePaths.unauthorized;
-        }
-        
-        if (user.role != UserRole.admin) {
-          final userRole = user.role.toString();
-          debugPrint('🚫 Admin area koruması: Yetkisiz rol ($userRole) -> /unauthorized');
-          return RoutePaths.unauthorized;
-        }
-        
-        debugPrint('✅ Admin area erişimi izni verildi: ${user.fullName}');
-      }
+      final destination = panelRedirect(currentLocation, user);
+      if (destination != null) return destination;
 
       // 🟢 3. YOL AÇIK
       debugPrint('✅ Route güvenliği OK: $currentLocation');
@@ -391,7 +403,7 @@ class PersonelManagementScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Personel Yönetimi')),
-      body: Center(child: Text('Personel Yönetimi - Coming Soon')),
+      body: const PersonelBolgePaneli(),
     );
   }
 }

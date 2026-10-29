@@ -1,10 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import OdemeAlani from "@/bilesenler/OdemeAlani";
-import SozlesmeOnayi from "@/bilesenler/SozlesmeOnayi";
 import { useAuth } from "@/kancalar/yetkiKullan";
 import { ILLER } from "@/lib/iller";
 import {
@@ -12,8 +10,6 @@ import {
   getExpertizPackages,
   getVehicleDetail,
   prefillValuation,
-  type CheckoutStart,
-  type CheckoutStatus,
   type ExpertizFirm,
   type ExpertizPackage,
 } from "@/lib/api";
@@ -22,7 +18,7 @@ function tl(value: number) {
   return new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 }).format(value) + " TL";
 }
 
-const ADIMLAR = ["Araç", "Hizmet Bedeli", "Ekspertiz Paketi", "Ödeme"];
+const ADIMLAR = ["Araç", "Hizmet Bedeli", "Ekspertiz Paketi", "Talep Onayı"];
 
 const trLower = (v: string) => v.toLocaleLowerCase("tr-TR").trim();
 
@@ -67,10 +63,8 @@ function EkspertizTalebiIcerigi() {
   const [packageId, setPackageId] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [onay, setOnay] = useState(false);
   const [prefillMsg, setPrefillMsg] = useState<string | null>(null);
-  const [checkout, setCheckout] = useState<CheckoutStart | null>(null);
-  const [odendi, setOdendi] = useState<CheckoutStatus | null>(null);
+  const [talepNo, setTalepNo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -170,8 +164,7 @@ function EkspertizTalebiIcerigi() {
     setError(null);
     try {
       const num = (v: string) => (v ? Number(v) : undefined);
-      setCheckout(
-        await createExpertizRequest({
+      const result = await createExpertizRequest({
           firm_id: selectedFirm.id,
           package_id: selectedPackage.id,
           listing_id: listingId || undefined,
@@ -180,7 +173,6 @@ function EkspertizTalebiIcerigi() {
           city: arac.city,
           district: arac.district.trim(),
           note: arac.note,
-          contract_accepted: onay,
           vehicle: {
             brand: arac.brand || undefined,
             model: arac.model || undefined,
@@ -190,17 +182,14 @@ function EkspertizTalebiIcerigi() {
             fuel: arac.fuel || undefined,
             transmission: arac.gear || undefined,
           },
-        }),
-      );
+        });
+      setTalepNo(result.request_id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ödeme başlatılamadı");
+      setError(err instanceof Error ? err.message : "Talep oluşturulamadı");
     } finally {
       setBusy(false);
     }
   }
-
-  const odemeTamam = useCallback((s: CheckoutStatus) => setOdendi(s), []);
-  const odemeBasarisiz = useCallback(() => setCheckout(null), []);
 
   if (loading) {
     return <div className="max-w-5xl mx-auto px-6 py-12 text-metin-ikincil">Ekspertiz paketleri yükleniyor...</div>;
@@ -219,12 +208,12 @@ function EkspertizTalebiIcerigi() {
     );
   }
 
-  if (odendi) {
+  if (talepNo) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-16 text-center">
         <h1 className="text-3xl font-bold text-basarili">Ekspertiz talebiniz alındı</h1>
         <p className="mt-3 text-metin-birincil">
-          Ödemeniz onaylandı ({tl(odendi.amount_tl)}). {odendi.firm_name} — {odendi.package_name} için ekspertiz personelimiz atanacak;
+          Talebiniz yöneticiye iletildi. Uygun personel atanacak;
           süreci ve raporu panelinizden takip edebilirsiniz.
         </p>
         <Link href="/panel" className="mt-6 inline-block rounded-lg bg-birincil px-5 py-2.5 text-sm font-semibold text-white">Panelde takip et</Link>
@@ -345,28 +334,23 @@ function EkspertizTalebiIcerigi() {
 
           {adim === 3 && (
             <section className="bg-white border border-kenarlik-acik rounded-lg p-5">
-              <h2 className="text-lg font-semibold text-metin-birincil">Ödeme</h2>
-              {checkout ? (
-                <div className="mt-4"><OdemeAlani checkout={checkout} onPaid={odemeTamam} onFailed={odemeBasarisiz} /></div>
-              ) : (
+              <h2 className="text-lg font-semibold text-metin-birincil">Talep onayı</h2>
                 <>
                   <p className="mt-1 text-sm text-metin-ikincil">
                     {arac.brand || arac.model ? `${arac.brand} ${arac.model} ${arac.year}`.trim() : arac.link} • {arac.city} / {arac.district}
                   </p>
-                  <div className="mt-4"><SozlesmeOnayi checked={onay} onChange={setOnay} hizmet /></div>
-                  <button type="button" onClick={odemeyeGec} disabled={busy || !selectedPackage || !onay}
+                  <button type="button" onClick={odemeyeGec} disabled={busy || !selectedPackage}
                     className="mt-4 w-full rounded-lg bg-birincil py-3 font-semibold text-white disabled:opacity-50">
-                    {busy ? "Ödeme hazırlanıyor..." : `${tl(total)} Öde`}
+                    {busy ? "Talep gönderiliyor..." : "Talep oluştur"}
                   </button>
-                  <p className="mt-2 text-xs text-metin-ikincil">Talebiniz ödeme onaylandığında işleme alınır.</p>
+                  <p className="mt-2 text-xs text-metin-ikincil">Bu adımda ödeme alınmaz; talebiniz yöneticiye iletilir.</p>
                 </>
-              )}
             </section>
           )}
 
           {error && <div className="text-sm text-tehlike">{error}</div>}
 
-          {!checkout && (
+          {(
             <div className="flex justify-between">
               <button type="button" onClick={() => { setError(null); setAdim((a) => Math.max(0, a - 1)); }} disabled={adim === 0}
                 className="rounded-lg border border-kenarlik-acik px-5 py-2.5 text-sm font-semibold text-metin-birincil disabled:opacity-40">
@@ -382,7 +366,7 @@ function EkspertizTalebiIcerigi() {
         </div>
 
         <aside className="bg-white border border-kenarlik-acik rounded-lg p-5 h-fit lg:sticky lg:top-6">
-          <h2 className="text-lg font-semibold text-metin-birincil">Ödeme özeti</h2>
+          <h2 className="text-lg font-semibold text-metin-birincil">Hizmet bedeli özeti</h2>
           <div className="mt-4 space-y-3 text-sm">
             <div className="flex justify-between"><span>YerimeBak hizmet bedeli</span><strong>{tl(serviceFee)}</strong></div>
             <div className="flex justify-between gap-2">

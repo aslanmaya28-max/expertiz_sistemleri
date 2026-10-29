@@ -112,9 +112,7 @@ class YerimebakExpertizApiService {
     return _get('/expertiz/packages');
   }
 
-  /// Müşteri ekspertiz talebi oluşturur ve PayTR ödemesini başlatır.
-  /// Talep, ödeme onaylanınca admin "Atama Bekleyen" kuyruğuna düşer.
-  /// Cevap: order_id, request_id, amount_tl, provider (paytr|simulation), iframe_url.
+  /// Müşteri talebini tahsilat yapmadan admin atama kuyruğuna iletir.
   Future<Map<String, dynamic>> createExpertizRequest({
     required String firmId,
     required String packageId,
@@ -125,7 +123,7 @@ class YerimebakExpertizApiService {
     String? note,
     Map<String, dynamic>? vehicle,
   }) {
-    return _post('/expertiz/requests', body: {
+    return _post('/expertiz/requests/unpaid', body: {
       'firm_id': firmId,
       'package_id': packageId,
       if (plate != null && plate.isNotEmpty) 'plate': plate,
