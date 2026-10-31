@@ -154,3 +154,9 @@ body {
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: #0b1120; }
 ::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+/* Sisteme kaydet (arabam.com) */
+.ingest-box { margin: 10px 0; }
+.ingest-hint { font-size: 11px; color: #94a3b8; margin-bottom: 8px; line-height: 1.4; }
+.ingest-result { font-size: 12px; margin-top: 8px; line-height: 1.5; }
+.ingest-result.ok { color: #4ade80; }
+.ingest-result.err { color: #f87171; }
