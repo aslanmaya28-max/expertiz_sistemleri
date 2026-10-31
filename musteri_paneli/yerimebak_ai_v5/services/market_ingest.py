@@ -45,6 +45,24 @@ def _ensure_schema(cursor: Any) -> None:
         )
         """
     )
+    # Eski kurulumlarda bulunmayabilecek ilan sutunlari (init.sql disinda kurulan tablolar)
+    for column, col_type in (
+        ("series", "TEXT"), ("title", "TEXT"), ("image_url", "TEXT"), ("location", "TEXT"),
+        ("listing_date", "TEXT"), ("accident_record", "TEXT"), ("heavy_damage", "TEXT"),
+        ("damage_info", "TEXT"), ("paint_info", "TEXT"), ("status", "TEXT DEFAULT 'active'"),
+        ("scraped_at", "TIMESTAMP"), ("fuel_type", "TEXT"),
+    ):
+        cursor.execute(f"ALTER TABLE listings ADD COLUMN IF NOT EXISTS {column} {col_type}")
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS price_history (
+            id SERIAL PRIMARY KEY,
+            listing_id INTEGER REFERENCES listings(id) ON DELETE CASCADE,
+            price INTEGER,
+            recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_price_history_listing ON price_history(listing_id, recorded_at)")
     _schema_ready = True
 
@@ -88,10 +106,11 @@ def normalize_item(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if year and not (1950 <= year <= 2100):
         year = None
     paint = item.get("paint_info") if isinstance(item.get("paint_info"), dict) else None
+    damage = item.get("damage_record") if isinstance(item.get("damage_record"), dict) else None
     source = (item.get("source") or "").lower()
     return {
         "url": url,
-        "source": "borusan" if source.startswith("borusan") else (source or "arabam"),
+        "source": source or "arabam",
         "brand": brand,
         "model": model,
         "series": _clean_text(item.get("package")),
@@ -105,14 +124,18 @@ def normalize_item(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "location": _clean_text(item.get("location")),
         "listing_date": _clean_text(item.get("listing_date")),
         "image_url": _clean_text(item.get("image_url")),
+        # "Tramerli: 12500 TL" / "Ağır hasar kayıtlı": emsal sınıflandırması bu metni okur
         "accident_record": _clean_text(item.get("accident_record")),
+        "heavy_damage": "Ağır hasar kayıtlı" if (damage or {}).get("agir_hasar") else None,
+        "damage_info": json.dumps(damage, ensure_ascii=False) if damage and any(v is not None for v in damage.values()) else None,
         "paint_info": json.dumps(paint, ensure_ascii=False) if paint else None,
     }
 
 
 _COLUMNS = (
     "url", "source", "brand", "model", "series", "year", "km", "price", "fuel", "transmission",
-    "color", "title", "location", "listing_date", "image_url", "accident_record", "paint_info",
+    "color", "title", "location", "listing_date", "image_url", "accident_record", "heavy_damage",
+    "damage_info", "paint_info",
 )
 
 
@@ -208,7 +231,7 @@ def _record_refresh(key: str, count: int, run: Dict[str, Any], error: Optional[s
 
 
 def refresh_comparables(brand: str, model: str, year: Optional[int]) -> Dict[str, Any]:
-    """Degerlemeden once guncel emsalleri Apify'dan ceker (her kaynak icin).
+    """Degerlemeden once guncel emsalleri Apify ile arabam.com'dan ceker.
 
     Hata durumunda degerleme durmaz: mevcut veritabani verisiyle devam edilir ve
     sebep sonuc ozetinde doner (admin ekraninda gosterilir).
@@ -219,8 +242,7 @@ def refresh_comparables(brand: str, model: str, year: Optional[int]) -> Dict[str
     hours = float(os.getenv("APIFY_REFRESH_HOURS") or 24)
     window = int(os.getenv("APIFY_YEAR_WINDOW") or 1)
     max_items = int(os.getenv("APIFY_MAX_ITEMS") or 36)
-    sources = [s.strip() for s in (os.getenv("APIFY_SOURCES") or "arabam").split(",") if s.strip()]
-    for source in sources:
+    for source in ("arabam",):
         key = _refresh_key(source, brand, model, year)
         cached = _recently_refreshed(key, hours)
         if cached:
@@ -259,10 +281,11 @@ def declared_condition(listing_id: Optional[int], url: Optional[str]) -> Optiona
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
+        _ensure_schema(cursor)
         if listing_id:
-            cursor.execute("SELECT id, url, source, price, paint_info, accident_record FROM listings WHERE id = %s", (listing_id,))
+            cursor.execute("SELECT id, url, source, price, paint_info, accident_record, damage_info FROM listings WHERE id = %s", (listing_id,))
         else:
-            cursor.execute("SELECT id, url, source, price, paint_info, accident_record FROM listings WHERE url = %s", (norm,))
+            cursor.execute("SELECT id, url, source, price, paint_info, accident_record, damage_info FROM listings WHERE url = %s", (norm,))
         row = cursor.fetchone()
         conn.commit()
     finally:
@@ -278,6 +301,11 @@ def declared_condition(listing_id: Optional[int], url: Optional[str]) -> Optiona
         return {"listing_id": row["id"], "url": row["url"], "known": False}
     painted = list(paint.get("painted_parts") or [])
     changed = list(paint.get("changed_parts") or [])
+    try:
+        damage = json.loads(row.get("damage_info") or "null")
+    except (TypeError, ValueError):
+        damage = None
+    damage = damage if isinstance(damage, dict) else {}
     return {
         "listing_id": row["id"],
         "url": row["url"],
@@ -288,16 +316,22 @@ def declared_condition(listing_id: Optional[int], url: Optional[str]) -> Optiona
         "boyaliParcalar": painted,
         "degisenParcalar": changed,
         "hasarKaydi": _clean_text(row.get("accident_record")),
+        # Tramer: tutar biliniyorsa sayi, "yok" beyan edildiyse 0, bilinmiyorsa None
+        "tramerTl": damage.get("tramer_tl") if damage.get("tramer_tl") else (0 if damage.get("tramer_yok") else None),
+        "agirHasar": damage.get("agir_hasar"),
     }
 
 
-def compare_declaration(declared: Optional[Dict[str, Any]], degerleme: Dict[str, Any]) -> Dict[str, Any]:
-    """Satici beyani ile ekspertiz bulgularini karsilastirir (fark varsa uyari uretir)."""
+def compare_declaration(
+    declared: Optional[Dict[str, Any]], degerleme: Dict[str, Any], ekspertiz_tramer_tl: Optional[float] = None
+) -> Dict[str, Any]:
+    """Satici beyani (boya / degisen / tramer) ile ekspertiz bulgularini karsilastirir."""
     found_paint = int(degerleme.get("boyaliParcaSayisi") or 0)
     found_changed = int(degerleme.get("degisenParcaSayisi") or 0)
+    found_tramer = int(ekspertiz_tramer_tl or 0)
     out: Dict[str, Any] = {
         "ilanBeyaniVar": bool(declared and declared.get("known")),
-        "ekspertiz": {"boyali": found_paint, "degisen": found_changed},
+        "ekspertiz": {"boyali": found_paint, "degisen": found_changed, "tramerTl": found_tramer},
         "farklar": [],
     }
     if not out["ilanBeyaniVar"]:
@@ -308,6 +342,8 @@ def compare_declaration(declared: Optional[Dict[str, Any]], degerleme: Dict[str,
         "boyali": declared["boyali"],
         "degisen": declared["degisen"],
         "hasarKaydi": declared.get("hasarKaydi"),
+        "tramerTl": declared.get("tramerTl"),
+        "agirHasar": declared.get("agirHasar"),
         "kaynak": declared.get("source"),
         "url": declared.get("url"),
     }
@@ -318,6 +354,12 @@ def compare_declaration(declared: Optional[Dict[str, Any]], degerleme: Dict[str,
     if found_changed > declared["degisen"]:
         out["farklar"].append(
             f"İlanda {declared['degisen']} değişen parça beyan edilmiş, ekspertizde {found_changed} değişen parça bulundu."
+        )
+    declared_tramer = declared.get("tramerTl")
+    if found_tramer > 0 and declared_tramer is not None and found_tramer > int(declared_tramer) * 1.1:
+        beyan = "tramer kaydı yok" if not declared_tramer else f"{int(declared_tramer):,} TL tramer".replace(",", ".")
+        out["farklar"].append(
+            f"İlanda {beyan} beyan edilmiş, ekspertizde {found_tramer:,} TL hasar kaydı bulundu.".replace(",", ".")
         )
     out["uyumlu"] = not out["farklar"]
     out["ozet"] = (

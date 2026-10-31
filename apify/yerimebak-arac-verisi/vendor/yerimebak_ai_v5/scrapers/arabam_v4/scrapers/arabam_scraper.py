@@ -27,6 +27,7 @@ from ..utils.url_builder import ArabamURLBuilder
 from ..utils.pagination_handler import PaginationHandler
 from ..extractors.paint_extractor import PaintExtractor
 from ..extractors.package_extractor import PackageExtractor
+from ..extractors.damage_extractor import DamageExtractor
 from ..extractors.selectors import ArabamSelectors
 
 import logging
@@ -514,6 +515,15 @@ class ArabamScraper:
                 from ..models.enums import PaintStatus
                 paint_info = PaintInfo(status=PaintStatus.UNKNOWN)
             
+            # Hasar kaydi (tramer) / agir hasar - satici beyani
+            damage = {}
+            try:
+                damage = await DamageExtractor(page).extract()
+                logger.info(f"    🧾 Hasar kaydı: tramer={damage.get('tramer_tl')} yok={damage.get('tramer_yok')} "
+                            f"ağır={damage.get('agir_hasar')}")
+            except Exception as e:
+                logger.warning(f"    ⚠️ Hasar kaydı çıkarılamadı: {str(e)[:50]}")
+
             # Package info
             package_info = None
             try:
@@ -571,6 +581,10 @@ class ArabamScraper:
                 image_url=image_url,  # KRİTİK - Dashboard için
                 location=location,  # İl/İlçe bilgisi
                 listing_date=listing_date,  # İlan tarihi
+                tramer_amount=damage.get('tramer_tl'),
+                no_damage_record=damage.get('tramer_yok'),
+                heavy_damage=damage.get('agir_hasar'),
+                damage_text=damage.get('kaynak_metin'),
                 data_quality_score=min(quality_score, 1.0),
             )
             

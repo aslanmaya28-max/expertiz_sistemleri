@@ -21,10 +21,7 @@ TARGET = ROOT / "apify" / "yerimebak-arac-verisi" / "vendor"
 FILES = [
     "yerimebak_ai_v5/__init__.py",
     "yerimebak_ai_v5/scrapers/__init__.py",
-    "yerimebak_ai_v5/scrapers/borusan_smart.py",
     "yerimebak_ai_v5/core/__init__.py",
-    "yerimebak_ai_v5/core/logger.py",
-    "yerimebak_ai_v5/core/rate_limiter.py",
     "yerimebak_ai_v5/core/security/__init__.py",
     "yerimebak_ai_v5/core/security/rate_limiter.py",
     "yerimebak_ai_v5/core/utils/__init__.py",

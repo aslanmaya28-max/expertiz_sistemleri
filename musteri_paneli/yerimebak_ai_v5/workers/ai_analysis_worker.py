@@ -215,9 +215,11 @@ class AIAnalysisWorker:
             )
             liquidity = _liquidity(vehicle_info, degerleme, km)
             # Ilanda satıcının beyan ettiği durum ↔ personel ekspertiz bulguları
+            adim1 = (vehicle_info.get("tam_rapor") or {}).get("adim1") or {}
             degerleme["ilanBeyaniKarsilastirma"] = market_ingest.compare_declaration(
                 market_ingest.declared_condition(listing_id, vehicle_info.get("listing_url")),
                 degerleme,
+                ekspertiz_tramer_tl=_to_float(adim1.get("hasarKayitToplamTutar")) if isinstance(adim1, dict) else None,
             )
             market_reference["emsalCekimi"] = emsal_cekimi
 

@@ -59,7 +59,7 @@ def collect():
 
 def test_actor_detects_source_and_parses_identity(collect):
     assert collect.detect_source("https://www.arabam.com/ilan/x/123") == "arabam"
-    assert collect.detect_source("https://borusannext.com/araba/bmw-320i") == "borusan"
+    assert collect.detect_source("https://borusannext.com/araba/bmw-320i") is None
     assert collect.detect_source("https://www.sahibinden.com/ilan/1") is None
     text = "İlan Bilgileri\nMarka\nRenault\nSeri\nClio\nModel\n1.0 TCe Touch\nYıl\n2019\nKilometre\n72.000 km\n"
     ident = collect.parse_identity(text)
@@ -74,11 +74,32 @@ def test_actor_maps_arabam_listing(collect):
     paint = PaintInfo(has_paint=True, has_changed=True, is_original=False,
                       painted_parts=["Kaput"], changed_parts=["Sol Ön Kapı"], paint_count=1, changed_count=1)
     listing = ArabamListing(url="https://www.arabam.com/ilan/test/1", price=650000, title="Renault Clio",
-                            brand="Bilinmeyen", model="Bilinmeyen", year=2019, km=72000, paint_info=paint)
+                            brand="Bilinmeyen", model="Bilinmeyen", year=2019, km=72000, paint_info=paint,
+                            tramer_amount=12500, no_damage_record=False, heavy_damage=False,
+                            damage_text="Tramer: 12.500 TL")
     item = collect.from_arabam(listing, {"brand": "Renault", "series": "Clio", "model": "1.0 TCe Touch"})
     assert item["brand"] == "Renault" and item["model"] == "Clio" and item["package"] == "1.0 TCe Touch"
     assert item["price"] == 650000 and item["paint_info"]["changed_parts"] == ["Sol Ön Kapı"]
     assert item["paint_info"]["paint_count"] == 1 and item["source"] == "arabam"
+    assert item["damage_record"]["tramer_tl"] == 12500 and item["accident_record"] == "Tramerli: 12500 TL"
+
+
+@pytest.mark.parametrize("text,tramer,yok,agir", [
+    ("Açıklama\nTramer: 12.500 TL\nAğır Hasar Kayıtlı\nHayır", 12500, False, False),
+    ("Hasar Kaydı (Tramer) 8.750,50 TL", 8750, False, None),
+    ("aracin 4.200 TL tramer kaydi var", 4200, False, None),
+    ("Boyasız değişensiz, tramer kaydı yoktur.", None, True, None),
+    ("TRAMERSİZ", None, True, None),
+    ("Ağır Hasar Kayıtlı: Evet", None, None, True),
+    ("Model yılı 2019, 72.000 km", None, None, None),
+])
+def test_damage_record_parsing(text, tramer, yok, agir):
+    from yerimebak_ai_v5.scrapers.arabam_v4.extractors.damage_extractor import damage_summary, parse_damage_record
+
+    rec = parse_damage_record(text)
+    assert (rec["tramer_tl"], rec["tramer_yok"], rec["agir_hasar"]) == (tramer, yok, agir)
+    summary = damage_summary(rec)
+    assert (summary is None) == (not tramer and not agir)
 
 
 def test_actor_rejects_unsupported_link(collect):
@@ -169,8 +190,15 @@ def test_normalize_item():
                           "year": 2019, "km": "72.000", "fuel": "Bilinmiyor", "source": "borusan_next",
                           "paint_info": {"has_paint": True}})
     assert row["url"] == "https://www.arabam.com/ilan/a/1" and row["price"] == 650000 and row["km"] == 72000
-    assert row["fuel"] is None and row["source"] == "borusan"
+    assert row["fuel"] is None and row["source"] == "borusan_next"
     assert json.loads(row["paint_info"]) == {"has_paint": True}
+    damaged = normalize_item({"url": "https://a/2", "brand": "Renault", "model": "Clio", "price": 5,
+                              "accident_record": "Ağır hasar kayıtlı, Tramerli: 180000 TL",
+                              "damage_record": {"tramer_tl": 180000, "tramer_yok": False, "agir_hasar": True}})
+    assert damaged["heavy_damage"] == "Ağır hasar kayıtlı" and json.loads(damaged["damage_info"])["tramer_tl"] == 180000
+    unknown = normalize_item({"url": "https://a/3", "brand": "Renault", "model": "Clio", "price": 5,
+                              "damage_record": {"tramer_tl": None, "tramer_yok": None, "agir_hasar": None}})
+    assert unknown["damage_info"] is None and unknown["heavy_damage"] is None
     assert normalize_item({"url": "https://a/1", "brand": "Renault", "model": "Clio", "price": 0}) is None
     assert normalize_item({"url": "", "brand": "Renault", "model": "Clio", "price": 5}) is None
 
@@ -184,5 +212,11 @@ def test_compare_declaration():
     assert "1 boyalı" in mismatch["farklar"][0] and "3 boyalı" in mismatch["farklar"][0]
     ok = compare_declaration(declared, {"boyaliParcaSayisi": 1, "degisenParcaSayisi": 0})
     assert ok["uyumlu"] is True and ok["farklar"] == []
+    tramer = compare_declaration({**declared, "tramerTl": 0}, {"boyaliParcaSayisi": 1}, ekspertiz_tramer_tl=18000)
+    assert tramer["uyumlu"] is False and "tramer kaydı yok" in tramer["farklar"][0] and "18.000 TL" in tramer["farklar"][0]
+    same = compare_declaration({**declared, "tramerTl": 18000}, {"boyaliParcaSayisi": 1}, ekspertiz_tramer_tl=18500)
+    assert same["uyumlu"] is True
+    unknown_tramer = compare_declaration({**declared, "tramerTl": None}, {"boyaliParcaSayisi": 1}, ekspertiz_tramer_tl=18000)
+    assert unknown_tramer["uyumlu"] is True
     unknown = compare_declaration(None, {"boyaliParcaSayisi": 2})
     assert unknown["uyumlu"] is None and unknown["ilanBeyaniVar"] is False

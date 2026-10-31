@@ -909,8 +909,9 @@ def test_link_request_apify_listing_and_comparables_valuation(client, admin_toke
                 files={"file": ("kurumsal.pdf", PDF_BYTES, "application/pdf")}, data={"category": "corporate_report"})
 
     rapor = _tam_rapor(report_id, person["id"])
-    rapor["adim1"].update({"marka": "Renault", "model": "Clio", "yil": "2019", "guncelKm": 72000})
-    # Ilanda 1 boyali / 0 degisen beyan edildi; ekspertiz 3 boyali + 1 degisen buldu
+    rapor["adim1"].update({"marka": "Renault", "model": "Clio", "yil": "2019", "guncelKm": 72000,
+                           "hasarKayitToplamTutar": 18000, "hasarKayitAdet": 1})
+    # Ilanda 1 boyali / 0 degisen / "tramer yok" beyan edildi; ekspertiz 3 boyali + 1 degisen + 18.000 TL tramer buldu
     rapor["adim4"] = {"gorevId": report_id, "personelId": person["id"],
                       "parcaDurumlari": {"kaput": "boyali", "solOnCamurluk": "boyali", "sagOnKapi": "boyali",
                                          "solOnKapi": "degisen"},
@@ -935,9 +936,14 @@ def test_link_request_apify_listing_and_comparables_valuation(client, admin_toke
     assert degerleme["aiDegeri"] < degerleme["temizPiyasaDegeri"]
     karsilastirma = degerleme["ilanBeyaniKarsilastirma"]
     assert karsilastirma["ilanBeyaniVar"] is True and karsilastirma["uyumlu"] is False
-    assert karsilastirma["ilanBeyani"] == {"boyali": 1, "degisen": 0, "hasarKaydi": None, "kaynak": "test",
+    assert karsilastirma["ilanBeyani"] == {"boyali": 1, "degisen": 0, "hasarKaydi": None, "tramerTl": 0, "agirHasar": False,
+                                           "kaynak": "test",
                                            "url": "https://www.arabam.com/ilan/galeriden-satilik-renault-clio-1-0-tce-touch/test/9001"}
-    assert len(karsilastirma["farklar"]) == 2
+    assert len(karsilastirma["farklar"]) == 3 and "18.000 TL" in karsilastirma["farklar"][2]
+    assert karsilastirma["ekspertiz"]["tramerTl"] == 18000
+    # Tramerli emsaller temiz sayilmaz, agir hasarli emsal kullanilmaz
+    conditions = {s["url"].rsplit("/", 1)[-1]: s["condition"] for s in ref["samples"]}
+    assert conditions.get("9100") in (None, "damaged") and "9113" not in conditions
 
     # Veritabani: musteri ilani 'talep', emsaller 'emsal' (vitrinde yok), fiyat gecmisi tutuldu
     conn = psycopg2.connect(TEST_DB)
