@@ -1,5 +1,6 @@
-const CACHE_NAME = "yerimebak-v1";
-const STATIC_ASSETS = ["/", "/vitrin", "/giris", "/fiyatlar"];
+const CACHE_NAME = "yerimebak-static-v2";
+// Application pages, RSC payloads and Next.js development chunks must stay fresh.
+const STATIC_ASSETS = ["/yerimebak-mark.svg", "/favicon.ico"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)));
@@ -7,13 +8,14 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))));
+  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k.startsWith("yerimebak-") && k !== CACHE_NAME).map((k) => caches.delete(k)))));
   self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
-  if (event.request.url.includes("/api/")) return;
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin || url.search || !STATIC_ASSETS.includes(url.pathname)) return;
 
   event.respondWith(
     caches.match(event.request).then((cached) => {

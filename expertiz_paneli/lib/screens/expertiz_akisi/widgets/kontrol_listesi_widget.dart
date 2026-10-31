@@ -83,8 +83,11 @@ class KontrolListesiBolumu extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<ExpertizProvider>();
     final secilen = maddeler.where((m) => durum(m.key) != null).length;
-    final eksiklikli = maddeler.where((m) => secenekler.eksiklikMi(durum(m.key))).toList();
-    final fotoEksik = eksiklikli.where((m) => provider.fotograflar(bolum, m.key).isEmpty).length;
+    final eksiklikli =
+        maddeler.where((m) => secenekler.eksiklikMi(durum(m.key))).toList();
+    final fotoEksik = eksiklikli
+        .where((m) => provider.fotograflar(bolum, m.key).isEmpty)
+        .length;
     final secilmemis = maddeler.where((m) => durum(m.key) == null).toList();
 
     final gruplar = <String, List<KontrolMaddesi>>{};
@@ -100,10 +103,14 @@ class KontrolListesiBolumu extends StatelessWidget {
             Expanded(
               child: Text(
                 baslik,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: YerimeBakColors.blue),
+                style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: YerimeBakColors.blue),
               ),
             ),
-            Text('$secilen / ${maddeler.length}', style: const TextStyle(fontWeight: FontWeight.w600)),
+            Text('$secilen / ${maddeler.length}',
+                style: const TextStyle(fontWeight: FontWeight.w600)),
           ],
         ),
         const SizedBox(height: 6),
@@ -113,13 +120,15 @@ class KontrolListesiBolumu extends StatelessWidget {
           children: [
             if (eksiklikli.isNotEmpty)
               Chip(
-                avatar: const Icon(Icons.report_problem, size: 16, color: Colors.deepOrange),
+                avatar: const Icon(Icons.report_problem,
+                    size: 16, color: Colors.deepOrange),
                 label: Text('${eksiklikli.length} eksiklik'),
                 visualDensity: VisualDensity.compact,
               ),
             if (fotoEksik > 0)
               Chip(
-                avatar: const Icon(Icons.photo_camera, size: 16, color: Colors.red),
+                avatar:
+                    const Icon(Icons.photo_camera, size: 16, color: Colors.red),
                 label: Text('$fotoEksik maddede fotoğraf gerekli'),
                 backgroundColor: Colors.red.withValues(alpha: .08),
                 visualDensity: VisualDensity.compact,
@@ -127,7 +136,8 @@ class KontrolListesiBolumu extends StatelessWidget {
             if (duzenlenebilir && onToplu != null && secilmemis.isNotEmpty)
               ActionChip(
                 avatar: const Icon(Icons.done_all, size: 16),
-                label: Text('Kalan ${secilmemis.length} maddeyi "${secenekler.etiket(secenekler.varsayilan)}" işaretle'),
+                label: Text(
+                    'Kalan ${secilmemis.length} maddeyi "${secenekler.etiket(secenekler.varsayilan)}" işaretle'),
                 onPressed: () async {
                   final onay = await showDialog<bool>(
                     context: context,
@@ -138,13 +148,19 @@ class KontrolListesiBolumu extends StatelessWidget {
                         'olarak işaretlenecek. Sadece gerçekten kontrol ettiğiniz maddeler için kullanın.',
                       ),
                       actions: [
-                        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
-                        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('İşaretle')),
+                        TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Vazgeç')),
+                        FilledButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('İşaretle')),
                       ],
                     ),
                   );
                   if (onay == true) {
-                    onToplu!({for (final m in secilmemis) m.key: secenekler.varsayilan});
+                    onToplu!({
+                      for (final m in secilmemis) m.key: secenekler.varsayilan
+                    });
                   }
                 },
               ),
@@ -281,8 +297,12 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
       builder: (ctx) => AlertDialog(
         title: const Text('Fotoğraf silinsin mi?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sil')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Sil')),
         ],
       ),
     );
@@ -290,7 +310,9 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
     try {
       await provider.medyaSil(medya);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Silinemedi: $e'), backgroundColor: YerimeBakColors.red));
+      messenger.showSnackBar(SnackBar(
+          content: Text('Silinemedi: $e'),
+          backgroundColor: YerimeBakColors.red));
     }
   }
 
@@ -299,7 +321,8 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
       context: context,
       builder: (ctx) => Dialog(
         insetPadding: const EdgeInsets.all(12),
-        child: InteractiveViewer(child: Image.network(url, fit: BoxFit.contain)),
+        child:
+            InteractiveViewer(child: Image.network(url, fit: BoxFit.contain)),
       ),
     );
   }
@@ -338,13 +361,18 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
                 Expanded(
                   child: Text(
                     widget.madde.label,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w600),
                   ),
                 ),
                 if (widget.seciliDurum == null)
-                  Text('Seçilmedi', style: TextStyle(color: Colors.grey.shade600, fontSize: 12))
+                  Text('Seçilmedi',
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontSize: 12))
                 else
-                  Icon(eksiklik ? Icons.report_problem : Icons.check_circle, color: renk, size: 20),
+                  Icon(eksiklik ? Icons.report_problem : Icons.check_circle,
+                      color: renk, size: 20),
               ],
             ),
             const SizedBox(height: 8),
@@ -360,10 +388,12 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
                   selectedColor: c.withValues(alpha: .25),
                   side: BorderSide(color: secili ? c : Colors.grey.shade300),
                   labelStyle: TextStyle(
-                    color: secili ? Colors.black87 : Colors.black54,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontWeight: secili ? FontWeight.w700 : FontWeight.normal,
                   ),
-                  onSelected: widget.duzenlenebilir ? (_) => widget.onDurum(secili ? null : deger) : null,
+                  onSelected: widget.duzenlenebilir
+                      ? (_) => widget.onDurum(secili ? null : deger)
+                      : null,
                 );
               }).toList(),
             ),
@@ -426,9 +456,12 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
                             child: InkWell(
                               onTap: () => _fotografSil(medya),
                               child: Container(
-                                decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                                decoration: const BoxDecoration(
+                                    color: Colors.black54,
+                                    shape: BoxShape.circle),
                                 padding: const EdgeInsets.all(2),
-                                child: const Icon(Icons.close, size: 16, color: Colors.white),
+                                child: const Icon(Icons.close,
+                                    size: 16, color: Colors.white),
                               ),
                             ),
                           ),
@@ -443,14 +476,19 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
                   const Expanded(
                     child: Text(
                       'Eksiklik işaretlendi: en az 1 fotoğraf çekin',
-                      style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                          color: Color(0xFFB91C1C),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600),
                     ),
                   )
                 else if (widget.madde.fotoIpucu != null)
                   Expanded(
                     child: Text(
                       widget.madde.fotoIpucu!,
-                      style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontSize: 12),
                     ),
                   )
                 else
@@ -464,17 +502,22 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
                 if (yukleniyor)
                   const Padding(
                     padding: EdgeInsets.all(8),
-                    child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                    child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2)),
                   )
                 else if (widget.duzenlenebilir) ...[
                   IconButton(
                     tooltip: 'Fotoğraf çek',
-                    icon: Icon(Icons.photo_camera, color: fotoGerekli ? Colors.red : YerimeBakColors.blue),
+                    icon: Icon(Icons.photo_camera,
+                        color: fotoGerekli ? Colors.red : YerimeBakColors.blue),
                     onPressed: () => _fotografCek(ImageSource.camera),
                   ),
                   IconButton(
                     tooltip: 'Galeriden seç',
-                    icon: const Icon(Icons.photo_library_outlined, color: YerimeBakColors.blue),
+                    icon: const Icon(Icons.photo_library_outlined,
+                        color: YerimeBakColors.blue),
                     onPressed: () => _fotografCek(ImageSource.gallery),
                   ),
                 ],
@@ -507,7 +550,8 @@ class GenelNotAlani extends StatefulWidget {
 }
 
 class _GenelNotAlaniState extends State<GenelNotAlani> {
-  late final TextEditingController _controller = TextEditingController(text: widget.deger);
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.deger);
 
   @override
   void dispose() {
@@ -521,7 +565,8 @@ class _GenelNotAlaniState extends State<GenelNotAlani> {
       controller: _controller,
       enabled: widget.duzenlenebilir,
       maxLines: 3,
-      decoration: InputDecoration(labelText: widget.etiket, border: const OutlineInputBorder()),
+      decoration: InputDecoration(
+          labelText: widget.etiket, border: const OutlineInputBorder()),
       onChanged: widget.onChanged,
     );
   }
@@ -551,7 +596,10 @@ class AdimEksikleriKarti extends StatelessWidget {
         subtitle: const Text('Tamamlamadan sonraki adıma geçilemez'),
         children: eksikler
             .take(40)
-            .map((e) => ListTile(dense: true, leading: const Icon(Icons.chevron_right, size: 18), title: Text(e)))
+            .map((e) => ListTile(
+                dense: true,
+                leading: const Icon(Icons.chevron_right, size: 18),
+                title: Text(e)))
             .toList(),
       ),
     );

@@ -90,7 +90,10 @@ void main() {
     expect(find.text('Renault Clio (2017-2021)'), findsOneWidget);
     expect(find.text('Eksik: 1'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Başlat').first);
+    await tester.tap(find.ancestor(
+      of: find.text('Başlat'),
+      matching: find.byWidgetPredicate((widget) => widget is FilledButton),
+    ).first);
     await tester.pumpAndSettle();
     expect(calls, contains('POST /api/v1/scrapers/start/arabam'));
     expect(find.text('Arabam başlatıldı (PID: 10423)'), findsOneWidget);

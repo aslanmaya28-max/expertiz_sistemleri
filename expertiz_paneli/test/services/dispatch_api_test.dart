@@ -10,6 +10,22 @@ import 'package:yerimebak_sistemleri/services/talep_service.dart';
 import 'package:yerimebak_sistemleri/services/yerimebak_expertiz_api_service.dart';
 
 void main() {
+  test('müşteri talebi ödeme başlatmadan yönetici kuyruğu yoluna gönderilir', () async {
+    final api = YerimebakExpertizApiService(
+      accessToken: 'token',
+      client: MockClient((request) async {
+        expect(request.url.path, '/api/v1/expertiz/requests/unpaid');
+        expect(jsonDecode(request.body)['vehicle'], {'brand': 'Ford', 'model': 'Focus'});
+        return http.Response('{"success":true,"request_id":"r1","payment_status":"not_collected"}', 200);
+      }),
+    );
+    final result = await api.createExpertizRequest(
+      firmId: 'f', packageId: 'p', city: 'İstanbul', district: 'Kadıköy',
+      vehicle: {'brand': 'Ford', 'model': 'Focus'},
+    );
+    expect(result['request_id'], 'r1');
+    expect(result['payment_status'], 'not_collected');
+  });
   group('YerimebakExpertizApiService dispatch endpoints', () {
     test('assignRequest posts personnel id and note', () async {
       final client = MockClient((request) async {

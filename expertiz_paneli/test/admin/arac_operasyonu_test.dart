@@ -23,6 +23,41 @@ Map<String, dynamic> _talep(String bucket) => {
     };
 
 void main() {
+  testWidgets('admin talepteki ilan baglantisini acar', (tester) async {
+    const url = 'https://www.sahibinden.com/ilan/test-1347633467/detay';
+    Uri? opened;
+    final client = MockClient((_) async => _json({
+      'requests': [{..._talep('waiting_assignment'), 'vehicle': {'title': 'Seat Arona', 'listing_url': url}}],
+      'counts': {'waiting_assignment': 1},
+    }));
+    await tester.pumpWidget(MaterialApp(home: AracOperasyonu(
+      apiService: YerimebakExpertizApiService(baseUrl: 'http://api.test/api/v1', client: client, accessToken: 'admin-token'),
+      openListing: (uri) async {opened = uri; return true;},
+    )));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Seat Arona'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('İlanı aç'));
+    await tester.pumpAndSettle();
+    expect(opened.toString(), url);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('calistirilabilir ilan adresi admin butonu olusturmaz', (tester) async {
+    final client = MockClient((_) async => _json({
+      'requests': [{..._talep('waiting_assignment'), 'vehicle': {'title': 'Seat Arona', 'listing_url': 'javascript:alert(1)'}}],
+      'counts': {'waiting_assignment': 1},
+    }));
+    await tester.pumpWidget(MaterialApp(home: AracOperasyonu(
+      apiService: YerimebakExpertizApiService(baseUrl: 'http://api.test/api/v1', client: client, accessToken: 'admin-token'),
+    )));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Seat Arona'));
+    await tester.pumpAndSettle();
+    expect(find.text('İlanı aç'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   setUp(() {
     final view = TestWidgetsFlutterBinding.instance.platformDispatcher.views.first;
     view.physicalSize = const Size(1400, 2600);

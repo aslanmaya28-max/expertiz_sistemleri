@@ -261,6 +261,62 @@ def _upsert_profile(cursor: Any, profile_id: str, user: Dict[str, Any]) -> None:
     )
 
 
+def create_unpaid_request(payload: Dict[str, Any], user: Dict[str, Any]) -> Dict[str, Any]:
+    """Talebi tahsilat yapmadan yonetici atama kuyruguna ekler."""
+    from yerimebak_ai_v5.services import checkout_service, notification_service
+
+    vehicle = checkout_service._clean_vehicle(payload.get("vehicle"))
+    listing_url = str(payload.get("listing_url") or "").strip()[:500]
+    if not vehicle.get("brand") or not vehicle.get("model"):
+        return {"error": "Aracin marka ve model bilgileri zorunludur"}
+    if not str(payload.get("city") or "").strip() or not str(payload.get("district") or "").strip():
+        return {"error": "Aracin bulundugu il ve ilce zorunludur"}
+    quote = checkout_service.quote_expertiz(str(payload.get("firm_id") or ""), str(payload.get("package_id") or ""))
+    if "error" in quote:
+        return quote
+    selected, totals = quote["selected"], quote["totals"]
+    request_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    clean = {
+        "firm_id": selected["firm"]["id"], "package_id": selected["package"]["id"],
+        "listing_id": payload.get("listing_id"), "listing_url": listing_url,
+        "plate": str(payload.get("plate") or "").strip()[:20],
+        "city": str(payload.get("city") or "").strip()[:80],
+        "district": str(payload.get("district") or "").strip()[:80],
+        "note": str(payload.get("note") or "").strip()[:1000], "vehicle": vehicle,
+    }
+    snapshot = {"payload": clean, "selected": selected, "totals": totals,
+                "user": {k: user.get(k) for k in ("id", "email", "full_name", "phone")}}
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        _ensure_expertiz_requests_schema(cursor)
+        cursor.execute(
+            """INSERT INTO expertiz_requests
+               (id, user_id, user_email, listing_id, listing_url, plate, city, firm_id, firm_name,
+                package_id, package_name, service_fee_tl, package_price_tl, vat_tl, total_tl,
+                status, payment_status, data, created_at, updated_at)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                       'Islemde', 'not_collected', %s, %s, %s)""",
+            (request_id, str(user.get("id", "")), user.get("email", ""), str(clean["listing_id"] or ""),
+             listing_url, clean["plate"], clean["city"], selected["firm"]["id"], selected["firm"]["name"],
+             selected["package"]["id"], selected["package"]["name"], totals["service_fee_tl"],
+             totals["package_price_tl"], totals["vat_tl"], totals["total_tl"],
+             json.dumps(snapshot, ensure_ascii=False, default=str), now, now),
+        )
+        _upsert_report_from_request(cursor=cursor, request_id=request_id, payload=clean, user=user,
+                                    selected=selected, totals=totals, now=now, payment_status="not_collected")
+        notification_service.notify_admins(cursor, "request_created", "Yeni ekspertiz talebi",
+                                           f"{clean['city']} / {clean['district']} • personel atamasi bekliyor", request_id)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        DatabaseConfig.return_connection(conn)
+    return {"success": True, "request_id": request_id, "payment_status": "not_collected"}
+
+
 def _upsert_report_from_request(
     cursor: Any,
     request_id: str,
@@ -311,7 +367,7 @@ def _upsert_report_from_request(
             "hizmetBedeli": totals["service_fee_tl"],
             "toplamTutar": totals["total_tl"],
             "hasarTutar": 0.0,
-            "isPaid": True,
+            "isPaid": payment_status in ("paid", "paid_simulation"),
         },
         "vehicle_snapshot": {
             "listing_id": payload.get("listing_id"),
@@ -345,7 +401,7 @@ def _upsert_report_from_request(
         "paket_fiyati": totals["package_price_tl"],
         "toplam_tutar": totals["total_tl"],
         "hasar_tutar": 0.0,
-        "odendi_mi": True,
+        "odendi_mi": payment_status in ("paid", "paid_simulation"),
         "durum": "Islemde",
         "status": "draft",
         "payment_status": payment_status,
