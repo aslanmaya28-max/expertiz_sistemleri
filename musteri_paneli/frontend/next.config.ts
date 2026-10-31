@@ -8,6 +8,10 @@ const nextConfig: NextConfig = {
     root: __dirname,
   },
   images: {
+    // Ilan fotograflari zaten kaynak sitelerin CDN'inden gelir. Vercel gorsel
+    // optimizasyonu kapali: binlerce ilan gorselinde kota/ucret asimi olmaz,
+    // sunucumuz da yabanci gorseller icin vekil olarak kullanilamaz.
+    unoptimized: true,
     remotePatterns: [
       { protocol: "https", hostname: "**" },
     ],

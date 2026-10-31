@@ -410,6 +410,65 @@ def _seed_listings(count=12, base_price=900_000):
     conn.close()
 
 
+def test_unpaid_customer_to_staff_to_approved_customer_report(client, admin_token, customer_token):
+    """Izole DB: odemesiz talep, ilce atamasi, AI ve admin onayi."""
+    _seed_listings()
+    person = _create_personnel(client, admin_token, 'e2e-unpaid@yerimebak.test', 'İstanbul', 'Kadıköy', 'Test Personel')
+    staff_token = _login(client, 'e2e-unpaid@yerimebak.test', 'Personel123')
+    catalog = client.get('/api/v1/expertiz/packages').json()
+    firm = catalog['firms'][0]
+    package = firm['packages'][0]
+    created = client.post('/api/v1/expertiz/requests/unpaid', headers=_auth(customer_token), json={
+        'firm_id': firm['id'], 'package_id': package['id'], 'city': 'İstanbul', 'district': 'Kadıköy',
+        'plate': '34 TEST 01', 'vehicle': {'brand': 'Fiat', 'model': 'Egea', 'year': 2021, 'km': 45000},
+    })
+    assert created.status_code == 200, created.text
+    assert created.json()['payment_status'] == 'not_collected'
+    report_id = created.json()['request_id']
+    assert client.get('/api/v1/expertiz/admin/requests', headers=_auth(customer_token)).status_code == 403
+    assert client.get('/api/v1/expertiz/admin/requests', headers=_auth(staff_token)).status_code == 403
+    queue = client.get('/api/v1/expertiz/admin/requests?bucket=waiting_assignment', headers=_auth(admin_token)).json()
+    entry = next(r for r in queue['requests'] if r['id'] == report_id)
+    assert entry['is_paid'] is False and entry['district'] == 'Kadıköy'
+    candidates = client.get(f'/api/v1/expertiz/admin/requests/{report_id}/candidates', headers=_auth(admin_token)).json()
+    assert candidates['recommended_id'] == person['id']
+    assert candidates['candidates'][0]['match'] == 'same_district'
+    assigned = client.post(f'/api/v1/expertiz/admin/requests/{report_id}/assign', headers=_auth(admin_token), json={'personnel_id': person['id']})
+    assert assigned.status_code == 200, assigned.text
+    tasks = client.get('/api/v1/expertiz/personnel/tasks', headers=_auth(staff_token)).json()['tasks']
+    assert any(task['id'] == report_id for task in tasks)
+    assert client.post(f'/api/v1/expertiz/personnel/tasks/{report_id}/start', headers=_auth(staff_token)).status_code == 200
+    assert client.get(f'/api/v1/expertiz/reports/{report_id}', headers=_auth(customer_token)).status_code == 404
+    media = client.post(f'/api/v1/expertiz/personnel/tasks/{report_id}/media', headers=_auth(staff_token),
+                        files={'file': ('test.pdf', PDF_BYTES, 'application/pdf')}, data={'category': 'corporate_report'})
+    assert media.status_code == 200, media.text
+    submitted = client.post(f'/api/v1/expertiz/personnel/tasks/{report_id}/submit', headers=_auth(staff_token),
+                            json={'tam_rapor': _tam_rapor(report_id, person['id'])})
+    assert submitted.status_code == 200, submitted.text
+    admin_report = client.get(f'/api/v1/expertiz/admin/reports/{report_id}', headers=_auth(admin_token)).json()['report']
+    assert admin_report['status'] == 'pending_admin', admin_report.get('ai_meta')
+    assert admin_report['can_publish'] is True
+    assert admin_report['ai_analiz_detay']['marketReference']['source'] == 'listings'
+    assert client.get(f'/api/v1/expertiz/reports/{report_id}', headers=_auth(customer_token)).status_code == 404
+    rejected = client.post(f'/api/v1/expertiz/admin/reports/{report_id}/reject', headers=_auth(admin_token),
+                           json={'reason': 'Kontrol fotoğrafı eksik'})
+    assert rejected.status_code == 200, rejected.text
+    draft = client.get(f'/api/v1/expertiz/personnel/tasks/{report_id}/report', headers=_auth(staff_token)).json()
+    assert draft['editable'] and draft['rejection_reason'] == 'Kontrol fotoğrafı eksik'
+    assert client.get(f'/api/v1/expertiz/reports/{report_id}', headers=_auth(customer_token)).status_code == 404
+    assert client.post(f'/api/v1/expertiz/personnel/tasks/{report_id}/start', headers=_auth(staff_token)).status_code == 200
+    resubmitted = client.post(f'/api/v1/expertiz/personnel/tasks/{report_id}/submit', headers=_auth(staff_token),
+                              json={'tam_rapor': _tam_rapor(report_id, person['id'])})
+    assert resubmitted.status_code == 200, resubmitted.text
+    admin_report = client.get(f'/api/v1/expertiz/admin/reports/{report_id}', headers=_auth(admin_token)).json()['report']
+    assert admin_report['status'] == 'pending_admin' and admin_report['can_publish'] is True
+    published = client.post(f'/api/v1/expertiz/admin/reports/{report_id}/publish', headers=_auth(admin_token))
+    assert published.status_code == 200, published.text
+    customer = client.get(f'/api/v1/expertiz/reports/{report_id}', headers=_auth(customer_token))
+    assert customer.status_code == 200, customer.text
+    assert customer.json()['report']['status'] == 'published'
+
+
 def test_ai_valuation_admin_approval_and_customer_view(client, admin_token, customer_token):
     """Personel raporu -> merkezi AI (piyasa - ekspertiz değer kaybı) -> admin onayı -> müşteri."""
     _seed_listings()
@@ -820,3 +879,168 @@ def test_initial_admin_bootstrap_from_env(client, monkeypatch):
     monkeypatch.setenv("INITIAL_ADMIN_EMAIL", f"zayif-{uuid.uuid4().hex[:6]}@example.com")
     monkeypatch.setenv("INITIAL_ADMIN_PASSWORD", "kisa")
     assert auth.ensure_initial_admin() is None
+
+
+def test_link_request_saved_listing_and_comparables_valuation(client, admin_token, customer_token, monkeypatch):
+    """Musteri link + marka/model paylasir -> ilan ve emsaller eklentiyle kaydedilmis -> personel raporu
+    -> ekspertiz degerlemesi + ilan beyani karsilastirmasi -> admin onayi -> musteri."""
+    import json as _json
+    from pathlib import Path
+
+    import psycopg2
+    from yerimebak_ai_v5.services import market_ingest
+
+    market_ingest._schema_ready = False
+    link = "https://www.arabam.com/ilan/galeriden-satilik-renault-clio-1-0-tce-touch/test/9001?utm_source=paylas"
+    # Personel ilani ve arama sayfasini Chrome eklentisiyle kaydetti (ornek veri)
+    fixtures = Path(__file__).resolve().parents[1] / "fixtures" / "listings"
+    ilan = [dict(it, url=link) for it in _json.loads((fixtures / "ilan.json").read_text(encoding="utf-8"))]
+    assert market_ingest.upsert_listings(ilan, status="talep")
+    assert len(market_ingest.upsert_listings(_json.loads((fixtures / "emsal.json").read_text(encoding="utf-8")),
+                                             status="emsal")) >= 10
+
+    person = _create_personnel(client, admin_token, "emsal@yerimebak.test", "İstanbul", "Üsküdar", "Emsal Personel")
+    staff = _login(client, "emsal@yerimebak.test", "Personel123")
+    firm = client.get("/api/v1/expertiz/packages").json()["firms"][0]
+    created = client.post("/api/v1/expertiz/requests/unpaid", headers=_auth(customer_token), json={
+        "firm_id": firm["id"], "package_id": firm["packages"][0]["id"],
+        "city": "İstanbul", "district": "Üsküdar", "listing_url": link,
+        # Musteri formu marka/modeli ister; fiyat, km ve satici beyani kaydedilmis ilandan gelir
+        "vehicle": {"brand": "Renault", "model": "Clio"},
+    })
+    assert created.status_code == 200, created.text
+    report_id = created.json()["request_id"]
+    assert client.post(f"/api/v1/expertiz/admin/requests/{report_id}/assign", headers=_auth(admin_token),
+                       json={"personnel_id": person["id"]}).status_code == 200
+    assert client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/start", headers=_auth(staff)).status_code == 200
+    client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/media", headers=_auth(staff),
+                files={"file": ("kurumsal.pdf", PDF_BYTES, "application/pdf")}, data={"category": "corporate_report"})
+
+    rapor = _tam_rapor(report_id, person["id"])
+    rapor["adim1"].update({"marka": "Renault", "model": "Clio", "yil": "2019", "guncelKm": 72000,
+                           "hasarKayitToplamTutar": 18000, "hasarKayitAdet": 1})
+    # Ilanda 1 boyali / 0 degisen / "tramer yok" beyan edildi; ekspertiz 3 boyali + 1 degisen + 18.000 TL tramer buldu
+    rapor["adim4"] = {"gorevId": report_id, "personelId": person["id"],
+                      "parcaDurumlari": {"kaput": "boyali", "solOnCamurluk": "boyali", "sagOnKapi": "boyali",
+                                         "solOnKapi": "degisen"},
+                      "yapisalDurumlar": {"onSasi": "orijinal"}}
+    submitted = client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/submit", headers=_auth(staff),
+                            json={"tam_rapor": rapor})
+    assert submitted.status_code == 200, submitted.text
+
+    admin_report = client.get(f"/api/v1/expertiz/admin/reports/{report_id}", headers=_auth(admin_token)).json()["report"]
+    assert admin_report["status"] == "pending_admin", admin_report.get("ai_meta")
+    ai = admin_report["ai_analiz_detay"]
+    ref = ai["marketReference"]
+    assert "emsalCekimi" not in ref
+    assert ref["found"] is True and ref["clean_count"] >= 3
+    assert all("/ilan/test/9001" not in (s.get("url") or "") for s in ref["samples"])  # kendi ilani emsal degil
+    degerleme = ai["ekspertizDegerleme"]
+    assert degerleme["degerlemeYapildi"] is True
+    assert degerleme["boyaliParcaSayisi"] == 3 and degerleme["degisenParcaSayisi"] == 1
+    assert degerleme["aiDegeri"] < degerleme["temizPiyasaDegeri"]
+    karsilastirma = degerleme["ilanBeyaniKarsilastirma"]
+    assert karsilastirma["ilanBeyaniVar"] is True and karsilastirma["uyumlu"] is False
+    assert karsilastirma["ilanBeyani"] == {"boyali": 1, "degisen": 0, "hasarKaydi": None, "tramerTl": 0, "agirHasar": False,
+                                           "kaynak": "test",
+                                           "url": "https://www.arabam.com/ilan/galeriden-satilik-renault-clio-1-0-tce-touch/test/9001"}
+    assert len(karsilastirma["farklar"]) == 3 and "18.000 TL" in karsilastirma["farklar"][2]
+    assert karsilastirma["ekspertiz"]["tramerTl"] == 18000
+    # Paket: musterinin ilani "1.0 TCe Touch"; daha pahali "1.3 TCe Icon" emsalleri kullanilmaz
+    assert ref["package"] == "1.0 TCe Touch" and ref["package_match"] is True
+    assert all("test-emsal-icon" not in (s.get("url") or "") for s in ref["samples"])
+    kriterler = {k["kriter"]: k for k in degerleme["degerlemeKriterleri"]}
+    assert list(kriterler) == ["Model", "Paket", "Kilometre", "Hasar kaydı (tramer)", "Değişen", "Boya", "Hasar"]
+    assert kriterler["Model"]["deger"] == "Renault Clio 2019"
+    assert kriterler["Paket"]["deger"] == "1.0 TCe Touch" and kriterler["Paket"]["eslesti"] is True
+    assert kriterler["Kilometre"]["deger"].startswith("72.000 km")
+    assert kriterler["Hasar kaydı (tramer)"]["deger"] == "18.000 TL" and kriterler["Hasar kaydı (tramer)"]["etki"]["yuzde"] > 0
+    assert kriterler["Değişen"]["deger"] == "1 parça" and kriterler["Boya"]["deger"] == "3 parça"
+    # Tramerli emsaller temiz sayilmaz, agir hasarli emsal kullanilmaz
+    conditions = {s["url"].rsplit("/", 1)[-1]: s["condition"] for s in ref["samples"]}
+    assert conditions.get("9100") in (None, "damaged") and "9113" not in conditions
+
+    # Veritabani: musteri ilani 'talep', emsaller 'emsal' (vitrinde yok), fiyat gecmisi tutuldu
+    conn = psycopg2.connect(TEST_DB)
+    with conn, conn.cursor() as cur:
+        cur.execute("SELECT status FROM listings WHERE url LIKE %s", ("%/ilan/galeriden-satilik-renault-clio-1-0-tce-touch/test/9001",))
+        assert cur.fetchone()[0] == "talep"
+        cur.execute("SELECT count(*) FROM listings WHERE status = 'emsal' AND brand = 'Renault'")
+        assert cur.fetchone()[0] >= 10
+        cur.execute("SELECT count(*) FROM price_history ph JOIN listings l ON l.id = ph.listing_id WHERE l.brand = 'Renault'")
+        assert cur.fetchone()[0] >= 11
+    conn.close()
+    vitrin = client.get("/api/v1/vitrin/vehicles?brand=Renault").json()
+    assert all(v.get("brand") != "Renault" for v in vitrin.get("vehicles", []))
+
+    # Ayni arac icin tekrar analiz ayni sonucu verir
+    re_run = client.post(f"/api/v1/expertiz/admin/reports/{report_id}/reanalyze", headers=_auth(admin_token))
+    assert re_run.status_code == 200, re_run.text
+    again = re_run.json()["report"]["ai_analiz_detay"]
+    assert again["ekspertizDegerleme"]["aiDegeri"] == degerleme["aiDegeri"]
+
+    # Admin onayi -> musteri degerlemeyi ve beyan karsilastirmasini gorur
+    assert client.post(f"/api/v1/expertiz/admin/reports/{report_id}/publish", headers=_auth(admin_token)).status_code == 200
+    customer = client.get(f"/api/v1/expertiz/reports/{report_id}", headers=_auth(customer_token)).json()["report"]
+    assert customer["status"] == "published"
+    assert customer["summary"]["market_value"] == degerleme["aiDegeri"]
+    assert customer["ai"]["ekspertizDegerleme"]["ilanBeyaniKarsilastirma"]["uyumlu"] is False
+    assert len(customer["ai"]["ekspertizDegerleme"]["degerlemeKriterleri"]) == 7
+    assert len(customer["corporate_reports"]) == 1
+
+
+def test_valuation_without_saved_listing(client, admin_token, customer_token, monkeypatch):
+    """Musterinin ilani sisteme kaydedilmemisse degerleme mevcut emsallerle surer; beyan karsilastirmasi yapilmaz."""
+    _seed_listings()
+    person = _create_personnel(client, admin_token, "kayitsiz@yerimebak.test", "İstanbul", "Maltepe", "Kayitsiz Personel")
+    staff = _login(client, "kayitsiz@yerimebak.test", "Personel123")
+    report_id = _create_paid_request(client, customer_token, "34 APF 02", "İstanbul", package_index=3, district="Maltepe")
+    client.post(f"/api/v1/expertiz/admin/requests/{report_id}/assign", headers=_auth(admin_token), json={"personnel_id": person["id"]})
+    client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/start", headers=_auth(staff))
+    client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/media", headers=_auth(staff),
+                files={"file": ("kurumsal.pdf", PDF_BYTES, "application/pdf")}, data={"category": "corporate_report"})
+    submitted = client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/submit", headers=_auth(staff),
+                            json={"tam_rapor": _tam_rapor(report_id, person["id"])})
+    assert submitted.status_code == 200, submitted.text
+    report = client.get(f"/api/v1/expertiz/admin/reports/{report_id}", headers=_auth(admin_token)).json()["report"]
+    assert report["status"] == "pending_admin"
+    assert report["ai_analiz_detay"]["ekspertizDegerleme"]["degerlemeYapildi"] is True
+    assert report["ai_analiz_detay"]["ekspertizDegerleme"]["ilanBeyaniKarsilastirma"]["uyumlu"] is None
+
+
+def test_ai_price_estimate_when_no_comparables(client, admin_token, customer_token, monkeypatch):
+    """Emsal yoksa DeepSeek tahmini etiketli kullanilir; rapor admin onayina duser, musteriye gitmez."""
+    from yerimebak_ai_v5.core.market.market_reference_service import MarketReferenceService
+    from yerimebak_ai_v5.services import ai_price_estimate
+
+    monkeypatch.setattr(MarketReferenceService, "get_reference",
+                        lambda self, **kw: self._last_resort("not_enough_reference", int(kw.get("listed_price") or 0)))
+    asked = []
+
+    def fake_estimate(vehicle, **_kw):
+        asked.append(vehicle)
+        return {"median": 1_550_000, "min": 1_420_000, "max": 1_755_000, "data_date": "2026-09",
+                "note": "test", "model": "deepseek/deepseek-chat"}
+    monkeypatch.setattr(ai_price_estimate, "estimate", fake_estimate)
+
+    person = _create_personnel(client, admin_token, "aitahmin@yerimebak.test", "İstanbul", "Kartal", "Tahmin Personel")
+    staff = _login(client, "aitahmin@yerimebak.test", "Personel123")
+    report_id = _create_paid_request(client, customer_token, "34 AIT 01", "İstanbul", package_index=3, district="Kartal")
+    client.post(f"/api/v1/expertiz/admin/requests/{report_id}/assign", headers=_auth(admin_token), json={"personnel_id": person["id"]})
+    client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/start", headers=_auth(staff))
+    client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/media", headers=_auth(staff),
+                files={"file": ("kurumsal.pdf", PDF_BYTES, "application/pdf")}, data={"category": "corporate_report"})
+    submitted = client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/submit", headers=_auth(staff),
+                            json={"tam_rapor": _tam_rapor(report_id, person["id"])})
+    assert submitted.status_code == 200, submitted.text
+
+    report = client.get(f"/api/v1/expertiz/admin/reports/{report_id}", headers=_auth(admin_token)).json()["report"]
+    assert report["status"] == "pending_admin"
+    d = report["ai_analiz_detay"]["ekspertizDegerleme"]
+    assert asked and asked[0]["brand"] and asked[0]["model"]
+    assert d["degerlemeYapildi"] is True and d["piyasaKaynagi"] == "ai_estimate"
+    assert d["piyasaDegeri"] == 1_550_000 and d["guvenSkoru"] <= 25
+    assert "yapay zekâ" in d["piyasaUyarisi"].lower() and "yapay zekâ tahmini" in d["ozet"]
+    assert report["ai_analiz_detay"]["marketReference"]["source"] == "ai_estimate"
+    customer = client.get(f"/api/v1/expertiz/reports/{report_id}", headers=_auth(customer_token))
+    assert customer.status_code != 200 or customer.json()["report"].get("status") != "published"

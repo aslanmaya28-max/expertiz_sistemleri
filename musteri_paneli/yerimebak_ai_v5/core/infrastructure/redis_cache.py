@@ -1,27 +1,33 @@
 import os
 import json
 import logging
+import time
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
 _redis_client = None
+_retry_after = 0.0  # baglanti hatasindan sonra her istekte yeniden denenmesin
 
 
 def _get_redis():
-    global _redis_client
+    global _redis_client, _retry_after
     if _redis_client is not None:
         return _redis_client
+    if time.monotonic() < _retry_after:
+        return None
     try:
         import redis
         url = os.getenv("REDIS_URL", "redis://redis:6379/0")
-        _redis_client = redis.from_url(url, decode_responses=True)
+        # Kisa zaman asimi: Redis yavaslar/duserse istekler beklemez, onbelleksiz devam eder
+        _redis_client = redis.from_url(url, decode_responses=True, socket_connect_timeout=1, socket_timeout=1)
         _redis_client.ping()
         logger.info("[REDIS] Connected.")
         return _redis_client
     except Exception as e:
         logger.warning(f"[REDIS] Connection failed: {e}")
         _redis_client = None
+        _retry_after = time.monotonic() + 30
         return None
 
 

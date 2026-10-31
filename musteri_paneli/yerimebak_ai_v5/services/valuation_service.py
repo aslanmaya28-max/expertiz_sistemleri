@@ -11,6 +11,7 @@ ve tramer (hasar kaydi) bildirilir. Sistem:
 
 Yeterli emsal yoksa analiz yapilmaz ve kredi dusulmez.
 """
+import logging
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -20,6 +21,8 @@ from yerimebak_ai_v5.core.ai.inspection_valuation import PART_LABELS, evaluate
 from yerimebak_ai_v5.core.database_config import DatabaseConfig
 from yerimebak_ai_v5.core.market_reference_service import get_market_reference_service
 from yerimebak_ai_v5.services import pricing_service
+
+logger = logging.getLogger(__name__)
 
 ANALYSIS_COST = 1
 PART_STATUSES = ("orijinal", "lokal_boyali", "boyali", "degisen")
@@ -70,10 +73,10 @@ def _listing_by_url(url: str) -> Optional[Dict[str, Any]]:
             SELECT id, brand, model, year, km, price, fuel, transmission, title, url, image_url,
                    location, paint_info, accident_record
             FROM listings
-            WHERE rtrim(split_part(split_part(lower(url), '?', 1), '#', 1), '/') = %s
+            WHERE regexp_replace(rtrim(split_part(split_part(lower(url), '?', 1), '#', 1), '/'), '^https?://', '') = %s
             LIMIT 1
             """,
-            (norm,),
+            (re.sub(r"^https?://", "", norm.lower()),),
         )
         row = cursor.fetchone()
         return dict(row) if row else None
@@ -91,23 +94,66 @@ def _known_brands() -> List[str]:
         DatabaseConfig.return_connection(conn)
 
 
+def _known_models(brand: str) -> List[str]:
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT DISTINCT model FROM listings WHERE lower(brand) = lower(%s) AND model IS NOT NULL AND model <> ''",
+            (brand,),
+        )
+        return [str(dict(r)["model"]) for r in cursor.fetchall()]
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
+def _slug(text: str) -> List[str]:
+    text = (text or "").lower()
+    for src, dst in (("ç", "c"), ("ğ", "g"), ("ı", "i"), ("i̇", "i"), ("ö", "o"), ("ş", "s"), ("ü", "u")):
+        text = text.replace(src, dst)
+    return [t for t in re.split(r"[^a-z0-9]+", text) if t]
+
+
+def _find(tokens: List[str], words: List[str], start: int = 0) -> Optional[int]:
+    for i in range(start, len(tokens) - len(words) + 1):
+        if words and tokens[i:i + len(words)] == words:
+            return i
+    return None
+
+
 def _guess_from_slug(url: str) -> Dict[str, Any]:
-    """Ilan veritabaninda yoksa linkteki metinden marka/model/yil tahmini (musteri dogrular)."""
-    path = urlsplit(normalize_url(url)).path.lower()
-    tokens = [t for t in re.split(r"[^a-z0-9]+", path) if t]
+    """Ilan veritabaninda yoksa linkteki metinden marka/model/yil tahmini (musteri dogrular).
+
+    arabam.com ve sahibinden.com ilan adresleri basliktan uretilir, ör.
+    sahibinden.com/ilan/vasita-otomobil-renault-clio-1.0-tce-touch-2019-1234567890/detay
+    """
+    tokens = _slug(urlsplit(normalize_url(url)).path)
     guess: Dict[str, Any] = {}
+    used: set = set()
     for brand in sorted(_known_brands(), key=len, reverse=True):
-        slug = re.sub(r"[^a-z0-9]+", "-", brand.lower()).strip("-")
-        parts = slug.split("-")
-        for i in range(len(tokens) - len(parts) + 1):
-            if tokens[i:i + len(parts)] == parts:
-                guess["brand"] = brand
-                if i + len(parts) < len(tokens):
-                    guess["model"] = tokens[i + len(parts)].capitalize()
+        words = _slug(brand)
+        i = _find(tokens, words)
+        if i is None:
+            continue
+        guess["brand"] = brand
+        used.update(range(i, i + len(words)))
+        after = i + len(words)
+        # Bilinen modellerden en uzun eslesen (ör. "3 Serisi", "C-Elysee"), yoksa markadan sonraki kelime
+        for model in sorted(_known_models(brand), key=lambda m: len(_slug(m)), reverse=True):
+            m_words = _slug(model)
+            j = _find(tokens, m_words, after)
+            if j is not None:
+                guess["model"] = model
+                used.update(range(j, j + len(m_words)))
                 break
-        if guess:
-            break
-    year = next((int(t) for t in tokens if t.isdigit() and 1990 <= int(t) <= datetime.now().year + 1), None)
+        else:
+            if after < len(tokens):
+                guess["model"] = tokens[after].capitalize()
+                used.add(after)
+        break
+    # Model adindaki sayilar (Peugeot 2008) ve ilan numarasi yil sayilmaz
+    year = next((int(t) for k, t in enumerate(tokens)
+                 if k not in used and len(t) == 4 and t.isdigit() and 1990 <= int(t) <= datetime.now().year + 1), None)
     if year:
         guess["year"] = year
     return guess
@@ -126,7 +172,8 @@ def _paint_to_parts(paint_info: Any) -> Dict[str, str]:
         return {}
     labels = {v.lower(): k for k, v in PART_LABELS.items()}
     parts: Dict[str, str] = {}
-    for status, key in (("lokal_boyali", "local_painted_parts"), ("boyali", "painted_parts"), ("degisen", "changed_parts")):
+    # painted_parts lokal boyalilari da icerir; lokal bilgisi ezilmesin diye boyali once islenir
+    for status, key in (("boyali", "painted_parts"), ("lokal_boyali", "local_painted_parts"), ("degisen", "changed_parts")):
         for label in paint_info.get(key) or []:
             part = labels.get(str(label).strip().lower())
             if part:
@@ -135,14 +182,20 @@ def _paint_to_parts(paint_info: Any) -> Dict[str, str]:
 
 
 def prefill_from_link(url: str) -> Dict[str, Any]:
+    from yerimebak_ai_v5.services import listing_links
+
     if not normalize_url(url):
         return _error("Geçerli bir ilan linki girin")
+    # shbd.io gibi kisa linkler once asil ilan adresine cevrilir
+    if listing_links.is_short_link(url):
+        url = listing_links.resolve_short_link(url)
     listing = _listing_by_url(url)
     if listing:
         return {
             "success": True,
             "found": True,
             "listing_id": listing["id"],
+            "url": normalize_url(url),
             "vehicle": {
                 "brand": listing.get("brand"), "model": listing.get("model"), "year": listing.get("year"),
                 "km": listing.get("km"), "price": listing.get("price"), "fuel": listing.get("fuel"),
@@ -152,12 +205,25 @@ def prefill_from_link(url: str) -> Dict[str, Any]:
             "parts": _paint_to_parts(listing.get("paint_info")),
             "message": "İlan sistemimizde bulundu; bilgileri kontrol edip eksikleri tamamlayın.",
         }
+    source = listing_links.link_source(url)
+    if listing_links.is_short_link(url):
+        message = "Kısa link açılamadı; araç bilgilerini elle girin."
+    elif listing_links.is_site_short_link(url):
+        message = ("Sahibinden kısa linkinden araç bilgisi okunamıyor. İlanın tam adresini "
+                   "(sahibinden.com/ilan/...) yapıştırın ya da bilgileri elle girin.")
+    elif source == "sahibinden":
+        message = ("Sahibinden ilanının bilgilerini linkten tahmin ettik; kontrol edin. "
+                   "Yıl, km, fiyat, boya-değişen ve tramer bilgisini ilandan bakarak girin.")
+    else:
+        message = "İlan sistemimizde yok; linkten tahmin edilen bilgileri kontrol edip eksikleri elle girin."
     return {
         "success": True,
         "found": False,
+        "source": source,
+        "url": normalize_url(url),
         "vehicle": _guess_from_slug(url),
         "parts": {},
-        "message": "İlan sistemimizde yok; linkten tahmin edilen bilgileri kontrol edip eksikleri elle girin.",
+        "message": message,
     }
 
 

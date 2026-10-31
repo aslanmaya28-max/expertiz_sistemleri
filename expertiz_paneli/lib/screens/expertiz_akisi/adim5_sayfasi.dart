@@ -87,7 +87,9 @@ class _KurumsalRaporKartiState extends State<_KurumsalRaporKarti> {
         backgroundColor: YerimeBakColors.green,
       ));
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Yüklenemedi: $e'), backgroundColor: YerimeBakColors.red));
+      messenger.showSnackBar(SnackBar(
+          content: Text('Yüklenemedi: $e'),
+          backgroundColor: YerimeBakColors.red));
     }
   }
 
@@ -102,16 +104,19 @@ class _KurumsalRaporKartiState extends State<_KurumsalRaporKarti> {
     final bytes = file.bytes;
     if (bytes == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Dosya okunamadı')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Dosya okunamadı')));
       return;
     }
     await _yukle(bytes, file.name);
   }
 
   Future<void> _fotografCek() async {
-    final foto = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 85, maxWidth: 2400);
+    final foto = await ImagePicker().pickImage(
+        source: ImageSource.camera, imageQuality: 85, maxWidth: 2400);
     if (foto == null) return;
-    await _yukle(await foto.readAsBytes(), foto.name.isNotEmpty ? foto.name : 'kurumsal_rapor.jpg');
+    await _yukle(await foto.readAsBytes(),
+        foto.name.isNotEmpty ? foto.name : 'kurumsal_rapor.jpg');
   }
 
   Future<void> _ac(RaporMedya medya) async {
@@ -120,13 +125,17 @@ class _KurumsalRaporKartiState extends State<_KurumsalRaporKarti> {
     if (medya.resimMi) {
       showDialog<void>(
         context: context,
-        builder: (_) => Dialog(child: InteractiveViewer(child: Image.network(provider.medyaUrl(medya)))),
+        builder: (_) => Dialog(
+            child: InteractiveViewer(
+                child: Image.network(provider.medyaUrl(medya)))),
       );
       return;
     }
     try {
       final bytes = await provider.api.downloadBytes(medya.url);
-      await Printing.layoutPdf(onLayout: (_) async => Uint8List.fromList(bytes), name: medya.dosyaAdi ?? 'rapor.pdf');
+      await Printing.layoutPdf(
+          onLayout: (_) async => Uint8List.fromList(bytes),
+          name: medya.dosyaAdi ?? 'rapor.pdf');
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Dosya açılamadı: $e')));
     }
@@ -141,7 +150,8 @@ class _KurumsalRaporKartiState extends State<_KurumsalRaporKarti> {
       lastDate: DateTime.now(),
     );
     if (secilen != null) {
-      provider.updateAdim5(provider.adim5Model!.copyWith(kurumsalRaporTarihi: secilen));
+      provider.updateAdim5(
+          provider.adim5Model!.copyWith(kurumsalRaporTarihi: secilen));
     }
   }
 
@@ -152,19 +162,24 @@ class _KurumsalRaporKartiState extends State<_KurumsalRaporKarti> {
     final raporlar = provider.kurumsalRaporlar;
     final zorunlu = provider.kurumsalZorunlu;
     final duzenlenebilir = provider.duzenlenebilir;
-    final yukleniyor = provider.yukleniyor(ExpertizProvider.bolumKurumsal, 'rapor');
+    final yukleniyor =
+        provider.yukleniyor(ExpertizProvider.bolumKurumsal, 'rapor');
 
     return Card(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: zorunlu && raporlar.isEmpty ? Colors.red : Colors.grey.shade300),
+        side: BorderSide(
+            color: zorunlu && raporlar.isEmpty
+                ? Colors.red
+                : Colors.grey.shade300),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('🏢 Kurumsal Ekspertiz Raporu', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('🏢 Kurumsal Ekspertiz Raporu',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             if (zorunlu) ...[
               Text(
@@ -186,10 +201,14 @@ class _KurumsalRaporKartiState extends State<_KurumsalRaporKarti> {
             for (final medya in raporlar)
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: Icon(medya.pdfMi ? Icons.picture_as_pdf : Icons.image, color: Colors.redAccent),
+                leading: Icon(medya.pdfMi ? Icons.picture_as_pdf : Icons.image,
+                    color: Colors.redAccent),
                 title: Text(medya.dosyaAdi ?? 'Kurumsal rapor'),
                 subtitle: Text(
-                  medya.olusturulma == null ? '' : DateFormat('dd.MM.yyyy HH:mm').format(medya.olusturulma!.toLocal()),
+                  medya.olusturulma == null
+                      ? ''
+                      : DateFormat('dd.MM.yyyy HH:mm')
+                          .format(medya.olusturulma!.toLocal()),
                 ),
                 onTap: () => _ac(medya),
                 trailing: duzenlenebilir
@@ -200,7 +219,8 @@ class _KurumsalRaporKartiState extends State<_KurumsalRaporKarti> {
                           try {
                             await provider.medyaSil(medya);
                           } catch (e) {
-                            messenger.showSnackBar(SnackBar(content: Text('Silinemedi: $e')));
+                            messenger.showSnackBar(
+                                SnackBar(content: Text('Silinemedi: $e')));
                           }
                         },
                       )
@@ -214,7 +234,10 @@ class _KurumsalRaporKartiState extends State<_KurumsalRaporKarti> {
                   FilledButton.icon(
                     onPressed: yukleniyor ? null : _dosyaSec,
                     icon: yukleniyor
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.upload_file),
                     label: const Text('PDF / Dosya Ekle'),
                   ),
@@ -230,18 +253,23 @@ class _KurumsalRaporKartiState extends State<_KurumsalRaporKarti> {
               TextField(
                 controller: _raporNo,
                 enabled: duzenlenebilir,
-                decoration: const InputDecoration(labelText: 'Kurumsal rapor numarası *', border: OutlineInputBorder()),
-                onChanged: (v) => provider.updateAdim5(provider.adim5Model!.copyWith(kurumsalRaporNo: v.trim())),
+                decoration: const InputDecoration(
+                    labelText: 'Kurumsal rapor numarası *',
+                    border: OutlineInputBorder()),
+                onChanged: (v) => provider.updateAdim5(
+                    provider.adim5Model!.copyWith(kurumsalRaporNo: v.trim())),
               ),
               const SizedBox(height: 8),
               InkWell(
                 onTap: duzenlenebilir ? _tarihSec : null,
                 child: InputDecorator(
-                  decoration: const InputDecoration(labelText: 'Rapor tarihi', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                      labelText: 'Rapor tarihi', border: OutlineInputBorder()),
                   child: Text(
                     model.kurumsalRaporTarihi == null
                         ? 'Seçilmedi'
-                        : DateFormat('dd.MM.yyyy').format(model.kurumsalRaporTarihi!),
+                        : DateFormat('dd.MM.yyyy')
+                            .format(model.kurumsalRaporTarihi!),
                   ),
                 ),
               ),
@@ -252,10 +280,12 @@ class _KurumsalRaporKartiState extends State<_KurumsalRaporKarti> {
                 maxLines: 3,
                 decoration: const InputDecoration(
                   labelText: 'Firma raporunun sonuç özeti',
-                  hintText: 'Ör. motor ve şanzıman sorunsuz, ön sol çamurluk boyalı...',
+                  hintText:
+                      'Ör. motor ve şanzıman sorunsuz, ön sol çamurluk boyalı...',
                   border: OutlineInputBorder(),
                 ),
-                onChanged: (v) => provider.updateAdim5(provider.adim5Model!.copyWith(kurumsalSonucOzeti: v)),
+                onChanged: (v) => provider.updateAdim5(
+                    provider.adim5Model!.copyWith(kurumsalSonucOzeti: v)),
               ),
             ],
           ],
@@ -277,7 +307,8 @@ class _BelgeKontrolu extends StatelessWidget {
       return SwitchListTile(
         contentPadding: EdgeInsets.zero,
         title: Text(baslik),
-        subtitle: Text(deger == null ? 'Kontrol edilmedi' : (deger ? 'Mevcut' : 'Yok')),
+        subtitle: Text(
+            deger == null ? 'Kontrol edilmedi' : (deger ? 'Mevcut' : 'Yok')),
         value: deger ?? false,
         onChanged: duzenlenebilir ? onChanged : null,
       );
@@ -289,13 +320,16 @@ class _BelgeKontrolu extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('📁 Belge Kontrolü', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            satir('Ruhsat', m.ruhsatDosyasiVar, (v) => provider.updateAdim5(m.copyWith(ruhsatDosyasiVar: v))),
+            const Text('📁 Belge Kontrolü',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            satir('Ruhsat', m.ruhsatDosyasiVar,
+                (v) => provider.updateAdim5(m.copyWith(ruhsatDosyasiVar: v))),
             satir('Bakım defteri / servis kayıtları', m.bakimDefteriVar,
                 (v) => provider.updateAdim5(m.copyWith(bakimDefteriVar: v))),
             satir('Sigorta / kasko poliçesi', m.sigortaPolicesiVar,
                 (v) => provider.updateAdim5(m.copyWith(sigortaPolicesiVar: v))),
-            satir('Muayene belgesi', m.muayeneBelgesiVar, (v) => provider.updateAdim5(m.copyWith(muayeneBelgesiVar: v))),
+            satir('Muayene belgesi', m.muayeneBelgesiVar,
+                (v) => provider.updateAdim5(m.copyWith(muayeneBelgesiVar: v))),
           ],
         ),
       ),
@@ -313,15 +347,43 @@ class _MekanikOzet extends StatelessWidget {
     final provider = context.watch<ExpertizProvider>();
     final m = provider.adim5Model!;
     final satirlar = <(String, String?, void Function(String?))>[
-      ('Motor', m.motorDurumu, (v) => provider.updateAdim5(provider.adim5Model!.copyWith(motorDurumu: v))),
-      ('Şanzıman', m.sanzimanDurumu, (v) => provider.updateAdim5(provider.adim5Model!.copyWith(sanzimanDurumu: v))),
-      ('Fren sistemi', m.frenSistemi, (v) => provider.updateAdim5(provider.adim5Model!.copyWith(frenSistemi: v))),
-      ('Direksiyon / yürüyen', m.direksiyonSistemi,
-          (v) => provider.updateAdim5(provider.adim5Model!.copyWith(direksiyonSistemi: v))),
-      ('Elektrik / OBD', m.elektrikSistemi,
-          (v) => provider.updateAdim5(provider.adim5Model!.copyWith(elektrikSistemi: v))),
+      (
+        'Motor',
+        m.motorDurumu,
+        (v) =>
+            provider.updateAdim5(provider.adim5Model!.copyWith(motorDurumu: v))
+      ),
+      (
+        'Şanzıman',
+        m.sanzimanDurumu,
+        (v) => provider
+            .updateAdim5(provider.adim5Model!.copyWith(sanzimanDurumu: v))
+      ),
+      (
+        'Fren sistemi',
+        m.frenSistemi,
+        (v) =>
+            provider.updateAdim5(provider.adim5Model!.copyWith(frenSistemi: v))
+      ),
+      (
+        'Direksiyon / yürüyen',
+        m.direksiyonSistemi,
+        (v) => provider
+            .updateAdim5(provider.adim5Model!.copyWith(direksiyonSistemi: v))
+      ),
+      (
+        'Elektrik / OBD',
+        m.elektrikSistemi,
+        (v) => provider
+            .updateAdim5(provider.adim5Model!.copyWith(elektrikSistemi: v))
+      ),
     ];
-    const secenekler = [KontrolDurumu.iyi, KontrolDurumu.orta, KontrolDurumu.sorunlu, KontrolDurumu.kotu];
+    const secenekler = [
+      KontrolDurumu.iyi,
+      KontrolDurumu.orta,
+      KontrolDurumu.sorunlu,
+      KontrolDurumu.kotu
+    ];
 
     return Card(
       child: Padding(
@@ -329,31 +391,47 @@ class _MekanikOzet extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('⚙️ Mekanik Özet (opsiyonel)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const Text('Kurumsal rapordaki veya test sürüşündeki sonuçlar.', style: TextStyle(fontSize: 12)),
+            const Text('⚙️ Mekanik Özet (opsiyonel)',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('Kurumsal rapordaki veya test sürüşündeki sonuçlar.',
+                style: TextStyle(fontSize: 12)),
             const SizedBox(height: 8),
             for (final (baslik, deger, onChanged) in satirlar)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  children: [
+                child: LayoutBuilder(builder: (context, constraints) {
+                  final choices = Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: secenekler.map((s) {
+                      final secili = deger == s;
+                      return ChoiceChip(
+                        label: Text(KontrolDurumu.etiket(s)),
+                        selected: secili,
+                        selectedColor:
+                            KontrolDurumu.renk(s).withValues(alpha: .25),
+                        onSelected: duzenlenebilir
+                            ? (_) => onChanged(secili ? null : s)
+                            : null,
+                      );
+                    }).toList(),
+                  );
+                  if (constraints.maxWidth < 560) {
+                    return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(baslik,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 6),
+                          choices
+                        ]);
+                  }
+                  return Row(children: [
                     SizedBox(width: 150, child: Text(baslik)),
-                    Expanded(
-                      child: Wrap(
-                        spacing: 6,
-                        children: secenekler.map((s) {
-                          final secili = deger == s;
-                          return ChoiceChip(
-                            label: Text(KontrolDurumu.etiket(s)),
-                            selected: secili,
-                            selectedColor: KontrolDurumu.renk(s).withValues(alpha: .25),
-                            onSelected: duzenlenebilir ? (_) => onChanged(secili ? null : s) : null,
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ],
-                ),
+                    Expanded(child: choices)
+                  ]);
+                }),
               ),
           ],
         ),
@@ -376,29 +454,35 @@ class _PersonelDegerlendirmesi extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('📝 Personel Değerlendirmesi', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('📝 Personel Değerlendirmesi',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Text('Genel puan: ${m.genelPuan == null ? 'verilmedi' : m.genelPuan!.toStringAsFixed(0)} / 100'),
+            Text(
+                'Genel puan: ${m.genelPuan == null ? 'verilmedi' : m.genelPuan!.toStringAsFixed(0)} / 100'),
             Slider(
               value: m.genelPuan ?? 0,
               min: 0,
               max: 100,
               divisions: 20,
               label: (m.genelPuan ?? 0).toStringAsFixed(0),
-              onChanged: duzenlenebilir ? (v) => provider.updateAdim5(m.copyWith(genelPuan: v)) : null,
+              onChanged: duzenlenebilir
+                  ? (v) => provider.updateAdim5(m.copyWith(genelPuan: v))
+                  : null,
             ),
             GenelNotAlani(
               deger: m.ozetNot ?? '',
               etiket: 'Müşteriye özet (raporda görünür)',
               duzenlenebilir: duzenlenebilir,
-              onChanged: (v) => provider.updateAdim5(provider.adim5Model!.copyWith(ozetNot: v)),
+              onChanged: (v) => provider
+                  .updateAdim5(provider.adim5Model!.copyWith(ozetNot: v)),
             ),
             const SizedBox(height: 8),
             GenelNotAlani(
               deger: m.oneriler ?? '',
               etiket: 'Öneriler',
               duzenlenebilir: duzenlenebilir,
-              onChanged: (v) => provider.updateAdim5(provider.adim5Model!.copyWith(oneriler: v)),
+              onChanged: (v) => provider
+                  .updateAdim5(provider.adim5Model!.copyWith(oneriler: v)),
             ),
           ],
         ),
@@ -421,18 +505,24 @@ class _GonderimOzeti extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('📤 Gönderim Özeti', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('📤 Gönderim Özeti',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             for (var step = 1; step <= 5; step++)
               ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(
-                  provider.adimGecerli(step) ? Icons.check_circle : Icons.error_outline,
-                  color: provider.adimGecerli(step) ? Colors.green : Colors.orange,
+                  provider.adimGecerli(step)
+                      ? Icons.check_circle
+                      : Icons.error_outline,
+                  color:
+                      provider.adimGecerli(step) ? Colors.green : Colors.orange,
                 ),
                 title: Text('$step. ${ExpertizProvider.stepTitles[step - 1]}'),
-                subtitle: provider.adimGecerli(step) ? null : Text('${provider.adimEksikleri(step).length} eksik'),
+                subtitle: provider.adimGecerli(step)
+                    ? null
+                    : Text('${provider.adimEksikleri(step).length} eksik'),
                 onTap: () => provider.goToStep(step),
               ),
             const Divider(),

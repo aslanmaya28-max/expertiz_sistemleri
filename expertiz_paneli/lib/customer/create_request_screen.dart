@@ -1,6 +1,5 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/constants/location_data.dart';
 import '../../core/constants/expertiz_packages.dart';
@@ -76,6 +75,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
 
   // Adım 1: Araç Bilgileri
   final _ilanLinkController = TextEditingController();
+  final _markaController = TextEditingController();
+  final _modelController = TextEditingController();
   final _plakaController = TextEditingController();
   final _ilceController = TextEditingController();
   String? _secilenSehir;
@@ -97,6 +98,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   @override
   void dispose() {
     _ilanLinkController.dispose();
+    _markaController.dispose();
+    _modelController.dispose();
     _plakaController.dispose();
     _ilceController.dispose();
     super.dispose();
@@ -109,11 +112,12 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   double get _toplamTutar => _altToplam + _kdv;
 
   bool get _adim1Valid =>
-      _plakaController.text.isNotEmpty && _secilenSehir != null && _ilceController.text.trim().isNotEmpty;
+      _plakaController.text.isNotEmpty && _secilenSehir != null && _ilceController.text.trim().isNotEmpty &&
+      _markaController.text.trim().isNotEmpty && _modelController.text.trim().isNotEmpty;
 
   bool get _adim2Valid => _secilenFirma != null && _secilenPaket != null;
 
-  // Kart bilgisi uygulamada alınmaz; ödeme PayTR güvenli sayfasında yapılır.
+  // Son adım yalnızca talep özetini gösterir.
   bool get _adim3Valid => true;
 
   @override
@@ -173,7 +177,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                                   ),
                                 )
                               : Text(
-                                  _currentStep == 2 ? 'ÖDEMEYİ TAMAMLA' : 'DEVAM ET',
+                                  _currentStep == 2 ? 'TALEP OLUŞTUR' : 'DEVAM ET',
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
@@ -307,7 +311,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
       case 1:
         return 'Firma';
       case 2:
-        return 'Ödeme';
+        return 'Onay';
       default:
         return '';
     }
@@ -324,11 +328,21 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
           children: [
             // İlan Linki
             _buildInfoCard(
-              'İlan Linki ile Hızlı Giriş',
-              'Sahibinden veya Arabam.com linkini yapıştırın, biz sizin için inceleyelim.',
+              'Araç ve ilan bilgileri',
+              'Marka, model, il ve ilçeyi girin. İlan bağlantısını da yöneticinin incelemesi için ekleyebilirsiniz.',
               Icons.link,
             ),
             const SizedBox(height: 16),
+            TextFormField(
+              controller: _markaController,
+              decoration: const InputDecoration(labelText: 'Marka (zorunlu)'),
+              onChanged: (_) => setState(() {}),
+            ),
+            TextFormField(
+              controller: _modelController,
+              decoration: const InputDecoration(labelText: 'Model (zorunlu)'),
+              onChanged: (_) => setState(() {}),
+            ),
             TextFormField(
               controller: _ilanLinkController,
               decoration: InputDecoration(
@@ -496,7 +510,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   // Adım 3: Özet ve Ödeme
   Step _buildAdim3() {
     return Step(
-      title: const Text('Özet ve Ödeme'),
+      title: const Text('Özet ve Talep'),
       content: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: SingleChildScrollView(
@@ -508,7 +522,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
               const SizedBox(height: 24),
               
               const Text(
-                'Ödeme',
+                'Talep',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -517,8 +531,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                '"Ödemeyi Tamamla" ile talebiniz oluşturulur ve PayTR güvenli ödeme sayfası açılır. '
-                'Kart bilgileriniz uygulamaya girilmez. Talebiniz ödeme onaylandığında işleme alınır.',
+                'Talebiniz yöneticiye iletilir ve uygun personel atanır. Bu adımda ödeme alınmaz.',
                 style: TextStyle(color: Colors.grey[800], fontSize: 14),
               ),
               const SizedBox(height: 24),
@@ -540,7 +553,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Ödeme, PayTR altyapısında 3D Secure ile alınır.',
+                        'Rapor, yönetici onayından sonra size sunulur.',
                         style: TextStyle(
                           color: Colors.grey[800],
                           fontSize: 13,
@@ -984,7 +997,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   // Step Navigation
   void _nextStep() {
     if (_currentStep == 0 && !_adim1Valid) {
-      _showErrorSnackBar('Lütfen plaka ve şehir seçiniz.');
+      _showErrorSnackBar('Plaka, il, ilçe, marka ve model giriniz.');
       return;
     }
     
@@ -1031,7 +1044,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
     );
   }
 
-  // Talep Oluşturma + PayTR ödemesi
+  // Talebi yönetici kuyruğuna ilet.
   Future<void> _talepOlustur() async {
     setState(() {
       _isLoading = true;
@@ -1045,20 +1058,19 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
         city: _secilenSehir,
         district: _ilceController.text.trim(),
         listingUrl: _ilanLinkController.text.trim(),
+        vehicle: {'brand': _markaController.text.trim(), 'model': _modelController.text.trim()},
         note: 'Mobil uygulama talebi',
       );
       if (!mounted) return;
-      final paid = await _odemeyiTamamla(response);
-      if (!mounted || paid == null) return;
 
       final talep = TalepModel(
-        id: paid['request_id']?.toString() ?? response['request_id']?.toString() ?? const Uuid().v4(),
+        id: response['request_id']?.toString() ?? const Uuid().v4(),
         musteriAdi: _userName,
         musteriId: _userId ?? _userName,
         telefon: '',
         aracPlaka: _plakaController.text.toUpperCase(),
-        aracMarka: 'Belirtilmedi',
-        aracModel: 'Belirtilmedi',
+        aracMarka: _markaController.text.trim(),
+        aracModel: _modelController.text.trim(),
         durum: 'Beklemede',
         olusturulma: DateTime.now(),
         aciklama: 'Mobil uygulama talebi. İlan: ${_ilanLinkController.text}',
@@ -1067,8 +1079,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
         expertizPaketi: _secilenPaket!.name,
         paketFiyati: _secilenPaket!.price,
         hizmetBedeli: _hizmetBedeli,
-        toplamTutar: (paid['amount_tl'] as num?)?.toDouble() ?? _toplamTutar,
-        isPaid: true,
+        toplamTutar: _toplamTutar,
+        isPaid: false,
       );
       _showSuccessDialog(talep);
     } catch (e) {
@@ -1084,83 +1096,6 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
     }
   }
 
-  /// PayTR sayfasını açar ve onayı bekler. Ödendiyse sipariş durumunu, vazgeçildiyse null döner.
-  Future<Map<String, dynamic>?> _odemeyiTamamla(Map<String, dynamic> checkout) async {
-    final orderId = checkout['order_id'].toString();
-    final iframeUrl = checkout['iframe_url']?.toString();
-    final simulation = checkout['provider'] == 'simulation';
-    if (!simulation && iframeUrl != null && iframeUrl.isNotEmpty) {
-      await launchUrl(Uri.parse(iframeUrl), mode: LaunchMode.externalApplication);
-    }
-    if (!mounted) return null;
-
-    return showDialog<Map<String, dynamic>>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        String? info;
-        bool busy = false;
-        return StatefulBuilder(
-          builder: (ctx, setDialog) {
-            Future<void> check({bool? simulate}) async {
-              setDialog(() {
-                busy = true;
-                info = null;
-              });
-              try {
-                final status = simulate == null
-                    ? await _api.getCheckoutStatus(orderId)
-                    : await _api.simulateCheckout(orderId, success: simulate);
-                if (status['status'] == 'paid') {
-                  if (dialogContext.mounted) Navigator.pop(dialogContext, status);
-                  return;
-                }
-                setDialog(() => info = status['status'] == 'failed'
-                    ? 'Ödeme başarısız oldu; kartınızdan çekim yapılmadı.'
-                    : 'Ödeme onayı henüz gelmedi. Ödemeyi tamamladıysanız birkaç saniye sonra tekrar kontrol edin.');
-              } catch (e) {
-                setDialog(() => info = e is ApiException ? e.message : '$e');
-              } finally {
-                setDialog(() => busy = false);
-              }
-            }
-
-            return AlertDialog(
-              title: const Text('Ödeme'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Tutar: ${((checkout['amount_tl'] as num?) ?? _toplamTutar).toStringAsFixed(2)} TL'),
-                  const SizedBox(height: 8),
-                  Text(simulation
-                      ? 'Sunucu test ödeme modunda; gerçek çekim yapılmaz.'
-                      : 'Ödemeyi açılan PayTR sayfasında tamamlayın, ardından "Ödemeyi Kontrol Et"e basın.'),
-                  if (info != null) ...[
-                    const SizedBox(height: 12),
-                    Text(info!, style: const TextStyle(color: Color(0xFFD32F2F))),
-                  ],
-                ],
-              ),
-              actions: [
-                TextButton(onPressed: busy ? null : () => Navigator.pop(dialogContext), child: const Text('Vazgeç')),
-                if (simulation)
-                  FilledButton(onPressed: busy ? null : () => check(simulate: true), child: const Text('Ödemeyi Onayla (test)'))
-                else ...[
-                  if (iframeUrl != null)
-                    TextButton(
-                      onPressed: busy ? null : () => launchUrl(Uri.parse(iframeUrl), mode: LaunchMode.externalApplication),
-                      child: const Text('Ödeme Sayfasını Aç'),
-                    ),
-                  FilledButton(onPressed: busy ? null : () => check(), child: const Text('Ödemeyi Kontrol Et')),
-                ],
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
 
   void _showSuccessDialog(TalepModel talep) {
     showDialog(
@@ -1180,7 +1115,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
             ),
             const SizedBox(height: 24),
             const Text(
-              'Ödemeniz Başarılı!',
+              'Talebiniz Alındı!',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,

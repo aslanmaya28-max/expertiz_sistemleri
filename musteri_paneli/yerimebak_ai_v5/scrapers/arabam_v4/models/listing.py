@@ -134,6 +134,30 @@ class ArabamListing(BaseModel):
         default=WarrantyStatus.UNKNOWN,
         description="Garanti durumu"
     )
+    series: Optional[str] = Field(
+        None,
+        description="Seri (arabam.com 'Seri' satırı, ör. Clio)"
+    )
+    trim: Optional[str] = Field(
+        None,
+        description="Paket / versiyon (arabam.com 'Model' satırı, ör. 1.0 TCe Touch)"
+    )
+    tramer_amount: Optional[int] = Field(
+        None,
+        description="Hasar kaydı (tramer) tutarı, TL; bilinmiyorsa None"
+    )
+    no_damage_record: Optional[bool] = Field(
+        None,
+        description="Satıcı 'tramer kaydı yok' beyan ettiyse True"
+    )
+    heavy_damage: Optional[bool] = Field(
+        None,
+        description="Ağır hasar kayıtlı mı (satıcı beyanı)"
+    )
+    damage_text: Optional[str] = Field(
+        None,
+        description="Hasar bilgisinin okunduğu metin parçası"
+    )
     
     # ==================== AÇIKLAMA ====================
     description: Optional[str] = Field(

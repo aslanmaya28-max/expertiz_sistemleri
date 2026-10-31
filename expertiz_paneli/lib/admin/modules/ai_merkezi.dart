@@ -4,6 +4,7 @@ import '../../../models/ai/ai_skor_model.dart';
 import '../../../models/arac_rapor_model.dart';
 import '../../screens/rapor_detay_sayfasi.dart';
 import '../../../services/rapor_service.dart';
+import '../../../services/yerimebak_expertiz_api_service.dart';
 import '../../../models/expertiz/tam_rapor_model.dart';
 import '../../../core/constants/yerimebak_colors.dart';
 
@@ -15,7 +16,9 @@ import '../../../core/constants/yerimebak_colors.dart';
 /// - Smart Lists: AI Fırsat Radarı ve Kritik Uyarılar
 /// - Real-time Sync: AIAnalizService ile veri çekimi
 class AIMerkezi extends StatefulWidget {
-  const AIMerkezi({super.key});
+  const AIMerkezi({super.key, this.api});
+
+  final YerimebakExpertizApiService? api;
 
   @override
   State<AIMerkezi> createState() => _AIMerkeziState();
@@ -23,6 +26,8 @@ class AIMerkezi extends StatefulWidget {
 
 class _AIMerkeziState extends State<AIMerkezi> {
   bool _loading = true;
+  bool _loadFailed = false;
+  late final YerimebakExpertizApiService _api = widget.api ?? YerimebakExpertizApiService();
   List<TamRaporModel> _validReports = [];
   double _sistemGenelPuani = 0.0;
   double _ortalamaKarPotansiyeli = 0.0;
@@ -40,17 +45,18 @@ class _AIMerkeziState extends State<AIMerkezi> {
     
     setState(() {
       _loading = true;
+      _loadFailed = false;
     });
 
     try {
       // SİSTEMDEKİ GERÇEK RAPORLARI ÇEK
-      final result = await RaporService.getAllReports();
-      
-      if (!result.isSuccess) {
-        throw Exception(result.error);
-      }
-
-      final tamRaporlar = result.data ?? [];
+      final result = await _api.getAdminReports(limit: 250);
+      final rows = result['reports'];
+      if (rows is! List) throw const FormatException('Rapor listesi eksik');
+      final tamRaporlar = rows.whereType<Map>()
+          .map((row) => RaporService.tamRaporFromRow(Map<String, dynamic>.from(row)))
+          .whereType<TamRaporModel>()
+          .toList();
       
       // AI analiz sonucu mühürlenmiş raporları filtrele
       _validReports = tamRaporlar
@@ -97,6 +103,7 @@ class _AIMerkeziState extends State<AIMerkezi> {
       if (mounted) {
         setState(() {
           _loading = false;
+          _loadFailed = true;
         });
       }
     }
@@ -123,6 +130,11 @@ class _AIMerkeziState extends State<AIMerkezi> {
         padding: const EdgeInsets.all(20),
         child: _loading
             ? const Center(child: CircularProgressIndicator())
+            : _loadFailed
+            ? Center(child: Column(children: [
+                const Text('Raporlar yüklenemedi'),
+                TextButton(onPressed: _loadSystemData, child: const Text('Tekrar dene')),
+              ]))
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -143,6 +155,7 @@ class _AIMerkeziState extends State<AIMerkezi> {
                               color: isDarkMode ? Colors.white : const Color(0xFF111827),
                             ),
                           ),
+                          const Text('Son 250 rapor üzerinden hesaplanır.'),
                           const SizedBox(height: 20),
                           Row(
                             children: [

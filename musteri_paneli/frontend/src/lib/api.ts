@@ -364,8 +364,6 @@ export interface CreateExpertizRequestPayload {
   district?: string;
   note?: string;
   vehicle?: VehicleInput;
-  /** On Bilgilendirme Formu + Mesafeli Satis Sozlesmesi onayi */
-  contract_accepted: boolean;
 }
 
 export interface ExpertizTotals {
@@ -421,6 +419,9 @@ export interface ValuationPrefill {
   success: boolean;
   found: boolean;
   listing_id?: number;
+  /** Kisa link (shbd.io) cozulduyse asil ilan adresi */
+  url?: string;
+  source?: "arabam" | "sahibinden" | null;
   vehicle: VehicleInput & { title?: string; image_url?: string; location?: string };
   parts: Record<string, PartStatus>;
   message: string;
@@ -505,8 +506,8 @@ export function getVehicles(params: Record<string, string | number | undefined> 
   return fetchAPI<VehicleListResponse>(`/vitrin/vehicles?${sp.toString()}`);
 }
 
-export function getVehicleDetail(id: number): Promise<VehicleCard> {
-  return fetchAPI<VehicleCard>(`/vitrin/vehicles/${id}`);
+export function getVehicleDetail(id: number, options?: RequestInit): Promise<VehicleCard> {
+  return fetchAPI<VehicleCard>(`/vitrin/vehicles/${id}`, options);
 }
 
 export function getBrands(): Promise<BrandInfo[]> {
@@ -525,17 +526,17 @@ export function searchVehicles(q: string, limit = 20): Promise<{ query: string; 
   return fetchAPI(`/vitrin/search?q=${encodeURIComponent(q)}&limit=${limit}`);
 }
 
-export function getExpertizPackages(): Promise<ExpertizPackagesResponse> {
-  return fetchAPI<ExpertizPackagesResponse>("/expertiz/packages");
+export function getExpertizPackages(options?: RequestInit): Promise<ExpertizPackagesResponse> {
+  return fetchAPI<ExpertizPackagesResponse>("/expertiz/packages", options);
 }
 
 export function getExpertizQuote(firmId: string, packageId: string): Promise<{ success: boolean; totals: ExpertizTotals }> {
   return fetchAPI(`/expertiz/quote?firm_id=${encodeURIComponent(firmId)}&package_id=${encodeURIComponent(packageId)}`);
 }
 
-/** Talep olusturur ve odemeyi baslatir; talep odeme onaylaninca isleme alinir. */
-export function createExpertizRequest(payload: CreateExpertizRequestPayload): Promise<CheckoutStart> {
-  return fetchAPI<CheckoutStart>("/expertiz/requests", {
+/** Tahsilat yapmadan talebi yonetici kuyruguna iletir. */
+export function createExpertizRequest(payload: CreateExpertizRequestPayload): Promise<{ success: boolean; request_id: string; payment_status: string }> {
+  return fetchAPI<{ success: boolean; request_id: string; payment_status: string }>("/expertiz/requests/unpaid", {
     method: "POST",
     body: JSON.stringify(payload),
   });

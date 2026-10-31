@@ -46,6 +46,13 @@ const DOM = {
   errorDisplay: $('error-display'),
   errorMessage: $('error-message'),
   retryBtn: $('retry-btn'),
+  ingestBox: $('ingest-box'),
+  ingestHint: $('ingest-hint'),
+  ingestSearchFields: $('ingest-search-fields'),
+  ingestBrand: $('ingest-brand'),
+  ingestModel: $('ingest-model'),
+  ingestBtn: $('ingest-btn'),
+  ingestResult: $('ingest-result'),
 };
 
 // ─── STATE ───────────────────────────────────────────────────────
@@ -92,9 +99,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (stored.user) state.user = stored.user;
 
   // 🔒 DÜZELTİLDİ (Bug #19): Production'da HTTPS kullan, development fallback
-  DOM.apiUrl.value = state.apiUrl || (window.location.protocol === 'https:'
-    ? 'https://www.yerimebak.com.tr'
-    : 'http://localhost:8000');
+  DOM.apiUrl.value = state.apiUrl || 'https://api.yerimebak.com.tr';
 
   if (state.apiKey && state.user) {
     showMainScreen();
@@ -106,6 +111,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   DOM.analyzeBtn.addEventListener('click', handleAnalyze);
   DOM.retryBtn.addEventListener('click', handleAnalyze);
   DOM.openDashboard.addEventListener('click', openDashboard);
+  DOM.ingestBtn.addEventListener('click', handleIngest);
 
   // Allow Enter key for login
   DOM.apiKey.addEventListener('keydown', (e) => {
@@ -210,6 +216,7 @@ async function detectPlatform() {
       }
 
       state.platform = platform;
+      setupIngest(url);
 
       if (platform) {
         DOM.platformInfo.className = 'platform-info supported';
@@ -375,4 +382,86 @@ function fmtMoney(n) {
 function openDashboard() {
   const url = state.apiUrl ? `${state.apiUrl.replace(/\/$/, '')}/dashboard` : 'http://localhost:8000/dashboard';
   chrome.tabs.create({ url });
+}
+
+// ─── SISTEME KAYDET (arabam.com) ─────────────────────────────────
+// arabam.com sunucudan gelen otomatik istekleri engeller; ilan verisi
+// personelin kendi tarayicisinda actigi sayfadan alinir. Ucretsizdir.
+function setupIngest(url) {
+  const role = String(state.user?.role || '').toLowerCase();
+  const staff = ['admin', 'field_staff', 'personel', 'personnel', 'staff'].includes(role);
+  let path = '';
+  try { path = new URL(url).pathname; } catch (e) { /* gecersiz adres */ }
+  if (!staff || !url.includes('arabam.com')) {
+    DOM.ingestBox.style.display = 'none';
+    return;
+  }
+  const isListing = path.includes('/ilan/');
+  state.ingestType = isListing ? 'listing' : 'search';
+  DOM.ingestBox.style.display = '';
+  DOM.ingestResult.style.display = 'none';
+  DOM.ingestSearchFields.style.display = isListing ? 'none' : '';
+  DOM.ingestBtn.textContent = isListing ? 'İlanı sisteme kaydet' : 'Sayfadaki ilanları emsal kaydet';
+  DOM.ingestHint.textContent = isListing
+    ? 'Fiyat, km, paket, boya/değişen ve tramer beyanı kaydedilir. Sayfanın tamamen yüklendiğinden emin olun.'
+    : 'Bu sayfada görünen ilanlar emsal olarak kaydedilir (arama sayfasında boya bilgisi yoktur).';
+}
+
+async function capturePage() {
+  return new Promise((resolve) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tabId = tabs[0]?.id;
+      if (!tabId) return resolve(null);
+      chrome.tabs.sendMessage(tabId, { action: 'CAPTURE_PAGE' }, (response) => {
+        if (chrome.runtime.lastError) return resolve(null);
+        resolve(response);
+      });
+    });
+  });
+}
+
+function showIngestResult(ok, text) {
+  DOM.ingestResult.className = `ingest-result ${ok ? 'ok' : 'err'}`;
+  DOM.ingestResult.textContent = text;
+  DOM.ingestResult.style.display = '';
+}
+
+async function handleIngest() {
+  DOM.ingestBtn.disabled = true;
+  try {
+    const page = await capturePage();
+    if (!page) throw new Error('Sayfa okunamadı. Sayfayı yenileyip tekrar deneyin.');
+
+    let endpoint, body;
+    if (page.pageType === 'listing') {
+      endpoint = 'listing';
+      body = page;
+    } else {
+      if (!page.cards?.length) throw new Error('Bu sayfada ilan bulunamadı.');
+      endpoint = 'search';
+      body = { url: page.url, cards: page.cards, brand: DOM.ingestBrand.value.trim(), model: DOM.ingestModel.value.trim() };
+    }
+
+    const resp = await fetch(`${state.apiUrl}/api/v1/extension/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': state.apiKey },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.detail || `Sunucu hatası (${resp.status})`);
+
+    if (endpoint === 'listing') {
+      const v = data.vehicle || {};
+      const b = data.beyan || {};
+      const tramer = b.tramerTl ? `${Number(b.tramerTl).toLocaleString('tr-TR')} TL` : (b.tramerYok ? 'yok' : 'belirtilmemiş');
+      const boya = b.boyaBolumuVar ? `${b.boyali.length} boyalı, ${b.degisen.length} değişen` : 'beyan yok';
+      showIngestResult(true, `✅ Kaydedildi: ${v.brand} ${v.model} ${v.year || ''} · ${fmtMoney(v.price || 0)} · Boya: ${boya} · Tramer: ${tramer}`);
+    } else {
+      showIngestResult(true, `✅ ${data.brand} ${data.model}: ${data.saved} / ${data.found} ilan emsal olarak kaydedildi.`);
+    }
+  } catch (err) {
+    showIngestResult(false, err.message || 'Kaydedilemedi.');
+  } finally {
+    DOM.ingestBtn.disabled = false;
+  }
 }
