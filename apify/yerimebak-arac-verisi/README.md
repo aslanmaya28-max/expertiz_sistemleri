@@ -29,6 +29,8 @@ Kopya güncel değilse `tests/unit/test_apify.py` testi uyarır.
 
 Bilgi ilanda yoksa alan `null` kalır. Bu durumda araç hasarsız kabul edilmez.
 
+`paint_info` ilan sayfasındaki **"Boya, Değişen ve Tramer"** bölümünden parça parça okunur. Parça adları değerleme motorundaki adlarla aynıdır (ör. arabam.com'daki "Arka Kaput" → "Bagaj Kapağı"). `painted_parts` lokal boyalıları da içerir; lokal olanlar ayrıca `local_painted_parts`'ta listelenir. Bölüm yoksa durum "Bilinmiyor" kalır; ilan açıklamasındaki kelimelerden boya/değişen tahmini yapılmaz.
+
 ## Apify'a kurulum (bir kez)
 
 1. Apify Console → **Actors → Create new → Link Git repository**.
