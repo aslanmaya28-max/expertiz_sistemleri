@@ -779,6 +779,9 @@ def _base_from_market(market: Dict[str, Any], f: InspectionFindings) -> Dict[str
             base, method = clean, "Hasarsız (boyasız/değişensiz) emsal ilanların medyanı"
         elif median:
             base, method = median, "Emsal ilanların medyanı (hasarlı olduğu bilinen ilanlar hariç)"
+    elif market.get("found") and source == "ai_estimate" and median:
+        base, method = median, ("Yeterli emsal ilan yok — temiz piyasa değeri yapay zekâ tahminidir, "
+                                "gerçek emsal verisi değildir (düşük güven; admin kontrol etmeli)")
     elif market.get("found") and source == "last_resort_listed_price":
         listed = _num(_dict(market.get("scope")).get("listed_price")) or median
         if listed:
@@ -812,6 +815,7 @@ def _base_from_market(market: Dict[str, Any], f: InspectionFindings) -> Dict[str
         "confidence": int(market.get("confidence") or 0),
         "stale": bool(market.get("stale")),
         "source": source,
+        "warning": market.get("uyari"),
         "count": int(market.get("count") or 0),
     }
 
@@ -909,7 +913,10 @@ def evaluate(
             "onerilenAlimFiyati": _round_price(ai_value * (1 - NEGOTIATION_MARGIN_PCT / 100.0)),
             "guvenSkoru": int(confidence),
             "eskiPiyasaVerisi": base_info["stale"],
+            "piyasaKaynagi": base_info["source"],
         })
+        if base_info.get("warning"):
+            result["piyasaUyarisi"] = base_info["warning"]
         if listed > 0:
             result["fiyatYorumu"] = _price_verdict(listed, ai_value, losses["heavy_damage"])
     else:
@@ -951,6 +958,8 @@ def _summary(r: Dict[str, Any], f: InspectionFindings) -> str:
         text += " Yeterli piyasa verisi olmadığından TL değeri hesaplanamadı."
     if r["agirHasar"]:
         text += " Araçta ağır hasar sınıfında bulgu bulunuyor."
+    if r.get("piyasaKaynagi") == "ai_estimate":
+        text += " Dikkat: piyasa değeri yeterli emsal olmadığı için yapay zekâ tahminidir, gerçek ilan verisi değildir."
     return text
 
 

@@ -1197,7 +1197,14 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
       color: agir ? Colors.redAccent : null,
       children: [
         if (yapildi) ...[
-          satir('Piyasa değeri (emsal ilanlar)', _tl(d['piyasaDegeri']), alt: d['piyasaYontemi']?.toString()),
+          if (d['piyasaUyarisi'] != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text('⚠️ ${d['piyasaUyarisi']}',
+                  style: const TextStyle(color: Colors.orangeAccent, fontSize: 12, fontWeight: FontWeight.w600)),
+            ),
+          satir(d['piyasaKaynagi'] == 'ai_estimate' ? 'Piyasa değeri (yapay zekâ tahmini)' : 'Piyasa değeri (emsal ilanlar)',
+              _tl(d['piyasaDegeri']), alt: d['piyasaYontemi']?.toString()),
           for (final a in duzeltmeler)
             satir('${a['baslik']} (${_yuzde(a['yuzde'])})', '${(a['tutar'] as num? ?? 0) >= 0 ? '+' : ''}${_tl(a['tutar'])}',
                 alt: a['aciklama']?.toString()),

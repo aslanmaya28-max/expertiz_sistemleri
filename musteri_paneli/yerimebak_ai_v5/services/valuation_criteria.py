@@ -72,7 +72,10 @@ def build_criteria(
             "aciklama": (
                 f"{int(ref.get('count') or 0)} emsal ilan (yıl ±{(ref.get('scope') or {}).get('year_window') or '-'}); "
                 f"{int(ref.get('clean_count') or 0)} tanesi hasarsız"
-                if found else "Yeterli emsal bulunamadı"
+                if found else (
+                    "Yeterli emsal bulunamadı; piyasa değeri yapay zekâ tahmini"
+                    if ref.get("source") == "ai_estimate" else "Yeterli emsal bulunamadı"
+                )
             ),
         },
         {

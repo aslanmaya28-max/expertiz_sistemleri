@@ -1006,3 +1006,41 @@ def test_valuation_without_saved_listing(client, admin_token, customer_token, mo
     assert report["status"] == "pending_admin"
     assert report["ai_analiz_detay"]["ekspertizDegerleme"]["degerlemeYapildi"] is True
     assert report["ai_analiz_detay"]["ekspertizDegerleme"]["ilanBeyaniKarsilastirma"]["uyumlu"] is None
+
+
+def test_ai_price_estimate_when_no_comparables(client, admin_token, customer_token, monkeypatch):
+    """Emsal yoksa DeepSeek tahmini etiketli kullanilir; rapor admin onayina duser, musteriye gitmez."""
+    from yerimebak_ai_v5.core.market.market_reference_service import MarketReferenceService
+    from yerimebak_ai_v5.services import ai_price_estimate
+
+    monkeypatch.setattr(MarketReferenceService, "get_reference",
+                        lambda self, **kw: self._last_resort("not_enough_reference", int(kw.get("listed_price") or 0)))
+    asked = []
+
+    def fake_estimate(vehicle, **_kw):
+        asked.append(vehicle)
+        return {"median": 1_550_000, "min": 1_420_000, "max": 1_755_000, "data_date": "2026-09",
+                "note": "test", "model": "deepseek/deepseek-chat"}
+    monkeypatch.setattr(ai_price_estimate, "estimate", fake_estimate)
+
+    person = _create_personnel(client, admin_token, "aitahmin@yerimebak.test", "İstanbul", "Kartal", "Tahmin Personel")
+    staff = _login(client, "aitahmin@yerimebak.test", "Personel123")
+    report_id = _create_paid_request(client, customer_token, "34 AIT 01", "İstanbul", package_index=3, district="Kartal")
+    client.post(f"/api/v1/expertiz/admin/requests/{report_id}/assign", headers=_auth(admin_token), json={"personnel_id": person["id"]})
+    client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/start", headers=_auth(staff))
+    client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/media", headers=_auth(staff),
+                files={"file": ("kurumsal.pdf", PDF_BYTES, "application/pdf")}, data={"category": "corporate_report"})
+    submitted = client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/submit", headers=_auth(staff),
+                            json={"tam_rapor": _tam_rapor(report_id, person["id"])})
+    assert submitted.status_code == 200, submitted.text
+
+    report = client.get(f"/api/v1/expertiz/admin/reports/{report_id}", headers=_auth(admin_token)).json()["report"]
+    assert report["status"] == "pending_admin"
+    d = report["ai_analiz_detay"]["ekspertizDegerleme"]
+    assert asked and asked[0]["brand"] and asked[0]["model"]
+    assert d["degerlemeYapildi"] is True and d["piyasaKaynagi"] == "ai_estimate"
+    assert d["piyasaDegeri"] == 1_550_000 and d["guvenSkoru"] <= 25
+    assert "yapay zekâ" in d["piyasaUyarisi"].lower() and "yapay zekâ tahmini" in d["ozet"]
+    assert report["ai_analiz_detay"]["marketReference"]["source"] == "ai_estimate"
+    customer = client.get(f"/api/v1/expertiz/reports/{report_id}", headers=_auth(customer_token))
+    assert customer.status_code != 200 or customer.json()["report"].get("status") != "published"
