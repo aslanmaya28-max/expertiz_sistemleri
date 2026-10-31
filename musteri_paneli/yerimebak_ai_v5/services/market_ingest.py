@@ -21,6 +21,9 @@ from yerimebak_ai_v5.core.database_config import DatabaseConfig
 logger = logging.getLogger(__name__)
 
 PROTECTED_STATUSES = ("active", "featured", "hidden", "sold")
+# Anlamsiz degerler (ayristirma hatasi) veritabanina girmesin
+MAX_PRICE = 500_000_000
+MAX_KM = 3_000_000
 _UNKNOWN = {"", "bilinmiyor", "bilinmeyen", "unknown", "none", "null"}
 _schema_ready = False
 
@@ -86,9 +89,14 @@ def normalize_item(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     price = _int(item.get("price"))
     if not url or not brand or not model or not price or price <= 0:
         return None
+    if price > MAX_PRICE:
+        return None
     year = _int(item.get("year"))
     if year and not (1950 <= year <= 2100):
         year = None
+    km = _int(item.get("km"))
+    if km is not None and km > MAX_KM:
+        km = None
     paint = item.get("paint_info") if isinstance(item.get("paint_info"), dict) else None
     damage = item.get("damage_record") if isinstance(item.get("damage_record"), dict) else None
     source = (item.get("source") or "").lower()
@@ -99,7 +107,7 @@ def normalize_item(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "model": model,
         "series": _clean_text(item.get("package")),
         "year": year,
-        "km": _int(item.get("km")),
+        "km": km,
         "price": price,
         "fuel": _clean_text(item.get("fuel")),
         "transmission": _clean_text(item.get("transmission")),

@@ -1045,3 +1045,106 @@ def test_ai_price_estimate_when_no_comparables(client, admin_token, customer_tok
     assert report["ai_analiz_detay"]["marketReference"]["source"] == "ai_estimate"
     customer = client.get(f"/api/v1/expertiz/reports/{report_id}", headers=_auth(customer_token))
     assert customer.status_code != 200 or customer.json()["report"].get("status") != "published"
+
+
+# ---------------------------------------------------------------------------
+# Chrome eklentisi uc noktalari (gercek veritabani + gercek API anahtari)
+# ---------------------------------------------------------------------------
+
+_EXT_LISTING_URL = "https://www.arabam.com/ilan/galeriden-satilik-renault-clio-1-0-tce-touch/test/9777001"
+_EXT_TEXT = ("Renault Clio 1.0 TCe Touch\n{price} TL\nMarka\nRenault\nSeri\nClio\nModel\n1.0 TCe Touch\nYıl\n2021\n"
+             "Kilometre\n48.500 km\nBoya, Değişen ve Tramer\nOrijinal\nBoyalı\nDeğişmiş\nBelirtilmemiş\n"
+             "Boyalı\nMotor Kaputu\nTramer tutarı\n0 TL\n")
+
+
+def _api_key(client, token):
+    me = client.get("/api/v1/auth/me", headers=_auth(token)).json()
+    key = (me.get("user") or me).get("api_key")
+    assert key, "API anahtari /auth/me icinde donmeli"
+    return key
+
+
+def _db(sql, args=()):
+    import psycopg2
+
+    conn = psycopg2.connect(TEST_DB)
+    with conn, conn.cursor() as cur:
+        cur.execute(sql, args)
+        rows = cur.fetchall() if cur.description else None
+    conn.close()
+    return rows
+
+
+def test_extension_ingest_endpoints_auth_update_and_protection(client, admin_token, customer_token):
+    ext = "/api/v1/extension"
+    _create_personnel(client, admin_token, "eklenti@yerimebak.test", "İstanbul", "Üsküdar", "Eklenti Personel")
+    staff_key = _api_key(client, _login(client, "eklenti@yerimebak.test", "Personel123"))
+    customer_key = _api_key(client, customer_token)
+    body = {"url": _EXT_LISTING_URL, "text": _EXT_TEXT.format(price="1.050.000"), "title": "Renault Clio | arabam.com"}
+
+    # Kimlik: anahtarsiz 401, musteri 403, personel 200
+    assert client.post(f"{ext}/listing", json=body).status_code == 401
+    assert client.post(f"{ext}/listing", json=body, headers={"X-API-Key": customer_key}).status_code == 403
+    assert client.post(f"{ext}/search", json={"url": _EXT_LISTING_URL, "cards": []},
+                       headers={"X-API-Key": customer_key}).status_code == 403
+    first = client.post(f"{ext}/listing", json=body, headers={"X-API-Key": staff_key})
+    assert first.status_code == 200, first.text
+    listing_id = first.json()["listing_id"]
+    assert _db("SELECT status, price FROM listings WHERE id = %s", (listing_id,)) == [("talep", 1050000)]
+
+    # Ayni ilan tekrar kaydedilince yeni satir acilmaz; fiyat degisimi fiyat gecmisine yazilir
+    body["text"] = _EXT_TEXT.format(price="1.020.000")
+    again = client.post(f"{ext}/listing", json=body, headers={"X-API-Key": staff_key})
+    assert again.status_code == 200 and again.json()["listing_id"] == listing_id
+    assert _db("SELECT count(*) FROM listings WHERE url LIKE %s", ("%/9777001",)) == [(1,)]
+    assert _db("SELECT price FROM listings WHERE id = %s", (listing_id,)) == [(1020000,)]
+    assert [r[0] for r in _db("SELECT price FROM price_history WHERE listing_id = %s ORDER BY id", (listing_id,))] == [1050000, 1020000]
+
+    # Arama sayfasi ayni ilani (boya bilgisiz) tekrar gorurse once kaydedilen boya/degisen bilgisi silinmez
+    card = {"url": "/ilan/galeriden-satilik-renault-clio-1-0-tce-touch/test/9777001", "text": "Clio\t2021\t48.500\t1.010.000 TL"}
+    search = client.post(f"{ext}/search", headers={"X-API-Key": staff_key},
+                         json={"url": "https://www.arabam.com/ikinci-el/otomobil/renault-clio", "brand": "Renault", "model": "Clio", "cards": [card]})
+    assert search.status_code == 200 and search.json()["saved"] == 1
+    paint = _db("SELECT paint_info FROM listings WHERE id = %s", (listing_id,))[0][0]
+    assert paint and "Motor Kaputu" in paint
+
+    # Vitrindeki (active) ilanin durumu eklenti tarafindan degistirilmez
+    _db("UPDATE listings SET status = 'active' WHERE id = %s", (listing_id,))
+    client.post(f"{ext}/listing", json=body, headers={"X-API-Key": staff_key})
+    client.post(f"{ext}/search", headers={"X-API-Key": staff_key},
+                json={"url": "https://www.arabam.com/ikinci-el/otomobil/renault-clio", "brand": "Renault", "model": "Clio", "cards": [card]})
+    assert _db("SELECT status FROM listings WHERE id = %s", (listing_id,)) == [("active",)]
+
+    # Yanlis site, bos sayfa, asiri buyuk istek
+    bad_site = client.post(f"{ext}/listing", headers={"X-API-Key": staff_key},
+                           json={"url": "https://www.sahibinden.com/ilan/1", "text": _EXT_TEXT.format(price="1.000.000")})
+    assert bad_site.status_code == 400
+    empty = client.post(f"{ext}/listing", headers={"X-API-Key": staff_key}, json={"url": _EXT_LISTING_URL, "text": "yükleniyor"})
+    assert empty.status_code == 422
+    huge = client.post(f"{ext}/listing", headers={"X-API-Key": staff_key}, json={"url": _EXT_LISTING_URL, "text": "x" * 300_001})
+    assert huge.status_code == 422
+    too_many = client.post(f"{ext}/search", headers={"X-API-Key": staff_key},
+                           json={"url": "https://www.arabam.com/x", "brand": "Renault", "model": "Clio",
+                                 "cards": [{"url": "/ilan/a/1", "text": "1.000.000 TL"}] * 201})
+    assert too_many.status_code == 422
+
+
+def test_extension_analyze_deducts_credit_and_blocks_without_credits(client, admin_token, customer_token):
+    """Eklentinin kredi dusen 'Analiz Et' uc noktasi: 1 kredi duser; kredi yoksa 402."""
+    _seed_listings()
+    key = _api_key(client, customer_token)
+    _db("UPDATE users SET credits = 2 WHERE email = %s", ("musteri@yerimebak.test",))
+    vehicle = {"brand": "Fiat", "model": "Egea", "year": 2021, "mileage_km": 45000, "fuel_type": "Benzin",
+               "gear_type": "Manuel", "listed_price": 880000, "source": "arabam", "url": "https://www.arabam.com/ilan/x/1",
+               "paint_info": {"has_paint": True, "has_changed": False}}
+    ok = client.post("/api/v1/extension/analyze", json=vehicle, headers={"X-API-Key": key})
+    assert ok.status_code == 200, ok.text
+    body = ok.json()
+    assert body["billing"]["credits_deducted"] == 1 and body["billing"]["credits_remaining"] == 1
+    assert body["dealer_verdict"]["decision"] and body["commercial_analysis"]["optimal_purchase_price"] > 0
+    assert _db("SELECT credits FROM users WHERE email = %s", ("musteri@yerimebak.test",)) == [(1,)]
+
+    _db("UPDATE users SET credits = 0 WHERE email = %s", ("musteri@yerimebak.test",))
+    assert client.post("/api/v1/extension/analyze", json=vehicle, headers={"X-API-Key": key}).status_code == 402
+    assert _db("SELECT credits FROM users WHERE email = %s", ("musteri@yerimebak.test",)) == [(0,)]
+    assert client.post("/api/v1/extension/analyze", json=vehicle).status_code == 401

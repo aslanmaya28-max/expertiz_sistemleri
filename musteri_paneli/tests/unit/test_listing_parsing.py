@@ -170,3 +170,12 @@ def test_compare_declaration():
     assert unknown_tramer["uyumlu"] is True
     unknown = compare_declaration(None, {"boyaliParcaSayisi": 2})
     assert unknown["uyumlu"] is None and unknown["ilanBeyaniVar"] is False
+
+
+def test_normalize_item_drops_absurd_values():
+    from yerimebak_ai_v5.services.market_ingest import normalize_item
+
+    base = {"url": "https://a/1", "brand": "Renault", "model": "Clio"}
+    assert normalize_item({**base, "price": 62_000_985_000}) is None   # ayristirma hatasi: fiyat reddedilir
+    row = normalize_item({**base, "price": 900_000, "km": 62_000_985})  # anlamsiz km yok sayilir, ilan kalir
+    assert row["price"] == 900000 and row["km"] is None
