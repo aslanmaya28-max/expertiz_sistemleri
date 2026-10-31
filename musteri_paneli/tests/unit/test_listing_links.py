@@ -95,3 +95,25 @@ def test_fetch_listing_skips_non_arabam(monkeypatch):
     monkeypatch.setattr(apify_service, "enabled", lambda: True)
     monkeypatch.setattr(apify_service, "run_actor", lambda *a, **kw: (_ for _ in ()).throw(AssertionError("calismamali")))
     assert market_ingest.fetch_listing(SAHIBINDEN) is None
+
+
+# shbd.io canli denemede (2026-10) sahibinden'in kendi kisa adresine 301 ile yonlendirdi
+SITE_SHORT = "https://www.sahibinden.com/s/JxlAmKg0"
+
+
+def test_shbd_redirects_to_site_short_link(fake_http):
+    calls = fake_http(lambda req: httpx.Response(301, headers={"location": SITE_SHORT}))
+    assert listing_links.resolve_short_link("https://shbd.io/s/JxlAmKg0") == SITE_SHORT
+    assert calls == ["https://shbd.io/s/JxlAmKg0"]  # sahibinden.com'a gidilmedi
+    assert listing_links.is_site_short_link(SITE_SHORT)
+    assert not listing_links.is_site_short_link(SAHIBINDEN)
+    assert not listing_links.is_site_short_link("https://shbd.io/s/JxlAmKg0")
+
+
+def test_prefill_site_short_link_asks_full_link(catalog, monkeypatch):
+    monkeypatch.setattr(listing_links, "resolve_short_link", lambda url, **kw: SITE_SHORT)
+    monkeypatch.setattr(valuation_service, "_listing_by_url", lambda url: None)
+    res = valuation_service.prefill_from_link("https://shbd.io/s/JxlAmKg0")
+    assert res["found"] is False and res["source"] == "sahibinden"
+    assert res["vehicle"] == {}
+    assert "tam adresini" in res["message"]
