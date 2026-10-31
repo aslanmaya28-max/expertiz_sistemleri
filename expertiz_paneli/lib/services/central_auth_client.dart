@@ -61,6 +61,14 @@ class CentralAuthSession {
   final UserModel user;
 }
 
+class CentralAuthException implements Exception {
+  const CentralAuthException(this.statusCode, this.message);
+  final int statusCode;
+  final String message;
+  @override
+  String toString() => message;
+}
+
 class CentralAuthClient {
   CentralAuthClient({
     this.baseUrl = const String.fromEnvironment(
@@ -87,12 +95,14 @@ class CentralAuthClient {
     required String email,
     required String password,
     required String fullName,
+    required bool termsAccepted,
     String? phone,
   }) async {
     return _postSession('/auth/register', {
       'email': email,
       'password': password,
       'full_name': fullName,
+      'terms_accepted': termsAccepted,
       if (phone != null && phone.isNotEmpty) 'phone': phone,
     });
   }
@@ -126,10 +136,18 @@ class CentralAuthClient {
   }
 
   Map<String, dynamic> _decode(http.Response response) {
-    final decoded = jsonDecode(response.body);
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } on FormatException {
+      if (response.statusCode >= 400) {
+        throw CentralAuthException(response.statusCode, 'Merkezi auth isteği başarısız');
+      }
+      rethrow;
+    }
     final map = decoded is Map<String, dynamic> ? decoded : {'data': decoded};
     if (response.statusCode >= 400) {
-      throw Exception(map['detail']?.toString() ?? 'Merkezi auth istegi basarisiz');
+      throw CentralAuthException(response.statusCode, map['detail']?.toString() ?? 'Merkezi auth istegi basarisiz');
     }
     return map;
   }

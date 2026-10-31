@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/mappers/location_mapper.dart';
 import '../../../core/theme/futuristic_theme.dart';
@@ -23,10 +24,11 @@ import '../../../widgets/cyber/cyber_shimmer_loading.dart';
 /// atanamaz). İşlemdeki taleplerde personelin saha adımı (harekete geçti, araç
 /// başında, kurumsal ekspertizde) canlı görünür.
 class AracOperasyonu extends StatefulWidget {
-  const AracOperasyonu({super.key, this.apiService});
+  const AracOperasyonu({super.key, this.apiService, this.openListing});
 
   /// Testler için enjekte edilebilir.
   final YerimebakExpertizApiService? apiService;
+  final Future<bool> Function(Uri)? openListing;
 
   @override
   State<AracOperasyonu> createState() => _AracOperasyonuState();
@@ -442,6 +444,11 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
 
   void _showDetail(Map<String, dynamic> request) {
     final vehicle = _map(request['vehicle']);
+    final listingUrl = (vehicle['listing_url'] ?? '').toString().trim();
+    final listingUri = Uri.tryParse(listingUrl.contains('://') ? listingUrl : 'https://$listingUrl');
+    final canOpenListing = listingUrl.isNotEmpty && listingUri != null &&
+        (listingUri.scheme == 'https' || listingUri.scheme == 'http') &&
+        listingUri.host.isNotEmpty && listingUri.userInfo.isEmpty;
     final customer = _map(request['customer']);
     final assignment = _map(request['assignment']);
     final history = (assignment['history'] as List? ?? const []).whereType<Map>().toList();
@@ -473,7 +480,32 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
             const SizedBox(height: 16),
             _detailRow('Durum', _statusOf(request).label),
             _detailRow('Plaka', _orDash(vehicle['plate'])),
+            _detailRow('Marka', _orDash(vehicle['brand'])),
+            _detailRow('Model', _orDash(vehicle['model'])),
             _detailRow('İlan', _orDash(vehicle['listing_url'])),
+            if (canOpenListing)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  key: const Key('openListingButton'),
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('İlanı aç'),
+                  onPressed: () async {
+                    bool opened;
+                    try {
+                      opened = await (widget.openListing?.call(listingUri) ??
+                          launchUrl(listingUri, mode: LaunchMode.externalApplication, webOnlyWindowName: '_blank'));
+                    } catch (_) {
+                      opened = false;
+                    }
+                    if (!opened && mounted) {
+                      ScaffoldMessenger.of(this.context).showSnackBar(const SnackBar(
+                        content: Text('İlan açılamadı. Yukarıdaki bağlantıyı kopyalayıp tarayıcıda açabilirsiniz.'),
+                      ));
+                    }
+                  },
+                ),
+              ),
             _detailRow('Müşteri', _orDash(customer['name'])),
             _detailRow('Telefon', _orDash(customer['phone'])),
             _detailRow('E-posta', _orDash(customer['email'])),

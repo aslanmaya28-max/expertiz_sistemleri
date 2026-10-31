@@ -252,7 +252,7 @@ class UserModel extends Equatable {
 
   /// Get initials for avatar
   String get initials {
-    final parts = fullName.split(' ');
+    final parts = fullName.trim().split(RegExp(r'\s+')).where((part) => part.isNotEmpty).toList();
     if (parts.length >= 2) {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     } else if (parts.length == 1) {
