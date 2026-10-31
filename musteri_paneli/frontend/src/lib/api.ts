@@ -419,6 +419,9 @@ export interface ValuationPrefill {
   success: boolean;
   found: boolean;
   listing_id?: number;
+  /** Kisa link (shbd.io) cozulduyse asil ilan adresi */
+  url?: string;
+  source?: "arabam" | "sahibinden" | null;
   vehicle: VehicleInput & { title?: string; image_url?: string; location?: string };
   parts: Record<string, PartStatus>;
   message: string;

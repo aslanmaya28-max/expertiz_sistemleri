@@ -183,7 +183,13 @@ class AIAnalysisWorker:
                             model = model or (fetched.get("model") or "")
                             ilan_cekimi = {"durum": "cekildi", "listing_id": listing_id}
                         else:
-                            ilan_cekimi = {"durum": "bulunamadi" if market_ingest.apify_service.enabled() else "kapali"}
+                            from yerimebak_ai_v5.services import listing_links
+
+                            if not listing_links.can_fetch(vehicle_info["listing_url"]):
+                                durum = "desteklenmiyor"  # sahibinden vb.: emsaller yine arabam.com'dan
+                            else:
+                                durum = "bulunamadi" if market_ingest.apify_service.enabled() else "kapali"
+                            ilan_cekimi = {"durum": durum}
                     except Exception as exc:
                         logger.warning(f"[AI WORKER] Ilan cekilemedi ({report_id}): {exc}")
                         ilan_cekimi = {"durum": "hata", "hata": str(exc)[:300]}

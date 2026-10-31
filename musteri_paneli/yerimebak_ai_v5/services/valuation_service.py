@@ -94,23 +94,66 @@ def _known_brands() -> List[str]:
         DatabaseConfig.return_connection(conn)
 
 
+def _known_models(brand: str) -> List[str]:
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT DISTINCT model FROM listings WHERE lower(brand) = lower(%s) AND model IS NOT NULL AND model <> ''",
+            (brand,),
+        )
+        return [str(dict(r)["model"]) for r in cursor.fetchall()]
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
+def _slug(text: str) -> List[str]:
+    text = (text or "").lower()
+    for src, dst in (("ç", "c"), ("ğ", "g"), ("ı", "i"), ("i̇", "i"), ("ö", "o"), ("ş", "s"), ("ü", "u")):
+        text = text.replace(src, dst)
+    return [t for t in re.split(r"[^a-z0-9]+", text) if t]
+
+
+def _find(tokens: List[str], words: List[str], start: int = 0) -> Optional[int]:
+    for i in range(start, len(tokens) - len(words) + 1):
+        if words and tokens[i:i + len(words)] == words:
+            return i
+    return None
+
+
 def _guess_from_slug(url: str) -> Dict[str, Any]:
-    """Ilan veritabaninda yoksa linkteki metinden marka/model/yil tahmini (musteri dogrular)."""
-    path = urlsplit(normalize_url(url)).path.lower()
-    tokens = [t for t in re.split(r"[^a-z0-9]+", path) if t]
+    """Ilan veritabaninda yoksa linkteki metinden marka/model/yil tahmini (musteri dogrular).
+
+    arabam.com ve sahibinden.com ilan adresleri basliktan uretilir, ör.
+    sahibinden.com/ilan/vasita-otomobil-renault-clio-1.0-tce-touch-2019-1234567890/detay
+    """
+    tokens = _slug(urlsplit(normalize_url(url)).path)
     guess: Dict[str, Any] = {}
+    used: set = set()
     for brand in sorted(_known_brands(), key=len, reverse=True):
-        slug = re.sub(r"[^a-z0-9]+", "-", brand.lower()).strip("-")
-        parts = slug.split("-")
-        for i in range(len(tokens) - len(parts) + 1):
-            if tokens[i:i + len(parts)] == parts:
-                guess["brand"] = brand
-                if i + len(parts) < len(tokens):
-                    guess["model"] = tokens[i + len(parts)].capitalize()
+        words = _slug(brand)
+        i = _find(tokens, words)
+        if i is None:
+            continue
+        guess["brand"] = brand
+        used.update(range(i, i + len(words)))
+        after = i + len(words)
+        # Bilinen modellerden en uzun eslesen (ör. "3 Serisi", "C-Elysee"), yoksa markadan sonraki kelime
+        for model in sorted(_known_models(brand), key=lambda m: len(_slug(m)), reverse=True):
+            m_words = _slug(model)
+            j = _find(tokens, m_words, after)
+            if j is not None:
+                guess["model"] = model
+                used.update(range(j, j + len(m_words)))
                 break
-        if guess:
-            break
-    year = next((int(t) for t in tokens if t.isdigit() and 1990 <= int(t) <= datetime.now().year + 1), None)
+        else:
+            if after < len(tokens):
+                guess["model"] = tokens[after].capitalize()
+                used.add(after)
+        break
+    # Model adindaki sayilar (Peugeot 2008) ve ilan numarasi yil sayilmaz
+    year = next((int(t) for k, t in enumerate(tokens)
+                 if k not in used and len(t) == 4 and t.isdigit() and 1990 <= int(t) <= datetime.now().year + 1), None)
     if year:
         guess["year"] = year
     return guess
@@ -139,12 +182,17 @@ def _paint_to_parts(paint_info: Any) -> Dict[str, str]:
 
 
 def prefill_from_link(url: str) -> Dict[str, Any]:
+    from yerimebak_ai_v5.services import listing_links
+
     if not normalize_url(url):
         return _error("Geçerli bir ilan linki girin")
+    # shbd.io gibi kisa linkler once asil ilan adresine cevrilir
+    if listing_links.is_short_link(url):
+        url = listing_links.resolve_short_link(url)
     listing = _listing_by_url(url)
     fetch_error = None
-    if not listing:
-        # Ilan sistemde yoksa Apify ile o an cekilir (arabam.com / Borusan Next)
+    if not listing and listing_links.can_fetch(url):
+        # Ilan sistemde yoksa Apify ile o an cekilir (yalnizca arabam.com)
         from yerimebak_ai_v5.services import apify_service, market_ingest
 
         if apify_service.enabled():
@@ -159,6 +207,7 @@ def prefill_from_link(url: str) -> Dict[str, Any]:
             "success": True,
             "found": True,
             "listing_id": listing["id"],
+            "url": normalize_url(url),
             "vehicle": {
                 "brand": listing.get("brand"), "model": listing.get("model"), "year": listing.get("year"),
                 "km": listing.get("km"), "price": listing.get("price"), "fuel": listing.get("fuel"),
@@ -168,12 +217,22 @@ def prefill_from_link(url: str) -> Dict[str, Any]:
             "parts": _paint_to_parts(listing.get("paint_info")),
             "message": "İlan sistemimizde bulundu; bilgileri kontrol edip eksikleri tamamlayın.",
         }
+    source = listing_links.link_source(url)
+    if listing_links.is_short_link(url):
+        message = "Kısa link açılamadı; araç bilgilerini elle girin."
+    elif source == "sahibinden":
+        message = ("Sahibinden ilanının bilgilerini linkten tahmin ettik; kontrol edin. "
+                   "Yıl, km, fiyat, boya-değişen ve tramer bilgisini ilandan bakarak girin.")
+    else:
+        message = fetch_error or "İlan sistemimizde yok; linkten tahmin edilen bilgileri kontrol edip eksikleri elle girin."
     return {
         "success": True,
         "found": False,
+        "source": source,
+        "url": normalize_url(url),
         "vehicle": _guess_from_slug(url),
         "parts": {},
-        "message": fetch_error or "İlan sistemimizde yok; linkten tahmin edilen bilgileri kontrol edip eksikleri elle girin.",
+        "message": message,
     }
 
 

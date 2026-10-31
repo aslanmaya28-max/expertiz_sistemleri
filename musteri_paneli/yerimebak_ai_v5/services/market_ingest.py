@@ -266,7 +266,10 @@ def refresh_comparables(brand: str, model: str, year: Optional[int]) -> Dict[str
 
 def fetch_listing(url: str) -> Optional[Dict[str, Any]]:
     """Musterinin paylastigi ilani Apify ile ceker ve kaydeder (status='talep')."""
-    if not apify_service.enabled():
+    from yerimebak_ai_v5.services import listing_links
+
+    # Actor yalnizca arabam.com okur; sahibinden vb. icin bosuna (ucretli) calistirilmaz
+    if not apify_service.enabled() or not listing_links.can_fetch(url):
         return None
     result = apify_service.run_actor({"mode": "ilan", "url": url}, timeout_s=int(os.getenv("APIFY_LISTING_TIMEOUT_S") or 180))
     saved = upsert_listings(result["items"], status="talep")
