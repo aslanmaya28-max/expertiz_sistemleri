@@ -28,20 +28,23 @@
       "title": "Marka (mod: emsal)",
       "type": "string",
       "editor": "textfield",
-      "example": "Fiat"
+      "example": "Fiat",
+      "description": "Aranacak aracın markası, ör. Fiat"
     },
     "model": {
       "title": "Model / seri (mod: emsal)",
       "type": "string",
       "editor": "textfield",
-      "example": "Egea"
+      "example": "Egea",
+      "description": "Aranacak aracın modeli veya serisi, ör. Egea"
     },
     "year": {
       "title": "Model yılı (mod: emsal)",
       "type": "integer",
       "minimum": 1990,
       "maximum": 2035,
-      "example": 2020
+      "example": 2020,
+      "description": "Aracın model yılı; arama bu yıl ± yıl aralığında yapılır"
     },
     "yearWindow": {
       "title": "Yıl aralığı (±)",
