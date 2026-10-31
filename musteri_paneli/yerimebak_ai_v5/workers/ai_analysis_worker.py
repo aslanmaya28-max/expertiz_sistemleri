@@ -189,6 +189,18 @@ class AIAnalysisWorker:
                 package=paket,
             )
 
+            # 5'ten az emsal: yapay zekadan (DeepSeek) etiketli fiyat tahmini; admin onayindan once kontrol edilir
+            if market_reference.get("source") != "listings":
+                from yerimebak_ai_v5.services import ai_price_estimate
+
+                tahmin = ai_price_estimate.estimate({
+                    "brand": brand, "model": model, "year": year, "package": paket, "km": km,
+                    "fuel": vehicle_info.get("yakit"), "transmission": vehicle_info.get("sanziman"),
+                })
+                if tahmin:
+                    market_reference = ai_price_estimate.to_reference(tahmin, market_reference)
+                    market_reference["package"] = paket
+
             degerleme = evaluate(
                 vehicle_info.get("tam_rapor") or {},
                 market_reference,
