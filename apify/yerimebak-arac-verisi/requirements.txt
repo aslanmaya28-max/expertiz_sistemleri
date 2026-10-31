@@ -1,0 +1,3 @@
+# Playwright temel imajda kurulu ve tarayiciyla eslesik; burada tekrar sabitlenmez.
+apify>=4.2,<5
+pydantic>=2.5

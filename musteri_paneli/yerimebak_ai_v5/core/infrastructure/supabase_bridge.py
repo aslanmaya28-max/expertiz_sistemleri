@@ -140,6 +140,7 @@ class SupabaseBridge:
             "user_id": str(user_id) if user_id else None,
             "tam_rapor": tam_rapor,
             "listing_id": vehicle_snapshot.get("listing_id"),
+            "listing_url": vehicle_snapshot.get("listing_url") or "",
             "brand": vehicle_snapshot.get("marka", ""),
             "model": vehicle_snapshot.get("model", ""),
             "year": vehicle_snapshot.get("yil"),

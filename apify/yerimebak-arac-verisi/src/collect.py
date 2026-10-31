@@ -1,0 +1,248 @@
+"""Ilan toplama mantigi (Apify SDK'dan bagimsiz; testlerde dogrudan kullanilir).
+
+Kaziyici kodu musteri_paneli/yerimebak_ai_v5'ten vendor/ klasorune kopyalanir
+(musteri_paneli/scripts/apify_sync.py). Cikti, YerimeBak backend'inin
+market_ingest servisinin bekledigi tek bicimdir.
+"""
+from __future__ import annotations
+
+import math
+import re
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
+
+VENDOR = Path(__file__).resolve().parent.parent / "vendor"
+if str(VENDOR) not in sys.path:
+    sys.path.insert(0, str(VENDOR))
+
+UNKNOWN = {"", "bilinmiyor", "bilinmeyen", "unknown", "none"}
+
+
+def detect_source(url: str) -> Optional[str]:
+    host = (urlparse(url or "").hostname or "").lower()
+    if host == "arabam.com" or host.endswith(".arabam.com"):
+        return "arabam"
+    if host == "borusannext.com" or host.endswith(".borusannext.com"):
+        return "borusan"
+    return None
+
+
+def _enum(value: Any) -> Any:
+    value = getattr(value, "value", value)
+    if isinstance(value, str) and value.strip().lower() in UNKNOWN:
+        return None
+    return value
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _int(value: Any) -> Optional[int]:
+    if value in (None, ""):
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    digits = re.sub(r"[^\d]", "", str(value))
+    return int(digits) if digits else None
+
+
+_LABELS = {
+    "brand": r"Marka",
+    "series": r"Seri",
+    "model": r"Model",
+    "year": r"Y[ıi]l",
+    "km": r"Kilometre|KM",
+    "price": r"Fiyat",
+}
+
+
+def parse_identity(text: str) -> Dict[str, Any]:
+    """Detay sayfasi metnindeki 'Marka / Seri / Model / Yil' satirlarini okur."""
+    out: Dict[str, Any] = {}
+    for key, label in _LABELS.items():
+        match = re.search(rf"(?:^|\n)\s*(?:{label})\s*[:\n]\s*([^\n]+)", text or "")
+        if match:
+            out[key] = match.group(1).strip()
+    for key in ("year", "km", "price"):
+        if key in out:
+            out[key] = _int(out[key])
+    if out.get("year") and not (1950 <= out["year"] <= 2100):
+        out.pop("year")
+    return out
+
+
+def from_arabam(listing: Any, identity: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    identity = identity or {}
+    paint = listing.paint_info
+    brand = listing.brand if listing.brand not in ("Bilinmeyen", None, "") else identity.get("brand")
+    model = listing.model if listing.model not in ("Bilinmeyen", None, "") else (identity.get("series") or identity.get("model"))
+    year = listing.year or identity.get("year")
+    return {
+        "source": "arabam",
+        "url": listing.url,
+        "listing_id": listing.listing_id,
+        "title": listing.title,
+        "brand": brand,
+        "model": model,
+        "package": identity.get("model") if identity.get("series") else None,
+        "year": year or None,
+        "km": listing.km,
+        "price": listing.price,
+        "fuel": _enum(listing.fuel_type),
+        "transmission": _enum(listing.gear_type),
+        "color": _enum(listing.color),
+        "location": listing.location,
+        "listing_date": listing.listing_date,
+        "image_url": listing.image_url,
+        "paint_info": {
+            "has_paint": bool(paint.has_paint),
+            "has_changed": bool(paint.has_changed),
+            "is_original": bool(paint.is_original),
+            "status": _enum(paint.status),
+            "painted_parts": list(paint.painted_parts or []),
+            "local_painted_parts": list(paint.local_paint_parts or []),
+            "changed_parts": list(paint.changed_parts or []),
+            "paint_count": int(paint.paint_count or 0),
+            "changed_count": int(paint.changed_count or 0),
+        },
+        "observed_at": _now(),
+    }
+
+
+def from_borusan(vehicle: Dict[str, Any]) -> Dict[str, Any]:
+    paint = vehicle.get("paint_info") if isinstance(vehicle.get("paint_info"), dict) else {}
+    return {
+        "source": "borusan",
+        "url": vehicle.get("url"),
+        "listing_id": vehicle.get("announcement_no"),
+        "title": vehicle.get("title"),
+        "brand": vehicle.get("brand") or None,
+        "model": vehicle.get("model") or None,
+        "package": vehicle.get("package") or vehicle.get("version") or None,
+        "year": _int(vehicle.get("year")),
+        "km": _int(vehicle.get("km")),
+        "price": _int(vehicle.get("price")),
+        "fuel": _enum(vehicle.get("fuel_type")),
+        "transmission": _enum(vehicle.get("gear_type")),
+        "color": _enum(vehicle.get("color")),
+        "location": vehicle.get("city") or vehicle.get("location"),
+        "listing_date": vehicle.get("listing_date"),
+        "image_url": vehicle.get("image_url"),
+        "accident_record": vehicle.get("accident_record"),
+        "paint_info": {
+            "has_paint": bool(paint.get("has_paint")),
+            "has_changed": bool(paint.get("has_changed")),
+            "is_original": bool(paint) and not paint.get("has_paint") and not paint.get("has_changed"),
+            "status": paint.get("status"),
+            "painted_parts": list(paint.get("painted_parts") or []),
+            "local_painted_parts": list(paint.get("local_painted_parts") or []),
+            "changed_parts": list(paint.get("changed_parts") or []),
+            "paint_count": len(paint.get("painted_parts") or []),
+            "changed_count": len(paint.get("changed_parts") or []),
+        } if paint else None,
+        "observed_at": _now(),
+    }
+
+
+async def fetch_arabam_listing(url: str) -> List[Dict[str, Any]]:
+    from yerimebak_ai_v5.scrapers.arabam_v4.core.browser_manager import BrowserManager
+    from yerimebak_ai_v5.scrapers.arabam_v4.scrapers.arabam_scraper import ArabamScraper
+
+    scraper = ArabamScraper(headless=True, max_listings=1, enable_pagination=False)
+    manager = BrowserManager(headless=True)
+    await manager.initialize()
+    try:
+        page = await manager.create_page()
+        await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        await scraper._handle_popups(page)
+        text = await page.inner_text("body")
+        identity = parse_identity(text)
+        title = (await page.title() or "").split("|")[0].strip()
+        link_info = {
+            "url": url,
+            "title": title or url,
+            "brand": identity.get("brand") or "Bilinmeyen",
+            "model": identity.get("series") or identity.get("model") or "Bilinmeyen",
+            "year": identity.get("year") or 0,
+        }
+        listing = await scraper._extract_listing_detail(page, link_info)
+        return [from_arabam(listing, identity)] if listing else []
+    finally:
+        await manager.close()
+
+
+async def fetch_borusan_listing(url: str) -> List[Dict[str, Any]]:
+    from playwright.async_api import async_playwright
+    from yerimebak_ai_v5.scrapers.borusan_smart import BorusanSmartScraper
+
+    scraper = BorusanSmartScraper(headless=True)
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        try:
+            context = await browser.new_context(locale="tr-TR", viewport={"width": 1920, "height": 1080})
+            page = await context.new_page()
+            await page.goto(url, wait_until="networkidle", timeout=35000)
+            raw = await page.evaluate(
+                "() => { const pp = window.__NEXT_DATA__?.props?.pageProps || {};"
+                " return pp.vehicle || pp.car || pp.data || pp.listing || null; }"
+            )
+            await page.close()
+            vehicle = scraper._parse_next_data_vehicle(raw) if isinstance(raw, dict) else None
+            vehicle = dict(vehicle or {"url": url})
+            vehicle["url"] = url
+            vehicle.update(await scraper._fetch_vehicle_details(context, url))
+        finally:
+            await browser.close()
+    return [from_borusan(vehicle)] if vehicle.get("price") or vehicle.get("km") else []
+
+
+async def search_comparables(inp: Dict[str, Any]) -> List[Dict[str, Any]]:
+    brand = str(inp.get("brand") or "").strip()
+    model = str(inp.get("model") or "").strip()
+    year = _int(inp.get("year"))
+    if not brand or not model or not year:
+        raise ValueError("Emsal aramasi icin marka, model ve yil zorunludur")
+    window = max(0, min(3, _int(inp.get("yearWindow")) if inp.get("yearWindow") is not None else 1))
+    max_items = max(1, min(120, _int(inp.get("maxItems")) or 36))
+    years = list(range(year - window, year + window + 1))
+
+    if (inp.get("source") or "arabam") == "borusan":
+        from yerimebak_ai_v5.scrapers.borusan_smart import BorusanSmartScraper
+
+        vehicles = await BorusanSmartScraper(headless=True).collect_data(
+            brand=brand, year_min=years[0], year_max=years[-1], model=model
+        )
+        return [from_borusan(v) for v in vehicles[:max_items] if v.get("price")]
+
+    from yerimebak_ai_v5.scrapers.arabam_v4.scrapers.arabam_scraper import ArabamScraper
+
+    per_year = max(1, math.ceil(max_items / len(years)))
+    items: List[Dict[str, Any]] = []
+    seen = set()
+    for y in years:
+        result = await ArabamScraper(headless=True, max_listings=per_year, max_pages=2).search(brand, model, y)
+        for listing in result.listings:
+            if listing.url in seen:
+                continue
+            seen.add(listing.url)
+            items.append(from_arabam(listing))
+    return items[:max_items]
+
+
+async def collect(inp: Dict[str, Any]) -> List[Dict[str, Any]]:
+    mode = inp.get("mode") or "emsal"
+    if mode == "ilan":
+        url = str(inp.get("url") or "").strip()
+        source = detect_source(url)
+        if source == "arabam":
+            return await fetch_arabam_listing(url)
+        if source == "borusan":
+            return await fetch_borusan_listing(url)
+        raise ValueError("Yalnizca arabam.com ve borusannext.com ilan linkleri desteklenir")
+    if mode == "emsal":
+        return await search_comparables(inp)
+    raise ValueError(f"Bilinmeyen mod: {mode}")
