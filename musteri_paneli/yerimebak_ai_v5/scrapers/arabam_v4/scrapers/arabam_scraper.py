@@ -27,7 +27,8 @@ from ..utils.url_builder import ArabamURLBuilder
 from ..utils.pagination_handler import PaginationHandler
 from ..extractors.paint_extractor import PaintExtractor
 from ..extractors.package_extractor import PackageExtractor
-from ..extractors.damage_extractor import DamageExtractor
+from ..extractors.damage_extractor import parse_damage_record
+from ..extractors.identity_extractor import package_from_title, parse_identity
 from ..extractors.selectors import ArabamSelectors
 
 import logging
@@ -515,14 +516,19 @@ class ArabamScraper:
                 from ..models.enums import PaintStatus
                 paint_info = PaintInfo(status=PaintStatus.UNKNOWN)
             
-            # Hasar kaydi (tramer) / agir hasar - satici beyani
-            damage = {}
+            # Sayfa metni: hasar kaydi (tramer / agir hasar) ve paket (Seri / Model satirlari)
+            damage, identity = {}, {}
             try:
-                damage = await DamageExtractor(page).extract()
+                body_text = await page.inner_text("body")
+                damage = parse_damage_record(body_text)
+                identity = parse_identity(body_text)
                 logger.info(f"    🧾 Hasar kaydı: tramer={damage.get('tramer_tl')} yok={damage.get('tramer_yok')} "
-                            f"ağır={damage.get('agir_hasar')}")
+                            f"ağır={damage.get('agir_hasar')} | paket={identity.get('model')}")
             except Exception as e:
-                logger.warning(f"    ⚠️ Hasar kaydı çıkarılamadı: {str(e)[:50]}")
+                logger.warning(f"    ⚠️ Hasar kaydı / paket çıkarılamadı: {str(e)[:50]}")
+            trim = identity.get('model') if identity.get('series') else None
+            if not trim:
+                trim = package_from_title(title, brand, model)
 
             # Package info
             package_info = None
@@ -581,6 +587,8 @@ class ArabamScraper:
                 image_url=image_url,  # KRİTİK - Dashboard için
                 location=location,  # İl/İlçe bilgisi
                 listing_date=listing_date,  # İlan tarihi
+                series=identity.get('series'),
+                trim=trim,
                 tramer_amount=damage.get('tramer_tl'),
                 no_damage_record=damage.get('tramer_yok'),
                 heavy_damage=damage.get('agir_hasar'),

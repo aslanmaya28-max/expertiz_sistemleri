@@ -48,29 +48,11 @@ def _int(value: Any) -> Optional[int]:
     return int(digits) if digits else None
 
 
-_LABELS = {
-    "brand": r"Marka",
-    "series": r"Seri",
-    "model": r"Model",
-    "year": r"Y[ıi]l",
-    "km": r"Kilometre|KM",
-    "price": r"Fiyat",
-}
-
-
 def parse_identity(text: str) -> Dict[str, Any]:
-    """Detay sayfasi metnindeki 'Marka / Seri / Model / Yil' satirlarini okur."""
-    out: Dict[str, Any] = {}
-    for key, label in _LABELS.items():
-        match = re.search(rf"(?:^|\n)\s*(?:{label})\s*[:\n]\s*([^\n]+)", text or "")
-        if match:
-            out[key] = match.group(1).strip()
-    for key in ("year", "km", "price"):
-        if key in out:
-            out[key] = _int(out[key])
-    if out.get("year") and not (1950 <= out["year"] <= 2100):
-        out.pop("year")
-    return out
+    """Detay sayfasi metnindeki 'Marka / Seri / Model / Yil' satirlari (kaziyicidaki ortak kod)."""
+    from yerimebak_ai_v5.scrapers.arabam_v4.extractors.identity_extractor import parse_identity as _parse
+
+    return _parse(text)
 
 
 def from_arabam(listing: Any, identity: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -85,7 +67,10 @@ def from_arabam(listing: Any, identity: Optional[Dict[str, Any]] = None) -> Dict
         "kaynak_metin": listing.damage_text,
     }
     brand = listing.brand if listing.brand not in ("Bilinmeyen", None, "") else identity.get("brand")
-    model = listing.model if listing.model not in ("Bilinmeyen", None, "") else (identity.get("series") or identity.get("model"))
+    model = listing.model if listing.model not in ("Bilinmeyen", None, "") else (
+        listing.series or identity.get("series") or identity.get("model")
+    )
+    package = listing.trim or (identity.get("model") if identity.get("series") else None)
     year = listing.year or identity.get("year")
     return {
         "source": "arabam",
@@ -94,7 +79,7 @@ def from_arabam(listing: Any, identity: Optional[Dict[str, Any]] = None) -> Dict
         "title": listing.title,
         "brand": brand,
         "model": model,
-        "package": identity.get("model") if identity.get("series") else None,
+        "package": package,
         "year": year or None,
         "km": listing.km,
         "price": listing.price,
