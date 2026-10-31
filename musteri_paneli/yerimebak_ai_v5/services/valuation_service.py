@@ -129,7 +129,8 @@ def _paint_to_parts(paint_info: Any) -> Dict[str, str]:
         return {}
     labels = {v.lower(): k for k, v in PART_LABELS.items()}
     parts: Dict[str, str] = {}
-    for status, key in (("lokal_boyali", "local_painted_parts"), ("boyali", "painted_parts"), ("degisen", "changed_parts")):
+    # painted_parts lokal boyalilari da icerir; lokal bilgisi ezilmesin diye boyali once islenir
+    for status, key in (("boyali", "painted_parts"), ("lokal_boyali", "local_painted_parts"), ("degisen", "changed_parts")):
         for label in paint_info.get(key) or []:
             part = labels.get(str(label).strip().lower())
             if part:

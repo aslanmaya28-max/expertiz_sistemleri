@@ -21,9 +21,11 @@ _AMOUNT = re.compile(
     re.IGNORECASE,
 )
 _AMOUNT_AFTER = re.compile(r"(\d{1,3}(?:[.\s]\d{3})+|\d{3,7})\s*(?:TL|₺)\s*(?:tramer|hasar\s*kayd)", re.IGNORECASE)
+_NO_HEAVY = re.compile(rf"A[ğg]{_I}r\s*hasar\s*(?:kayd{_I}\s*)?(?:yok|bulunmamaktad{_I}r|yoktur)", re.IGNORECASE)
+# "Ağır hasar kaydı yok" tramer kaydının olmadığı anlamına gelmez; bu yüzden "ağır" ile başlayanlar hariç.
 _NONE = re.compile(
-    rf"tramer\s*(?:kayd{_I}\s*)?(?:yok|bulunmamaktad{_I}r|yoktur|0\s*(?:TL|₺))|tramersiz|"
-    rf"hasar\s*kayd{_I}\s*(?:yok|bulunmamaktad{_I}r|yoktur)",
+    rf"tramer\s*(?:kayd{_I}\s*|tutar{_I}\s*)?[:\n\-=]?\s*(?:yok|bulunmamaktad{_I}r|yoktur|0\s*(?:TL|₺))|tramersiz|"
+    rf"(?<!A[ğg]{_I}r\s)hasar\s*kayd{_I}\s*[:\n\-=]?\s*(?:yok|bulunmamaktad{_I}r|yoktur)",
     re.IGNORECASE,
 )
 
@@ -41,6 +43,8 @@ def parse_damage_record(text: str) -> Dict[str, Any]:
     if heavy:
         out["agir_hasar"] = heavy.group(1).strip().lower() in ("evet", "var")
         out["kaynak_metin"] = heavy.group(0).strip()
+    elif _NO_HEAVY.search(text):
+        out["agir_hasar"] = False
 
     amount = _AMOUNT.search(text) or _AMOUNT_AFTER.search(text)
     if amount:

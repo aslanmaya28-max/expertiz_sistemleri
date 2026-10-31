@@ -132,6 +132,11 @@ def test_valuation_criteria_table():
     ("TRAMERSİZ", None, True, None),
     ("Ağır Hasar Kayıtlı: Evet", None, None, True),
     ("Model yılı 2019, 72.000 km", None, None, None),
+    # "Ağır hasar kaydı yok" tramer kaydı yok demek değildir
+    ("Ağır hasar kaydı yoktur.", None, None, False),
+    ("Tramer tutarı\n0 TL", None, True, None),
+    ("Tramer tutarı\n23.400 TL", 23400, False, None),
+    ("Tramer tutarı\nBelirtilmemiş", None, None, None),
 ])
 def test_damage_record_parsing(text, tramer, yok, agir):
     from yerimebak_ai_v5.scrapers.arabam_v4.extractors.damage_extractor import damage_summary, parse_damage_record
@@ -140,6 +145,70 @@ def test_damage_record_parsing(text, tramer, yok, agir):
     assert (rec["tramer_tl"], rec["tramer_yok"], rec["agir_hasar"]) == (tramer, yok, agir)
     summary = damage_summary(rec)
     assert (summary is None) == (not tramer and not agir)
+
+
+# arabam.com "Boya, Değişen ve Tramer" bölümünün sayfa metni (önce parçasız şema lejantı gelir)
+_PAINT_SECTION = """Araç Bilgileri
+Boyalı ve değişen parçaları görmek için şemaya bakın
+Boya, Değişen ve Tramer
+Orijinal
+Boyalı
+Lokal boyalı
+Değişmiş
+Belirtilmemiş
+Orijinal
+Tavan
+Sol Ön Kapı
+Lokal boyalı
+Sağ Ön Kapı
+Boyalı
+Motor Kaputu
+Arka Kaput
+Değişmiş
+Ön Tampon
+Belirtilmemiş
+Sol Arka Çamurluk
+Tramer tutarı
+12.500 TL
+Açıklama
+Değişen yok demiştim, boyalı parça var."""
+
+
+def test_paint_section_parsing():
+    from yerimebak_ai_v5.scrapers.arabam_v4.extractors.paint_extractor import parse_paint_section
+
+    p = parse_paint_section(_PAINT_SECTION)
+    assert p["section_found"]
+    assert p["painted_parts"] == ["Motor Kaputu", "Bagaj Kapağı", "Sağ Ön Kapı"]
+    assert p["local_paint_parts"] == ["Sağ Ön Kapı"]
+    assert p["changed_parts"] == ["Ön Tampon"]
+    assert p["original_parts"] == ["Tavan", "Sol Ön Kapı"]
+    assert p["unknown_parts"] == ["Sol Arka Çamurluk"] and p["is_original"] is False
+
+
+@pytest.mark.parametrize("text,painted,changed,original", [
+    # Tamamı orijinal
+    ("Boya, Değişen ve Tramer\nOrijinal\nMotor Kaputu\nTavan\nÖn Tampon", [], [], True),
+    # Tablo satırı ve "Durum: parça, parça" biçimleri, büyük harf
+    ("BOYA, DEĞİŞEN VE TRAMER\nSOL ÖN ÇAMURLUK\tBOYALI\nDEĞİŞMİŞ: Bagaj Kapağı, Sağ Arka Kapı", ["Sol Ön Çamurluk"],
+     ["Bagaj Kapağı", "Sağ Arka Kapı"], False),
+    # Bölüm yoksa (veya yalnız lejant varsa) hiçbir şey uydurulmaz, orijinal de sayılmaz
+    ("İlan açıklaması: boyalı değişen yok, tramer yok", [], [], False),
+    ("Boya, Değişen ve Tramer\nOrijinal\nBoyalı\nDeğişmiş\nTramer tutarı\nBelirtilmemiş", [], [], False),
+])
+def test_paint_section_variants(text, painted, changed, original):
+    from yerimebak_ai_v5.scrapers.arabam_v4.extractors.paint_extractor import parse_paint_section
+
+    p = parse_paint_section(text)
+    assert (p["painted_parts"], p["changed_parts"], p["is_original"]) == (painted, changed, original)
+
+
+def test_listing_paint_maps_to_valuation_parts():
+    from yerimebak_ai_v5.services.valuation_service import _paint_to_parts
+
+    parts = _paint_to_parts({"painted_parts": ["Motor Kaputu", "Sağ Ön Kapı"], "local_painted_parts": ["Sağ Ön Kapı"],
+                             "changed_parts": ["Ön Tampon"]})
+    assert parts == {"kaput": "boyali", "sagOnKapi": "lokal_boyali", "onTampon": "degisen"}
 
 
 def test_actor_rejects_unsupported_link(collect):
