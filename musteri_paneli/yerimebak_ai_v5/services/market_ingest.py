@@ -256,9 +256,8 @@ def compare_declaration(
     declared_tramer = declared.get("tramerTl")
     if found_tramer > 0 and declared_tramer is not None and found_tramer > int(declared_tramer) * 1.1:
         beyan = "tramer kaydı yok" if not declared_tramer else f"{int(declared_tramer):,} TL tramer".replace(",", ".")
-        out["farklar"].append(
-            f"İlanda {beyan} beyan edilmiş, ekspertizde {found_tramer:,} TL hasar kaydı bulundu.".replace(",", ".")
-        )
+        bulunan = f"{found_tramer:,}".replace(",", ".")
+        out["farklar"].append(f"İlanda {beyan} beyan edilmiş, ekspertizde {bulunan} TL hasar kaydı bulundu.")
     out["uyumlu"] = not out["farklar"]
     out["ozet"] = (
         "İlan beyanı ekspertiz bulgularıyla uyumlu."

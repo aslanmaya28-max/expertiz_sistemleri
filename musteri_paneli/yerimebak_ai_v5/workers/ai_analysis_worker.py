@@ -168,6 +168,15 @@ class AIAnalysisWorker:
                 existing = market_ingest.declared_condition(None, vehicle_info.get("listing_url"))
                 if existing:
                     listing_id = existing["listing_id"]
+                    # Musteri yalnizca link ve marka/model verdiyse fiyat, km ve yil kayitli ilandan gelir
+                    from yerimebak_ai_v5.services.valuation_service import _listing_by_url
+
+                    saved = _listing_by_url(vehicle_info["listing_url"]) or {}
+                    price = price or float(saved.get("price") or 0)
+                    km = km or _to_int(saved.get("km"))
+                    year = year or _to_int(saved.get("year"))
+                    brand = brand or (saved.get("brand") or "")
+                    model = model or (saved.get("model") or "")
 
             if not brand or not model:
                 logger.error(f"[AI WORKER] Missing brand/model for {report_id}")

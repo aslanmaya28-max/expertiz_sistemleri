@@ -939,6 +939,7 @@ def test_link_request_saved_listing_and_comparables_valuation(client, admin_toke
     assert degerleme["degerlemeYapildi"] is True
     assert degerleme["boyaliParcaSayisi"] == 3 and degerleme["degisenParcaSayisi"] == 1
     assert degerleme["aiDegeri"] < degerleme["temizPiyasaDegeri"]
+    assert degerleme["ilanFiyati"] == 650000  # musteri fiyat girmedi: kayitli ilandan geldi
     karsilastirma = degerleme["ilanBeyaniKarsilastirma"]
     assert karsilastirma["ilanBeyaniVar"] is True and karsilastirma["uyumlu"] is False
     assert karsilastirma["ilanBeyani"] == {"boyali": 1, "degisen": 0, "hasarKaydi": None, "tramerTl": 0, "agirHasar": False,

@@ -163,7 +163,7 @@ def test_compare_declaration():
     ok = compare_declaration(declared, {"boyaliParcaSayisi": 1, "degisenParcaSayisi": 0})
     assert ok["uyumlu"] is True and ok["farklar"] == []
     tramer = compare_declaration({**declared, "tramerTl": 0}, {"boyaliParcaSayisi": 1}, ekspertiz_tramer_tl=18000)
-    assert tramer["uyumlu"] is False and "tramer kaydı yok" in tramer["farklar"][0] and "18.000 TL" in tramer["farklar"][0]
+    assert tramer["farklar"][0] == "İlanda tramer kaydı yok beyan edilmiş, ekspertizde 18.000 TL hasar kaydı bulundu."
     same = compare_declaration({**declared, "tramerTl": 18000}, {"boyaliParcaSayisi": 1}, ekspertiz_tramer_tl=18500)
     assert same["uyumlu"] is True
     unknown_tramer = compare_declaration({**declared, "tramerTl": None}, {"boyaliParcaSayisi": 1}, ekspertiz_tramer_tl=18000)
