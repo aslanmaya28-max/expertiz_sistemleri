@@ -283,9 +283,9 @@ def declared_condition(listing_id: Optional[int], url: Optional[str]) -> Optiona
         cursor = conn.cursor()
         _ensure_schema(cursor)
         if listing_id:
-            cursor.execute("SELECT id, url, source, price, paint_info, accident_record, damage_info FROM listings WHERE id = %s", (listing_id,))
+            cursor.execute("SELECT id, url, source, price, series, paint_info, accident_record, damage_info FROM listings WHERE id = %s", (listing_id,))
         else:
-            cursor.execute("SELECT id, url, source, price, paint_info, accident_record, damage_info FROM listings WHERE url = %s", (norm,))
+            cursor.execute("SELECT id, url, source, price, series, paint_info, accident_record, damage_info FROM listings WHERE url = %s", (norm,))
         row = cursor.fetchone()
         conn.commit()
     finally:
@@ -298,7 +298,7 @@ def declared_condition(listing_id: Optional[int], url: Optional[str]) -> Optiona
     except (TypeError, ValueError):
         paint = None
     if not isinstance(paint, dict):
-        return {"listing_id": row["id"], "url": row["url"], "known": False}
+        return {"listing_id": row["id"], "url": row["url"], "known": False, "paket": _clean_text(row.get("series"))}
     painted = list(paint.get("painted_parts") or [])
     changed = list(paint.get("changed_parts") or [])
     try:
@@ -311,6 +311,7 @@ def declared_condition(listing_id: Optional[int], url: Optional[str]) -> Optiona
         "url": row["url"],
         "source": row.get("source"),
         "known": True,
+        "paket": _clean_text(row.get("series")),
         "boyali": max(len(painted), int(paint.get("paint_count") or 0)),
         "degisen": max(len(changed), int(paint.get("changed_count") or 0)),
         "boyaliParcalar": painted,

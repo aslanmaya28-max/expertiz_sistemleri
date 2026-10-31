@@ -941,6 +941,16 @@ def test_link_request_apify_listing_and_comparables_valuation(client, admin_toke
                                            "url": "https://www.arabam.com/ilan/galeriden-satilik-renault-clio-1-0-tce-touch/test/9001"}
     assert len(karsilastirma["farklar"]) == 3 and "18.000 TL" in karsilastirma["farklar"][2]
     assert karsilastirma["ekspertiz"]["tramerTl"] == 18000
+    # Paket: musterinin ilani "1.0 TCe Touch"; daha pahali "1.3 TCe Icon" emsalleri kullanilmaz
+    assert ref["package"] == "1.0 TCe Touch" and ref["package_match"] is True
+    assert all("test-emsal-icon" not in (s.get("url") or "") for s in ref["samples"])
+    kriterler = {k["kriter"]: k for k in degerleme["degerlemeKriterleri"]}
+    assert list(kriterler) == ["Model", "Paket", "Kilometre", "Hasar kaydı (tramer)", "Değişen", "Boya", "Hasar"]
+    assert kriterler["Model"]["deger"] == "Renault Clio 2019"
+    assert kriterler["Paket"]["deger"] == "1.0 TCe Touch" and kriterler["Paket"]["eslesti"] is True
+    assert kriterler["Kilometre"]["deger"].startswith("72.000 km")
+    assert kriterler["Hasar kaydı (tramer)"]["deger"] == "18.000 TL" and kriterler["Hasar kaydı (tramer)"]["etki"]["yuzde"] > 0
+    assert kriterler["Değişen"]["deger"] == "1 parça" and kriterler["Boya"]["deger"] == "3 parça"
     # Tramerli emsaller temiz sayilmaz, agir hasarli emsal kullanilmaz
     conditions = {s["url"].rsplit("/", 1)[-1]: s["condition"] for s in ref["samples"]}
     assert conditions.get("9100") in (None, "damaged") and "9113" not in conditions
@@ -971,6 +981,7 @@ def test_link_request_apify_listing_and_comparables_valuation(client, admin_toke
     assert customer["status"] == "published"
     assert customer["summary"]["market_value"] == degerleme["aiDegeri"]
     assert customer["ai"]["ekspertizDegerleme"]["ilanBeyaniKarsilastirma"]["uyumlu"] is False
+    assert len(customer["ai"]["ekspertizDegerleme"]["degerlemeKriterleri"]) == 7
     assert len(customer["corporate_reports"]) == 1
 
 

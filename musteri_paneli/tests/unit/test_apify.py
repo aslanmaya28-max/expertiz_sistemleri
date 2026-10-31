@@ -84,6 +84,46 @@ def test_actor_maps_arabam_listing(collect):
     assert item["damage_record"]["tramer_tl"] == 12500 and item["accident_record"] == "Tramerli: 12500 TL"
 
 
+def test_identity_and_package_parsing():
+    from yerimebak_ai_v5.scrapers.arabam_v4.extractors.identity_extractor import package_from_title, parse_identity
+
+    text = "İlan No\n123\nMarka\nRenault\nSeri\nClio\nModel\n1.0 TCe Touch\nModel Yılı\n2019\nYıl: 2019\n"
+    ident = parse_identity(text)
+    assert ident["brand"] == "Renault" and ident["series"] == "Clio" and ident["model"] == "1.0 TCe Touch"
+    assert ident["year"] == 2019
+    assert package_from_title("Renault Clio 1.0 TCe Touch - Galeriden", "Renault", "Clio") == "1.0 TCe Touch"
+    assert package_from_title("Renault Clio", "Renault", "Clio") is None
+
+
+def test_valuation_criteria_table():
+    from yerimebak_ai_v5.services.valuation_criteria import build_criteria
+
+    degerleme = {
+        "kalemler": [
+            {"kategori": "kaporta", "baslik": "Kaput", "durum": "Boyalı", "yuzde": 2.5, "tutar": 16000},
+            {"kategori": "kaporta", "baslik": "Sol Ön Kapı", "durum": "Değişen", "yuzde": 5.0, "tutar": 32000},
+            {"kategori": "kaporta", "baslik": "Sağ Ön Kapı", "durum": "Lokal Boyalı", "yuzde": 0.6, "tutar": 4000},
+            {"kategori": "yapisal", "baslik": "Ön Şasi", "durum": "İşlemli", "yuzde": 6.0, "tutar": 38000},
+            {"kategori": "tramer", "baslik": "Tramer (hasar kaydı)", "durum": "18.000 TL", "yuzde": 1.5, "tutar": 9000},
+        ],
+        "piyasaDuzeltmeleri": [{"baslik": "Kilometre farkı", "yuzde": -1.2, "tutar": -8000, "aciklama": "Emsal medyan 57.000 km"}],
+    }
+    ref = {"found": True, "source": "listings", "count": 12, "clean_count": 8, "reference_median_km": 57000,
+           "scope": {"year_window": 1}, "package": "1.0 TCe Touch", "package_match": True}
+    rows = {r["kriter"]: r for r in build_criteria(
+        degerleme, ref, {"brand": "Renault", "model": "Clio", "year": 2019, "km": 72000, "paket": "1.0 TCe Touch"},
+        tramer_tl=18000)}
+    assert list(rows) == ["Model", "Paket", "Kilometre", "Hasar kaydı (tramer)", "Değişen", "Boya", "Hasar"]
+    assert rows["Paket"]["eslesti"] is True and "aynı paketten" in rows["Paket"]["aciklama"]
+    assert rows["Kilometre"]["etki"]["yuzde"] == -1.2 and "72.000 km" in rows["Kilometre"]["deger"]
+    assert rows["Hasar kaydı (tramer)"]["deger"] == "18.000 TL" and rows["Hasar kaydı (tramer)"]["etki"]["yuzde"] == 1.5
+    assert rows["Değişen"]["deger"] == "1 parça" and rows["Değişen"]["etki"]["tutar"] == 32000
+    assert rows["Boya"]["deger"] == "2 parça" and rows["Boya"]["etki"]["yuzde"] == 3.1
+    assert rows["Hasar"]["deger"] == "1 bulgu" and "Ön Şasi" in rows["Hasar"]["aciklama"]
+    unknown = {r["kriter"]: r for r in build_criteria({}, {}, {"brand": "Renault", "model": "Clio"})}
+    assert unknown["Paket"]["deger"] == "Bilinmiyor" and unknown["Model"]["aciklama"] == "Yeterli emsal bulunamadı"
+
+
 @pytest.mark.parametrize("text,tramer,yok,agir", [
     ("Açıklama\nTramer: 12.500 TL\nAğır Hasar Kayıtlı\nHayır", 12500, False, False),
     ("Hasar Kaydı (Tramer) 8.750,50 TL", 8750, False, None),

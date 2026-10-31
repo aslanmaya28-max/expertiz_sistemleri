@@ -195,6 +195,9 @@ class AIAnalysisWorker:
             emsal_cekimi = market_ingest.refresh_comparables(brand, model, year or None)
             if ilan_cekimi:
                 emsal_cekimi["ilan"] = ilan_cekimi
+            # Satici beyani + paket: musterinin ilanindan (arabam.com 'Model' satiri, ör. 1.0 TCe Touch)
+            beyan = market_ingest.declared_condition(listing_id, vehicle_info.get("listing_url"))
+            paket = (beyan or {}).get("paket")
 
             market_reference = get_market_reference_service().get_reference(
                 brand=brand,
@@ -205,6 +208,7 @@ class AIAnalysisWorker:
                 transmission=vehicle_info.get("sanziman"),
                 exclude_id=listing_id,
                 listed_price=price,
+                package=paket,
             )
 
             degerleme = evaluate(
@@ -217,9 +221,20 @@ class AIAnalysisWorker:
             # Ilanda satıcının beyan ettiği durum ↔ personel ekspertiz bulguları
             adim1 = (vehicle_info.get("tam_rapor") or {}).get("adim1") or {}
             degerleme["ilanBeyaniKarsilastirma"] = market_ingest.compare_declaration(
-                market_ingest.declared_condition(listing_id, vehicle_info.get("listing_url")),
+                beyan,
                 degerleme,
                 ekspertiz_tramer_tl=_to_float(adim1.get("hasarKayitToplamTutar")) if isinstance(adim1, dict) else None,
+            )
+            # Model / paket / km / hasar kaydi / degisen / boya / hasar: her kriterin degere etkisi
+            from yerimebak_ai_v5.services.valuation_criteria import build_criteria
+
+            degerleme["degerlemeKriterleri"] = build_criteria(
+                degerleme,
+                market_reference,
+                {"brand": brand, "model": model, "year": year,
+                 "km": _to_int(adim1.get("guncelKm")) if isinstance(adim1, dict) and adim1.get("guncelKm") else km,
+                 "paket": paket},
+                tramer_tl=_to_float(adim1.get("hasarKayitToplamTutar")) if isinstance(adim1, dict) else None,
             )
             market_reference["emsalCekimi"] = emsal_cekimi
 
