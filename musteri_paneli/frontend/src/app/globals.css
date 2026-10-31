@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --birincil: #14b8a6;
+  --birincil: #087c72;
   --birincil-koyu: #0f766e;
   --birincil-acik: #99f6e4;
   --metin-birincil: #0F172A;
   --metin-ikincil: #475569;
-  --arkaplan-acik: #FAFAFB;
+  --arkaplan-acik: #f6f7f4;
   --kenarlik-acik: #E2E8F0;
   --basarili: #22c55e;
   --tehlike: #ef4444;

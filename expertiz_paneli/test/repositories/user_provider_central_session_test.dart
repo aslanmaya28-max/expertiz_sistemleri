@@ -27,6 +27,7 @@ void main() {
     final repo = TestRepository();
     final provider = UserProvider(authRepository: repo);
     expect(await provider.login(email: 'test@example.test', password: 'test'), isTrue);
+    expect(provider.isLoading, isFalse, reason: 'Başarılı giriş panel yönlendirmesini bekletmemeli');
     repo.events.add(const AuthState(AuthChangeEvent.signedOut, null));
     await Future<void>.delayed(Duration.zero);
     expect(provider.currentUser?.role, UserRole.fieldStaff);
@@ -34,6 +35,7 @@ void main() {
     repo.events.add(const AuthState(AuthChangeEvent.signedOut, null));
     await Future<void>.delayed(Duration.zero);
     expect(provider.currentUser, isNull);
+    expect(provider.isLoading, isFalse);
     provider.dispose();
     await repo.events.close();
   });

@@ -1,6 +1,65 @@
 from unittest.mock import MagicMock
+import pytest
 
 from yerimebak_ai_v5.services import expertiz_service
+
+
+def test_request_endpoint_rejects_anonymous_before_service_or_database(monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from yerimebak_ai_v5.api.v1.endpoints import auth, expertiz
+    database = MagicMock(side_effect=AssertionError('No database access allowed'))
+    service = MagicMock(side_effect=AssertionError('Anonymous request must not be created'))
+    monkeypatch.setattr(auth, 'get_auth_service', lambda: MagicMock())
+    monkeypatch.setattr(expertiz, 'create_unpaid_request', service)
+    monkeypatch.setattr(expertiz_service.DatabaseConfig, 'get_connection', database)
+    app = FastAPI()
+    app.include_router(expertiz.router, prefix='/expertiz')
+    response = TestClient(app).post('/expertiz/requests/unpaid', json={'firm_id':'f','package_id':'p'})
+    assert response.status_code == 401
+    service.assert_not_called()
+    database.assert_not_called()
+
+
+def test_request_owner_comes_from_session_not_customer_supplied_id(monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from yerimebak_ai_v5.api.v1.endpoints import auth, expertiz
+    service = MagicMock(return_value={'success':True,'request_id':'r','payment_status':'not_collected'})
+    monkeypatch.setattr(expertiz, 'create_unpaid_request', service)
+    app = FastAPI()
+    app.include_router(expertiz.router, prefix='/expertiz')
+    app.dependency_overrides[auth.get_authenticated_user] = lambda: {'id':'session-customer','email':'owner@example.test'}
+    response = TestClient(app).post('/expertiz/requests/unpaid', json={'firm_id':'f','package_id':'p','user_id':'another-customer','customer_id':'another-customer'})
+    assert response.status_code == 200
+    payload, user = service.call_args.args
+    assert user['id'] == 'session-customer'
+    assert 'user_id' not in payload
+    assert 'customer_id' not in payload
+
+
+@pytest.mark.parametrize('missing', ['brand', 'model', 'city', 'district'])
+def test_manual_fields_are_required_before_database_access(monkeypatch, missing):
+    database = MagicMock(side_effect=AssertionError('Database must not be reached'))
+    monkeypatch.setattr(expertiz_service.DatabaseConfig, 'get_connection', database)
+    payload = {'firm_id': 'f', 'package_id': 'p', 'city': 'İstanbul', 'district': 'Kadıköy',
+               'vehicle': {'brand': 'Seat', 'model': 'Arona'}}
+    if missing in ('brand', 'model'):
+        payload['vehicle'][missing] = ' '
+    else:
+        payload[missing] = ' '
+    assert 'error' in expertiz_service.create_unpaid_request(payload, {'id': 'test'})
+    database.assert_not_called()
+
+
+def test_listing_link_does_not_replace_required_manual_brand_model(monkeypatch):
+    database = MagicMock(side_effect=AssertionError('Database must not be reached'))
+    monkeypatch.setattr(expertiz_service.DatabaseConfig, 'get_connection', database)
+    result = expertiz_service.create_unpaid_request(
+        {'firm_id': 'f', 'package_id': 'p', 'city': 'İstanbul', 'district': 'Kadıköy',
+         'listing_url': 'https://www.sahibinden.com/ilan/test-1347633467/detay'}, {'id': 'test'})
+    assert 'marka ve model' in result['error']
+    database.assert_not_called()
 
 
 def test_unpaid_request_enters_queue_without_payment(monkeypatch):
@@ -20,13 +79,16 @@ def test_unpaid_request_enters_queue_without_payment(monkeypatch):
     monkeypatch.setattr(notification_service, 'notify_admins', notify)
     result = expertiz_service.create_unpaid_request(
         {'firm_id': 'f', 'package_id': 'p', 'city': 'İstanbul', 'district': 'Kadıköy',
-         'vehicle': {'brand': 'Ford', 'model': 'Focus'}},
+         'vehicle': {'brand': 'Ford', 'model': 'Focus'},
+         'listing_url': 'https://www.sahibinden.com/ilan/test-1347633467/detay'},
         {'id': 'user-1', 'email': 'test@example.test'},
     )
     assert result['success'] is True
     assert result['payment_status'] == 'not_collected'
     assert report.call_args.kwargs['payment_status'] == 'not_collected'
     assert report.call_args.kwargs['request_id'] == result['request_id']
+    assert report.call_args.kwargs['payload']['listing_url'] == 'https://www.sahibinden.com/ilan/test-1347633467/detay'
+    assert report.call_args.kwargs['payload']['vehicle'] == {'brand': 'Ford', 'model': 'Focus'}
     notify.assert_called_once()
     conn.commit.assert_called_once()
     assert cursor.execute.called
@@ -74,7 +136,8 @@ def test_unpaid_request_rolls_back_when_report_creation_fails(monkeypatch):
     import pytest
     with pytest.raises(RuntimeError):
         expertiz_service.create_unpaid_request(
-            {'firm_id': 'f', 'package_id': 'p', 'city': 'İstanbul', 'district': 'Kadıköy', 'listing_url': 'https://example.test'},
+            {'firm_id': 'f', 'package_id': 'p', 'city': 'İstanbul', 'district': 'Kadıköy', 'listing_url': 'https://example.test',
+             'vehicle': {'brand': 'Seat', 'model': 'Arona'}},
             {'id': 'user-1'},
         )
     conn.rollback.assert_called_once()
