@@ -2,7 +2,7 @@
 
 ## arabam.com ilanlarını sisteme kaydetme
 
-arabam.com, sunuculardan (Apify dahil) gelen otomatik istekleri Cloudflare ile engeller. Bu yüzden ilan verisi personelin kendi tarayıcısında açtığı sayfadan alınır. Eklenti sayfada gezinmez, başka sayfa açmaz; yalnızca açık sayfanın metnini sunucuya gönderir. Ayrıştırma sunucuda, Apify actor'üyle aynı kodla yapılır (`yerimebak_ai_v5/services/extension_ingest.py`).
+arabam.com, sunuculardan gelen otomatik istekleri Cloudflare ile engeller. Bu yüzden ilan verisi personelin kendi tarayıcısında açtığı sayfadan alınır. Eklenti sayfada gezinmez, başka sayfa açmaz; yalnızca açık sayfanın metnini sunucuya gönderir. Ayrıştırma sunucuda yapılır (`yerimebak_ai_v5/services/extension_ingest.py`).
 
 Yalnızca **admin** ve **personel** hesapları kullanabilir; işlem kredi düşmez.
 
@@ -18,5 +18,3 @@ Kaydedilen ilan, müşteri talebinde ve personel raporunda link eşleşince otom
 1. Chrome → `chrome://extensions` → sağ üstten **Geliştirici modu**nu açın.
 2. **Paketlenmemiş öğe yükle** → bu `chrome-extension` klasörünü seçin.
 3. Eklenti simgesine tıklayın; sunucu adresi (`https://api.yerimebak.com.tr`) ve hesabınızın API anahtarıyla giriş yapın.
-
-Sunucuda `APIFY_MODE=mock` (veya boş) kalabilir; bu akış Apify'a ihtiyaç duymaz.

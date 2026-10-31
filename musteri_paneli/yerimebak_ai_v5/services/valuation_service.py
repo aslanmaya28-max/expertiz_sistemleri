@@ -190,18 +190,6 @@ def prefill_from_link(url: str) -> Dict[str, Any]:
     if listing_links.is_short_link(url):
         url = listing_links.resolve_short_link(url)
     listing = _listing_by_url(url)
-    fetch_error = None
-    if not listing and listing_links.can_fetch(url):
-        # Ilan sistemde yoksa Apify ile o an cekilir (yalnizca arabam.com)
-        from yerimebak_ai_v5.services import apify_service, market_ingest
-
-        if apify_service.enabled():
-            try:
-                if market_ingest.fetch_listing(normalize_url(url)):
-                    listing = _listing_by_url(url)
-            except Exception as exc:
-                logger.warning("[VALUATION] Apify ilan cekimi basarisiz: %s", exc)
-                fetch_error = "İlan bilgileri otomatik alınamadı; bilgileri elle girin."
     if listing:
         return {
             "success": True,
@@ -227,7 +215,7 @@ def prefill_from_link(url: str) -> Dict[str, Any]:
         message = ("Sahibinden ilanının bilgilerini linkten tahmin ettik; kontrol edin. "
                    "Yıl, km, fiyat, boya-değişen ve tramer bilgisini ilandan bakarak girin.")
     else:
-        message = fetch_error or "İlan sistemimizde yok; linkten tahmin edilen bilgileri kontrol edip eksikleri elle girin."
+        message = "İlan sistemimizde yok; linkten tahmin edilen bilgileri kontrol edip eksikleri elle girin."
     return {
         "success": True,
         "found": False,
