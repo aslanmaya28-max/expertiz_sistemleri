@@ -46,6 +46,18 @@ def is_short_link(url: str) -> bool:
     return _host(url) in SHORTENERS
 
 
+def is_site_short_link(url: str) -> bool:
+    """sahibinden.com/s/<kod>: sitenin kendi kisa adresi; ilan basligi (marka/model/yil) icermez.
+
+    shbd.io bu adrese yonlendirir (canli denendi). Tam ilan adresine (/ilan/...) ancak
+    sahibinden.com'a istek atilarak gidilebilir; bunu yapmiyoruz, musteriden tam link isteriz.
+    """
+    raw = (url or "").strip()
+    if raw and "://" not in raw:
+        raw = "https://" + raw
+    return link_source(url) == "sahibinden" and not is_short_link(url) and urlsplit(raw).path.startswith("/s/")
+
+
 def resolve_short_link(url: str, timeout_s: float = 6.0, max_hops: int = 3) -> str:
     """Kisa linkin yonlendirdigi adresi dondurur; cozulemezse linkin kendisini.
 

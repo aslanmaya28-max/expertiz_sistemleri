@@ -220,6 +220,9 @@ def prefill_from_link(url: str) -> Dict[str, Any]:
     source = listing_links.link_source(url)
     if listing_links.is_short_link(url):
         message = "Kısa link açılamadı; araç bilgilerini elle girin."
+    elif listing_links.is_site_short_link(url):
+        message = ("Sahibinden kısa linkinden araç bilgisi okunamıyor. İlanın tam adresini "
+                   "(sahibinden.com/ilan/...) yapıştırın ya da bilgileri elle girin.")
     elif source == "sahibinden":
         message = ("Sahibinden ilanının bilgilerini linkten tahmin ettik; kontrol edin. "
                    "Yıl, km, fiyat, boya-değişen ve tramer bilgisini ilandan bakarak girin.")
