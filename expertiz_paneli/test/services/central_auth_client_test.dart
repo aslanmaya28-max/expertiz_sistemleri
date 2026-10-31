@@ -51,6 +51,7 @@ void main() {
         'password': 'secret-123',
         'full_name': 'Ayse Yilmaz',
         'phone': '+905551112233',
+        'terms_accepted': true,
       });
 
       return http.Response(
@@ -75,6 +76,7 @@ void main() {
       password: 'secret-123',
       fullName: 'Ayse Yilmaz',
       phone: '+905551112233',
+      termsAccepted: true,
     );
 
     expect(session.token, 'new-token');
@@ -107,5 +109,10 @@ void main() {
 
     expect(user.email, 'admin@yerimebak.com');
     expect(user.isAdmin, isTrue);
+  });
+
+  test('me preserves HTTP status when server rejects a token', () async {
+    final auth = CentralAuthClient(client: MockClient((_) async => http.Response('unauthorized', 401)));
+    await expectLater(auth.me('token'), throwsA(isA<CentralAuthException>().having((e) => e.statusCode, 'status', 401)));
   });
 }

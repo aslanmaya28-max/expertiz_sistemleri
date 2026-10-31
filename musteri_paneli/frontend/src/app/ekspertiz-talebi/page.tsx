@@ -1,19 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import OdemeAlani from "@/bilesenler/OdemeAlani";
-import SozlesmeOnayi from "@/bilesenler/SozlesmeOnayi";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/kancalar/yetkiKullan";
 import { ILLER } from "@/lib/iller";
+import { uyelikAdresi } from "@/lib/uyelikYonlendirme";
 import {
   createExpertizRequest,
   getExpertizPackages,
   getVehicleDetail,
-  prefillValuation,
-  type CheckoutStart,
-  type CheckoutStatus,
   type ExpertizFirm,
   type ExpertizPackage,
 } from "@/lib/api";
@@ -22,7 +18,7 @@ function tl(value: number) {
   return new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 }).format(value) + " TL";
 }
 
-const ADIMLAR = ["Araç", "Hizmet Bedeli", "Ekspertiz Paketi", "Ödeme"];
+const ADIMLAR = ["Araç", "Hizmet Bedeli", "Ekspertiz Paketi", "Talep Onayı"];
 
 const trLower = (v: string) => v.toLocaleLowerCase("tr-TR").trim();
 
@@ -56,6 +52,8 @@ const BOS_ARAC: Arac = { link: "", brand: "", model: "", year: "", km: "", price
 function EkspertizTalebiIcerigi() {
   const params = useSearchParams();
   const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const donus = `/ekspertiz-talebi${params.toString() ? `?${params.toString()}` : ""}`;
   const listingId = Number(params.get("aracId") || 0);
 
   const [adim, setAdim] = useState(0);
@@ -67,20 +65,32 @@ function EkspertizTalebiIcerigi() {
   const [packageId, setPackageId] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [onay, setOnay] = useState(false);
-  const [prefillMsg, setPrefillMsg] = useState<string | null>(null);
-  const [checkout, setCheckout] = useState<CheckoutStart | null>(null);
-  const [odendi, setOdendi] = useState<CheckoutStatus | null>(null);
+  const [talepNo, setTalepNo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
+    if (!authLoading && !user) router.replace(uyelikAdresi(donus));
+  }, [authLoading, user, router, donus]);
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+    const controller = new AbortController();
+    let active = true;
+    const timeout = window.setTimeout(() => controller.abort(), 10000);
     async function load() {
       setLoading(true);
+      setLoadError(null);
       try {
         const [packages, detail] = await Promise.all([
-          getExpertizPackages(),
-          listingId ? getVehicleDetail(listingId) : Promise.resolve(null),
+          getExpertizPackages({ signal: controller.signal }),
+          listingId ? getVehicleDetail(listingId, { signal: controller.signal }) : Promise.resolve(null),
         ]);
+        if (!active) return;
+        if (!packages.firms?.some((firm) => firm.packages?.length)) {
+          throw new Error("Şu anda seçilebilir ekspertiz paketi bulunamadı.");
+        }
         setFirms(packages.firms);
         setServiceFee(packages.service_fee_tl);
         setVatRate(packages.vat_rate);
@@ -99,13 +109,21 @@ function EkspertizTalebiIcerigi() {
           }));
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Veriler yüklenemedi");
+        if (active) setLoadError(controller.signal.aborted
+          ? "Ekspertiz paketleri için sunucudan yanıt alınamadı. Yeniden deneyebilirsiniz."
+          : err instanceof Error ? err.message : "Ekspertiz paketleri yüklenemedi.");
       } finally {
-        setLoading(false);
+        window.clearTimeout(timeout);
+        if (active) setLoading(false);
       }
     }
     load();
-  }, [listingId]);
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [authLoading, user, listingId, loadAttempt]);
 
   const selectedFirm = useMemo(() => firms.find((f) => f.id === firmId) || null, [firms, firmId]);
   const selectedPackage = useMemo<ExpertizPackage | null>(
@@ -119,37 +137,11 @@ function EkspertizTalebiIcerigi() {
   const set = (key: keyof Arac) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setArac((a) => ({ ...a, [key]: e.target.value }));
 
-  async function linktenDoldur() {
-    if (!arac.link.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await prefillValuation(arac.link.trim());
-      const v = res.vehicle || {};
-      setArac((a) => ({
-        ...a,
-        brand: v.brand ?? a.brand,
-        model: v.model ?? a.model,
-        year: v.year != null ? String(v.year) : a.year,
-        km: v.km != null ? String(v.km) : a.km,
-        price: v.price != null ? String(v.price) : a.price,
-        fuel: v.fuel ?? a.fuel,
-        gear: v.transmission ?? a.gear,
-        ...(a.city ? {} : konumAyir(v.location)),
-      }));
-      setPrefillMsg(res.message);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Link okunamadı");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   function ilerle() {
     setError(null);
     if (adim === 0) {
-      if (!arac.link.trim() && !(arac.brand.trim() && arac.model.trim())) {
-        setError("İlan linkini paylaşın veya en az marka ve model girin.");
+      if (!arac.brand.trim() || !arac.model.trim()) {
+        setError("Araç marka ve modelini girin.");
         return;
       }
       if (!arac.city.trim() || !arac.district.trim()) {
@@ -165,13 +157,16 @@ function EkspertizTalebiIcerigi() {
   }
 
   async function odemeyeGec() {
+    if (!user) {
+      router.replace(uyelikAdresi(donus));
+      return;
+    }
     if (!selectedFirm || !selectedPackage) return;
     setBusy(true);
     setError(null);
     try {
       const num = (v: string) => (v ? Number(v) : undefined);
-      setCheckout(
-        await createExpertizRequest({
+      const result = await createExpertizRequest({
           firm_id: selectedFirm.id,
           package_id: selectedPackage.id,
           listing_id: listingId || undefined,
@@ -180,7 +175,6 @@ function EkspertizTalebiIcerigi() {
           city: arac.city,
           district: arac.district.trim(),
           note: arac.note,
-          contract_accepted: onay,
           vehicle: {
             brand: arac.brand || undefined,
             model: arac.model || undefined,
@@ -190,41 +184,49 @@ function EkspertizTalebiIcerigi() {
             fuel: arac.fuel || undefined,
             transmission: arac.gear || undefined,
           },
-        }),
-      );
+        });
+      setTalepNo(result.request_id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ödeme başlatılamadı");
+      setError(err instanceof Error ? err.message : "Talep oluşturulamadı");
     } finally {
       setBusy(false);
     }
   }
 
-  const odemeTamam = useCallback((s: CheckoutStatus) => setOdendi(s), []);
-  const odemeBasarisiz = useCallback(() => setCheckout(null), []);
-
-  if (loading) {
-    return <div className="max-w-5xl mx-auto px-6 py-12 text-metin-ikincil">Ekspertiz paketleri yükleniyor...</div>;
-  }
-
-  if (!authLoading && !user) {
+  if (authLoading || !user) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-16 text-center">
-        <h1 className="text-3xl font-bold text-metin-birincil">Ekspertiz Talebi</h1>
-        <p className="mt-3 text-metin-ikincil">Talep oluşturmak ve rapor sürecinizi panelden takip etmek için giriş yapın.</p>
+        <h1 className="text-3xl font-bold text-metin-birincil">Önce müşteri hesabınız</h1>
+        <p role="status" className="mt-3 text-metin-ikincil">{authLoading ? "Oturumunuz kontrol ediliyor…" : "Talebinizi hesabınızla ilişkilendirmek için kayıt ekranına yönlendiriliyorsunuz…"}</p>
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
-          <Link href="/giris" className="rounded-lg bg-birincil px-5 py-2.5 text-sm font-semibold text-white">Giriş yap</Link>
-          <Link href="/kayit-ol" className="rounded-lg border border-kenarlik-acik px-5 py-2.5 text-sm font-semibold text-metin-birincil">Üye ol</Link>
+          <Link href={uyelikAdresi(donus,"giris")} className="rounded-lg bg-birincil px-5 py-2.5 text-sm font-semibold text-white">Giriş yap</Link>
+          <Link href={uyelikAdresi(donus)} className="rounded-lg border border-kenarlik-acik px-5 py-2.5 text-sm font-semibold text-metin-birincil">Kayıt ol</Link>
         </div>
       </div>
     );
   }
 
-  if (odendi) {
+  if (loading) {
+    return <div role="status" className="max-w-5xl mx-auto px-6 py-12 text-metin-ikincil">Ekspertiz paketleri yükleniyor...</div>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="max-w-3xl mx-auto px-6 py-12">
+        <h1 className="text-2xl font-bold text-metin-birincil">Ekspertiz Talebi</h1>
+        <p role="alert" className="mt-4 text-tehlike">{loadError}</p>
+        <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+          className="mt-4 rounded-lg bg-birincil px-5 py-2.5 font-semibold text-white">Yeniden dene</button>
+      </div>
+    );
+  }
+
+  if (talepNo) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-16 text-center">
         <h1 className="text-3xl font-bold text-basarili">Ekspertiz talebiniz alındı</h1>
         <p className="mt-3 text-metin-birincil">
-          Ödemeniz onaylandı ({tl(odendi.amount_tl)}). {odendi.firm_name} — {odendi.package_name} için ekspertiz personelimiz atanacak;
+          Talebiniz yöneticiye iletildi. Uygun personel atanacak;
           süreci ve raporu panelinizden takip edebilirsiniz.
         </p>
         <Link href="/panel" className="mt-6 inline-block rounded-lg bg-birincil px-5 py-2.5 text-sm font-semibold text-white">Panelde takip et</Link>
@@ -255,19 +257,12 @@ function EkspertizTalebiIcerigi() {
             <section className="bg-white border border-kenarlik-acik rounded-lg p-5 space-y-4">
               <div>
                 <h2 className="text-lg font-semibold text-metin-birincil">Araç ilan linki</h2>
-                <p className="text-sm text-metin-ikincil">Linki paylaşın, bilgileri dolduralım ya da aşağıya elle girin.</p>
-                <div className="mt-2 flex gap-2">
-                  <input value={arac.link} onChange={set("link")} className="w-full border border-kenarlik-acik rounded-lg px-3 py-2" placeholder="https://www.arabam.com/ilan/..." />
-                  <button type="button" onClick={linktenDoldur} disabled={!arac.link.trim() || busy}
-                    className="whitespace-nowrap rounded-lg border border-birincil px-4 py-2 text-sm font-semibold text-birincil disabled:opacity-50">
-                    Linkten Doldur
-                  </button>
-                </div>
-                {prefillMsg && <p className="mt-2 text-sm text-metin-ikincil">{prefillMsg}</p>}
+                <p className="text-sm text-metin-ikincil">Marka, model, il ve ilçeyi aşağıya girin. İlan bağlantısını da ekleyebilirsiniz; yönetici talebinizden ilanı açıp inceleyebilir.</p>
+                <input value={arac.link} onChange={set("link")} disabled={busy} className="mt-2 w-full border border-kenarlik-acik rounded-lg px-3 py-2" placeholder="https://www.sahibinden.com/ilan/..." />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="block"><span className={lbl}>Marka</span><input value={arac.brand} onChange={set("brand")} className={input} placeholder="Renault" /></label>
-                <label className="block"><span className={lbl}>Model</span><input value={arac.model} onChange={set("model")} className={input} placeholder="Clio" /></label>
+                <label className="block"><span className={lbl}>Marka (zorunlu)</span><input required value={arac.brand} onChange={set("brand")} className={input} placeholder="Renault" /></label>
+                <label className="block"><span className={lbl}>Model (zorunlu)</span><input required value={arac.model} onChange={set("model")} className={input} placeholder="Clio" /></label>
                 <label className="block"><span className={lbl}>Model yılı</span><input type="number" value={arac.year} onChange={set("year")} className={input} placeholder="2021" /></label>
                 <label className="block"><span className={lbl}>Kilometre</span><input type="number" value={arac.km} onChange={set("km")} className={input} placeholder="65000" /></label>
                 <label className="block"><span className={lbl}>İlan fiyatı (₺)</span><input type="number" value={arac.price} onChange={set("price")} className={input} placeholder="950000" /></label>
@@ -282,13 +277,13 @@ function EkspertizTalebiIcerigi() {
                     <option value="">Seçiniz</option><option>Otomatik</option><option>Manuel</option><option>Yarı Otomatik</option>
                   </select>
                 </label>
-                <label className="block"><span className={lbl}>Aracın bulunduğu il</span>
+                <label className="block"><span className={lbl}>Aracın bulunduğu il (zorunlu)</span>
                   <select value={arac.city} onChange={set("city")} className={input}>
                     <option value="">İl seçiniz</option>
                     {ILLER.map((il) => <option key={il}>{il}</option>)}
                   </select>
                 </label>
-                <label className="block"><span className={lbl}>İlçe</span><input value={arac.district} onChange={set("district")} className={input} placeholder="Kadıköy" /></label>
+                <label className="block"><span className={lbl}>İlçe (zorunlu)</span><input required value={arac.district} onChange={set("district")} className={input} placeholder="Kadıköy" /></label>
               </div>
               <label className="block"><span className={lbl}>Not (satıcı randevusu, özel talep)</span>
                 <textarea value={arac.note} onChange={set("note")} className={input} rows={3} />
@@ -345,28 +340,23 @@ function EkspertizTalebiIcerigi() {
 
           {adim === 3 && (
             <section className="bg-white border border-kenarlik-acik rounded-lg p-5">
-              <h2 className="text-lg font-semibold text-metin-birincil">Ödeme</h2>
-              {checkout ? (
-                <div className="mt-4"><OdemeAlani checkout={checkout} onPaid={odemeTamam} onFailed={odemeBasarisiz} /></div>
-              ) : (
+              <h2 className="text-lg font-semibold text-metin-birincil">Talep onayı</h2>
                 <>
                   <p className="mt-1 text-sm text-metin-ikincil">
                     {arac.brand || arac.model ? `${arac.brand} ${arac.model} ${arac.year}`.trim() : arac.link} • {arac.city} / {arac.district}
                   </p>
-                  <div className="mt-4"><SozlesmeOnayi checked={onay} onChange={setOnay} hizmet /></div>
-                  <button type="button" onClick={odemeyeGec} disabled={busy || !selectedPackage || !onay}
+                  <button type="button" onClick={odemeyeGec} disabled={busy || !selectedPackage}
                     className="mt-4 w-full rounded-lg bg-birincil py-3 font-semibold text-white disabled:opacity-50">
-                    {busy ? "Ödeme hazırlanıyor..." : `${tl(total)} Öde`}
+                    {busy ? "Talep gönderiliyor..." : "Talep oluştur"}
                   </button>
-                  <p className="mt-2 text-xs text-metin-ikincil">Talebiniz ödeme onaylandığında işleme alınır.</p>
+                  <p className="mt-2 text-xs text-metin-ikincil">Bu adımda ödeme alınmaz; talebiniz yöneticiye iletilir.</p>
                 </>
-              )}
             </section>
           )}
 
           {error && <div className="text-sm text-tehlike">{error}</div>}
 
-          {!checkout && (
+          {(
             <div className="flex justify-between">
               <button type="button" onClick={() => { setError(null); setAdim((a) => Math.max(0, a - 1)); }} disabled={adim === 0}
                 className="rounded-lg border border-kenarlik-acik px-5 py-2.5 text-sm font-semibold text-metin-birincil disabled:opacity-40">
@@ -382,7 +372,7 @@ function EkspertizTalebiIcerigi() {
         </div>
 
         <aside className="bg-white border border-kenarlik-acik rounded-lg p-5 h-fit lg:sticky lg:top-6">
-          <h2 className="text-lg font-semibold text-metin-birincil">Ödeme özeti</h2>
+          <h2 className="text-lg font-semibold text-metin-birincil">Hizmet bedeli özeti</h2>
           <div className="mt-4 space-y-3 text-sm">
             <div className="flex justify-between"><span>YerimeBak hizmet bedeli</span><strong>{tl(serviceFee)}</strong></div>
             <div className="flex justify-between gap-2">

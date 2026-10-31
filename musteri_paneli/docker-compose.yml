@@ -26,6 +26,24 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    # Bellek ayarlari sunucu boyutuna gore .env'den (varsayilanlar 4 GB RAM icin)
+    command:
+      - postgres
+      - -c
+      - max_connections=${PG_MAX_CONNECTIONS:-200}
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-512MB}
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-1536MB}
+      - -c
+      - work_mem=${PG_WORK_MEM:-8MB}
+      - -c
+      - maintenance_work_mem=128MB
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - effective_io_concurrency=200
+    shm_size: 256m
     expose:
       - "5432"
     restart: unless-stopped
@@ -33,7 +51,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: ${PG_MEMORY_LIMIT:-1G}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?} -d ${POSTGRES_DB:?}"]
       interval: 5s
@@ -97,6 +115,10 @@ services:
       - HEADLESS=true
       - DOCKER_CONTAINER=1
       - TZ=Europe/Istanbul
+      # Eszamanli istek kapasitesi: calisan islem sayisi x islem basina DB baglantisi
+      # (toplam PG_MAX_CONNECTIONS'i asmamali)
+      - WEB_CONCURRENCY=${WEB_CONCURRENCY:-2}
+      - DB_POOL_MAX=${DB_POOL_MAX:-20}
     expose:
       - "8000"
     depends_on:
@@ -115,8 +137,8 @@ services:
     deploy:
       resources:
         limits:
-          # Kaziyici Chromium'u da bu konteynerde calisir
-          memory: 1536M
+          # Kaziyici Chromium'u da bu konteynerde calisir; islem basina ~200 MB
+          memory: ${APP_MEMORY_LIMIT:-2G}
         reservations:
           memory: 256M
     healthcheck:
@@ -278,6 +300,13 @@ services:
       - ./${NGINX_CONF:-nginx-api.conf}:/etc/nginx/nginx.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - certbot_data:/var/www/certbot
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    tmpfs:
+      # Vitrin onbellegi (bellekte; yeniden baslatinca bosalir)
+      - /var/cache/nginx:size=256m
     # Yenilenen sertifikalar icin 6 saatte bir yeniden yukle
     command: ["/bin/sh", "-c", "while :; do sleep 6h; nginx -s reload; done & exec nginx -g 'daemon off;'"]
     restart: unless-stopped
@@ -285,7 +314,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 64M
+          memory: ${NGINX_MEMORY_LIMIT:-512M}
 
 # Volume adlari onceki kurulumla ayni birakildi (varsa mevcut veri korunur).
 volumes:

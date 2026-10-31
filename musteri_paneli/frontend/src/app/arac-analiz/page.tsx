@@ -79,6 +79,7 @@ export default function AracAnalizSayfasi() {
       const v = res.vehicle || {};
       setForm((f) => ({
         ...f,
+        link: res.url || f.link,
         brand: v.brand ?? f.brand,
         model: v.model ?? f.model,
         year: v.year != null ? String(v.year) : f.year,

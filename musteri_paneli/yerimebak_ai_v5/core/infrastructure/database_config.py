@@ -60,14 +60,17 @@ def _get_pool() -> ThreadedConnectionPool:
         with _pool_lock:
             if _pool is None:
                 url = _get_database_url()
+                # Her calisan islemin kendi havuzu vardir: toplam baglanti =
+                # WEB_CONCURRENCY x DB_POOL_MAX (PostgreSQL max_connections'i asmamali).
+                maxconn = max(2, int(os.getenv("DB_POOL_MAX", "20")))
                 _pool = ThreadedConnectionPool(
-                    minconn=2,
-                    maxconn=20,
+                    minconn=min(2, maxconn),
+                    maxconn=maxconn,
                     dsn=url,
                     cursor_factory=DictCursor,
                     connection_factory=_PooledConnection,
                 )
-                logger.info("[FORENSIC DB POOL] ThreadedConnectionPool created (2-20)")
+                logger.info("[FORENSIC DB POOL] ThreadedConnectionPool created (max %s)", maxconn)
     return _pool
 
 

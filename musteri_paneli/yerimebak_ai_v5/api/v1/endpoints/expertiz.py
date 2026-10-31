@@ -23,6 +23,7 @@ from yerimebak_ai_v5.services import (
     refund_service,
 )
 from yerimebak_ai_v5.services.expertiz_service import (
+    create_unpaid_request,
     get_admin_report,
     get_customer_report,
     get_expertiz_packages,
@@ -143,12 +144,21 @@ async def request_expertiz(
     http_request: Request,
     user: Dict[str, Any] = Depends(get_authenticated_user),
 ) -> Dict[str, Any]:
-    """Ekspertiz talebi + odeme baslatma. Talep, odeme onaylaninca kuyruga duser."""
+    """Odeme akisi icin mevcut talep endpointi."""
     ip = paytr_service.client_ip(
         {k.lower(): v for k, v in http_request.headers.items()},
         http_request.client.host if http_request.client else None,
     )
     return _raise_if_error(checkout_service.start_expertiz_checkout(request.model_dump(), user, ip))
+
+
+@router.post("/requests/unpaid")
+async def request_expertiz_unpaid(
+    request: CreateExpertizRequest,
+    user: Dict[str, Any] = Depends(get_authenticated_user),
+) -> Dict[str, Any]:
+    """Tahsilat yapmadan talep olusturur ve atama kuyruguna ekler."""
+    return _raise_if_error(create_unpaid_request(request.model_dump(), user))
 
 
 @router.get("/requests")

@@ -48,6 +48,7 @@ class MarketReferenceService:
         exclude_id: Optional[int] = None,
         listed_price: Optional[float] = None,
         limit: int = 80,
+        package: Optional[str] = None,
     ) -> Dict[str, Any]:
         brand = (brand or "").strip()
         model = (model or "").strip()
@@ -59,7 +60,15 @@ class MarketReferenceService:
         if not brand or not model:
             return self._last_resort("missing_brand_model", fallback_price)
 
-        attempts = [
+        package = (package or "").strip()
+        attempts = []
+        if package:
+            # Once ayni paket/versiyon (ayni modelin paketleri arasinda fiyat farki buyuktur)
+            attempts += [
+                {"year_window": 1, "km_pct": 0.35, "with_fuel": False, "with_transmission": False, "package": package},
+                {"year_window": 2, "km_pct": 0.60, "with_fuel": False, "with_transmission": False, "package": package},
+            ]
+        attempts += [
             {"year_window": 1, "km_pct": 0.35, "with_fuel": True, "with_transmission": True},
             {"year_window": 2, "km_pct": 0.50, "with_fuel": True, "with_transmission": False},
             {"year_window": 3, "km_pct": 0.70, "with_fuel": False, "with_transmission": False},
@@ -79,7 +88,10 @@ class MarketReferenceService:
                 **attempt,
             )
             if len(listings) >= 5:
-                return self._build_reference(listings, attempt, brand=brand, model=model, year=year_val)
+                reference = self._build_reference(listings, attempt, brand=brand, model=model, year=year_val)
+                reference["package"] = package or None
+                reference["package_match"] = bool(attempt.get("package"))
+                return reference
 
         return self._last_resort("not_enough_reference", fallback_price)
 
@@ -97,6 +109,7 @@ class MarketReferenceService:
         km_pct: Optional[float],
         with_fuel: bool,
         with_transmission: bool,
+        package: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         conditions = [
             "LOWER(TRIM(brand)) = LOWER(TRIM(%s))",
@@ -123,6 +136,10 @@ class MarketReferenceService:
         if with_transmission and transmission:
             conditions.append("LOWER(COALESCE(transmission, '')) = LOWER(%s)")
             params.append(transmission.strip())
+
+        if package:
+            conditions.append("LOWER(TRIM(COALESCE(series, ''))) = LOWER(TRIM(%s))")
+            params.append(package)
 
         if exclude_id:
             conditions.append("id <> %s")

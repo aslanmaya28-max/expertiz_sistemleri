@@ -20,6 +20,37 @@ POLL_INTERVAL_SECONDS = 30
 # bu sureden uzun suredir pending_ai'da bekleyen (takilmis) raporlari toplar.
 STUCK_REPORT_AGE_SECONDS = 60
 
+# Birden fazla calisan islem (uvicorn --workers) varken kurtarma taramasini
+# ayni anda yalnizca biri yapsin: PostgreSQL danisma kilidi.
+SWEEP_LOCK_KEY = 72_410_051
+
+
+def _try_sweep_lock():
+    """Kilidi alirsa baglantiyi dondurur (birakmak icin), alamazsa None."""
+    from yerimebak_ai_v5.core.database_config import DatabaseConfig
+
+    conn = DatabaseConfig.get_connection()
+    try:
+        conn.autocommit = True
+        cur = conn.cursor()
+        cur.execute("SELECT pg_try_advisory_lock(%s)", (SWEEP_LOCK_KEY,))
+        if cur.fetchone()[0]:
+            return conn
+    except Exception as e:
+        logger.warning(f"[AI WORKER] Sweep lock check failed: {e}")
+    DatabaseConfig.return_connection(conn)
+    return None
+
+
+def _release_sweep_lock(conn) -> None:
+    from yerimebak_ai_v5.core.database_config import DatabaseConfig
+
+    try:
+        conn.cursor().execute("SELECT pg_advisory_unlock(%s)", (SWEEP_LOCK_KEY,))
+    except Exception:
+        pass
+    DatabaseConfig.return_connection(conn)
+
 
 def _to_int(value: Any) -> int:
     try:
@@ -125,12 +156,26 @@ class AIAnalysisWorker:
             km = _to_int(vehicle_info.get("km"))
             price = _to_float(vehicle_info.get("price"))
 
+            from yerimebak_ai_v5.core.ai.inspection_valuation import evaluate
+            from yerimebak_ai_v5.core.ai.ai_result_adapter import inspection_to_ai_analiz
+
+            from yerimebak_ai_v5.services import market_ingest
+
+            # Musterinin ilani Chrome eklentisiyle kaydedildiyse satici beyani
+            # (boya/degisen/hasar) ve paket karsilastirma icin oradan okunur.
+            listing_id = _to_int(vehicle_info.get("listing_id")) or None
+            if not listing_id and vehicle_info.get("listing_url"):
+                existing = market_ingest.declared_condition(None, vehicle_info.get("listing_url"))
+                if existing:
+                    listing_id = existing["listing_id"]
+
             if not brand or not model:
                 logger.error(f"[AI WORKER] Missing brand/model for {report_id}")
                 return False
 
-            from yerimebak_ai_v5.core.ai.inspection_valuation import evaluate
-            from yerimebak_ai_v5.core.ai.ai_result_adapter import inspection_to_ai_analiz
+            # Satici beyani + paket: musterinin ilanindan (arabam.com 'Model' satiri, ör. 1.0 TCe Touch)
+            beyan = market_ingest.declared_condition(listing_id, vehicle_info.get("listing_url"))
+            paket = (beyan or {}).get("paket")
 
             market_reference = get_market_reference_service().get_reference(
                 brand=brand,
@@ -139,9 +184,22 @@ class AIAnalysisWorker:
                 km=km or None,
                 fuel=vehicle_info.get("yakit"),
                 transmission=vehicle_info.get("sanziman"),
-                exclude_id=_to_int(vehicle_info.get("listing_id")) or None,
+                exclude_id=listing_id,
                 listed_price=price,
+                package=paket,
             )
+
+            # 5'ten az emsal: yapay zekadan (DeepSeek) etiketli fiyat tahmini; admin onayindan once kontrol edilir
+            if market_reference.get("source") != "listings":
+                from yerimebak_ai_v5.services import ai_price_estimate
+
+                tahmin = ai_price_estimate.estimate({
+                    "brand": brand, "model": model, "year": year, "package": paket, "km": km,
+                    "fuel": vehicle_info.get("yakit"), "transmission": vehicle_info.get("sanziman"),
+                })
+                if tahmin:
+                    market_reference = ai_price_estimate.to_reference(tahmin, market_reference)
+                    market_reference["package"] = paket
 
             degerleme = evaluate(
                 vehicle_info.get("tam_rapor") or {},
@@ -150,6 +208,24 @@ class AIAnalysisWorker:
                 vehicle={"km": km, "yil": year},
             )
             liquidity = _liquidity(vehicle_info, degerleme, km)
+            # Ilanda satıcının beyan ettiği durum ↔ personel ekspertiz bulguları
+            adim1 = (vehicle_info.get("tam_rapor") or {}).get("adim1") or {}
+            degerleme["ilanBeyaniKarsilastirma"] = market_ingest.compare_declaration(
+                beyan,
+                degerleme,
+                ekspertiz_tramer_tl=_to_float(adim1.get("hasarKayitToplamTutar")) if isinstance(adim1, dict) else None,
+            )
+            # Model / paket / km / hasar kaydi / degisen / boya / hasar: her kriterin degere etkisi
+            from yerimebak_ai_v5.services.valuation_criteria import build_criteria
+
+            degerleme["degerlemeKriterleri"] = build_criteria(
+                degerleme,
+                market_reference,
+                {"brand": brand, "model": model, "year": year,
+                 "km": _to_int(adim1.get("guncelKm")) if isinstance(adim1, dict) and adim1.get("guncelKm") else km,
+                 "paket": paket},
+                tramer_tl=_to_float(adim1.get("hasarKayitToplamTutar")) if isinstance(adim1, dict) else None,
+            )
 
             ai_analiz_sonucu = inspection_to_ai_analiz(
                 degerleme,
@@ -234,12 +310,18 @@ class AIAnalysisWorker:
         logger.info(f"[AI WORKER] Starting polling loop (interval={interval}s)")
 
         while self._running:
+            lock_conn = None
             try:
-                count = await self.run_once(min_age_seconds=STUCK_REPORT_AGE_SECONDS)
-                if count > 0:
-                    logger.info(f"[AI WORKER] Processed {count} reports")
+                lock_conn = await asyncio.to_thread(_try_sweep_lock)
+                if lock_conn is not None:
+                    count = await self.run_once(min_age_seconds=STUCK_REPORT_AGE_SECONDS)
+                    if count > 0:
+                        logger.info(f"[AI WORKER] Processed {count} reports")
             except Exception as e:
                 logger.error(f"[AI WORKER] Loop error: {e}")
+            finally:
+                if lock_conn is not None:
+                    await asyncio.to_thread(_release_sweep_lock, lock_conn)
 
             await asyncio.sleep(interval)
 

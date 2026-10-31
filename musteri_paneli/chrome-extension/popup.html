@@ -16,7 +16,7 @@
     </div>
     <div class="form-group">
       <label for="api-url">Sunucu Adresi</label>
-      <input type="url" id="api-url" placeholder="http://localhost:8000" value="http://localhost:8000">
+      <input type="url" id="api-url" placeholder="https://api.yerimebak.com.tr" value="https://api.yerimebak.com.tr">
     </div>
     <div class="form-group">
       <label for="api-key">API Anahtarı</label>
@@ -54,6 +54,24 @@
       <span class="analyze-text">Araçı Analiz Et</span>
       <span class="analyze-cost">(1 Kredi)</span>
     </button>
+
+    <!-- ARABAM.COM: SISTEME KAYDET -->
+    <div id="ingest-box" class="ingest-box" style="display:none;">
+      <div class="section-title">📥 Sisteme Kaydet</div>
+      <p id="ingest-hint" class="ingest-hint"></p>
+      <div id="ingest-search-fields" style="display:none;">
+        <div class="form-group">
+          <label for="ingest-brand">Marka</label>
+          <input type="text" id="ingest-brand" placeholder="Boş bırakılırsa linkten tahmin edilir">
+        </div>
+        <div class="form-group">
+          <label for="ingest-model">Model</label>
+          <input type="text" id="ingest-model" placeholder="ör. Clio">
+        </div>
+      </div>
+      <button id="ingest-btn" class="btn-secondary">İlanı sisteme kaydet</button>
+      <div id="ingest-result" class="ingest-result" style="display:none;"></div>
+    </div>
 
     <!-- LOADING -->
     <div id="loading" class="loading" style="display:none;">

@@ -192,3 +192,105 @@ async def extension_analyze(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analiz hatasi: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# arabam.com sayfasini sisteme kaydetme (personelin kendi tarayicisindan)
+# ---------------------------------------------------------------------------
+
+_INGEST_ROLES = {"admin", "field_staff", "personel", "personnel", "staff"}
+
+
+class ExtensionListingPage(BaseModel):
+    """Eklentinin okudugu arabam.com ilan sayfasi (sayfa metni sunucuda ayristirilir)."""
+    url: str
+    text: str
+    title: str = ""
+    image_url: str = ""
+    location: str = ""
+    structured: Optional[list] = None
+
+
+class ExtensionSearchCard(BaseModel):
+    url: str
+    text: str
+
+
+class ExtensionSearchPage(BaseModel):
+    """Arama sonuc sayfasinda gorunen ilanlar (emsal olarak kaydedilir)."""
+    url: str
+    cards: list[ExtensionSearchCard]
+    brand: str = ""
+    model: str = ""
+
+
+def _authenticate_staff(api_key: Optional[str]) -> Dict[str, Any]:
+    user = _authenticate(api_key)
+    if str(user.get("role") or "").lower().strip() not in _INGEST_ROLES:
+        raise HTTPException(status_code=403, detail="İlan kaydı yalnızca admin ve personel hesaplarıyla yapılabilir.")
+    return user
+
+
+@router.post("/listing")
+async def extension_save_listing(
+    request: ExtensionListingPage,
+    api_key: Optional[str] = Header(None, alias="X-API-Key"),
+) -> Dict[str, Any]:
+    """Acik arabam.com ilanini (boya/degisen ve tramer beyaniyla) kaydeder; ucretsizdir."""
+    from yerimebak_ai_v5.services import extension_ingest, market_ingest
+
+    _authenticate_staff(api_key)
+    if not extension_ingest.is_listing_url(request.url):
+        raise HTTPException(status_code=400, detail="Bir arabam.com ilan sayfası açın.")
+    item = extension_ingest.parse_listing_page(
+        request.url, request.text, request.title, request.image_url, request.location, request.structured
+    )
+    missing = [label for key, label in (("brand", "marka"), ("model", "model"), ("price", "fiyat")) if not item.get(key)]
+    if missing:
+        raise HTTPException(status_code=422, detail=f"Sayfadan okunamadı: {', '.join(missing)}. Sayfa tam yüklendi mi?")
+    saved = market_ingest.upsert_listings([item], status="talep")
+    if not saved:
+        raise HTTPException(status_code=422, detail="İlan kaydedilemedi.")
+    row = saved[0]
+    paint = item.get("paint_info") or {}
+    damage = item.get("damage_record") or {}
+    return {
+        "success": True,
+        "listing_id": row["id"],
+        "vehicle": {k: item.get(k) for k in ("brand", "model", "package", "year", "km", "price", "fuel", "transmission")},
+        "beyan": {
+            "boyaBolumuVar": item.get("paint_info") is not None,
+            "boyali": paint.get("painted_parts", []),
+            "degisen": paint.get("changed_parts", []),
+            "tramerTl": damage.get("tramer_tl"),
+            "tramerYok": damage.get("tramer_yok"),
+            "agirHasar": damage.get("agir_hasar"),
+        },
+    }
+
+
+@router.post("/search")
+async def extension_save_search(
+    request: ExtensionSearchPage,
+    api_key: Optional[str] = Header(None, alias="X-API-Key"),
+) -> Dict[str, Any]:
+    """Acik arama sayfasindaki ilanlari emsal olarak kaydeder (sayfa gezilmez)."""
+    from yerimebak_ai_v5.services import extension_ingest, market_ingest
+
+    _authenticate_staff(api_key)
+    if not extension_ingest.is_arabam_url(request.url):
+        raise HTTPException(status_code=400, detail="Bir arabam.com arama sayfası açın.")
+    brand, model = request.brand.strip(), request.model.strip()
+    if not brand or not model:
+        try:
+            from yerimebak_ai_v5.services.valuation_service import _guess_from_slug
+
+            guess = _guess_from_slug(request.url)
+            brand, model = brand or guess.get("brand", ""), model or guess.get("model", "")
+        except Exception:
+            pass
+    if not brand or not model:
+        raise HTTPException(status_code=422, detail="Marka ve model belirlenemedi; eklentide elle girin.")
+    items = extension_ingest.parse_search_page(request.url, [c.model_dump() for c in request.cards], brand, model)
+    saved = market_ingest.upsert_listings(items, status="emsal") if items else []
+    return {"success": True, "brand": brand, "model": model, "found": len(request.cards), "saved": len(saved)}
