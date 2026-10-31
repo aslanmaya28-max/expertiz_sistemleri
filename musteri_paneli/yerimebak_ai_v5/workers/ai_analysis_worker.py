@@ -156,12 +156,45 @@ class AIAnalysisWorker:
             km = _to_int(vehicle_info.get("km"))
             price = _to_float(vehicle_info.get("price"))
 
+            from yerimebak_ai_v5.core.ai.inspection_valuation import evaluate
+            from yerimebak_ai_v5.core.ai.ai_result_adapter import inspection_to_ai_analiz
+
+            # Guncel emsaller: Apify acikken bu arac icin arabam.com / Borusan Next'ten
+            # o anki ilanlar cekilir (APIFY_REFRESH_HOURS icinde tekrar cekilmez).
+            from yerimebak_ai_v5.services import market_ingest
+
+            # Musterinin paylastigi ilan sistemde yoksa once o ilan cekilir:
+            # satici beyani (boya/degisen/hasar) ve ilan fiyati karsilastirma icin gerekir.
+            listing_id = _to_int(vehicle_info.get("listing_id")) or None
+            ilan_cekimi: Dict[str, Any] = {}
+            if not listing_id and vehicle_info.get("listing_url"):
+                existing = market_ingest.declared_condition(None, vehicle_info.get("listing_url"))
+                if existing:
+                    listing_id = existing["listing_id"]
+                else:
+                    try:
+                        fetched = market_ingest.fetch_listing(vehicle_info["listing_url"])
+                        if fetched:
+                            listing_id = fetched["id"]
+                            price = price or float(fetched.get("price") or 0)
+                            km = km or _to_int(fetched.get("km"))
+                            year = year or _to_int(fetched.get("year"))
+                            brand = brand or (fetched.get("brand") or "")
+                            model = model or (fetched.get("model") or "")
+                            ilan_cekimi = {"durum": "cekildi", "listing_id": listing_id}
+                        else:
+                            ilan_cekimi = {"durum": "bulunamadi" if market_ingest.apify_service.enabled() else "kapali"}
+                    except Exception as exc:
+                        logger.warning(f"[AI WORKER] Ilan cekilemedi ({report_id}): {exc}")
+                        ilan_cekimi = {"durum": "hata", "hata": str(exc)[:300]}
+
             if not brand or not model:
                 logger.error(f"[AI WORKER] Missing brand/model for {report_id}")
                 return False
 
-            from yerimebak_ai_v5.core.ai.inspection_valuation import evaluate
-            from yerimebak_ai_v5.core.ai.ai_result_adapter import inspection_to_ai_analiz
+            emsal_cekimi = market_ingest.refresh_comparables(brand, model, year or None)
+            if ilan_cekimi:
+                emsal_cekimi["ilan"] = ilan_cekimi
 
             market_reference = get_market_reference_service().get_reference(
                 brand=brand,
@@ -170,7 +203,7 @@ class AIAnalysisWorker:
                 km=km or None,
                 fuel=vehicle_info.get("yakit"),
                 transmission=vehicle_info.get("sanziman"),
-                exclude_id=_to_int(vehicle_info.get("listing_id")) or None,
+                exclude_id=listing_id,
                 listed_price=price,
             )
 
@@ -181,6 +214,12 @@ class AIAnalysisWorker:
                 vehicle={"km": km, "yil": year},
             )
             liquidity = _liquidity(vehicle_info, degerleme, km)
+            # Ilanda satıcının beyan ettiği durum ↔ personel ekspertiz bulguları
+            degerleme["ilanBeyaniKarsilastirma"] = market_ingest.compare_declaration(
+                market_ingest.declared_condition(listing_id, vehicle_info.get("listing_url")),
+                degerleme,
+            )
+            market_reference["emsalCekimi"] = emsal_cekimi
 
             ai_analiz_sonucu = inspection_to_ai_analiz(
                 degerleme,

@@ -879,3 +879,118 @@ def test_initial_admin_bootstrap_from_env(client, monkeypatch):
     monkeypatch.setenv("INITIAL_ADMIN_EMAIL", f"zayif-{uuid.uuid4().hex[:6]}@example.com")
     monkeypatch.setenv("INITIAL_ADMIN_PASSWORD", "kisa")
     assert auth.ensure_initial_admin() is None
+
+
+def test_link_request_apify_listing_and_comparables_valuation(client, admin_token, customer_token, monkeypatch):
+    """Musteri link + marka/model paylasir -> personel raporu -> Apify (taklit) ilan + guncel emsaller
+    -> ekspertiz degerlemesi + ilan beyani karsilastirmasi -> admin onayi -> musteri."""
+    import psycopg2
+    from yerimebak_ai_v5.services import market_ingest
+
+    monkeypatch.setenv("APIFY_MODE", "mock")
+    market_ingest._schema_ready = False
+    link = "https://www.arabam.com/ilan/galeriden-satilik-renault-clio-1-0-tce-touch/test/9001?utm_source=paylas"
+
+    person = _create_personnel(client, admin_token, "apify@yerimebak.test", "İstanbul", "Üsküdar", "Apify Personel")
+    staff = _login(client, "apify@yerimebak.test", "Personel123")
+    firm = client.get("/api/v1/expertiz/packages").json()["firms"][0]
+    created = client.post("/api/v1/expertiz/requests/unpaid", headers=_auth(customer_token), json={
+        "firm_id": firm["id"], "package_id": firm["packages"][0]["id"],
+        "city": "İstanbul", "district": "Üsküdar", "listing_url": link,
+        # Musteri formu marka/modeli ister; fiyat, km ve satici beyani Apify'dan gelir
+        "vehicle": {"brand": "Renault", "model": "Clio"},
+    })
+    assert created.status_code == 200, created.text
+    report_id = created.json()["request_id"]
+    assert client.post(f"/api/v1/expertiz/admin/requests/{report_id}/assign", headers=_auth(admin_token),
+                       json={"personnel_id": person["id"]}).status_code == 200
+    assert client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/start", headers=_auth(staff)).status_code == 200
+    client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/media", headers=_auth(staff),
+                files={"file": ("kurumsal.pdf", PDF_BYTES, "application/pdf")}, data={"category": "corporate_report"})
+
+    rapor = _tam_rapor(report_id, person["id"])
+    rapor["adim1"].update({"marka": "Renault", "model": "Clio", "yil": "2019", "guncelKm": 72000})
+    # Ilanda 1 boyali / 0 degisen beyan edildi; ekspertiz 3 boyali + 1 degisen buldu
+    rapor["adim4"] = {"gorevId": report_id, "personelId": person["id"],
+                      "parcaDurumlari": {"kaput": "boyali", "solOnCamurluk": "boyali", "sagOnKapi": "boyali",
+                                         "solOnKapi": "degisen"},
+                      "yapisalDurumlar": {"onSasi": "orijinal"}}
+    submitted = client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/submit", headers=_auth(staff),
+                            json={"tam_rapor": rapor})
+    assert submitted.status_code == 200, submitted.text
+
+    admin_report = client.get(f"/api/v1/expertiz/admin/reports/{report_id}", headers=_auth(admin_token)).json()["report"]
+    assert admin_report["status"] == "pending_admin", admin_report.get("ai_meta")
+    ai = admin_report["ai_analiz_detay"]
+    ref = ai["marketReference"]
+    # Musterinin ilani Apify ile cekildi, emsaller Apify'dan geldi
+    assert ref["emsalCekimi"]["mode"] == "mock"
+    assert ref["emsalCekimi"]["ilan"]["durum"] == "cekildi"
+    assert ref["emsalCekimi"]["sources"][0]["count"] >= 10 and ref["emsalCekimi"]["sources"][0]["cached"] is False
+    assert ref["found"] is True and ref["clean_count"] >= 3
+    assert all("/ilan/test/9001" not in (s.get("url") or "") for s in ref["samples"])  # kendi ilani emsal degil
+    degerleme = ai["ekspertizDegerleme"]
+    assert degerleme["degerlemeYapildi"] is True
+    assert degerleme["boyaliParcaSayisi"] == 3 and degerleme["degisenParcaSayisi"] == 1
+    assert degerleme["aiDegeri"] < degerleme["temizPiyasaDegeri"]
+    karsilastirma = degerleme["ilanBeyaniKarsilastirma"]
+    assert karsilastirma["ilanBeyaniVar"] is True and karsilastirma["uyumlu"] is False
+    assert karsilastirma["ilanBeyani"] == {"boyali": 1, "degisen": 0, "hasarKaydi": None, "kaynak": "test",
+                                           "url": "https://www.arabam.com/ilan/galeriden-satilik-renault-clio-1-0-tce-touch/test/9001"}
+    assert len(karsilastirma["farklar"]) == 2
+
+    # Veritabani: musteri ilani 'talep', emsaller 'emsal' (vitrinde yok), fiyat gecmisi tutuldu
+    conn = psycopg2.connect(TEST_DB)
+    with conn, conn.cursor() as cur:
+        cur.execute("SELECT status FROM listings WHERE url LIKE %s", ("%/ilan/galeriden-satilik-renault-clio-1-0-tce-touch/test/9001",))
+        assert cur.fetchone()[0] == "talep"
+        cur.execute("SELECT count(*) FROM listings WHERE status = 'emsal' AND brand = 'Renault'")
+        assert cur.fetchone()[0] >= 10
+        cur.execute("SELECT count(*) FROM price_history ph JOIN listings l ON l.id = ph.listing_id WHERE l.brand = 'Renault'")
+        assert cur.fetchone()[0] >= 11
+    conn.close()
+    vitrin = client.get("/api/v1/vitrin/vehicles?brand=Renault").json()
+    assert all(v.get("brand") != "Renault" for v in vitrin.get("vehicles", []))
+
+    # Ayni arac icin tekrar analiz: emsaller yeniden cekilmez (APIFY_REFRESH_HOURS)
+    re_run = client.post(f"/api/v1/expertiz/admin/reports/{report_id}/reanalyze", headers=_auth(admin_token))
+    assert re_run.status_code == 200, re_run.text
+    again = re_run.json()["report"]["ai_analiz_detay"]
+    assert again["marketReference"]["emsalCekimi"]["sources"][0]["cached"] is True
+    assert again["ekspertizDegerleme"]["aiDegeri"] == degerleme["aiDegeri"]
+
+    # Admin onayi -> musteri degerlemeyi ve beyan karsilastirmasini gorur
+    assert client.post(f"/api/v1/expertiz/admin/reports/{report_id}/publish", headers=_auth(admin_token)).status_code == 200
+    customer = client.get(f"/api/v1/expertiz/reports/{report_id}", headers=_auth(customer_token)).json()["report"]
+    assert customer["status"] == "published"
+    assert customer["summary"]["market_value"] == degerleme["aiDegeri"]
+    assert customer["ai"]["ekspertizDegerleme"]["ilanBeyaniKarsilastirma"]["uyumlu"] is False
+    assert len(customer["corporate_reports"]) == 1
+
+
+def test_apify_failure_does_not_block_valuation(client, admin_token, customer_token, monkeypatch):
+    """Apify hata verirse degerleme mevcut veriyle surer; sebep admin raporunda gorunur."""
+    from yerimebak_ai_v5.services import apify_service
+
+    def boom(*_args, **_kwargs):
+        raise apify_service.ApifyError("Apify calismasi basarisiz: FAILED")
+
+    monkeypatch.setenv("APIFY_MODE", "live")
+    monkeypatch.setattr(apify_service, "run_actor", boom)
+    _seed_listings()
+    person = _create_personnel(client, admin_token, "apify-hata@yerimebak.test", "İstanbul", "Maltepe", "Hata Personel")
+    staff = _login(client, "apify-hata@yerimebak.test", "Personel123")
+    report_id = _create_paid_request(client, customer_token, "34 APF 02", "İstanbul", package_index=3, district="Maltepe")
+    client.post(f"/api/v1/expertiz/admin/requests/{report_id}/assign", headers=_auth(admin_token), json={"personnel_id": person["id"]})
+    client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/start", headers=_auth(staff))
+    client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/media", headers=_auth(staff),
+                files={"file": ("kurumsal.pdf", PDF_BYTES, "application/pdf")}, data={"category": "corporate_report"})
+    submitted = client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/submit", headers=_auth(staff),
+                            json={"tam_rapor": _tam_rapor(report_id, person["id"])})
+    assert submitted.status_code == 200, submitted.text
+    report = client.get(f"/api/v1/expertiz/admin/reports/{report_id}", headers=_auth(admin_token)).json()["report"]
+    assert report["status"] == "pending_admin"
+    cekim = report["ai_analiz_detay"]["marketReference"]["emsalCekimi"]
+    assert "FAILED" in cekim["sources"][0]["error"]
+    assert report["ai_analiz_detay"]["ekspertizDegerleme"]["degerlemeYapildi"] is True
+    assert report["ai_analiz_detay"]["ekspertizDegerleme"]["ilanBeyaniKarsilastirma"]["uyumlu"] is None

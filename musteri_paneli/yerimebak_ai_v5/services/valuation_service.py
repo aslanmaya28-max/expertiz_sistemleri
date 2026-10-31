@@ -11,6 +11,7 @@ ve tramer (hasar kaydi) bildirilir. Sistem:
 
 Yeterli emsal yoksa analiz yapilmaz ve kredi dusulmez.
 """
+import logging
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -20,6 +21,8 @@ from yerimebak_ai_v5.core.ai.inspection_valuation import PART_LABELS, evaluate
 from yerimebak_ai_v5.core.database_config import DatabaseConfig
 from yerimebak_ai_v5.core.market_reference_service import get_market_reference_service
 from yerimebak_ai_v5.services import pricing_service
+
+logger = logging.getLogger(__name__)
 
 ANALYSIS_COST = 1
 PART_STATUSES = ("orijinal", "lokal_boyali", "boyali", "degisen")
@@ -70,10 +73,10 @@ def _listing_by_url(url: str) -> Optional[Dict[str, Any]]:
             SELECT id, brand, model, year, km, price, fuel, transmission, title, url, image_url,
                    location, paint_info, accident_record
             FROM listings
-            WHERE rtrim(split_part(split_part(lower(url), '?', 1), '#', 1), '/') = %s
+            WHERE regexp_replace(rtrim(split_part(split_part(lower(url), '?', 1), '#', 1), '/'), '^https?://', '') = %s
             LIMIT 1
             """,
-            (norm,),
+            (re.sub(r"^https?://", "", norm.lower()),),
         )
         row = cursor.fetchone()
         return dict(row) if row else None
@@ -138,6 +141,18 @@ def prefill_from_link(url: str) -> Dict[str, Any]:
     if not normalize_url(url):
         return _error("Geçerli bir ilan linki girin")
     listing = _listing_by_url(url)
+    fetch_error = None
+    if not listing:
+        # Ilan sistemde yoksa Apify ile o an cekilir (arabam.com / Borusan Next)
+        from yerimebak_ai_v5.services import apify_service, market_ingest
+
+        if apify_service.enabled():
+            try:
+                if market_ingest.fetch_listing(normalize_url(url)):
+                    listing = _listing_by_url(url)
+            except Exception as exc:
+                logger.warning("[VALUATION] Apify ilan cekimi basarisiz: %s", exc)
+                fetch_error = "İlan bilgileri otomatik alınamadı; bilgileri elle girin."
     if listing:
         return {
             "success": True,
@@ -157,7 +172,7 @@ def prefill_from_link(url: str) -> Dict[str, Any]:
         "found": False,
         "vehicle": _guess_from_slug(url),
         "parts": {},
-        "message": "İlan sistemimizde yok; linkten tahmin edilen bilgileri kontrol edip eksikleri elle girin.",
+        "message": fetch_error or "İlan sistemimizde yok; linkten tahmin edilen bilgileri kontrol edip eksikleri elle girin.",
     }
 
 

@@ -1,0 +1,49 @@
+{
+  "title": "YerimeBak araç verisi",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "mode": {
+      "title": "Mod",
+      "type": "string",
+      "description": "ilan: tek ilanın detayını çeker. emsal: aynı marka/model için güncel ilanları arar.",
+      "editor": "select",
+      "enum": ["ilan", "emsal"],
+      "enumTitles": ["Tek ilan (link)", "Emsal araması"],
+      "default": "emsal"
+    },
+    "url": {
+      "title": "İlan linki (mod: ilan)",
+      "type": "string",
+      "description": "arabam.com veya borusannext.com ilan adresi",
+      "editor": "textfield"
+    },
+    "source": {
+      "title": "Kaynak (mod: emsal)",
+      "type": "string",
+      "editor": "select",
+      "enum": ["arabam", "borusan"],
+      "default": "arabam"
+    },
+    "brand": {"title": "Marka (mod: emsal)", "type": "string", "editor": "textfield", "example": "Fiat"},
+    "model": {"title": "Model / seri (mod: emsal)", "type": "string", "editor": "textfield", "example": "Egea"},
+    "year": {"title": "Model yılı (mod: emsal)", "type": "integer", "minimum": 1990, "maximum": 2035, "example": 2020},
+    "yearWindow": {
+      "title": "Yıl aralığı (±)",
+      "type": "integer",
+      "description": "Örn. 1 → 2019-2021 arası aranır",
+      "minimum": 0,
+      "maximum": 3,
+      "default": 1
+    },
+    "maxItems": {
+      "title": "En fazla ilan",
+      "type": "integer",
+      "description": "Detay sayfası açılan toplam ilan sayısı (süre ve maliyet bununla artar)",
+      "minimum": 1,
+      "maximum": 120,
+      "default": 36
+    }
+  },
+  "required": ["mode"]
+}
