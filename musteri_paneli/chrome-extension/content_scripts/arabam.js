@@ -7,6 +7,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'EXTRACT_DATA') {
     const data = extractArabamData();
     sendResponse(data);
+  } else if (message.action === 'CAPTURE_PAGE') {
+    sendResponse(captureArabamPage());
   }
   return true;
 });
@@ -137,4 +139,46 @@ function extractArabamData() {
     paint_info: paintInfo,
     description: data.description || '',
   };
+}
+
+/**
+ * Sisteme kaydetmek icin acik sayfayi okur. Sayfada gezinmez, istek atmaz:
+ * yalnizca kullanicinin actigi sayfanin metnini dondurur; ayristirma sunucuda yapilir.
+ */
+function captureArabamPage() {
+  const url = window.location.href.split('#')[0];
+  const isListing = window.location.pathname.includes('/ilan/');
+
+  const structured = [];
+  document.querySelectorAll('script[type="application/ld+json"]').forEach((el) => {
+    try { structured.push(JSON.parse(el.textContent)); } catch (e) { /* bozuk JSON-LD atlanir */ }
+  });
+
+  if (isListing) {
+    const og = document.querySelector('meta[property="og:image"]');
+    const locEl = document.querySelector('[itemprop="address"], .product-location, [class*="location"]');
+    return {
+      pageType: 'listing',
+      url,
+      title: (document.querySelector('h1')?.textContent || document.title || '').trim(),
+      text: document.body.innerText || '',
+      image_url: og ? og.getAttribute('content') || '' : '',
+      location: locEl ? locEl.textContent.trim().slice(0, 120) : '',
+      structured,
+    };
+  }
+
+  // Arama sonuclari: her ilan linkinin icinde bulundugu satir/kart metni
+  const cards = [];
+  const seen = new Set();
+  document.querySelectorAll('a[href*="/ilan/"]').forEach((a) => {
+    const href = a.href.split('#')[0].split('?')[0];
+    if (seen.has(href)) return;
+    const row = a.closest('tr, li, article, [class*="listing-list-item"], [class*="listing-item"], [class*="card"]');
+    const text = (row ? row.innerText : a.innerText || '').trim();
+    if (!text) return;
+    seen.add(href);
+    cards.push({ url: href, text: text.slice(0, 2000) });
+  });
+  return { pageType: 'search', url, cards: cards.slice(0, 120) };
 }
