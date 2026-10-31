@@ -8,17 +8,16 @@ from yerimebak_ai_v5.services import listing_links, valuation_service
 SAHIBINDEN = "https://www.sahibinden.com/ilan/vasita-otomobil-renault-clio-1.0-tce-touch-2019-1234567890/detay"
 
 
-@pytest.mark.parametrize("url,source,fetch", [
-    ("https://www.arabam.com/ilan/galeriden-satilik-renault-clio/x/123", "arabam", True),
-    ("arabam.com/ilan/x/1", "arabam", True),
-    (SAHIBINDEN, "sahibinden", False),
-    ("https://shbd.io/s/JxlAmKg0", "sahibinden", False),
-    ("https://example.com/ilan/1", None, False),
-    ("https://arabam.com.evil.example/ilan/1", None, False),
+@pytest.mark.parametrize("url,source", [
+    ("https://www.arabam.com/ilan/galeriden-satilik-renault-clio/x/123", "arabam"),
+    ("arabam.com/ilan/x/1", "arabam"),
+    (SAHIBINDEN, "sahibinden"),
+    ("https://shbd.io/s/JxlAmKg0", "sahibinden"),
+    ("https://example.com/ilan/1", None),
+    ("https://arabam.com.evil.example/ilan/1", None),
 ])
-def test_link_source(url, source, fetch):
+def test_link_source(url, source):
     assert listing_links.link_source(url) == source
-    assert listing_links.can_fetch(url) is fetch
 
 
 @pytest.fixture
@@ -71,30 +70,15 @@ def test_guess_from_slug(catalog, url, expected):
     assert valuation_service._guess_from_slug(url) == expected
 
 
-def test_prefill_sahibinden_short_link_skips_apify(catalog, monkeypatch):
+def test_prefill_sahibinden_short_link(catalog, monkeypatch):
     monkeypatch.setattr(listing_links, "resolve_short_link", lambda url, **kw: SAHIBINDEN)
     monkeypatch.setattr(valuation_service, "_listing_by_url", lambda url: None)
-
-    from yerimebak_ai_v5.services import apify_service, market_ingest
-
-    def no_apify(*a, **kw):
-        raise AssertionError("sahibinden linki icin Apify calistirilmamali")
-    monkeypatch.setattr(apify_service, "run_actor", no_apify)
-    monkeypatch.setattr(market_ingest, "fetch_listing", no_apify)
 
     res = valuation_service.prefill_from_link("https://shbd.io/s/JxlAmKg0")
     assert res["found"] is False and res["source"] == "sahibinden"
     assert res["url"] == valuation_service.normalize_url(SAHIBINDEN)
     assert res["vehicle"] == {"brand": "Renault", "model": "Clio", "year": 2019}
     assert "Sahibinden" in res["message"]
-
-
-def test_fetch_listing_skips_non_arabam(monkeypatch):
-    from yerimebak_ai_v5.services import apify_service, market_ingest
-
-    monkeypatch.setattr(apify_service, "enabled", lambda: True)
-    monkeypatch.setattr(apify_service, "run_actor", lambda *a, **kw: (_ for _ in ()).throw(AssertionError("calismamali")))
-    assert market_ingest.fetch_listing(SAHIBINDEN) is None
 
 
 # shbd.io canli denemede (2026-10) sahibinden'in kendi kisa adresine 301 ile yonlendirdi

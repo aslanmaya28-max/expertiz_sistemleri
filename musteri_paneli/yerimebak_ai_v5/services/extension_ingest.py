@@ -2,9 +2,9 @@
 """
 Chrome eklentisinden gelen arabam.com sayfalarini ilan kaydina cevirir.
 
-arabam.com sunucudan (Apify dahil) gelen otomatik istekleri Cloudflare ile durdurur.
+arabam.com sunucudan gelen otomatik istekleri Cloudflare ile durdurur.
 Bu yuzden ilan verisi, personelin kendi tarayicisinda actigi sayfadan alinir:
-eklenti sayfanin metnini gonderir, burada Apify actor'uyle ayni ayristiricilarla
+eklenti sayfanin metnini gonderir, burada kaziyicinin ayristiricilariyla
 (boya/degisen, tramer, Marka/Seri/Model satirlari) okunur ve market_ingest ile kaydedilir.
 
 - Ilan sayfasi  -> tek ilan, tam veri (boya/degisen ve tramer dahil).
@@ -129,7 +129,7 @@ def parse_listing_page(
     location: Optional[str] = None,
     structured: Optional[List[Any]] = None,
 ) -> Dict[str, Any]:
-    """arabam.com ilan sayfasi metni -> Apify actor'unun 'ilan' modundaki cikti bicimi."""
+    """arabam.com ilan sayfasi metni -> market_ingest.upsert_listings'in bekledigi ilan bicimi."""
     from yerimebak_ai_v5.scrapers.arabam_v4.extractors.paint_extractor import parse_paint_section
 
     text = (text or "")[:MAX_TEXT]

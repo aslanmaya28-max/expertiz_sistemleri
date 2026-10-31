@@ -195,7 +195,7 @@ async def extension_analyze(
 
 
 # ---------------------------------------------------------------------------
-# arabam.com sayfasini sisteme kaydetme (Apify yerine personelin tarayicisi)
+# arabam.com sayfasini sisteme kaydetme (personelin kendi tarayicisindan)
 # ---------------------------------------------------------------------------
 
 _INGEST_ROLES = {"admin", "field_staff", "personel", "personnel", "staff"}

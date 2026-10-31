@@ -881,23 +881,31 @@ def test_initial_admin_bootstrap_from_env(client, monkeypatch):
     assert auth.ensure_initial_admin() is None
 
 
-def test_link_request_apify_listing_and_comparables_valuation(client, admin_token, customer_token, monkeypatch):
-    """Musteri link + marka/model paylasir -> personel raporu -> Apify (taklit) ilan + guncel emsaller
+def test_link_request_saved_listing_and_comparables_valuation(client, admin_token, customer_token, monkeypatch):
+    """Musteri link + marka/model paylasir -> ilan ve emsaller eklentiyle kaydedilmis -> personel raporu
     -> ekspertiz degerlemesi + ilan beyani karsilastirmasi -> admin onayi -> musteri."""
+    import json as _json
+    from pathlib import Path
+
     import psycopg2
     from yerimebak_ai_v5.services import market_ingest
 
-    monkeypatch.setenv("APIFY_MODE", "mock")
     market_ingest._schema_ready = False
     link = "https://www.arabam.com/ilan/galeriden-satilik-renault-clio-1-0-tce-touch/test/9001?utm_source=paylas"
+    # Personel ilani ve arama sayfasini Chrome eklentisiyle kaydetti (ornek veri)
+    fixtures = Path(__file__).resolve().parents[1] / "fixtures" / "listings"
+    ilan = [dict(it, url=link) for it in _json.loads((fixtures / "ilan.json").read_text(encoding="utf-8"))]
+    assert market_ingest.upsert_listings(ilan, status="talep")
+    assert len(market_ingest.upsert_listings(_json.loads((fixtures / "emsal.json").read_text(encoding="utf-8")),
+                                             status="emsal")) >= 10
 
-    person = _create_personnel(client, admin_token, "apify@yerimebak.test", "İstanbul", "Üsküdar", "Apify Personel")
-    staff = _login(client, "apify@yerimebak.test", "Personel123")
+    person = _create_personnel(client, admin_token, "emsal@yerimebak.test", "İstanbul", "Üsküdar", "Emsal Personel")
+    staff = _login(client, "emsal@yerimebak.test", "Personel123")
     firm = client.get("/api/v1/expertiz/packages").json()["firms"][0]
     created = client.post("/api/v1/expertiz/requests/unpaid", headers=_auth(customer_token), json={
         "firm_id": firm["id"], "package_id": firm["packages"][0]["id"],
         "city": "İstanbul", "district": "Üsküdar", "listing_url": link,
-        # Musteri formu marka/modeli ister; fiyat, km ve satici beyani Apify'dan gelir
+        # Musteri formu marka/modeli ister; fiyat, km ve satici beyani kaydedilmis ilandan gelir
         "vehicle": {"brand": "Renault", "model": "Clio"},
     })
     assert created.status_code == 200, created.text
@@ -924,10 +932,7 @@ def test_link_request_apify_listing_and_comparables_valuation(client, admin_toke
     assert admin_report["status"] == "pending_admin", admin_report.get("ai_meta")
     ai = admin_report["ai_analiz_detay"]
     ref = ai["marketReference"]
-    # Musterinin ilani Apify ile cekildi, emsaller Apify'dan geldi
-    assert ref["emsalCekimi"]["mode"] == "mock"
-    assert ref["emsalCekimi"]["ilan"]["durum"] == "cekildi"
-    assert ref["emsalCekimi"]["sources"][0]["count"] >= 10 and ref["emsalCekimi"]["sources"][0]["cached"] is False
+    assert "emsalCekimi" not in ref
     assert ref["found"] is True and ref["clean_count"] >= 3
     assert all("/ilan/test/9001" not in (s.get("url") or "") for s in ref["samples"])  # kendi ilani emsal degil
     degerleme = ai["ekspertizDegerleme"]
@@ -968,11 +973,10 @@ def test_link_request_apify_listing_and_comparables_valuation(client, admin_toke
     vitrin = client.get("/api/v1/vitrin/vehicles?brand=Renault").json()
     assert all(v.get("brand") != "Renault" for v in vitrin.get("vehicles", []))
 
-    # Ayni arac icin tekrar analiz: emsaller yeniden cekilmez (APIFY_REFRESH_HOURS)
+    # Ayni arac icin tekrar analiz ayni sonucu verir
     re_run = client.post(f"/api/v1/expertiz/admin/reports/{report_id}/reanalyze", headers=_auth(admin_token))
     assert re_run.status_code == 200, re_run.text
     again = re_run.json()["report"]["ai_analiz_detay"]
-    assert again["marketReference"]["emsalCekimi"]["sources"][0]["cached"] is True
     assert again["ekspertizDegerleme"]["aiDegeri"] == degerleme["aiDegeri"]
 
     # Admin onayi -> musteri degerlemeyi ve beyan karsilastirmasini gorur
@@ -985,18 +989,11 @@ def test_link_request_apify_listing_and_comparables_valuation(client, admin_toke
     assert len(customer["corporate_reports"]) == 1
 
 
-def test_apify_failure_does_not_block_valuation(client, admin_token, customer_token, monkeypatch):
-    """Apify hata verirse degerleme mevcut veriyle surer; sebep admin raporunda gorunur."""
-    from yerimebak_ai_v5.services import apify_service
-
-    def boom(*_args, **_kwargs):
-        raise apify_service.ApifyError("Apify calismasi basarisiz: FAILED")
-
-    monkeypatch.setenv("APIFY_MODE", "live")
-    monkeypatch.setattr(apify_service, "run_actor", boom)
+def test_valuation_without_saved_listing(client, admin_token, customer_token, monkeypatch):
+    """Musterinin ilani sisteme kaydedilmemisse degerleme mevcut emsallerle surer; beyan karsilastirmasi yapilmaz."""
     _seed_listings()
-    person = _create_personnel(client, admin_token, "apify-hata@yerimebak.test", "İstanbul", "Maltepe", "Hata Personel")
-    staff = _login(client, "apify-hata@yerimebak.test", "Personel123")
+    person = _create_personnel(client, admin_token, "kayitsiz@yerimebak.test", "İstanbul", "Maltepe", "Kayitsiz Personel")
+    staff = _login(client, "kayitsiz@yerimebak.test", "Personel123")
     report_id = _create_paid_request(client, customer_token, "34 APF 02", "İstanbul", package_index=3, district="Maltepe")
     client.post(f"/api/v1/expertiz/admin/requests/{report_id}/assign", headers=_auth(admin_token), json={"personnel_id": person["id"]})
     client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/start", headers=_auth(staff))
@@ -1007,7 +1004,5 @@ def test_apify_failure_does_not_block_valuation(client, admin_token, customer_to
     assert submitted.status_code == 200, submitted.text
     report = client.get(f"/api/v1/expertiz/admin/reports/{report_id}", headers=_auth(admin_token)).json()["report"]
     assert report["status"] == "pending_admin"
-    cekim = report["ai_analiz_detay"]["marketReference"]["emsalCekimi"]
-    assert "FAILED" in cekim["sources"][0]["error"]
     assert report["ai_analiz_detay"]["ekspertizDegerleme"]["degerlemeYapildi"] is True
     assert report["ai_analiz_detay"]["ekspertizDegerleme"]["ilanBeyaniKarsilastirma"]["uyumlu"] is None

@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 # Kisa link servisi -> ait oldugu site
 SHORTENERS = {"shbd.io": "sahibinden"}
 SITES = {"arabam.com": "arabam", "sahibinden.com": "sahibinden"}
-FETCHABLE = {"arabam"}  # Apify actor'unun okuyabildigi siteler
 
 
 def _host(url: str) -> str:
@@ -35,11 +34,6 @@ def link_source(url: str) -> Optional[str]:
         if host == domain or host.endswith("." + domain):
             return source
     return None
-
-
-def can_fetch(url: str) -> bool:
-    """Ilan sayfasi Apify actor'u ile cekilebilir mi (yalnizca arabam.com)."""
-    return link_source(url) in FETCHABLE
 
 
 def is_short_link(url: str) -> bool:

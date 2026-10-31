@@ -1,26 +1,22 @@
 # -*- coding: utf-8 -*-
 """
-Apify'dan gelen ilanlari veritabanina yazar (tek ilan + guncel emsaller).
+Chrome eklentisiyle kaydedilen ilanlari veritabanina yazar (musterinin ilani + emsaller).
 
 - Emsal ilanlar listings tablosuna status='emsal' ile yazilir: vitrinde gorunmez,
   degerleme motoru (MarketReferenceService) bunlari dogrudan kullanir.
 - Musterinin paylastigi ilan status='talep' ile yazilir.
 - Vitrin icin daha once cekilmis bir ilanin durumu degistirilmez.
 - Fiyat degisince eski fiyat price_history'ye yazilir (6/12 aylik seri icin).
-- Ayni arac icin emsaller APIFY_REFRESH_HOURS (varsayilan 24) icinde tekrar cekilmez.
 """
 from __future__ import annotations
 
 import json
 import logging
-import os
 import re
-from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional
 from urllib.parse import urlparse, urlunparse
 
 from yerimebak_ai_v5.core.database_config import DatabaseConfig
-from yerimebak_ai_v5.services import apify_service
 
 logger = logging.getLogger(__name__)
 
@@ -33,18 +29,6 @@ def _ensure_schema(cursor: Any) -> None:
     global _schema_ready
     if _schema_ready:
         return
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS market_refresh (
-            key TEXT PRIMARY KEY,
-            refreshed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            item_count INTEGER NOT NULL DEFAULT 0,
-            run_id TEXT,
-            usage_usd DOUBLE PRECISION,
-            error TEXT
-        )
-        """
-    )
     # Eski kurulumlarda bulunmayabilecek ilan sutunlari (init.sql disinda kurulan tablolar)
     for column, col_type in (
         ("series", "TEXT"), ("title", "TEXT"), ("image_url", "TEXT"), ("location", "TEXT"),
@@ -95,7 +79,7 @@ def _int(value: Any) -> Optional[int]:
 
 
 def normalize_item(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Actor ciktisini listings satirina cevirir; fiyat, marka veya model yoksa None."""
+    """Eklentiden gelen ilani listings satirina cevirir; fiyat, marka veya model yoksa None."""
     url = normalize_url(str(item.get("url") or ""))
     brand = _clean_text(item.get("brand"))
     model = _clean_text(item.get("model"))
@@ -184,96 +168,6 @@ def upsert_listings(items: Iterable[Dict[str, Any]], status: str) -> List[Dict[s
     finally:
         DatabaseConfig.return_connection(conn)
     return saved
-
-
-def _refresh_key(source: str, brand: str, model: str, year: Optional[int]) -> str:
-    return "|".join([source, brand.strip().lower(), model.strip().lower(), str(year or "")])
-
-
-def _recently_refreshed(key: str, hours: float) -> Optional[Dict[str, Any]]:
-    conn = DatabaseConfig.get_connection()
-    try:
-        cursor = conn.cursor()
-        _ensure_schema(cursor)
-        cursor.execute("SELECT * FROM market_refresh WHERE key = %s", (key,))
-        row = cursor.fetchone()
-        conn.commit()
-    finally:
-        DatabaseConfig.return_connection(conn)
-    if not row:
-        return None
-    row = dict(row)
-    refreshed = row["refreshed_at"]
-    if refreshed.tzinfo is None:
-        refreshed = refreshed.replace(tzinfo=timezone.utc)
-    if row.get("error") or datetime.now(timezone.utc) - refreshed > timedelta(hours=hours):
-        return None
-    return row
-
-
-def _record_refresh(key: str, count: int, run: Dict[str, Any], error: Optional[str]) -> None:
-    conn = DatabaseConfig.get_connection()
-    try:
-        cursor = conn.cursor()
-        _ensure_schema(cursor)
-        cursor.execute(
-            """
-            INSERT INTO market_refresh (key, refreshed_at, item_count, run_id, usage_usd, error)
-            VALUES (%s, NOW(), %s, %s, %s, %s)
-            ON CONFLICT (key) DO UPDATE SET refreshed_at = NOW(), item_count = EXCLUDED.item_count,
-                run_id = EXCLUDED.run_id, usage_usd = EXCLUDED.usage_usd, error = EXCLUDED.error
-            """,
-            (key, count, run.get("id"), run.get("usage_usd"), error),
-        )
-        conn.commit()
-    finally:
-        DatabaseConfig.return_connection(conn)
-
-
-def refresh_comparables(brand: str, model: str, year: Optional[int]) -> Dict[str, Any]:
-    """Degerlemeden once guncel emsalleri Apify ile arabam.com'dan ceker.
-
-    Hata durumunda degerleme durmaz: mevcut veritabani verisiyle devam edilir ve
-    sebep sonuc ozetinde doner (admin ekraninda gosterilir).
-    """
-    summary: Dict[str, Any] = {"enabled": apify_service.enabled(), "mode": apify_service.mode(), "sources": []}
-    if not summary["enabled"] or not brand or not model or not year:
-        return summary
-    hours = float(os.getenv("APIFY_REFRESH_HOURS") or 24)
-    window = int(os.getenv("APIFY_YEAR_WINDOW") or 1)
-    max_items = int(os.getenv("APIFY_MAX_ITEMS") or 36)
-    for source in ("arabam",):
-        key = _refresh_key(source, brand, model, year)
-        cached = _recently_refreshed(key, hours)
-        if cached:
-            summary["sources"].append({"source": source, "cached": True, "count": cached["item_count"],
-                                       "refreshed_at": cached["refreshed_at"].isoformat()})
-            continue
-        run_input = {"mode": "emsal", "source": source, "brand": brand, "model": model, "year": int(year),
-                     "yearWindow": window, "maxItems": max_items}
-        try:
-            result = apify_service.run_actor(run_input)
-            saved = upsert_listings(result["items"], status="emsal")
-            _record_refresh(key, len(saved), result["run"], None)
-            summary["sources"].append({"source": source, "cached": False, "count": len(saved),
-                                       "run_id": result["run"].get("id"), "usage_usd": result["run"].get("usage_usd")})
-        except Exception as exc:
-            logger.warning("[MARKET INGEST] %s emsal cekilemedi: %s", source, exc)
-            _record_refresh(key, 0, {}, str(exc)[:500])
-            summary["sources"].append({"source": source, "error": str(exc)[:300]})
-    return summary
-
-
-def fetch_listing(url: str) -> Optional[Dict[str, Any]]:
-    """Musterinin paylastigi ilani Apify ile ceker ve kaydeder (status='talep')."""
-    from yerimebak_ai_v5.services import listing_links
-
-    # Actor yalnizca arabam.com okur; sahibinden vb. icin bosuna (ucretli) calistirilmaz
-    if not apify_service.enabled() or not listing_links.can_fetch(url):
-        return None
-    result = apify_service.run_actor({"mode": "ilan", "url": url}, timeout_s=int(os.getenv("APIFY_LISTING_TIMEOUT_S") or 180))
-    saved = upsert_listings(result["items"], status="talep")
-    return saved[0] if saved else None
 
 
 def declared_condition(listing_id: Optional[int], url: Optional[str]) -> Optional[Dict[str, Any]]:
