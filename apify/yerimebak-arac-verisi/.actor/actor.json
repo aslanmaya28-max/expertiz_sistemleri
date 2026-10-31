@@ -1,8 +1,8 @@
 {
   "actorSpecification": 1,
   "name": "yerimebak-arac-verisi",
-  "title": "YerimeBak araç verisi (arabam.com, Borusan Next)",
-  "description": "Müşterinin paylaştığı tek ilanı veya değerleme için güncel emsal ilanları çeker; YerimeBak değerleme motorunun beklediği tek biçimde döndürür.",
+  "title": "YerimeBak araç verisi (arabam.com)",
+  "description": "Müşterinin paylaştığı arabam.com ilanını veya değerleme için güncel emsal ilanları çeker: fiyat, km, boya, değişen ve hasar kaydı (tramer) bilgisiyle.",
   "version": "0.1",
   "buildTag": "latest",
   "input": "./input_schema.json",
@@ -14,8 +14,21 @@
       "views": {
         "overview": {
           "title": "Özet",
-          "transformation": {"fields": ["source", "brand", "model", "year", "km", "price", "paint_info", "url"]},
-          "display": {"component": "table"}
+          "transformation": {
+            "fields": [
+              "brand",
+              "model",
+              "year",
+              "km",
+              "price",
+              "paint_info",
+              "damage_record",
+              "url"
+            ]
+          },
+          "display": {
+            "component": "table"
+          }
         }
       }
     }

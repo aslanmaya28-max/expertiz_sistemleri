@@ -29,6 +29,13 @@
    "paint_count": 1,
    "changed_count": 0
   },
-  "observed_at": "2026-10-31T10:00:00+00:00"
+  "observed_at": "2026-10-31T10:00:00+00:00",
+  "damage_record": {
+   "tramer_tl": null,
+   "tramer_yok": true,
+   "agir_hasar": false,
+   "kaynak_metin": "Tramer kaydı yok"
+  },
+  "accident_record": null
  }
 ]
