@@ -22,14 +22,15 @@ import {
 import { useAuth } from "@/kancalar/yetkiKullan";
 import { BILDIRIM_EVENT } from "@/bilesenler/BildirimZili";
 import EpostaDogrulamaUyarisi from "@/bilesenler/EpostaDogrulamaUyarisi";
+import Ikon from "@/bilesenler/Ikon";
 
 type PanelTab = "ozet" | "analizler" | "ekspertiz" | "raporlar" | "favoriler" | "krediler" | "profil";
 
 const tabs: { id: PanelTab; label: string }[] = [
-  { id: "ozet", label: "Ozet" },
+  { id: "ozet", label: "Özet" },
   { id: "analizler", label: "Analizlerim" },
   { id: "ekspertiz", label: "Ekspertiz Taleplerim" },
-  { id: "raporlar", label: "Raporlarim" },
+  { id: "raporlar", label: "Raporlarım" },
   { id: "favoriler", label: "Favoriler" },
   { id: "krediler", label: "Krediler" },
   { id: "profil", label: "Profil" },
@@ -175,16 +176,16 @@ export default function MusteriPaneli() {
   if (!user) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-16 text-center">
-        <h1 className="text-3xl font-bold text-metin-birincil">Musteri Paneli</h1>
+        <h1 className="text-3xl font-bold text-metin-birincil">Müşteri paneliniz</h1>
         <p className="mt-3 text-metin-ikincil">
-          Analizlerinizi, ekspertiz taleplerinizi ve raporlarinizi takip etmek icin giris yapin.
+          İnceleme taleplerinizi takip etmek ve onaylanan raporlarınıza ulaşmak için giriş yapın.
         </p>
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
           <Link href="/giris" className="rounded-lg bg-birincil px-5 py-2.5 text-sm font-semibold text-white">
-            Giris yap
+            Giriş yap
           </Link>
           <Link href="/kayit-ol" className="rounded-lg border border-kenarlik-acik px-5 py-2.5 text-sm font-semibold text-metin-birincil">
-            Uye ol
+            Kayıt ol
           </Link>
         </div>
       </div>
@@ -193,17 +194,18 @@ export default function MusteriPaneli() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="yb-panel-heading flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-metin-birincil">Musteri Paneli</h1>
-          <p className="text-metin-ikincil mt-1">{user.email} hesabinizla arac analizlerinizi ve ekspertiz surecinizi yonetin.</p>
+          <span className="yb-eyebrow !text-[#b9efd7]">HER ADIMDA YANINIZDAYIZ</span>
+          <h1 className="text-3xl font-semibold tracking-tight">Araç dosyanız, elinizin altında.</h1>
+          <p className="mt-3 text-sm">{user.email} · İnceleme sürecinizi ve onaylanan raporlarınızı buradan takip edin.</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Link href="/arac-analiz" className="inline-flex justify-center rounded-lg border border-kenarlik-acik px-4 py-2 text-sm font-semibold text-metin-birincil">
-            Arac analiz et
+          <Link href="/arac-analiz" className="yb-button yb-button-outline yb-button-small">
+            Araç değerleme
           </Link>
-          <Link href="/ekspertiz-talebi" className="inline-flex justify-center rounded-lg bg-birincil px-4 py-2 text-sm font-semibold text-white">
-            Yeni ekspertiz talebi
+          <Link href="/ekspertiz-talebi" className="yb-button yb-button-mint yb-button-small">
+            Yeni inceleme talebi <Ikon ad="capraz-ok" />
           </Link>
         </div>
       </div>

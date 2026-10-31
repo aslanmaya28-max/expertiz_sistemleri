@@ -267,8 +267,8 @@ def create_unpaid_request(payload: Dict[str, Any], user: Dict[str, Any]) -> Dict
 
     vehicle = checkout_service._clean_vehicle(payload.get("vehicle"))
     listing_url = str(payload.get("listing_url") or "").strip()[:500]
-    if not payload.get("listing_id") and not listing_url and not (vehicle.get("brand") and vehicle.get("model")):
-        return {"error": "Arac icin ilan linki paylasin veya marka/model bilgilerini girin"}
+    if not vehicle.get("brand") or not vehicle.get("model"):
+        return {"error": "Aracin marka ve model bilgileri zorunludur"}
     if not str(payload.get("city") or "").strip() or not str(payload.get("district") or "").strip():
         return {"error": "Aracin bulundugu il ve ilce zorunludur"}
     quote = checkout_service.quote_expertiz(str(payload.get("firm_id") or ""), str(payload.get("package_id") or ""))

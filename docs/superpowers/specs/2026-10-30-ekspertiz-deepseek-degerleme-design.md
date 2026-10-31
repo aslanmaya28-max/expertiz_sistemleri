@@ -67,6 +67,35 @@ Kaynak noktaları:
 
 ## Geçmiş piyasa değişimi
 
+### arabam.com verisinin hazırlanması
+
+Kullanıcı, ayrı bir JEV sağlayıcısını değil Claude/Codex'in ortak kullandığı
+mevcut proje altyapısını kastettiğini açıkladı. Var olan arabam_v4 scraper,
+marka/model hedefleri ve coverage/backfill mekanizması yeniden kullanılır.
+30 Ekim 2026 salt-okuma web kontrolünde arabam.com/ikinci-el/otomobil sayfasında
+model, yıl, km, fiyat, ilan tarihi ve il/ilçe sütunları okunabildi. Bu tek sayfa
+kanıtı, Docker scraper'ının bütün marka/model/detay sayfalarında güncel olarak
+başarılı olduğu anlamına gelmez; ayrı küçük uçtan uca toplama pilotu gerekir.
+
+- Liste sayfasından fiyat/kimlik, detaydan paket/motor/yakıt/şanzıman ve
+  beyan edilen kondisyon alınır; boş boya/hasar alanı temiz kabul edilmez.
+- Her gözlem kaynak ilan ID/URL, gerçek gözlem zamanı, para birimi, ham veri
+  özeti ve normalizasyon sürümüyle tutulur. İlan tarihi, son görülme tarihi
+  yerine kullanılmaz. Satıcının beyanı, doğrulanmış ekspertiz sayılmaz.
+- Tekilleştirme ve eksik/aykırı kayıt kontrollerinden sonra temiz emsal
+  uygunluğu belirlenir. Başlıkta "temiz" yazması tek başına yeterli olmaz.
+- Günlük gözlemler ve fiyat değişimleri ayrı, korunabilir tarihçe oluşturur.
+  listings güncellemesinin eski fiyatı ezmesi 6/12 aylık seri üretmez.
+  İncelenen ortak repository kayıt yolunda price_history INSERT görülmedi;
+  history tablosunun varlığı veri biriktiğini kanıtlamaz. Bütün aktif kayıt
+  yolları ve saklama/temizleme kuralları uygulama planında denetlenir.
+- Ham veri toplama otomatik AI analizi tetiklemez. Mevcut save_listing içinde
+  AI orchestrator'a giden yol var; pilotta ücretli sağlayıcıya ulaşmaması
+  açıkça sınanır. DeepSeek yalnız tamamlanan raporun seçilmiş emsal snapshot'ını,
+  örnek sayısını, dağılımını, tarihini, eksiklerini ve sayısal hesabını alır.
+- Mevcut DB yazımı yasağı sürer. İnceleme, kayıtlı örnekler ve taklit testler
+  yapılabilir; sürekli scraper çalıştırma/üretim verisi yazma ayrıca yetki ister.
+
 - 6 ve 12 ay önceki karşılaştırılabilir segment endeksi ile güncel endeks
   aynı yöntemle karşılaştırılır. Ham ilan ortalamasının araç karışımı değişimi
   enflasyon diye sunulmaz; dönem kapsamı, örnek sayısı ve yöntem açıklanır.

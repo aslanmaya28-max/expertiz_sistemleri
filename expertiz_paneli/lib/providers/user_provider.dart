@@ -616,7 +616,7 @@ class UserProvider extends ChangeNotifier {
     String? error,
   }) {
     if (state != null) {
-      _state = state;
+      _state = state.copyWith(isLoading: isLoading, error: error);
     } else {
       _state = _state.copyWith(
         isLoading: isLoading,

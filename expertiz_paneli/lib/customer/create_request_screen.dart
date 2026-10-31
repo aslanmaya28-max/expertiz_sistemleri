@@ -113,8 +113,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
 
   bool get _adim1Valid =>
       _plakaController.text.isNotEmpty && _secilenSehir != null && _ilceController.text.trim().isNotEmpty &&
-      (_ilanLinkController.text.trim().isNotEmpty ||
-       (_markaController.text.trim().isNotEmpty && _modelController.text.trim().isNotEmpty));
+      _markaController.text.trim().isNotEmpty && _modelController.text.trim().isNotEmpty;
 
   bool get _adim2Valid => _secilenFirma != null && _secilenPaket != null;
 
@@ -329,19 +328,19 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
           children: [
             // İlan Linki
             _buildInfoCard(
-              'İlan Linki ile Hızlı Giriş',
-              'Sahibinden veya Arabam.com linkini yapıştırın, biz sizin için inceleyelim.',
+              'Araç ve ilan bilgileri',
+              'Marka, model, il ve ilçeyi girin. İlan bağlantısını da yöneticinin incelemesi için ekleyebilirsiniz.',
               Icons.link,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _markaController,
-              decoration: const InputDecoration(labelText: 'Marka (ilan linki yoksa zorunlu)'),
+              decoration: const InputDecoration(labelText: 'Marka (zorunlu)'),
               onChanged: (_) => setState(() {}),
             ),
             TextFormField(
               controller: _modelController,
-              decoration: const InputDecoration(labelText: 'Model (ilan linki yoksa zorunlu)'),
+              decoration: const InputDecoration(labelText: 'Model (zorunlu)'),
               onChanged: (_) => setState(() {}),
             ),
             TextFormField(
@@ -998,7 +997,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   // Step Navigation
   void _nextStep() {
     if (_currentStep == 0 && !_adim1Valid) {
-      _showErrorSnackBar('Plaka, il, ilçe ve ilan linki veya marka ve model giriniz.');
+      _showErrorSnackBar('Plaka, il, ilçe, marka ve model giriniz.');
       return;
     }
     
