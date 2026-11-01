@@ -27,12 +27,14 @@ CREDIT_PACKAGES = json.loads(os.getenv("CREDIT_PACKAGES", json.dumps({
 
 FREE_CREDITS_ON_REGISTER = int(os.getenv("FREE_CREDITS_ON_REGISTER", "3"))
 
+# Seviye (galerici paketi) yalnizca gunluk analiz sinirini belirler; aylik kredi yoktur.
+# Krediler: kayit hediyesi, paket satin alma ve admin yuklemesi.
 TIER_LIMITS = json.loads(os.getenv("TIER_LIMITS", json.dumps({
-    "free": {"monthly_credits": 0, "max_analyses_per_day": 5},
-    "starter": {"monthly_credits": 25, "max_analyses_per_day": 20},
-    "basic": {"monthly_credits": 50, "max_analyses_per_day": 50},
-    "pro": {"monthly_credits": 150, "max_analyses_per_day": 200},
-    "enterprise": {"monthly_credits": 500, "max_analyses_per_day": -1},
+    "free": {"max_analyses_per_day": 5},
+    "starter": {"max_analyses_per_day": 20},
+    "basic": {"max_analyses_per_day": 50},
+    "pro": {"max_analyses_per_day": 200},
+    "enterprise": {"max_analyses_per_day": -1},
 })))
 
 ANALYSIS_CREDIT_COST = int(os.getenv("ANALYSIS_CREDIT_COST", "1"))
@@ -66,34 +68,10 @@ class PaymentService:
     def _limits(user):
         return TIER_LIMITS.get(user.get("tier"), TIER_LIMITS["free"])
 
-    def _grant_monthly(self, cursor, user):
-        """Çağıran users satırını FOR UPDATE ile kilitlemiş olmalı.
-
-        Kullanıcı/ay anahtarı seviye değişimlerinde de ikinci yüklemeyi engeller.
-        Bakiye ve hareket aynı transaction içinde kalır.
-        """
-        amount = int(self._limits(user)["monthly_credits"])
-        if amount <= 0:
-            return
-        month = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m")
-        action = f"monthly_credit:{month}"
-        cursor.execute("SELECT 1 FROM credit_usage_logs WHERE user_id=%s AND action=%s LIMIT 1",
-                       (user['id'], action))
-        if cursor.fetchone():
-            return
-        cursor.execute("UPDATE users SET credits=credits+%s WHERE id=%s", (amount, user['id']))
-        cursor.execute("""INSERT INTO credit_usage_logs (user_id, action, credits_used, description)
-                          VALUES (%s, %s, %s, %s)""",
-                       (user['id'], action, -amount, f"Aylık seviye kredisi ({user['tier']}, {month})"))
-        user['credits'] += amount
-
     def _locked_user(self, cursor, user_id):
         cursor.execute("SELECT * FROM users WHERE id=%s FOR UPDATE", (user_id,))
         row = cursor.fetchone()
-        user = dict(row) if row else None
-        if user:
-            self._grant_monthly(cursor, user)
-        return user
+        return dict(row) if row else None
 
     def _analysis_policy(self, user, daily_count, amount):
         limit = int(self._limits(user)['max_analyses_per_day'])
@@ -202,7 +180,7 @@ class PaymentService:
             now = datetime.now(timezone.utc)
             allowed = self._allowed(cursor, user, amount, now)
             if not allowed['ok']:
-                conn.commit()  # Aylık hak analiz reddedilse de kalıcıdır.
+                conn.commit()  # Satir kilidi birakilir; degisiklik yok.
                 return {"success": False, "error": allowed['message'], "code": allowed['reason'],
                         "credits": user['credits'] if user else 0, "required": amount}
             new_credits = user['credits'] - amount

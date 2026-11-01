@@ -174,7 +174,6 @@ def test_kredili_emsal_yoksa_kredi_dusmez(client, admin_token, monkeypatch):
     from yerimebak_ai_v5.services import web_market_reference as wmr
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setattr(wmr, "_search", lambda q, c: {"listings": [], "sources": {}})
-    # Bakiye /credits/balance'tan okunur: ayin seviye kredisi (004) ilk kredi isleminde eklenir
     before = client.get("/api/v1/credits/balance", headers=_auth(admin_token)).json()["credits"]
     payload = {"brand": "Bulunmayan", "model": "Arac", "year": 2024, "km": 30000, "listed_price": 960000}
     response = client.post("/api/v1/valuation/analyze", headers=_auth(admin_token), json=payload)
@@ -1322,7 +1321,7 @@ def test_kredi_reddi_gunluk_sinir_ve_basarisiz_dusumde_sonuc_verilmez(client, mo
     assert baslangic == (3, 0)
 
     # 1) Gunluk sinir dolu (free: gunluk 0 analiz hakki) -> 429, kredi ve gecmis degismez
-    monkeypatch.setitem(payment_service.TIER_LIMITS, "free", {"monthly_credits": 0, "max_analyses_per_day": 0})
+    monkeypatch.setitem(payment_service.TIER_LIMITS, "free", {"max_analyses_per_day": 0})
     r = client.post("/api/v1/valuation/analyze", headers=_auth(token), json=payload)
     assert r.status_code == 429, r.text
     assert r.json()["detail"]["code"] == "daily_limit"
@@ -1331,7 +1330,7 @@ def test_kredi_reddi_gunluk_sinir_ve_basarisiz_dusumde_sonuc_verilmez(client, mo
     assert kredi_ve_gecmis() == baslangic
 
     # 2) On kontrol gecer ama kilitli dusum reddeder (es zamanli ikinci istek) -> sonuc verilmez
-    monkeypatch.setitem(payment_service.TIER_LIMITS, "free", {"monthly_credits": 0, "max_analyses_per_day": 5})
+    monkeypatch.setitem(payment_service.TIER_LIMITS, "free", {"max_analyses_per_day": 5})
     monkeypatch.setattr(payment_service.PaymentService, "deduct_credits",
                         lambda self, *args, **kw: {"success": False, "error": "Yetersiz kredi",
                                                    "code": "insufficient_credits", "credits": 0})

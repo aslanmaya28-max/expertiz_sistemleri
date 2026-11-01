@@ -24,17 +24,7 @@ def test_istanbul_day_crosses_utc_date():
     assert end == datetime(2026, 11, 2, 21)
 
 
-def test_free_does_not_receive_monthly_credit():
-    user = {'id': 1, 'tier': 'free', 'credits': 3}
-    PaymentService()._grant_monthly(MagicMock(), user)
-    assert user['credits'] == 3
-
-
-def test_monthly_credit_given_once():
-    cursor = MagicMock()
-    cursor.fetchone.side_effect = [None, {'exists': 1}]
-    user = {'id': 1, 'tier': 'pro', 'credits': 3}
-    service = PaymentService()
-    service._grant_monthly(cursor, user)
-    service._grant_monthly(cursor, user)
-    assert user['credits'] == 153
+def test_seviyelerde_aylik_kredi_yok():
+    from yerimebak_ai_v5.services.payment_service import TIER_LIMITS
+    assert all(set(v) == {"max_analyses_per_day"} for v in TIER_LIMITS.values())
+    assert not hasattr(PaymentService, "_grant_monthly")

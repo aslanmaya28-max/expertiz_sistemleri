@@ -475,13 +475,13 @@ class _CreditTierDialogState extends State<_CreditTierDialog> {
             final limits = entry.value as Map;
             final daily = limits['max_analyses_per_day'];
             return DropdownMenuItem(value: entry.key,
-              child: Text('${entry.key} • aylık ${limits['monthly_credits']} kredi • günlük ${daily == -1 ? 'sınırsız' : daily} analiz',
+              child: Text('${entry.key} • günlük ${daily == -1 ? 'sınırsız' : daily} analiz',
                 maxLines: 2, overflow: TextOverflow.ellipsis));
           }).toList(),
           onChanged: (value) => setState(() => _tier = value!),
         ),
         const Padding(padding: EdgeInsets.symmetric(vertical: 8),
-          child: Text('Aylık hak her ay bir kez eklenir. Aynı ay seviye değiştirmek ikinci hak oluşturmaz.')),
+          child: Text('Seviye yalnızca günlük analiz sınırını belirler. Kredi, satın alma veya admin yüklemesiyle gelir.')),
       ] else
         TextFormField(
           controller: _amount,

@@ -97,7 +97,6 @@ def get_customer(customer_id: int) -> Dict[str, Any]:
         customer = _get_customer(cursor, customer_id, lock=True)
         if not customer:
             return _error("Musteri bulunamadi", 404)
-        PaymentService()._grant_monthly(cursor, customer)
         cursor.execute("""SELECT id, action, credits_used, description, created_at
                           FROM credit_usage_logs WHERE user_id=%s
                           ORDER BY created_at DESC, id DESC LIMIT 20""", (customer_id,))
@@ -166,7 +165,6 @@ def adjust_customer_credits(customer_id: int, amount: int, reason: str, admin: D
         customer = _get_customer(cursor, customer_id, lock=True)
         if not customer:
             return _error('Müşteri bulunamadı', 404)
-        PaymentService()._grant_monthly(cursor, customer)
         before = customer['credits']
         if before + amount < 0:
             return _error('Bakiye eksiye düşemez', 400)
@@ -195,7 +193,6 @@ def set_customer_tier(customer_id: int, tier: str, note: Optional[str], admin: D
         before, balance = customer.get('tier') or 'free', customer['credits']
         cursor.execute('UPDATE users SET tier=%s WHERE id=%s', (tier, customer_id))
         customer['tier'] = tier
-        PaymentService()._grant_monthly(cursor, customer)
         _write_audit(cursor, 'CUSTOMER_TIER_CHANGED', 'user', str(customer_id), admin,
                      {'admin_id': admin.get('id'), 'tier_before': before, 'tier_after': tier,
                       'note': (note or '').strip(), 'credits_before': balance, 'credits_after': customer['credits']})

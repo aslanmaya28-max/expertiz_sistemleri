@@ -100,8 +100,8 @@ void main() {
       }
       if (request.url.path.endsWith('/1')) {
         return _json({'customer': {..._musteri, 'tier': tier}, 'requests': [],
-          'tier_limits': {'free': {'monthly_credits': 0, 'max_analyses_per_day': 5},
-            'pro': {'monthly_credits': 175, 'max_analyses_per_day': 201}}});
+          'tier_limits': {'free': {'max_analyses_per_day': 5},
+            'pro': {'max_analyses_per_day': 201}}});
       }
       return _json({'customers': [_musteri], 'active': 1});
     })));
@@ -112,7 +112,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byType(DropdownButtonFormField<String>));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('pro • aylık 175 kredi • günlük 201 analiz').last);
+    await tester.tap(find.text('pro • günlük 201 analiz').last);
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
     await tester.pumpAndSettle();

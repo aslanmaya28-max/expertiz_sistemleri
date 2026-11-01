@@ -45,14 +45,15 @@ def test_admin_credit_and_tier_flow(client, admin_token, customer_token):
     for token in (customer_token, staff):
         assert post('/credits', {'amount': 1, 'reason': 'x'}, _auth(token)).status_code == 403
         assert post('/tier', {'tier': 'pro'}, _auth(token)).status_code == 403
-    assert post('/tier', {'tier': 'pro', 'note': 'Galeri'}).json()['customer']['credits'] == 159
-    assert post('/tier', {'tier': 'pro'}).json()['customer']['credits'] == 159
+    # Seviye degisimi kredi eklemez (aylik kredi yok)
+    assert post('/tier', {'tier': 'pro', 'note': 'Galeri'}).json()['customer']['credits'] == 9
+    assert post('/tier', {'tier': 'pro'}).json()['customer']['credits'] == 9
     service = PaymentService()
     with ThreadPoolExecutor(max_workers=4) as pool:
-        assert list(pool.map(lambda _: service.get_credit_balance(uid)['credits'], range(4))) == [159] * 4
+        assert list(pool.map(lambda _: service.get_credit_balance(uid)['credits'], range(4))) == [9] * 4
     detail = client.get(url, headers=headers).json()
-    assert detail['tier_limits']['free']['monthly_credits'] == 0
-    assert len(detail['credit_movements']) == 3
+    assert detail['tier_limits']['free'] == {'max_analyses_per_day': 5}
+    assert len(detail['credit_movements']) == 2
     audits = sql("SELECT action, metadata FROM audit_logs WHERE entity_id=%s AND action IN ('CUSTOMER_CREDITS_ADJUSTED', 'CUSTOMER_TIER_CHANGED')", (str(uid),), True)
     assert len(audits) == 4
     adjustment = next(r['metadata'] for r in audits if r['action'] == 'CUSTOMER_CREDITS_ADJUSTED')
@@ -68,12 +69,6 @@ def test_admin_credit_and_tier_flow(client, admin_token, customer_token):
     assert service.get_credit_balance(uid)['credits'] == 15
     assert service.check_credits_before_analysis(uid) is False
     assert service.analysis_allowed(uid)['reason'] == 'daily_limit'
-
-    # Geçen ayın kaydı yeni ayın hakkını engellemez; eşzamanlı çağrılar bir kez ekler.
-    sql("UPDATE credit_usage_logs SET action='monthly_credit:2000-01' WHERE user_id=%s AND action LIKE 'monthly_credit:%%'", (uid,))
-    sql("UPDATE users SET tier='starter' WHERE id=%s", (uid,))
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        assert list(pool.map(lambda _: service.get_credit_balance(uid)['credits'], range(4))) == [40] * 4
 
 
 def test_analysis_timestamp_is_utc_even_with_local_database_timezone(client, monkeypatch):
