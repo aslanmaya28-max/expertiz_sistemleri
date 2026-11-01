@@ -220,8 +220,8 @@ class _MusteriYonetimiModuleState extends State<MusteriYonetimiModule> {
     );
     if (changed == true) {
       _toast('Müşteri durumu güncellendi');
-      _load();
     }
+    if (mounted) _load();
   }
 }
 
@@ -250,6 +250,8 @@ class _MusteriDetayState extends State<_MusteriDetay> {
   String? _error;
   late Map<String, dynamic> _customer = widget.customer;
   List<Map<String, dynamic>> _requests = [];
+  List<Map<String, dynamic>> _movements = [];
+  Map<String, dynamic> _tierLimits = {};
 
   static const _reportStatusLabels = {
     'draft': 'Personel bekliyor',
@@ -272,11 +274,15 @@ class _MusteriDetayState extends State<_MusteriDetay> {
       final response = await widget.api.getAdminCustomer(_id);
       if (!mounted) return;
       setState(() {
+        _error = null;
         if (response['customer'] is Map) _customer = Map<String, dynamic>.from(response['customer'] as Map);
         _requests = (response['requests'] as List? ?? const [])
             .whereType<Map>()
             .map((e) => Map<String, dynamic>.from(e))
             .toList();
+        _movements = (response['credit_movements'] as List? ?? const [])
+            .whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+        _tierLimits = Map<String, dynamic>.from(response['tier_limits'] as Map? ?? {});
         _loading = false;
       });
     } catch (e) {
@@ -310,6 +316,28 @@ class _MusteriDetayState extends State<_MusteriDetay> {
     return showDialog<String>(context: context, builder: (_) => const _PasifNedeniDialog());
   }
 
+  Future<void> _editCreditOrTier({required bool tier}) async {
+    final payload = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => _CreditTierDialog(tier: tier, limits: _tierLimits, currentTier: _customer['tier'] as String? ?? 'free'),
+    );
+    if (payload == null || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      if (tier) {
+        await widget.api.setCustomerTier(_id, tier: payload['tier'] as String, note: payload['note'] as String?);
+      } else {
+        await widget.api.adjustCustomerCredits(_id, amount: payload['amount'] as int, reason: payload['reason'] as String);
+      }
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('İşlem başarısız: $e')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = _customer;
@@ -331,6 +359,14 @@ class _MusteriDetayState extends State<_MusteriDetay> {
           _row(Icons.email, 'E-posta', c['email']?.toString() ?? '-'),
           _row(Icons.phone, 'Telefon', (c['phone'] as String?)?.isNotEmpty == true ? c['phone'] as String : '-'),
           _row(Icons.workspace_premium, 'Paket / Kredi', '${c['tier'] ?? 'free'} • ${c['credits'] ?? 0} kredi'),
+          Wrap(spacing: 8, children: [
+            OutlinedButton.icon(
+              onPressed: _saving || _loading ? null : () => _editCreditOrTier(tier: false),
+              icon: const Icon(Icons.add_card), label: const Text('Kredi yükle / düş')),
+            OutlinedButton.icon(
+              onPressed: _saving || _loading || _tierLimits.isEmpty ? null : () => _editCreditOrTier(tier: true),
+              icon: const Icon(Icons.workspace_premium), label: const Text('Seviye (galerici paketi)')),
+          ]),
           _row(Icons.calendar_today, 'Kayıt', widget.date(c['created_at'])),
           _row(Icons.login, 'Son giriş', widget.date(c['last_login'])),
           _row(Icons.payments, 'Toplam harcama', widget.tl((c['total_spent_tl'] as num?) ?? 0)),
@@ -349,6 +385,18 @@ class _MusteriDetayState extends State<_MusteriDetay> {
                     label: const Text('Aktif Et'),
                   ),
           ),
+          const Divider(height: 32),
+          const Text('Son kredi hareketleri', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          if (!_loading && _movements.isEmpty) const Text('Kredi hareketi yok.'),
+          ..._movements.map((m) {
+            final delta = -((m['credits_used'] as num?)?.toInt() ?? 0);
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(m['description']?.toString() ?? m['action']?.toString() ?? '-'),
+              subtitle: Text(widget.date(m['created_at'])),
+              trailing: Text('${delta > 0 ? '+' : ''}$delta kredi'),
+            );
+          }),
           const Divider(height: 32),
           const Text('Ekspertiz Talepleri', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
@@ -389,6 +437,78 @@ class _MusteriDetayState extends State<_MusteriDetay> {
       ),
     );
   }
+}
+
+class _CreditTierDialog extends StatefulWidget {
+  const _CreditTierDialog({required this.tier, required this.limits, required this.currentTier});
+  final bool tier;
+  final Map<String, dynamic> limits;
+  final String currentTier;
+
+  @override
+  State<_CreditTierDialog> createState() => _CreditTierDialogState();
+}
+
+class _CreditTierDialogState extends State<_CreditTierDialog> {
+  final _form = GlobalKey<FormState>();
+  final _amount = TextEditingController();
+  final _reason = TextEditingController();
+  late String _tier = widget.limits.containsKey(widget.currentTier) ? widget.currentTier : widget.limits.keys.firstOrNull ?? 'free';
+
+  @override
+  void dispose() {
+    _amount.dispose();
+    _reason.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(widget.tier ? 'Seviye (galerici paketi)' : 'Kredi yükle / düş'),
+    content: SizedBox(width: 520, child: Form(key: _form, child: Column(mainAxisSize: MainAxisSize.min, children: [
+      if (widget.tier) ...[
+        DropdownButtonFormField<String>(
+          initialValue: _tier,
+          isExpanded: true,
+          decoration: const InputDecoration(labelText: 'Seviye'),
+          items: widget.limits.entries.map((entry) {
+            final limits = entry.value as Map;
+            final daily = limits['max_analyses_per_day'];
+            return DropdownMenuItem(value: entry.key,
+              child: Text('${entry.key} • aylık ${limits['monthly_credits']} kredi • günlük ${daily == -1 ? 'sınırsız' : daily} analiz',
+                maxLines: 2, overflow: TextOverflow.ellipsis));
+          }).toList(),
+          onChanged: (value) => setState(() => _tier = value!),
+        ),
+        const Padding(padding: EdgeInsets.symmetric(vertical: 8),
+          child: Text('Aylık hak her ay bir kez eklenir. Aynı ay seviye değiştirmek ikinci hak oluşturmaz.')),
+      ] else
+        TextFormField(
+          controller: _amount,
+          keyboardType: const TextInputType.numberWithOptions(signed: true),
+          decoration: const InputDecoration(labelText: 'Miktar (+ yükle / - düş)'),
+          validator: (value) {
+            final amount = int.tryParse(value?.trim() ?? '');
+            return amount == null || amount == 0 || amount.abs() > 10000 ? '±1 ile ±10000 arasında tam sayı girin' : null;
+          },
+        ),
+      TextFormField(
+        controller: _reason,
+        maxLength: 2000,
+        decoration: InputDecoration(labelText: widget.tier ? 'Not (isteğe bağlı)' : 'Neden (zorunlu)'),
+        validator: (value) => !widget.tier && (value?.trim().isEmpty ?? true) ? 'Neden zorunludur' : null,
+      ),
+    ]))),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Vazgeç')),
+      FilledButton(onPressed: () {
+        if (!_form.currentState!.validate()) return;
+        Navigator.pop(context, widget.tier
+          ? {'tier': _tier, if (_reason.text.trim().isNotEmpty) 'note': _reason.text.trim()}
+          : {'amount': int.parse(_amount.text.trim()), 'reason': _reason.text.trim()});
+      }, child: const Text('Kaydet')),
+    ],
+  );
 }
 
 /// Pasife alma nedeni sorar; controller kapanış animasyonu bitince dispose edilir.

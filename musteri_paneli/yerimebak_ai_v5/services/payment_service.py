@@ -7,7 +7,8 @@ import os
 import uuid
 import logging
 import json
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Dict, Any, Optional, List
 
 from yerimebak_ai_v5.core.database_config import DatabaseConfig
@@ -27,7 +28,7 @@ CREDIT_PACKAGES = json.loads(os.getenv("CREDIT_PACKAGES", json.dumps({
 FREE_CREDITS_ON_REGISTER = int(os.getenv("FREE_CREDITS_ON_REGISTER", "3"))
 
 TIER_LIMITS = json.loads(os.getenv("TIER_LIMITS", json.dumps({
-    "free": {"monthly_credits": 10, "max_analyses_per_day": 5},
+    "free": {"monthly_credits": 0, "max_analyses_per_day": 5},
     "starter": {"monthly_credits": 25, "max_analyses_per_day": 20},
     "basic": {"monthly_credits": 50, "max_analyses_per_day": 50},
     "pro": {"monthly_credits": 150, "max_analyses_per_day": 200},
@@ -44,6 +45,74 @@ class PaymentService:
     @property
     def _p(self):
         return "%s"
+
+    @staticmethod
+    def _day_bounds(now=None):
+        local = (now or datetime.now(timezone.utc)).astimezone(ZoneInfo("Europe/Istanbul"))
+        start = local.replace(hour=0, minute=0, second=0, microsecond=0)
+        # analysis_history.created_at: UTC, TIMESTAMP WITHOUT TIME ZONE.
+        return tuple(d.astimezone(timezone.utc).replace(tzinfo=None)
+                     for d in (start, start + timedelta(days=1)))
+
+    @staticmethod
+    def _limits(user):
+        return TIER_LIMITS.get(user.get("tier"), TIER_LIMITS["free"])
+
+    def _grant_monthly(self, cursor, user):
+        """Çağıran users satırını FOR UPDATE ile kilitlemiş olmalı.
+
+        Kullanıcı/ay anahtarı seviye değişimlerinde de ikinci yüklemeyi engeller.
+        Bakiye ve hareket aynı transaction içinde kalır.
+        """
+        amount = int(self._limits(user)["monthly_credits"])
+        if amount <= 0:
+            return
+        month = datetime.now(ZoneInfo("Europe/Istanbul")).strftime("%Y-%m")
+        action = f"monthly_credit:{month}"
+        cursor.execute("SELECT 1 FROM credit_usage_logs WHERE user_id=%s AND action=%s LIMIT 1",
+                       (user['id'], action))
+        if cursor.fetchone():
+            return
+        cursor.execute("UPDATE users SET credits=credits+%s WHERE id=%s", (amount, user['id']))
+        cursor.execute("""INSERT INTO credit_usage_logs (user_id, action, credits_used, description)
+                          VALUES (%s, %s, %s, %s)""",
+                       (user['id'], action, -amount, f"Aylık seviye kredisi ({user['tier']}, {month})"))
+        user['credits'] += amount
+
+    def _locked_user(self, cursor, user_id):
+        cursor.execute("SELECT * FROM users WHERE id=%s FOR UPDATE", (user_id,))
+        row = cursor.fetchone()
+        user = dict(row) if row else None
+        if user:
+            self._grant_monthly(cursor, user)
+        return user
+
+    def _analysis_policy(self, user, daily_count, amount):
+        limit = int(self._limits(user)['max_analyses_per_day'])
+        if limit != -1 and daily_count >= limit:
+            return {'ok': False, 'reason': 'daily_limit', 'message': 'Günlük analiz sınırına ulaşıldı'}
+        if user['credits'] < amount:
+            return {'ok': False, 'reason': 'insufficient_credits', 'message': 'Yetersiz kredi'}
+        return {'ok': True, 'reason': None, 'message': 'Analiz yapılabilir'}
+
+    def _allowed(self, cursor, user, amount, now=None):
+        if not user:
+            return {'ok': False, 'reason': 'user_not_found', 'message': 'Kullanıcı bulunamadı'}
+        cursor.execute("""SELECT COUNT(*) AS count FROM analysis_history
+                          WHERE user_id=%s AND created_at >= %s AND created_at < %s""",
+                       (user['id'], *self._day_bounds(now)))
+        return self._analysis_policy(user, cursor.fetchone()['count'], amount)
+
+    def analysis_allowed(self, user_id: int) -> Dict[str, Any]:
+        conn = DatabaseConfig.get_connection()
+        try:
+            cursor = conn.cursor()
+            user = self._locked_user(cursor, user_id)
+            result = self._allowed(cursor, user, ANALYSIS_CREDIT_COST)
+            conn.commit()
+            return result
+        finally:
+            DatabaseConfig.return_connection(conn)
 
     def get_or_create_user(self, email: str, phone: str = None, full_name: str = None) -> Dict[str, Any]:
         conn = DatabaseConfig.get_connection()
@@ -90,7 +159,12 @@ class PaymentService:
             DatabaseConfig.return_connection(conn)
 
     def get_credit_balance(self, user_id: int) -> Dict[str, Any]:
-        user = self.get_user_by_id(user_id)
+        conn = DatabaseConfig.get_connection()
+        try:
+            user = self._locked_user(conn.cursor(), user_id)
+            conn.commit()
+        finally:
+            DatabaseConfig.return_connection(conn)
         if not user:
             return {"error": "Kullanici bulunamadi"}
 
@@ -110,51 +184,41 @@ class PaymentService:
         vehicle_data: Optional[Dict[str, Any]] = None,
         valuation_data: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        if type(amount) is not int or amount <= 0:
+            return {"success": False, "error": "Kredi miktarı pozitif tam sayı olmalıdır"}
         conn = DatabaseConfig.get_connection()
         try:
             cursor = conn.cursor()
-            # 🔒 DÜZELTİLDİ (B3): FOR UPDATE ile satır kilidi — TOCTOU race condition önlendi
-            # Kredi düşümü atomik hale getirildi: tek bir UPDATE ile kontrol + düşüm
-            cursor.execute(f"""
-                UPDATE users 
-                SET credits = credits - {self._p} 
-                WHERE id = {self._p} AND credits >= {self._p}
-                RETURNING credits, tier
-            """, (amount, user_id, amount))
-            row = cursor.fetchone()
-
-            if not row:
-                # Yetersiz kredi veya kullanıcı yok
-                cursor.execute(f"SELECT credits FROM users WHERE id = {self._p}", (user_id,))
-                check = cursor.fetchone()
-                if not check:
-                    return {"success": False, "error": "Kullanici bulunamadi"}
-                return {"success": False, "error": "Yetersiz kredi", "credits": check['credits'], "required": amount}
-
-            new_credits = row['credits']
+            user = self._locked_user(cursor, user_id)
+            # Kilit bekleyişi gece yarısını geçebilir; sayım ve kayıt aynı anı kullanır.
+            now = datetime.now(timezone.utc)
+            allowed = self._allowed(cursor, user, amount, now)
+            if not allowed['ok']:
+                conn.commit()  # Aylık hak analiz reddedilse de kalıcıdır.
+                return {"success": False, "error": allowed['message'], "code": allowed['reason'],
+                        "credits": user['credits'] if user else 0, "required": amount}
+            new_credits = user['credits'] - amount
+            cursor.execute("UPDATE users SET credits=%s WHERE id=%s", (new_credits, user_id))
 
             history_id = str(uuid.uuid4())
             vehicle_json = vehicle_data or {"description": description}
             valuation_json = valuation_data or {"credits_deducted": amount}
 
             cursor.execute(f"""
-                INSERT INTO analysis_history (id, user_id, vehicle_json, valuation_json)
-                VALUES ({self._p}, {self._p}, {self._p}, {self._p})
+                INSERT INTO analysis_history (id, user_id, vehicle_json, valuation_json, created_at)
+                VALUES ({self._p}, {self._p}, {self._p}, {self._p}, {self._p})
             """, (
                 history_id,
                 user_id,
                 json.dumps(vehicle_json, ensure_ascii=False, default=str),
                 json.dumps(valuation_json, ensure_ascii=False, default=str),
+                now.replace(tzinfo=None),
             ))
 
-            # Log to credit_usage_logs for audit trail
-            try:
-                cursor.execute(f"""
+            cursor.execute(f"""
                     INSERT INTO credit_usage_logs (user_id, action, credits_used, description)
                     VALUES ({self._p}, {self._p}, {self._p}, {self._p})
                 """, (user_id, "analysis", amount, description))
-            except Exception:
-                logger.warning("credit_usage_logs insert skipped (table may not exist yet)")
 
             conn.commit()
 
@@ -170,10 +234,7 @@ class PaymentService:
             DatabaseConfig.return_connection(conn)
 
     def check_credits_before_analysis(self, user_id: int) -> bool:
-        user = self.get_user_by_id(user_id)
-        if not user:
-            return False
-        return user['credits'] >= ANALYSIS_CREDIT_COST
+        return self.analysis_allowed(user_id)['ok']
 
     def create_payment_order(self, user_id: int, package_key: str, payment_method: str = "havale", payment_ref: str = None) -> Dict[str, Any]:
         if package_key not in CREDIT_PACKAGES:
