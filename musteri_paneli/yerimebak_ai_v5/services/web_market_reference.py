@@ -12,7 +12,7 @@ Akis:
 3. Ayni paketten (or. Style) en az 3 ilan varsa yalnizca onlar kullanilir.
 4. Aykiri fiyatlar atilir; medyan, km/yil ve hasarsiz emsal medyani hesaplanir.
 5. Az emsal, genis fiyat araligi, paket eslesmemesi "kontrol gerekli" olarak isaretlenir;
-   rapor zaten admin onayi olmadan musteriye gitmez.
+   kredili değerlemede bu uyarılar müşteriye de gösterilir.
 
 Ayarlar (.env):
   OPENROUTER_API_KEY     zorunlu (yoksa bu kaynak kapali)
@@ -20,21 +20,26 @@ Ayarlar (.env):
   WEB_PRICE_MODEL        varsayilan deepseek/deepseek-v4.1-flash-1017
   WEB_PRICE_SEARCHES     sorgu sayisi, varsayilan 3 (1-3)
   WEB_PRICE_PROVIDER     istege bagli, or. "deepseek": yalnizca bu saglayicinin sunucusu kullanilir
+  WEB_PRICE_CACHE_HOURS  başarılı emsalin önbellek süresi (varsayılan 24 saat, 0 kapalı)
 """
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import os
 import re
 import statistics
+import threading
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlsplit
 
 import httpx
+from psycopg2.extras import Json
+from yerimebak_ai_v5.core.database_config import DatabaseConfig
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +51,8 @@ MIN_SAMPLES = 3          # bunun altinda referans uretilmez
 TARGET_SAMPLES = 5       # bunun altinda "kontrol gerekli"
 OUTLIER_BAND = 0.25      # medyan +-%25 disi atilir
 WIDE_SPREAD_RATIO = 1.35 # max/min bundan buyukse "kontrol gerekli"
+_schema_ready = False
+_schema_lock = threading.Lock()
 
 # Ilan degil, fiyat tahmini / kasko / liste fiyati veren siteler
 ESTIMATE_SITES = ("kacasatar", "arabamkacpara", "kasko", "sbm.org", "fiyatlari", "fiyat-listesi", "fiyatlistesi")
@@ -101,6 +108,76 @@ def fold(text: Any) -> str:
     text = str(text or "").replace("İ", "i").replace("I", "ı").lower().replace("ı", "i")
     text = unicodedata.normalize("NFKD", text)
     return "".join(c for c in text if not unicodedata.combining(c))
+
+
+def _cache_hours() -> float:
+    try:
+        hours = float(os.getenv("WEB_PRICE_CACHE_HOURS", "24"))
+        return hours if 0 <= hours < float("inf") else 24
+    except ValueError:
+        return 24
+
+
+def _cache_key(vehicle: Dict[str, Any]) -> str:
+    values = [" ".join(fold(vehicle.get(k)).split())
+              for k in ("brand", "model", "year", "package", "fuel", "transmission")]
+    values.append((_int(vehicle.get("km")) or 0) // 20_000)
+    return hashlib.sha256(json.dumps(values, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def _ensure_cache_schema() -> None:
+    global _schema_ready
+    with _schema_lock:
+        if _schema_ready:
+            return
+        conn = DatabaseConfig.get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""CREATE TABLE IF NOT EXISTS web_reference_cache (
+                    cache_key TEXT PRIMARY KEY,
+                    reference JSONB NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )""")
+            conn.commit()
+            _schema_ready = True
+        finally:
+            DatabaseConfig.return_connection(conn)
+
+
+def _cache_read(key: str, hours: float) -> Optional[Dict[str, Any]]:
+    try:
+        _ensure_cache_schema()
+        conn = DatabaseConfig.get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT reference, created_at FROM web_reference_cache WHERE cache_key = %s", (key,))
+                row = cur.fetchone()
+            if row and dict(row)["created_at"] > datetime.now(timezone.utc) - timedelta(hours=hours):
+                ref = dict(row)["reference"]
+                ref["scope"] = {**ref.get("scope", {}), "cached": True, "cost_usd": 0}
+                return ref
+        finally:
+            DatabaseConfig.return_connection(conn)
+    except Exception:
+        # Önbellek isteğe bağlıdır; veritabanı kesintisi web değerlemesini durdurmaz.
+        pass
+    return None
+
+
+def _cache_write(key: str, reference: Dict[str, Any]) -> None:
+    try:
+        _ensure_cache_schema()
+        conn = DatabaseConfig.get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""INSERT INTO web_reference_cache (cache_key, reference) VALUES (%s, %s)
+                    ON CONFLICT (cache_key) DO UPDATE SET reference = EXCLUDED.reference, created_at = NOW()""",
+                            (key, Json(reference)))
+            conn.commit()
+        finally:
+            DatabaseConfig.return_connection(conn)
+    except Exception:
+        pass
 
 
 def _int(value: Any) -> Optional[int]:
@@ -348,6 +425,14 @@ def get_reference(vehicle: Dict[str, Any], search: Optional[Callable[[str], Dict
         return None
     if search is None and not enabled():
         return None
+    hours = _cache_hours()
+    key = _cache_key(vehicle)
+    if hours:
+        cached = _cache_read(key, hours)
+        if cached:
+            # İlan fiyatı önbellek anahtarına dahil değildir; güncel isteğe aittir.
+            cached["scope"]["listed_price"] = _int(vehicle.get("listed_price"))
+            return cached
     qs = queries(vehicle)
     results: List[Dict[str, Any]] = []
     if search is None:
@@ -364,6 +449,8 @@ def get_reference(vehicle: Dict[str, Any], search: Optional[Callable[[str], Dict
     if not results:
         return None
     ref = build_reference(results, vehicle)
+    if hours and ref.get("found"):
+        _cache_write(key, ref)
     logger.info("[WEB FIYAT] %s %s %s: %s emsal, medyan %s, maliyet $%s, red %s",
                 vehicle.get("brand"), vehicle.get("model"), vehicle.get("year"), ref.get("count"),
                 ref.get("market_median_price"), ref["scope"]["cost_usd"], ref["scope"]["rejected"])

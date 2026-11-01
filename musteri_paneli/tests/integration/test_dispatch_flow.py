@@ -38,7 +38,7 @@ def client():
     from fastapi.testclient import TestClient
     from yerimebak_ai_v5.main import app
     from yerimebak_ai_v5.services import (
-        account_service, checkout_service, dispatch_service, expertiz_service, market_ingest, pricing_service,
+        account_service, checkout_service, dispatch_service, expertiz_service, market_ingest, pricing_service, web_market_reference,
     )
 
     # Sema bu surecte daha once hazirlandiysa sifirlanan veritabani icin tekrar kur
@@ -48,6 +48,7 @@ def client():
     checkout_service._schema_ready = False
     account_service._schema_ready = False
     market_ingest._schema_ready = False
+    web_market_reference._schema_ready = False
 
     with TestClient(app, base_url="http://localhost") as test_client:
         yield test_client
@@ -55,6 +56,134 @@ def client():
 
 def _auth(token):
     return {"Authorization": f"Bearer {token}"}
+
+
+def test_kredili_web_degerleme_onbellek_ve_api_anahtari(client, monkeypatch):
+    from yerimebak_ai_v5.services import email_service, web_market_reference as wmr
+    from yerimebak_ai_v5.core.database_config import DatabaseConfig
+
+    outbox = email_service.capture_for_tests()
+    try:
+        reg = client.post("/api/v1/auth/register", json={"email": "webkredi@yerimebak.test",
+                          "password": "Musteri123!", "terms_accepted": True})
+        assert reg.status_code == 200, reg.text
+        token = reg.json()["token"]
+        verified = client.post("/api/v1/auth/verify-email",
+                               json={"token": _link_token(outbox[-1], "/eposta-dogrula")})
+        assert verified.json()["credits_granted"] == 3
+    finally:
+        email_service.stop_capture()
+
+    calls = []
+    listings = [{"url": f"https://www.arabam.com/ilan/seat-ibiza/{i}", "fiyat_tl": p,
+                 "km": 30000, "yil": 2024, "paket": "Style", "kondisyon": "temiz"}
+                for i, p in enumerate((900000, 925000, 950000))]
+
+    def search(query, _client):
+        calls.append(query)
+        return {"listings": listings, "sources": {i["url"]: str(i["fiyat_tl"]) for i in listings}, "cost": 0.01}
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("WEB_PRICE_CACHE_HOURS", "24")
+    monkeypatch.setattr(wmr, "_search", search)
+    payload = {"brand": "Seat", "model": "Ibiza", "year": 2024, "km": 30000,
+               "fuel": "Benzin", "transmission": "Otomatik", "listed_price": 960000}
+    first = client.post("/api/v1/valuation/analyze", headers=_auth(token), json=payload)
+    assert first.status_code == 200, first.text
+    body = first.json()
+    assert body["piyasa"]["kaynak"] == "web_listings"
+    assert len(body["piyasa"]["kaynaklar"]) == 3
+    assert body["piyasa"]["kaynaklar"][0]["fiyat"] == 900000
+    assert body["piyasa"]["guvenSkoru"] <= 50 and body["piyasa"]["uyarilar"]
+    assert "Emsal" in body["karar"]["aciklama"]
+    assert body["kredi"] == {"dusulen": 1, "kalan": 2}
+    assert len(calls) == 3
+    second = client.post("/api/v1/valuation/analyze", headers=_auth(token), json=payload)
+    assert second.status_code == 200, second.text
+    assert second.json()["kredi"] == {"dusulen": 1, "kalan": 1}
+    assert len(calls) == 3
+
+    conn = DatabaseConfig.get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT api_key FROM users WHERE email = 'webkredi@yerimebak.test'")
+        key = dict(cur.fetchone())["api_key"]
+        cur.execute("""SELECT valuation_json FROM analysis_history
+                       WHERE user_id = (SELECT id FROM users WHERE email = 'webkredi@yerimebak.test')""")
+        import json
+        histories = [json.loads(r["valuation_json"]) if isinstance(r["valuation_json"], str)
+                     else r["valuation_json"] for r in cur.fetchall()]
+        assert len(histories) == 2
+        assert {h["piyasa_kaynagi"] for h in histories} == {"web_listings"}
+        assert sorted(h["web_maliyet_usd"] for h in histories) == [0, 0.03]
+    finally:
+        DatabaseConfig.return_connection(conn)
+    api_payload = {"brand": "Seat", "model": "Ibiza", "year": 2024, "mileage_km": 30000,
+                   "fuel_type": "Benzin", "gear_type": "Otomatik", "listed_price": 960000}
+    api = client.post("/api/v1/analyze", headers={"X-API-Key": key}, json=api_payload)
+    assert api.status_code == 200, api.text
+    assert api.json()["market_reference"]["source"] == "web_listings"
+    assert api.json()["market_reference"]["scope"]["cached"] is True
+    assert api.json()["market_reference"]["scope"]["cost_usd"] == 0
+    assert api.json()["billing"]["credits_remaining"] == 0
+    assert len(calls) == 3
+    conn = DatabaseConfig.get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""SELECT valuation_json FROM analysis_history
+                       WHERE user_id = (SELECT id FROM users WHERE email = 'webkredi@yerimebak.test')
+                       AND vehicle_json::jsonb->>'source' = 'manual_analysis'""")
+        history = dict(cur.fetchone())["valuation_json"]
+        if isinstance(history, str):
+            history = json.loads(history)
+        assert history["piyasa_kaynagi"] == "web_listings"
+        assert history["web_maliyet_usd"] == 0
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
+def test_web_onbellek_suresi_dolunca_yeniden_arama(client, monkeypatch):
+    from yerimebak_ai_v5.services import web_market_reference as wmr
+    from yerimebak_ai_v5.core.database_config import DatabaseConfig
+    vehicle = {"brand": "Test", "model": "Cache", "year": 2024, "km": 10000}
+    calls = []
+
+    def search(query):
+        calls.append(query)
+        listings = [{"url": f"https://www.arabam.com/ilan/cache/{i}", "fiyat_tl": p, "yil": 2024, "km": 10000}
+                    for i, p in enumerate((800000, 810000, 820000))]
+        return {"listings": listings, "sources": {i["url"]: str(i["fiyat_tl"]) for i in listings}, "cost": 0.01}
+
+    monkeypatch.setenv("WEB_PRICE_CACHE_HOURS", "24")
+    assert wmr.get_reference(vehicle, search=search)["found"]
+    assert wmr.get_reference(vehicle, search=search)["scope"]["cached"]
+    assert len(calls) == 3
+    conn = DatabaseConfig.get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE web_reference_cache SET created_at = NOW() - INTERVAL '25 hours' WHERE cache_key = %s",
+                    (wmr._cache_key(vehicle),))
+        conn.commit()
+    finally:
+        DatabaseConfig.return_connection(conn)
+    assert wmr.get_reference(vehicle, search=search)["scope"]["cost_usd"] == 0.03
+    assert len(calls) == 6
+
+
+def test_kredili_emsal_yoksa_kredi_dusmez(client, admin_token, monkeypatch):
+    from yerimebak_ai_v5.services import web_market_reference as wmr
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(wmr, "_search", lambda q, c: {"listings": [], "sources": {}})
+    before = client.get("/api/v1/auth/profile", headers=_auth(admin_token)).json()["profile"]["credits"]
+    payload = {"brand": "Bulunmayan", "model": "Arac", "year": 2024, "km": 30000, "listed_price": 960000}
+    response = client.post("/api/v1/valuation/analyze", headers=_auth(admin_token), json=payload)
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"]["code"] == "insufficient_market_data"
+    api = client.post("/api/v1/analyze", headers=_auth(admin_token), json={
+        "brand": "Bulunmayan", "model": "Arac", "year": 2024, "mileage_km": 30000,
+        "fuel_type": "Benzin", "gear_type": "Otomatik", "listed_price": 960000})
+    assert api.status_code == 422, api.text
+    assert client.get("/api/v1/auth/profile", headers=_auth(admin_token)).json()["profile"]["credits"] == before
 
 
 def _create_paid_request(client, token, plate, city, note=None, package_index=0, district="Merkez", vehicle=None):

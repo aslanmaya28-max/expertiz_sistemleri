@@ -2,6 +2,12 @@
 """Web aramasiyla kaynakli emsal: dogrulama, paket eslesmesi, kontrol isaretleri (ag kullanilmaz)."""
 from yerimebak_ai_v5.core.ai.inspection_valuation import evaluate
 from yerimebak_ai_v5.services import web_market_reference as wmr
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def no_database_cache(monkeypatch):
+    monkeypatch.setenv("WEB_PRICE_CACHE_HOURS", "0")
 
 ARONA = {"brand": "Seat", "model": "Arona", "year": 2024, "km": 22000,
          "package": "1.0 EcoTSI Style DSG 115 hb", "fuel": "Benzin", "transmission": "Otomatik"}
@@ -138,3 +144,71 @@ def test_agir_hasarli_ilan_emsal_olmaz():
     pert = _ilan("https://www.arabam.com/ilan/arona-pert/7", 1_000_000, 25_000, "1.0 EcoTSI Style", kondisyon="agir_hasarli")
     ref = wmr.build_reference([_arama(STYLE + [pert])], ARONA)
     assert ref["count"] == 3 and ref["scope"]["rejected"] == {"ağır hasarlı": 1}
+
+
+def test_onbellek_anahtari_sadelestirme_ve_km_kovasi():
+    base = {**ARONA, "brand": "  ŞEAT  ", "km": 20000}
+    assert wmr._cache_key(base) == wmr._cache_key({**base, "brand": "seat", "km": 39999})
+    for field, value in (("brand", "Fiat"), ("model", "Ibiza"), ("year", 2023),
+                         ("package", "FR"), ("fuel", "Dizel"), ("transmission", "Manuel"), ("km", 40000)):
+        assert wmr._cache_key(base) != wmr._cache_key({**base, field: value})
+
+
+def test_onbellek_suresi(monkeypatch):
+    monkeypatch.delenv("WEB_PRICE_CACHE_HOURS")
+    assert wmr._cache_hours() == 24
+    monkeypatch.setenv("WEB_PRICE_CACHE_HOURS", "0")
+    assert wmr._cache_hours() == 0
+    monkeypatch.setenv("WEB_PRICE_CACHE_HOURS", "2")
+    assert wmr._cache_hours() == 2
+
+
+def test_onbellek_db_hatasinda_arama_surer(monkeypatch):
+    from yerimebak_ai_v5.core.database_config import DatabaseConfig
+    monkeypatch.setenv("WEB_PRICE_CACHE_HOURS", "24")
+
+    def broken():
+        raise RuntimeError("DB kapalı")
+
+    monkeypatch.setattr(DatabaseConfig, "get_connection", broken)
+    ref = wmr.get_reference(ARONA, search=lambda q: _arama(STYLE))
+    assert ref["found"] and ref["market_median_price"] == 1_550_000
+
+
+@pytest.mark.parametrize("age_hours, expected_searches", [(1, 0), (25, 3)])
+def test_onbellekten_donus_ve_sure_dolunca_yeniden_arama(monkeypatch, age_hours, expected_searches):
+    from datetime import datetime, timedelta, timezone
+    from unittest.mock import MagicMock
+    from yerimebak_ai_v5.core.database_config import DatabaseConfig
+    cached = wmr.build_reference([_arama(STYLE)], ARONA)
+    conn = MagicMock()
+    conn.cursor.return_value.__enter__.return_value.fetchone.return_value = {
+        "reference": cached, "created_at": datetime.now(timezone.utc) - timedelta(hours=age_hours),
+    }
+    monkeypatch.setenv("WEB_PRICE_CACHE_HOURS", "24")
+    monkeypatch.setattr(wmr, "_schema_ready", True)
+    monkeypatch.setattr(DatabaseConfig, "get_connection", lambda: conn)
+    monkeypatch.setattr(DatabaseConfig, "return_connection", lambda c: None)
+    calls = []
+
+    def search(q):
+        calls.append(q)
+        return _arama(STYLE)
+
+    ref = wmr.get_reference({**ARONA, "listed_price": 1600000}, search=search)
+    assert ref["market_median_price"] == 1550000
+    assert len(calls) == expected_searches
+    if expected_searches == 0:
+        assert ref["scope"]["cached"] and ref["scope"]["cost_usd"] == 0
+    else:
+        assert ref["scope"]["cost_usd"] == 0.027
+    assert ref["scope"]["listed_price"] == 1600000
+
+
+def test_onbellek_kapaliyken_okuma_yazma_yapilmaz(monkeypatch):
+    def forbidden(*args):
+        pytest.fail("Önbellek kapalıyken veritabanına gidilmemeli")
+
+    monkeypatch.setattr(wmr, "_cache_read", forbidden)
+    monkeypatch.setattr(wmr, "_cache_write", forbidden)
+    assert wmr.get_reference(ARONA, search=lambda q: _arama(STYLE))["found"]

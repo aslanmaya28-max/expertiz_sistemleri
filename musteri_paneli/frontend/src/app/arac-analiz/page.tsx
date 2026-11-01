@@ -245,9 +245,9 @@ export default function AracAnalizSayfasi() {
             className="w-full py-3 bg-birincil text-white font-medium rounded-lg hover:bg-birincil-koyu transition-colors disabled:opacity-50">
             {busy === "analyze" ? "Analiz ediliyor..." : `Analiz Et (${meta?.cost_credits ?? 1} kredi)`}
           </button>
-          <p className="text-center text-xs text-metin-ikincil">Yeterli piyasa verisi bulunamazsa analiz yapılmaz ve kredi düşülmez.</p>
         </form>
       )}
+      <p className="mt-6 text-center text-xs text-metin-ikincil">Piyasa değeri internetteki güncel ilanlardan bulunur; yeterli ilan bulunamazsa analiz yapılmaz ve kredi düşülmez.</p>
     </div>
   );
 }
@@ -291,11 +291,29 @@ function SonucKarti({ sonuc, onYeni }: { sonuc: ValuationResult; onYeni: () => v
       </section>
 
       <section className="bg-white rounded-xl border border-kenarlik-acik p-6">
-        <h2 className="text-lg font-semibold text-metin-birincil">Piyasa</h2>
+        <h2 className="text-lg font-semibold text-metin-birincil">Piyasa karşılaştırması</h2>
         <p className="mt-2 text-sm text-metin-ikincil">
           {piyasa.emsalSayisi} güncel emsal ilan ({piyasa.hasarsizEmsalSayisi ?? 0} hasarsız). Ortalama {tl(piyasa.ortalama)}, medyan {tl(piyasa.medyan)},
           aralık {tl(piyasa.min)} – {tl(piyasa.max)}. Güven skoru: %{piyasa.guvenSkoru}.
         </p>
+        {piyasa.uyarilar?.length > 0 && (
+          <div className="mt-3 rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-900">
+            <ul className="list-disc space-y-1 pl-5">
+              {piyasa.uyarilar.map((uyari) => <li key={uyari}>{uyari}</li>)}
+            </ul>
+          </div>
+        )}
+        {(piyasa.kaynaklar || []).some((k) => k.url && /^https?:\/\//i.test(k.url)) && (
+          <ul className="mt-3 space-y-2 text-sm">
+            {piyasa.kaynaklar.filter((k) => k.url && /^https?:\/\//i.test(k.url)).map((k, i) => (
+              <li key={`${k.url}-${i}`}>
+                <a href={k.url!} target="_blank" rel="noopener noreferrer nofollow" className="text-birincil underline">
+                  {k.site || "Kaynak ilan"} • {k.yil ?? "Yıl belirtilmemiş"} • {k.km == null ? "Km belirtilmemiş" : `${new Intl.NumberFormat("tr-TR").format(k.km)} km`} • {tl(k.fiyat)}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="bg-white rounded-xl border border-kenarlik-acik p-6">
