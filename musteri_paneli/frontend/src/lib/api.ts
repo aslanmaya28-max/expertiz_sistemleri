@@ -457,7 +457,23 @@ export interface ValuationResult {
     agirHasar?: boolean;
     ozet?: string;
   };
-  karar: { sonuc: "AL" | "PAZARLIK YAP" | "ALMA"; aciklama: string; ilanFarkiYuzde?: number; ilanFarkiTutar?: number };
+  karar: {
+    sonuc: "AL" | "PAZARLIK YAP" | "ALMA" | "EK DOĞRULAMA GEREKLİ";
+    aciklama: string;
+    guvenSeviyesi?: "yuksek" | "orta" | "dusuk";
+    /** Dusuk guvende kesin karar verilmez; hesaplanan egilim bilgi olarak gelir */
+    hesaplananEgilim?: string | null;
+    ilanFarkiYuzde?: number;
+    ilanFarkiTutar?: number;
+  };
+  ozet?: {
+    piyasaKonumu: { durum: "altinda" | "uyumlu" | "ustunde"; metin: string };
+    adilFiyat: { min?: number; max?: number };
+    riskler: string[];
+    pazarlikGerekceleri: string[];
+    simdiNeYapmali: string;
+  };
+  bilgiKaynaklari?: { alan: string; kaynak: string; aciklama: string }[];
   getiri: null | {
     aylikEnflasyonYuzde: number;
     yillikEnflasyonYuzde: number;

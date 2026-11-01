@@ -41,7 +41,7 @@ def _seal(size, code, number, date):
     draw.ellipse((12, 12, width-12, width-12), outline=255, width=16)
     draw.ellipse((150, 150, width-150, width-150), outline=255, width=6)
     _arc(mask, 'YERİMEBAK EKSPERTİZ', center, center-100, _font(66))
-    _arc(mask, 'DOĞRULANMIŞ RAPOR', center, center-80, _font(66), False)
+    _arc(mask, 'DİJİTAL DOĞRULAMA', center, center-80, _font(66), False)
     for x in (92, width-92):
         points = [(x+48*(1 if n % 2 == 0 else .42)*math.cos(-math.pi/2+n*math.pi/5),
                    center+48*(1 if n % 2 == 0 else .42)*math.sin(-math.pi/2+n*math.pi/5)) for n in range(10)]

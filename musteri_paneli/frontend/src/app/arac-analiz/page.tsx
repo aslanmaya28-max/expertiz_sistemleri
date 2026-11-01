@@ -23,6 +23,22 @@ const KARAR_RENK: Record<string, string> = {
   AL: "bg-green-50 border-green-300 text-green-800",
   "PAZARLIK YAP": "bg-yellow-50 border-yellow-300 text-yellow-800",
   ALMA: "bg-red-50 border-red-300 text-red-800",
+  "EK DOĞRULAMA GEREKLİ": "bg-slate-50 border-slate-300 text-slate-800",
+};
+
+const GUVEN_METNI: Record<string, string> = {
+  yuksek: "Veri güveni yüksek",
+  orta: "Veri güveni orta",
+  dusuk: "Veri güveni düşük",
+};
+
+const KAYNAK_ROZET: Record<string, string> = {
+  musteri_beyani: "Beyan",
+  kayitli_ilan: "Kayıtlı ilan",
+  internet_ilanlari: "İnternet ilanları",
+  kayitli_ilanlar: "Kayıtlı ilanlar",
+  hesaplama: "Hesaplama",
+  tahmin: "Tahmin",
 };
 
 const DURUM_RENK: Record<PartStatus, string> = {
@@ -253,14 +269,50 @@ export default function AracAnalizSayfasi() {
 }
 
 function SonucKarti({ sonuc, onYeni }: { sonuc: ValuationResult; onYeni: () => void }) {
-  const { arac, piyasa, degerleme, karar, getiri } = sonuc;
+  const { arac, piyasa, degerleme, karar, getiri, ozet, bilgiKaynaklari } = sonuc;
   return (
     <div className="mt-8 space-y-6">
       <div className={`rounded-xl border-2 p-6 ${KARAR_RENK[karar.sonuc] || "border-kenarlik-acik"}`}>
         <div className="text-sm font-medium opacity-80">{arac.marka} {arac.model} {arac.yil} • {new Intl.NumberFormat("tr-TR").format(arac.km)} km</div>
         <div className="mt-1 text-3xl font-extrabold">{karar.sonuc}</div>
         <p className="mt-2">{karar.aciklama}</p>
+        {karar.guvenSeviyesi && (
+          <p className="mt-2 text-sm font-medium opacity-80">
+            {GUVEN_METNI[karar.guvenSeviyesi]}
+            {karar.hesaplananEgilim ? ` • Hesaplanan eğilim: ${karar.hesaplananEgilim} (kesin karar değildir)` : ""}
+          </p>
+        )}
       </div>
+
+      {ozet && (
+        <section className="bg-white rounded-xl border border-kenarlik-acik p-6" aria-label="Özet">
+          <h2 className="text-lg font-semibold text-metin-birincil">Özet</h2>
+          <dl className="mt-3 divide-y divide-kenarlik-acik text-sm">
+            <div className="grid gap-1 py-3 sm:grid-cols-[220px_1fr]">
+              <dt className="font-medium text-metin-birincil">Piyasaya göre fiyatı</dt>
+              <dd className="text-metin-ikincil">{ozet.piyasaKonumu.metin}</dd>
+            </div>
+            <div className="grid gap-1 py-3 sm:grid-cols-[220px_1fr]">
+              <dt className="font-medium text-metin-birincil">Adil fiyat</dt>
+              <dd className="text-metin-ikincil">{tl(ozet.adilFiyat.min)} – {tl(ozet.adilFiyat.max)}</dd>
+            </div>
+            <div className="grid gap-1 py-3 sm:grid-cols-[220px_1fr]">
+              <dt className="font-medium text-metin-birincil">En önemli riskler</dt>
+              <dd><ul className="list-disc space-y-1 pl-5 text-metin-ikincil">{ozet.riskler.map((r) => <li key={r}>{r}</li>)}</ul></dd>
+            </div>
+            {ozet.pazarlikGerekceleri.length > 0 && (
+              <div className="grid gap-1 py-3 sm:grid-cols-[220px_1fr]">
+                <dt className="font-medium text-metin-birincil">Pazarlık gerekçeleri</dt>
+                <dd><ul className="list-disc space-y-1 pl-5 text-metin-ikincil">{ozet.pazarlikGerekceleri.map((g) => <li key={g}>{g}</li>)}</ul></dd>
+              </div>
+            )}
+            <div className="grid gap-1 py-3 sm:grid-cols-[220px_1fr]">
+              <dt className="font-medium text-metin-birincil">Şimdi ne yapmalı?</dt>
+              <dd className="font-medium text-metin-birincil">{ozet.simdiNeYapmali}</dd>
+            </div>
+          </dl>
+        </section>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Kutu baslik="İlan fiyatı" deger={tl(arac.ilanFiyati)} />
@@ -341,6 +393,21 @@ function SonucKarti({ sonuc, onYeni }: { sonuc: ValuationResult; onYeni: () => v
           <p className="mt-2 text-sm text-metin-ikincil">Güncel araç enflasyonu oranı henüz girilmedi.</p>
         )}
       </section>
+
+      {bilgiKaynaklari && bilgiKaynaklari.length > 0 && (
+        <section className="bg-white rounded-xl border border-kenarlik-acik p-6">
+          <h2 className="text-lg font-semibold text-metin-birincil">Bu rapordaki bilgiler nereden geliyor?</h2>
+          <ul className="mt-3 space-y-2 text-sm">
+            {bilgiKaynaklari.map((k) => (
+              <li key={k.alan} className="flex flex-wrap items-baseline gap-2">
+                <span className="rounded-full bg-arkaplan-acik px-2 py-0.5 text-xs font-semibold text-metin-birincil">{KAYNAK_ROZET[k.kaynak] || k.kaynak}</span>
+                <span className="font-medium text-metin-birincil">{k.alan}:</span>
+                <span className="text-metin-ikincil">{k.aciklama}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-sm text-metin-ikincil">{sonuc.kredi.dusulen} kredi kullanıldı • Kalan: {sonuc.kredi.kalan}</span>

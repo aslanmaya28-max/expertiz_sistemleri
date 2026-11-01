@@ -55,7 +55,7 @@ export default function RaporDogrulama({ initialCode = "" }: { initialCode?: str
       {result && <section aria-live="polite" className="mt-6 rounded-lg border border-kenarlik-acik bg-white p-6">
         {result.gecerli ? <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={expertizSealUrl(code)} width={180} height={180} alt="YerimeBak doğrulanmış rapor mührü" className="mx-auto" />
+          <img src={expertizSealUrl(code)} width={180} height={180} alt="YerimeBak dijital doğrulama mührü" className="mx-auto" />
           <h2 className="mt-4 text-xl font-semibold text-green-800">Rapor doğrulandı</h2>
           <dl className="mt-4 space-y-3 text-sm">
             {([

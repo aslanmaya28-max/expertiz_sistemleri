@@ -102,7 +102,11 @@ def test_kredili_web_degerleme_onbellek(client, monkeypatch):
     assert len(body["piyasa"]["kaynaklar"]) == 3
     assert body["piyasa"]["kaynaklar"][0]["fiyat"] == 900000
     assert body["piyasa"]["guvenSkoru"] <= 50 and body["piyasa"]["uyarilar"]
-    assert "Emsal" in body["karar"]["aciklama"]
+    # 3 emsal: dusuk guven -> kesin karar verilmez, egilim bilgi olarak kalir
+    assert body["karar"]["sonuc"] == "EK DOĞRULAMA GEREKLİ" and body["karar"]["guvenSeviyesi"] == "dusuk"
+    assert body["karar"]["hesaplananEgilim"] in ("AL", "PAZARLIK YAP", "ALMA")
+    assert set(body["ozet"]) == {"piyasaKonumu", "adilFiyat", "riskler", "pazarlikGerekceleri", "simdiNeYapmali"}
+    assert any(k["kaynak"] == "musteri_beyani" for k in body["bilgiKaynaklari"])
     assert body["kredi"] == {"dusulen": 1, "kalan": 2}
     assert len(calls) == 3
     second = client.post("/api/v1/valuation/analyze", headers=_auth(token), json=payload)

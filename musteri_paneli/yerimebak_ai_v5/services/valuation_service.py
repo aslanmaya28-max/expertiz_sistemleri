@@ -61,6 +61,113 @@ def normalize_url(url: str) -> str:
     return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), parts.path.rstrip("/"), "", ""))
 
 
+LOW_CONFIDENCE_VERDICT = "EK DOĞRULAMA GEREKLİ"
+LOW_CONFIDENCE_FLAGS = ("az_emsal", "genis_aralik")
+
+
+def _tl(value: Any) -> str:
+    try:
+        return f"{int(round(float(value))):,} TL".replace(",", ".")
+    except (TypeError, ValueError):
+        return "-"
+
+
+def confidence_level(score: int, flags: List[Dict[str, Any]]) -> str:
+    """Raporun piyasa verisine guveni: yuksek | orta | dusuk (dusukte kesin karar verilmez)."""
+    if score < 50 or any(f.get("kod") in LOW_CONFIDENCE_FLAGS for f in flags):
+        return "dusuk"
+    return "yuksek" if score >= 70 else "orta"
+
+
+def decision_summary(
+    *, price: float, degerleme: Dict[str, Any], recommended: float, verdict_key: str,
+    karar: str, karar_aciklama: str, confidence: int, flags: List[Dict[str, Any]],
+    reference: Dict[str, Any], from_saved_listing: bool,
+) -> Dict[str, Any]:
+    """Musterinin ilk ekranda gordugu karar, 5 sorunun cevabi ve bilgi kaynaklari.
+
+    Dusuk guvende AL/ALMA verilmez; hesaplanan egilim yalnizca bilgi olarak kalir.
+    Hasar bilgileri musteri/ilan beyanidir, uzman tarafindan dogrulanmamistir.
+    """
+    level = confidence_level(confidence, flags)
+    aralik = degerleme.get("adilFiyatAraligi") or {}
+    fark = (degerleme.get("fiyatYorumu") or {}).get("farkYuzde")
+    if level == "dusuk":
+        sonuc, aciklama = LOW_CONFIDENCE_VERDICT, (
+            "Bu araç için bulunan piyasa verisi kesin karar vermeye yetmiyor. Aşağıdaki fiyatları "
+            "yön gösterici kabul edin; satın almadan önce ilanı ve aracı uzman incelemesiyle doğrulayın.")
+    else:
+        sonuc, aciklama = karar, karar_aciklama
+
+    if verdict_key == "AVANTAJLI":
+        konum = "altinda"
+    elif verdict_key == "MAKUL":
+        konum = "uyumlu"
+    else:
+        konum = "ustunde"
+    konum_metni = {"altinda": "Piyasanın altında", "uyumlu": "Piyasayla uyumlu", "ustunde": "Piyasanın üstünde"}[konum]
+    if fark is not None:
+        konum_metni += f" (ilan fiyatı hesaplanan değerin %{abs(fark):.1f} {'altında' if fark < 0 else 'üstünde'})"
+
+    kalemler = sorted(degerleme.get("kalemler") or [], key=lambda k: k.get("tutar") or 0, reverse=True)
+    riskler: List[str] = []
+    if degerleme.get("agirHasar"):
+        riskler.append("Ağır hasar sınıfında bulgu bildirildi; aracın yapısal durumu mutlaka uzmanca incelenmeli.")
+    for k in kalemler[:2]:
+        if (k.get("tutar") or 0) > 0:
+            riskler.append(f"{k.get('baslik')} ({str(k.get('durum') or '').lower()}): değeri yaklaşık {_tl(k.get('tutar'))} düşürüyor.")
+    for f in flags:
+        if f.get("kod") in LOW_CONFIDENCE_FLAGS and f.get("mesaj"):
+            riskler.append(f["mesaj"] + ".")
+    riskler.append("Boya, değişen ve tramer bilgileri ilan/müşteri beyanına dayanıyor; uzman tarafından doğrulanmadı.")
+
+    gerekceler: List[str] = []
+    if aralik.get("max") and price > aralik["max"]:
+        gerekceler.append(f"İlan fiyatı adil aralığın üst sınırından {_tl(price - aralik['max'])} yüksek.")
+    if reference.get("count") and reference.get("market_median_price"):
+        gerekceler.append(f"Benzer {reference['count']} ilanın orta fiyatı {_tl(reference['market_median_price'])}.")
+    for k in kalemler[:2]:
+        if (k.get("tutar") or 0) > 0:
+            gerekceler.append(f"{k.get('baslik')} {str(k.get('durum') or '').lower()}: yaklaşık {_tl(k.get('tutar'))} değer kaybı.")
+
+    if sonuc == LOW_CONFIDENCE_VERDICT:
+        adim = "Veri sınırlı: kararınızı ilan bilgileri ve uzman incelemesiyle netleştirin."
+    elif karar == "AL":
+        adim = "Fiyat uygun görünüyor. Ödeme yapmadan önce aracı yerinde inceletin."
+    elif karar == "PAZARLIK YAP":
+        adim = f"{_tl(recommended)} civarına inmek için pazarlık edin, ardından aracı yerinde inceletin."
+    else:
+        adim = f"Bu fiyattan almayın; fiyat {_tl(recommended)} civarına inmezse başka ilanlara bakın."
+
+    piyasa_kaynagi = reference.get("source")
+    return {
+        "karar": {"sonuc": sonuc, "aciklama": aciklama, "guvenSeviyesi": level,
+                  "hesaplananEgilim": karar if level == "dusuk" else None},
+        "ozet": {
+            "piyasaKonumu": {"durum": konum, "metin": konum_metni},
+            "adilFiyat": {"min": aralik.get("min"), "max": aralik.get("max")},
+            "riskler": riskler[:4],
+            "pazarlikGerekceleri": gerekceler[:3],
+            "simdiNeYapmali": adim,
+        },
+        "bilgiKaynaklari": [
+            {"alan": "Araç bilgileri (marka, model, yıl, km, fiyat)",
+             "kaynak": "kayitli_ilan" if from_saved_listing else "musteri_beyani",
+             "aciklama": "Kayıtlı ilandan" if from_saved_listing else "Sizin girdiğiniz bilgiler"},
+            {"alan": "Boya, değişen ve tramer", "kaynak": "musteri_beyani",
+             "aciklama": "İlan/müşteri beyanı; uzman tarafından doğrulanmadı"},
+            {"alan": "Piyasa değeri",
+             "kaynak": "internet_ilanlari" if piyasa_kaynagi == "web_listings" else "kayitli_ilanlar",
+             "aciklama": "Fiyatı kaynak sayfada doğrulanan benzer ilanlar" if piyasa_kaynagi == "web_listings"
+             else "Sistemde kayıtlı benzer ilanlar"},
+            {"alan": "Değer kaybı, adil fiyat ve tavsiye fiyat", "kaynak": "hesaplama",
+             "aciklama": "Bulguların piyasa değerine etkisiyle hesaplandı"},
+            {"alan": "Gelecek değer", "kaynak": "tahmin",
+             "aciklama": "Araç enflasyonu varsayımına dayanan tahmin; kesin değildir"},
+        ],
+    }
+
+
 def _listing_by_url(url: str) -> Optional[Dict[str, Any]]:
     norm = normalize_url(url)
     if not norm:
@@ -347,9 +454,8 @@ def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
     karar, karar_aciklama = VERDICTS.get(verdict_key, VERDICTS["MAKUL"])
     flags = reference.get("kontrol") or []
     confidence = degerleme.get("guvenSkoru") or 0
-    if any(f.get("kod") in ("az_emsal", "genis_aralik") for f in flags):
-        confidence = min(confidence, 50)
-        karar_aciklama += " Emsal sayısı az veya fiyat aralığı geniş; sonucu ilan bilgileriyle birlikte değerlendirin."
+    if any(f.get("kod") in LOW_CONFIDENCE_FLAGS for f in flags):
+        confidence = min(confidence, 49)
     purchase_price = min(float(price), recommended)
     projection = inflation_projection(ai_value, purchase_price)
 
@@ -383,13 +489,19 @@ def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
             "ozet": degerleme.get("ozet"),
         },
         "karar": {
-            "sonuc": karar,
-            "aciklama": karar_aciklama,
             "ilanFarkiYuzde": (degerleme.get("fiyatYorumu") or {}).get("farkYuzde"),
             "ilanFarkiTutar": (degerleme.get("fiyatYorumu") or {}).get("farkTutar"),
         },
         "getiri": projection,
     }
+    summary = decision_summary(
+        price=float(price), degerleme=degerleme, recommended=recommended, verdict_key=verdict_key,
+        karar=karar, karar_aciklama=karar_aciklama, confidence=int(confidence), flags=flags,
+        reference=reference, from_saved_listing=bool(listing),
+    )
+    result["karar"].update(summary["karar"])
+    result["ozet"] = summary["ozet"]
+    result["bilgiKaynaklari"] = summary["bilgiKaynaklari"]
 
     deduction = payment.deduct_credits(
         user["id"],
@@ -397,7 +509,7 @@ def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
         description=f"Arac degerleme: {brand} {model} {year}",
         vehicle_data={**result["arac"], "source": "panel_valuation", "parts": parts,
                       "tramer_amount": tramer_amount},
-        valuation_data={"credits_deducted": ANALYSIS_COST, "karar": karar, "tavsiye_fiyat": int(recommended),
+        valuation_data={"credits_deducted": ANALYSIS_COST, "karar": result["karar"]["sonuc"], "tavsiye_fiyat": int(recommended),
                         "ai_degeri": degerleme.get("aiDegeri"), "piyasa_ortalama": reference.get("market_avg_price"),
                         "getiri": projection, "piyasa_kaynagi": reference.get("source"),
                         "web_maliyet_usd": (reference.get("scope") or {}).get("cost_usd", 0)},
