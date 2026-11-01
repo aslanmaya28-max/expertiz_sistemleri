@@ -123,6 +123,9 @@ class PaymentService:
         description: str = "Arac analizi",
         vehicle_data: Optional[Dict[str, Any]] = None,
         valuation_data: Optional[Dict[str, Any]] = None,
+        report_data: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = None,
+        engine_version: Optional[str] = None,
     ) -> Dict[str, Any]:
         if type(amount) is not int or amount <= 0:
             return {"success": False, "error": "Kredi miktarı pozitif tam sayı olmalıdır"}
@@ -143,6 +146,25 @@ class PaymentService:
             vehicle_json = vehicle_data or {"description": description}
             valuation_json = valuation_data or {"credits_deducted": amount}
 
+            report = None
+            if report_data is not None:
+                import secrets
+                from copy import deepcopy
+                report = deepcopy(report_data)
+                alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+                while True:
+                    code = 'YD-'+''.join(secrets.choice(alphabet) for _ in range(4))+'-'+''.join(secrets.choice(alphabet) for _ in range(4))
+                    cursor.execute('SELECT 1 FROM analysis_history WHERE verification_code=%s', (code,))
+                    if not cursor.fetchone():
+                        break
+                cursor.execute("SELECT nextval('valuation_report_number_seq') AS n")
+                number = f'YD {now.year}-{int(cursor.fetchone()["n"]):06d}'
+                report['rapor'] = {'id': history_id, 'report_no': number, 'verification_code': code,
+                                   'created_at': now.isoformat(), 'engine_version': engine_version,
+                                   'verification_url': 'https://www.yerimebak.com.tr/dogrula/'+code}
+                report['kredi'] = {'dusulen': amount, 'kalan': new_credits}
+                report['success'] = True
+
             cursor.execute(f"""
                 INSERT INTO analysis_history (id, user_id, vehicle_json, valuation_json, created_at)
                 VALUES ({self._p}, {self._p}, {self._p}, {self._p}, {self._p})
@@ -153,6 +175,12 @@ class PaymentService:
                 json.dumps(valuation_json, ensure_ascii=False, default=str),
                 now.replace(tzinfo=None),
             ))
+
+            if report is not None:
+                from psycopg2.extras import Json
+                cursor.execute('''UPDATE analysis_history SET report_json=%s,report_no=%s,
+                                  verification_code=%s,request_id=%s,engine_version=%s WHERE id=%s''',
+                               (Json(report), number, code, request_id, engine_version, history_id))
 
             cursor.execute(f"""
                     INSERT INTO credit_usage_logs (user_id, action, credits_used, description)
@@ -167,8 +195,12 @@ class PaymentService:
                 "credits_after": new_credits,
                 "deducted": amount,
                 "history_id": history_id,
-                "description": description
+                "description": description,
+                "report": report,
             }
+        except Exception:
+            conn.rollback()
+            raise
         finally:
             DatabaseConfig.return_connection(conn)
 

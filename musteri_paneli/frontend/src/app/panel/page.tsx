@@ -252,7 +252,8 @@ export default function MusteriPaneli() {
 
           {activeTab === "analizler" && (
             <PanelSection title="Analizlerim" count={history.length}>
-              {history.length === 0 ? <EmptyState text="Chrome uzantisi, link analizi veya panel analizleriniz burada listelenecek." /> : history.map((item) => <AnalysisRow key={item.id} item={item} />)}
+              <Link href="/panel/degerlemeler" className="text-sm font-semibold text-birincil underline">Tüm değerleme raporlarım</Link>
+              {history.length === 0 ? <EmptyState text="Araç değerlemeleriniz burada listelenecek." /> : history.map((item) => <AnalysisRow key={item.id} item={item} />)}
             </PanelSection>
           )}
 
@@ -264,6 +265,7 @@ export default function MusteriPaneli() {
 
           {activeTab === "raporlar" && (
             <PanelSection title="Raporlarim" count={reports.length}>
+              <Link href="/panel/degerlemeler" className="text-sm font-semibold text-birincil underline">Kredili değerleme raporlarım</Link>
               {reports.length === 0 ? <EmptyState text="Yayinlanan raporunuz hazir oldugunda burada gorunur." /> : reports.map((report) => <ReportRow key={report.id} report={report} />)}
             </PanelSection>
           )}
@@ -306,20 +308,21 @@ function EmptyState({ text }: { text: string }) {
 function AnalysisRow({ item }: { item: AnalysisHistoryItem }) {
   const vehicle = parseJsonField(item.vehicle_json);
   const valuation = parseJsonField(item.valuation_json);
-  const vehicleName = [vehicle.brand, vehicle.model, vehicle.year].filter(Boolean).join(" ");
+  const vehicleName = [vehicle.marka || vehicle.brand, vehicle.model, vehicle.yil || vehicle.year].filter(Boolean).join(" ");
   const description = textValue(vehicle.description, "");
   const title = vehicleName || description || textValue(vehicle.make_model, "Arac analizi");
   const credits = typeof valuation.credits_deducted === "number" ? valuation.credits_deducted : 1;
-  const listedPrice = typeof vehicle.listed_price === "number" ? vehicle.listed_price : undefined;
-  const marketPrice = typeof vehicle.market_price_avg === "number" ? vehicle.market_price_avg : undefined;
-  const decision = textValue(valuation.decision, "Analiz");
+  const listedPrice = typeof vehicle.ilanFiyati === "number" ? vehicle.ilanFiyati : typeof vehicle.listed_price === "number" ? vehicle.listed_price : undefined;
+  const marketPrice = typeof valuation.piyasa_ortalama === "number" ? valuation.piyasa_ortalama : typeof vehicle.market_price_avg === "number" ? vehicle.market_price_avg : undefined;
+  const decision = textValue(valuation.karar || valuation.decision, "Analiz");
   const score = typeof valuation.opportunity_score === "number" ? Math.round(valuation.opportunity_score) : null;
 
   return (
     <div className="rounded-lg border border-kenarlik-acik p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="font-semibold text-metin-birincil">{title}</div>
+          <Link href={`/panel/degerlemeler/${encodeURIComponent(item.id)}`} className="font-semibold text-birincil underline">{title}</Link>
+          {!item.report_no && <p className="mt-1 text-xs text-metin-ikincil">Özet kayıt</p>}
           <div className="mt-1 text-sm text-metin-ikincil">{textValue(vehicle.source, "panel")} / {formatDate(item.created_at)}</div>
         </div>
         <span className="w-fit rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">{decision}{score !== null ? ` / ${score}` : ""}</span>

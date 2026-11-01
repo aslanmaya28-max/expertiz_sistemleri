@@ -4,6 +4,7 @@ Musteri arac degerlemesi: ilan linki veya elle giris + boya/degisen/tramer.
 Her analiz 1 kredi; yeterli piyasa verisi yoksa kredi dusulmez.
 """
 import asyncio
+from uuid import UUID
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -16,6 +17,7 @@ router = APIRouter()
 
 
 class ValuationRequest(BaseModel):
+    request_id: Optional[UUID] = None
     listing_url: Optional[str] = None
     brand: Optional[str] = None
     model: Optional[str] = None
@@ -85,4 +87,30 @@ async def parts() -> Dict[str, Any]:
 @router.post("/analyze")
 async def analyze(payload: ValuationRequest, user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     loop = asyncio.get_event_loop()
-    return _raise_if_error(await loop.run_in_executor(None, valuation_service.analyze, user, payload.model_dump()))
+    return _raise_if_error(await loop.run_in_executor(None, valuation_service.analyze, user, payload.model_dump(mode='json')))
+
+
+@router.get('/reports')
+def reports(limit: int = Query(20, ge=1, le=100), offset: int = Query(0, ge=0),
+            user: Dict[str, Any] = Depends(get_current_user)):
+    from yerimebak_ai_v5.services.valuation_reports import list_reports
+    return list_reports(user['id'], limit, offset)
+
+
+@router.get('/reports/{report_id}')
+def report(report_id: str, user: Dict[str, Any] = Depends(get_current_user)):
+    from yerimebak_ai_v5.services.valuation_reports import get_report
+    return _raise_if_error(get_report(user['id'], report_id))
+
+
+@router.get('/reports/{report_id}/pdf')
+def report_pdf(report_id: str, user: Dict[str, Any] = Depends(get_current_user)):
+    from fastapi.responses import Response
+    from yerimebak_ai_v5.services.valuation_reports import get_report
+    from yerimebak_ai_v5.services.valuation_report_pdf import build_pdf
+    snapshot = _raise_if_error(get_report(user['id'], report_id))
+    if snapshot.get('ozet_kayit'):
+        raise HTTPException(409, 'Bu özet kaydın tam raporu bulunmuyor')
+    return Response(build_pdf(snapshot), media_type='application/pdf',
+                    headers={'Content-Disposition': f'attachment; filename="degerleme-{snapshot["rapor"]["id"]}.pdf"',
+                             'Cache-Control': 'private, no-store'})

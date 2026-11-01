@@ -10,9 +10,16 @@ import pillow_heif
 pillow_heif.register_heif_opener()
 
 
+def font_paths(bold=False):
+    """Mühür ve PDF için ortak Türkçe yazı tipi adayları."""
+    name = 'DejaVuSans-Bold' if bold else 'DejaVuSans'
+    windows = 'arialbd' if bold else 'arial'
+    return (f'/usr/share/fonts/truetype/dejavu/{name}.ttf',
+            f'/usr/share/fonts/dejavu/{name}.ttf', f'C:/Windows/Fonts/{windows}.ttf')
+
+
 def _font(size):
-    for path in ('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
-                 '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf', 'C:/Windows/Fonts/arialbd.ttf'):
+    for path in font_paths(bold=True):
         try:
             return ImageFont.truetype(path, size)
         except OSError:

@@ -86,6 +86,14 @@ class DatabaseConfig:
         return "postgresql"
 
     @staticmethod
+    def get_lock_connection():
+        """Uzun advisory kilit bekleyişleri iş sorgularının havuzunu tutmaz.
+
+        Çağıran bu havuz dışı bağlantıyı mutlaka close() ile kapatır.
+        """
+        return psycopg2.connect(_get_database_url(), cursor_factory=DictCursor, connect_timeout=10)
+
+    @staticmethod
     def get_connection():
         """PostgreSQL connection from pool with DictCursor.
         
@@ -262,6 +270,9 @@ class DatabaseConfig:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+
+            from yerimebak_ai_v5.services.valuation_reports import ensure_schema as ensure_valuation_reports
+            ensure_valuation_reports(cursor)
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS credit_usage_logs (

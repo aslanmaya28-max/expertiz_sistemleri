@@ -13,3 +13,10 @@ test('boş, eksik ve adres içeren kodlar sorgulanmaz', () => {
     assert.equal(isVerificationCode(code), false, code);
   }
 });
+
+test('kredili değerleme kodları aynı doğrulama akışında kabul edilir', () => {
+  assert.equal(isVerificationCode(normalizeVerificationCode(' yd-a2b3-c4d5 ')), true);
+  for (const code of ['YD-ABC-1234', 'YD-ABCD-12345', 'YE-ABCD-1234', 'YD-ABCD-1234/']) {
+    assert.equal(isVerificationCode(code), false, code);
+  }
+});
