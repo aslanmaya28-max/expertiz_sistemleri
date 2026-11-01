@@ -8,7 +8,7 @@ from urllib.parse import quote as url_quote
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, StrictInt
 
 from yerimebak_ai_v5.api.v1.endpoints.auth import get_admin_user, get_authenticated_user
 from yerimebak_ai_v5.services import (
@@ -103,6 +103,16 @@ class UnassignRequest(BaseModel):
 class CustomerStatusRequest(BaseModel):
     active: bool
     reason: Optional[str] = None
+
+
+class CustomerCreditsRequest(BaseModel):
+    amount: StrictInt = Field(ge=-10000, le=10000)
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class CustomerTierRequest(BaseModel):
+    tier: str
+    note: Optional[str] = Field(default=None, max_length=2000)
 
 
 class CancelRequestPayload(BaseModel):
@@ -332,6 +342,24 @@ async def admin_customer_detail(
     admin: Dict[str, Any] = Depends(get_admin_user),
 ) -> Dict[str, Any]:
     return _raise_if_error(customer_service.get_customer(customer_id))
+
+
+@router.post("/admin/customers/{customer_id}/credits")
+async def admin_adjust_customer_credits(
+    customer_id: int,
+    payload: CustomerCreditsRequest,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    return _raise_if_error(customer_service.adjust_customer_credits(customer_id, payload.amount, payload.reason, admin))
+
+
+@router.post("/admin/customers/{customer_id}/tier")
+async def admin_set_customer_tier(
+    customer_id: int,
+    payload: CustomerTierRequest,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    return _raise_if_error(customer_service.set_customer_tier(customer_id, payload.tier, payload.note, admin))
 
 
 @router.post("/admin/customers/{customer_id}/status")

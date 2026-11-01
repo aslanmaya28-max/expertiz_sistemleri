@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 from yerimebak_ai_v5.core.infrastructure.database_config import DatabaseConfig
 from yerimebak_ai_v5.services.expertiz_service import _ensure_expertiz_requests_schema, _write_audit
 from yerimebak_ai_v5.services.personnel_service import PERSONNEL_ROLES
+from yerimebak_ai_v5.services.payment_service import PaymentService, TIER_LIMITS
 
 NON_CUSTOMER_ROLES = ("admin",) + tuple(PERSONNEL_ROLES)
 MAX_LIMIT = 500
@@ -80,9 +81,9 @@ def list_customers(search: Optional[str] = None, limit: int = 200) -> Dict[str, 
         DatabaseConfig.return_connection(conn)
 
 
-def _get_customer(cursor: Any, customer_id: int) -> Optional[Dict[str, Any]]:
+def _get_customer(cursor: Any, customer_id: int, lock: bool = False) -> Optional[Dict[str, Any]]:
     cursor.execute(
-        f"SELECT u.* FROM users u WHERE u.id = %s AND {_CUSTOMER_FILTER}",
+        f"SELECT u.* FROM users u WHERE u.id = %s AND {_CUSTOMER_FILTER}" + (" FOR UPDATE" if lock else ""),
         (customer_id, NON_CUSTOMER_ROLES),
     )
     row = cursor.fetchone()
@@ -93,9 +94,14 @@ def get_customer(customer_id: int) -> Dict[str, Any]:
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
-        customer = _get_customer(cursor, customer_id)
+        customer = _get_customer(cursor, customer_id, lock=True)
         if not customer:
             return _error("Musteri bulunamadi", 404)
+        PaymentService()._grant_monthly(cursor, customer)
+        cursor.execute("""SELECT id, action, credits_used, description, created_at
+                          FROM credit_usage_logs WHERE user_id=%s
+                          ORDER BY created_at DESC, id DESC LIMIT 20""", (customer_id,))
+        movements = [dict(row) for row in cursor.fetchall()]
         _ensure_expertiz_requests_schema(cursor)
         cursor.execute(
             """
@@ -117,7 +123,8 @@ def get_customer(customer_id: int) -> Dict[str, Any]:
         customer["request_count"] = len(active_requests)
         customer["total_spent_tl"] = sum(float(r.get("total_tl") or 0) for r in active_requests)
         customer["last_request_at"] = requests[0]["created_at"] if requests else None
-        return {"success": True, "customer": _public_customer(customer), "requests": requests}
+        return {"success": True, "customer": _public_customer(customer), "requests": requests,
+                "credit_movements": movements, "tier_limits": TIER_LIMITS}
     finally:
         DatabaseConfig.return_connection(conn)
 
@@ -145,5 +152,54 @@ def set_customer_active(customer_id: int, active: bool, reason: str, admin: Dict
         conn.commit()
         customer["is_active"] = 1 if active else 0
         return {"success": True, "customer": _public_customer(customer)}
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
+def adjust_customer_credits(customer_id: int, amount: int, reason: str, admin: Dict[str, Any]) -> Dict[str, Any]:
+    reason = (reason or '').strip()
+    if type(amount) is not int or amount == 0 or abs(amount) > 10000 or not reason:
+        return _error('Sıfırdan farklı, en fazla ±10000 kredi ve neden zorunludur', 400)
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        customer = _get_customer(cursor, customer_id, lock=True)
+        if not customer:
+            return _error('Müşteri bulunamadı', 404)
+        PaymentService()._grant_monthly(cursor, customer)
+        before = customer['credits']
+        if before + amount < 0:
+            return _error('Bakiye eksiye düşemez', 400)
+        customer['credits'] = before + amount
+        cursor.execute('UPDATE users SET credits=%s WHERE id=%s', (customer['credits'], customer_id))
+        cursor.execute('''INSERT INTO credit_usage_logs (user_id, action, credits_used, description)
+                          VALUES (%s, 'admin_adjustment', %s, %s)''', (customer_id, -amount, reason))
+        _write_audit(cursor, 'CUSTOMER_CREDITS_ADJUSTED', 'user', str(customer_id), admin,
+                     {'admin_id': admin.get('id'), 'amount': amount, 'reason': reason,
+                      'credits_before': before, 'credits_after': customer['credits']})
+        conn.commit()
+        return {'success': True, 'customer': _public_customer(customer)}
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
+def set_customer_tier(customer_id: int, tier: str, note: Optional[str], admin: Dict[str, Any]) -> Dict[str, Any]:
+    if tier not in TIER_LIMITS:
+        return _error('Geçersiz seviye', 400)
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        customer = _get_customer(cursor, customer_id, lock=True)
+        if not customer:
+            return _error('Müşteri bulunamadı', 404)
+        before, balance = customer.get('tier') or 'free', customer['credits']
+        cursor.execute('UPDATE users SET tier=%s WHERE id=%s', (tier, customer_id))
+        customer['tier'] = tier
+        PaymentService()._grant_monthly(cursor, customer)
+        _write_audit(cursor, 'CUSTOMER_TIER_CHANGED', 'user', str(customer_id), admin,
+                     {'admin_id': admin.get('id'), 'tier_before': before, 'tier_after': tier,
+                      'note': (note or '').strip(), 'credits_before': balance, 'credits_after': customer['credits']})
+        conn.commit()
+        return {'success': True, 'customer': _public_customer(customer)}
     finally:
         DatabaseConfig.return_connection(conn)

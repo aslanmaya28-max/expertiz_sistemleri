@@ -48,6 +48,78 @@ void main() {
     view.resetDevicePixelRatio();
   });
 
+  for (final fail in [false, true]) {
+    testWidgets('kredi formu neden ister, sonucu yeniler; hata=$fail', (tester) async {
+      var balance = 3;
+      Map<String, dynamic>? sent;
+      await tester.pumpWidget(_app(MockClient((request) async {
+        if (request.method == 'POST') {
+          sent = jsonDecode(request.body) as Map<String, dynamic>;
+          if (fail) return http.Response('{"detail":"Bakiye eksiye düşemez"}', 400);
+          balance = 13;
+          return _json({'success': true});
+        }
+        if (request.url.path.endsWith('/1')) {
+          return _json({'customer': {..._musteri, 'credits': balance}, 'requests': [],
+            'credit_movements': balance == 13 ? [{'credits_used': -10, 'description': 'Telafi', 'created_at': '2026-11-01'}] : []});
+        }
+        return _json({'customers': [_musteri], 'active': 1});
+      })));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ali Veli'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Kredi yükle / düş'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.widgetWithText(TextFormField, 'Miktar (+ yükle / - düş)'), '10');
+      await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
+      await tester.pumpAndSettle();
+      expect(sent, isNull);
+      expect(find.text('Neden zorunludur'), findsOneWidget);
+      await tester.enterText(find.widgetWithText(TextFormField, 'Neden (zorunlu)'), 'Telafi');
+      await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
+      await tester.pumpAndSettle();
+      expect(sent, {'amount': 10, 'reason': 'Telafi'});
+      if (fail) {
+        expect(find.textContaining('Bakiye eksiye'), findsOneWidget);
+      } else {
+        expect(find.text('free • 13 kredi'), findsOneWidget);
+        expect(find.text('Telafi'), findsOneWidget);
+        expect(find.text('+10 kredi'), findsOneWidget);
+      }
+    });
+  }
+
+  testWidgets('seviye sınırları API üzerinden gösterilir ve seçim kaydedilir', (tester) async {
+    var tier = 'free';
+    Map<String, dynamic>? sent;
+    await tester.pumpWidget(_app(MockClient((request) async {
+      if (request.method == 'POST') {
+        sent = jsonDecode(request.body) as Map<String, dynamic>;
+        tier = 'pro';
+        return _json({'success': true});
+      }
+      if (request.url.path.endsWith('/1')) {
+        return _json({'customer': {..._musteri, 'tier': tier}, 'requests': [],
+          'tier_limits': {'free': {'monthly_credits': 0, 'max_analyses_per_day': 5},
+            'pro': {'monthly_credits': 175, 'max_analyses_per_day': 201}}});
+      }
+      return _json({'customers': [_musteri], 'active': 1});
+    })));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ali Veli'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Seviye (galerici paketi)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('pro • aylık 175 kredi • günlük 201 analiz').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
+    await tester.pumpAndSettle();
+    expect(sent, {'tier': 'pro'});
+    expect(find.text('pro • 3 kredi'), findsOneWidget);
+  });
+
   testWidgets('musteri listesi, arama ve detay gosterilir', (tester) async {
     final istekler = <Uri>[];
     await tester.pumpWidget(_app(MockClient((request) async {
