@@ -288,7 +288,7 @@ def _paint_to_parts(paint_info: Any) -> Dict[str, str]:
     return parts
 
 
-def prefill_from_link(url: str) -> Dict[str, Any]:
+def _legacy_prefill_from_link(url: str) -> Dict[str, Any]:
     from yerimebak_ai_v5.services import listing_links
 
     if not normalize_url(url):
@@ -332,6 +332,32 @@ def prefill_from_link(url: str) -> Dict[str, Any]:
         "parts": {},
         "message": message,
     }
+
+
+def prefill_from_link(url: str) -> Dict[str, Any]:
+    from yerimebak_ai_v5.services import listing_extract
+
+    legacy = _legacy_prefill_from_link(url)
+    if "error" in legacy:
+        return legacy
+    extracted = listing_extract.from_link(legacy["url"])
+    if extracted is None:
+        # Anahtar yokken eski yanıt ve URL kelimesi tahmini korunur; yeşil rozet verilmez.
+        legacy["fields"] = {k: listing_extract.field(v, "ilan_sayfasi" if legacy.get("listing_id") else "link_kelimeleri", False)
+                            for k, v in legacy["vehicle"].items() if v is not None}
+        legacy["fields"].update({"parts." + k: listing_extract.field(v, "ilan_sayfasi", False)
+                                 for k, v in legacy["parts"].items()})
+        legacy["verified_count"] = 0
+        return legacy
+    fields = extracted["fields"].copy()
+    guesses = _guess_from_slug(legacy["url"]) if legacy.get("listing_id") else legacy["vehicle"]
+    for key in ("brand", "model"):
+        value = guesses.get(key)
+        if key not in fields and value:
+            fields[key] = listing_extract.field(value, "link_kelimeleri", False)
+    out = listing_extract.response(fields, legacy["url"])
+    out["source"] = legacy.get("source")
+    return out
 
 
 def inflation_projection(ai_value: float, purchase_price: float) -> Optional[Dict[str, Any]]:

@@ -7,10 +7,10 @@ import asyncio
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from yerimebak_ai_v5.api.v1.endpoints.auth import get_current_user
-from yerimebak_ai_v5.services import valuation_service
+from yerimebak_ai_v5.services import valuation_service, listing_extract
 
 router = APIRouter()
 
@@ -43,7 +43,26 @@ def _raise_if_error(result: Dict[str, Any]) -> Dict[str, Any]:
 @router.get("/prefill")
 async def prefill(url: str = Query(..., min_length=8), user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     loop = asyncio.get_event_loop()
+    await _consume_daily(user)
     return _raise_if_error(await loop.run_in_executor(None, valuation_service.prefill_from_link, url))
+
+
+class PrefillTextRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=8000)
+
+
+async def _consume_daily(user):
+    allowed = await asyncio.get_event_loop().run_in_executor(None, listing_extract.consume_daily, user["id"])
+    if not allowed:
+        raise HTTPException(status_code=429, detail="Günlük 20 ilan çıkarımı sınırına ulaştınız.")
+
+
+@router.post("/prefill-text")
+async def prefill_text(payload: PrefillTextRequest, user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+    if not payload.text.strip():
+        raise HTTPException(status_code=422, detail="İlan metni boş olamaz.")
+    await _consume_daily(user)
+    return await asyncio.get_event_loop().run_in_executor(None, listing_extract.from_text, payload.text)
 
 
 @router.get("/parts")

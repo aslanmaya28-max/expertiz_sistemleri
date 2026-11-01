@@ -237,15 +237,16 @@ def queries(v: Dict[str, Any]) -> List[str]:
     ][: _search_count()]
 
 
-def _search(query: str, client: httpx.Client) -> Dict[str, Any]:
+def _search(query: str, client: httpx.Client, *, prompt: Optional[str] = None, web: bool = True) -> Dict[str, Any]:
     """Tek web aramasi: modelin ilan listesi + arama servisinin kaynak metinleri."""
     body: Dict[str, Any] = {
         "model": model_name(),
         "temperature": 0,
-        "plugins": [{"id": "web", "max_results": 10}],
-        "messages": [{"role": "user", "content": _PROMPT.format(arac=query)}],
+        "messages": [{"role": "user", "content": prompt if prompt is not None else _PROMPT.format(arac=query)}],
         "usage": {"include": True},
     }
+    if web:
+        body["plugins"] = [{"id": "web", "max_results": 10}]
     provider = (os.getenv("WEB_PRICE_PROVIDER") or "").strip()
     if provider:
         body["provider"] = {"only": [provider], "allow_fallbacks": False}
@@ -260,13 +261,15 @@ def _search(query: str, client: httpx.Client) -> Dict[str, Any]:
             sources[cit["url"].rstrip("/")] = cit.get("content") or ""
     listings: List[Dict[str, Any]] = []
     match = re.search(r"\{.*\}", message.get("content") or "", re.DOTALL)
+    parsed = {}
     if match:
         try:
             parsed = json.loads(match.group(0))
             listings = [x for x in parsed.get("ilanlar") or [] if isinstance(x, dict)]
         except ValueError:
             pass
-    return {"listings": listings, "sources": sources, "cost": (data.get("usage") or {}).get("cost") or 0}
+    return {"listings": listings, "sources": sources, "data": parsed,
+            "cost": (data.get("usage") or {}).get("cost") or 0}
 
 
 # ---------------------------------------------------------------------------
