@@ -317,6 +317,13 @@ def create_unpaid_request(payload: Dict[str, Any], user: Dict[str, Any]) -> Dict
     return {"success": True, "request_id": request_id, "payment_status": "not_collected"}
 
 
+def _declaration_from_form(vehicle: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Musterinin talep formunda ilandan aktardigi satici beyani; hicbiri girilmediyse None."""
+    keys = {"boyali": "declared_painted", "degisen": "declared_changed", "tramerTl": "declared_tramer"}
+    out = {k: vehicle.get(v) for k, v in keys.items() if vehicle.get(v) is not None}
+    return out or None
+
+
 def _upsert_report_from_request(
     cursor: Any,
     request_id: str,
@@ -376,6 +383,7 @@ def _upsert_report_from_request(
             "marka": listing.get("brand") or "",
             "model": listing.get("model") or "",
             "paket": listing.get("package") or "",
+            "ilan_beyani": _declaration_from_form(payload.get("vehicle") or {}),
             "yil": listing.get("year"),
             "km": listing.get("km"),
             "price": listing.get("price"),

@@ -153,6 +153,7 @@ class SupabaseBridge:
             # Musterinin talep formundaki bilgiler; personel raporu varsa onunkiler oncelikli
             "paket": vehicle_snapshot.get("paket") or "",
             "admin_market_override": override if isinstance(override, dict) else None,
+            "ilan_beyani": vehicle_snapshot.get("ilan_beyani") if isinstance(vehicle_snapshot.get("ilan_beyani"), dict) else None,
             "yakit": vehicle_snapshot.get("yakit") or "",
             "sanziman": vehicle_snapshot.get("sanziman") or vehicle_snapshot.get("vites") or "",
         }

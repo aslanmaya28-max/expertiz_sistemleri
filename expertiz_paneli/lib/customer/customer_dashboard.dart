@@ -9,7 +9,6 @@ import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/neon_button.dart';
 import '../../core/layout/base_scaffold.dart';
 import 'create_request_screen.dart';
-import 'external_report_entry.dart';
 import '../../screens/musteri/oto_analiz_merkezi.dart';
 import 'profile_edit_screen.dart';
 import 'analysis_history_screen.dart';
@@ -291,71 +290,6 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
               ),
             ),
 
-            const SizedBox(height: 24),
-
-            // RAPOR YÜKLEME KARTI - Premium GlassCard
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ExternalReportEntry()),
-                );
-              },
-              child: GlassCard(
-                child: Row(
-                  children: [
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            FuturisticTheme.neon.withValues(alpha: 0.3),
-                            Colors.purple.withValues(alpha: 0.3),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Icon(Icons.cloud_upload, color: FuturisticTheme.neon, size: 30),
-                    ),
-                    const SizedBox(width: 20),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Rapor Yükle',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Dışarıdan aldığınız raporu sisteme yükleyin',
-                            style: TextStyle(
-                              color: Colors.white54,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: FuturisticTheme.neon.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(Icons.arrow_forward_ios, color: FuturisticTheme.neon, size: 16),
-                    ),
-                  ],
-                ),
-              ),
-            ),
 
             const SizedBox(height: 24),
 

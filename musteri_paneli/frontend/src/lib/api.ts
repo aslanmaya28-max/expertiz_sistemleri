@@ -349,6 +349,10 @@ export interface VehicleInput {
   brand?: string;
   model?: string;
   package?: string;
+  /** Ilanda saticinin beyani; bos = ilanda yazmiyor */
+  declared_painted?: number;
+  declared_changed?: number;
+  declared_tramer?: number;
   year?: number;
   km?: number;
   price?: number;

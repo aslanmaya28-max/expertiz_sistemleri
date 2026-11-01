@@ -96,8 +96,7 @@ services:
     command: ["sh", "-c", "mkdir -p /app/data/media && chown -R 1000:1000 /app/data"]
     restart: "no"
 
-  # FastAPI uygulamasi. Kaziyicilar (arabam / Borusan Next) bu konteynerin
-  # icinde, admin panelinden baslatilip durdurulan alt surecler olarak calisir.
+  # FastAPI uygulamasi ve arka planda calisan merkezi AI degerleme isleyicisi.
   app:
     build:
       context: .
@@ -137,8 +136,8 @@ services:
     deploy:
       resources:
         limits:
-          # Kaziyici Chromium'u da bu konteynerde calisir; islem basina ~200 MB
-          memory: ${APP_MEMORY_LIMIT:-2G}
+          # Kaziyici kaldirildi; API icin 512 MB - 1 GB yeterli
+          memory: ${APP_MEMORY_LIMIT:-1G}
         reservations:
           memory: 256M
     healthcheck:

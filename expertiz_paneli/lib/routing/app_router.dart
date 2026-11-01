@@ -17,7 +17,6 @@ import '../personnel/personnel_dashboard.dart';
 import '../screens/personel/personel_bolge_sistemi.dart';
 import '../customer/customer_dashboard.dart';
 import '../customer/create_request_screen.dart';
-import '../customer/report_upload_screen.dart';
 import '../screens/rapor_detay_sayfasi.dart';
 import '../screens/kategori_secimi.dart';
 import '../screens/maps_screen.dart';
@@ -253,13 +252,6 @@ GoRouter createRouter(BuildContext context) {
             pageBuilder: (context, state) => MaterialPage(
               key: state.pageKey,
               child: CustomerDashboard(),
-            ),
-          ),
-          GoRoute(
-            path: 'raporlarim',
-            pageBuilder: (context, state) => MaterialPage(
-              key: state.pageKey,
-              child: ReportUploadScreen(),
             ),
           ),
           GoRoute(

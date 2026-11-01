@@ -159,7 +159,10 @@ def _fulfill_credit(cursor: Any, oid: str, total_kurus: Optional[int]) -> Dict[s
 # ---------------------------------------------------------------------------
 
 # package: musterinin ilandan yazdigi motor/paket (or. "1.0 EcoTSI Style DSG"); web emsal eslesmesinde kullanilir
-VEHICLE_FIELDS = ("brand", "model", "package", "year", "km", "price", "fuel", "transmission")
+# declared_*: musterinin ilandan aktardigi satici beyani (bos = ilanda yazmiyor); ekspertizle karsilastirilir
+VEHICLE_FIELDS = ("brand", "model", "package", "year", "km", "price", "fuel", "transmission",
+                  "declared_painted", "declared_changed", "declared_tramer")
+_INT_FIELDS = ("year", "km", "price", "declared_painted", "declared_changed", "declared_tramer")
 
 
 def _clean_vehicle(raw: Any) -> Dict[str, Any]:
@@ -169,10 +172,12 @@ def _clean_vehicle(raw: Any) -> Dict[str, Any]:
         value = raw.get(key)
         if value in (None, ""):
             continue
-        if key in ("year", "km", "price"):
+        if key in _INT_FIELDS:
             try:
                 value = int(float(value))
             except (TypeError, ValueError):
+                continue
+            if value < 0:
                 continue
         else:
             value = str(value).strip()[:60]

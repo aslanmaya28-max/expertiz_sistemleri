@@ -70,7 +70,6 @@ class RoutePaths {
   static const String musteriAnaSayfa = '/musteri/ana-sayfa';
   
   /// Customer Raporlarım
-  static const String musteriRaporlarim = '/musteri/raporlarim';
   
   /// Customer Talep Oluştur
   static const String musteriTalepOlustur = '/musteri/talep-olustur';

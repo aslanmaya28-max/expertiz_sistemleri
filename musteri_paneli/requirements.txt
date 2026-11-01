@@ -1,59 +1,35 @@
-# Core Web Scraping - UNDETECTED CHROMEDRIVER (Not Playwright!)
-selenium>=4.15.0
-undetected-chromedriver>=3.5.0
-webdriver-manager>=4.0.0
+# YerimeBak API - calisma bagimliliklari
+# Kaziyici (Selenium, Playwright, Chromium) kaldirildi; piyasa verisi web aramasiyla gelir.
+# Eski hal: git tag arsiv/docker-surum
 
-# Phantom Engine — Zero-footprint CDP communication
-websocket-client>=1.6.0
-
-# HTTP & Utilities
-requests>=2.31.0
-httpx>=0.25.0
-aiohttp>=3.9.0
-beautifulsoup4>=4.12.0
-lxml>=4.9.0
-
-# Data Processing
-pandas>=2.1.0
-numpy>=1.24.0
-
-# Database
-sqlalchemy>=2.0.0
-psycopg2-binary>=2.9.0
-
-# Async (for other scrapers)
-playwright>=1.40.0  # Keep for Arabam/Letgo scrapers
-
-# API & Web
+# API
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
-openai>=1.0.0
+python-multipart>=0.0.6
+pydantic>=2.5.0
 
-# 🔒 Security
+# Veritabani ve onbellek
+psycopg2-binary>=2.9.0
+redis>=5.0.0
+
+# Guvenlik
 bcrypt>=4.1.0
 pyjwt>=2.8.0
 
-# PDF Generation
-fpdf2>=2.8.0
-pydantic>=2.5.0
-python-multipart>=0.0.6
+# Dis servisler (OpenRouter / DeepSeek, PayTR)
+httpx>=0.25.0
+requests>=2.31.0
+openai>=1.0.0
 
-# Utilities
+# Kurumsal rapor PDF metni
+pdfplumber>=0.10.3
+
+# Yardimcilar
 python-dotenv>=1.0.0
-pyyaml>=6.0
-python-dateutil>=2.8.0
 tzdata>=2023.3
 
-# Logging & Monitoring
+# Hata izleme
 sentry-sdk[fastapi]>=2.19.2
-loguru>=0.7.0
 
-# Redis
-redis>=5.0.0
-
-# Testing
+# Test
 pytest>=7.4.0
-pytest-asyncio>=0.21.0
-
-pdfplumber>=0.10.3
-nest-asyncio>=1.5.8

@@ -245,19 +245,20 @@ def compare_declaration(
         out["ozet"] = "İlanda boya/değişen beyanı bulunamadı; karşılaştırma yapılamadı."
         return out
     out["ilanBeyani"] = {
-        "boyali": declared["boyali"],
-        "degisen": declared["degisen"],
+        "boyali": declared.get("boyali"),
+        "degisen": declared.get("degisen"),
         "hasarKaydi": declared.get("hasarKaydi"),
         "tramerTl": declared.get("tramerTl"),
         "agirHasar": declared.get("agirHasar"),
         "kaynak": declared.get("source"),
         "url": declared.get("url"),
     }
-    if found_paint > declared["boyali"]:
+    # Beyan edilmeyen (bos birakilan) alan karsilastirilmaz
+    if declared.get("boyali") is not None and found_paint > declared["boyali"]:
         out["farklar"].append(
             f"İlanda {declared['boyali']} boyalı parça beyan edilmiş, ekspertizde {found_paint} boyalı parça bulundu."
         )
-    if found_changed > declared["degisen"]:
+    if declared.get("degisen") is not None and found_changed > declared["degisen"]:
         out["farklar"].append(
             f"İlanda {declared['degisen']} değişen parça beyan edilmiş, ekspertizde {found_changed} değişen parça bulundu."
         )

@@ -22,18 +22,6 @@ def _dependency_calls(route):
 
 
 class AdminOnlyRouteTests(unittest.TestCase):
-    def test_scraper_control_requires_admin(self):
-        from yerimebak_ai_v5.api.v1.endpoints import scrapers
-        from yerimebak_ai_v5.api.v1.endpoints.auth import get_admin_user
-
-        for method, path in (
-            ("GET", "/status"),
-            ("POST", "/start/{source}"),
-            ("POST", "/stop/{source}"),
-            ("GET", "/config"),
-        ):
-            self.assertIn(get_admin_user, _dependency_calls(_route(scrapers.router, path, method)), path)
-
     def test_vitrin_writes_require_admin(self):
         from yerimebak_ai_v5.api.v1.endpoints import vitrin
         from yerimebak_ai_v5.api.v1.endpoints.auth import get_admin_user
@@ -102,44 +90,6 @@ class SchemaAndConfigTests(unittest.TestCase):
                     self.assertEqual(depth_stack, ["http"], "upstream sadece http blogunda olabilir")
                 depth_stack.append(match.group(1))
             depth_stack = depth_stack[: max(0, len(depth_stack) - code.count("}"))]
-
-
-class ScraperStopTests(unittest.TestCase):
-    @unittest.skipIf(sys.platform == "win32", "POSIX surec grubu")
-    def test_stop_kills_process_that_ignores_sigterm(self):
-        from yerimebak_ai_v5.workers.scraper_manager import ScraperManager
-
-        child = subprocess.Popen(
-            [sys.executable, "-c", "import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(60)"],
-            start_new_session=True,
-        )
-        try:
-            time.sleep(0.3)
-            started = time.time()
-            self.assertTrue(ScraperManager._terminate_posix(child.pid, timeout=1.0))
-            self.assertLess(time.time() - started, 5)
-            self.assertIsNotNone(child.poll())
-        finally:
-            if child.poll() is None:
-                child.kill()
-
-    def test_worker_stop_cancels_running_cycle(self):
-        import asyncio
-
-        from yerimebak_ai_v5.workers import scraper_worker
-
-        with patch.object(scraper_worker, "get_repository", return_value=MagicMock()):
-            worker = scraper_worker.ScraperWorker(planner=MagicMock(build_jobs=MagicMock(return_value=[])))
-        worker._init_scrapers = lambda: None
-
-        async def scenario():
-            task = asyncio.ensure_future(worker.run())
-            await asyncio.sleep(0.2)  # dongu 300 sn uykuda
-            worker.stop()
-            with self.assertRaises(asyncio.CancelledError):
-                await asyncio.wait_for(task, timeout=2)
-
-        asyncio.run(scenario())
 
 
 class ExpertizCatalogSeedTests(unittest.TestCase):

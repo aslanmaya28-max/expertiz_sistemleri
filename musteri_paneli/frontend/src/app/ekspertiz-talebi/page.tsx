@@ -38,6 +38,9 @@ interface Arac {
   model: string;
   year: string;
   package: string;
+  declaredPainted: string;
+  declaredChanged: string;
+  declaredTramer: string;
   km: string;
   price: string;
   fuel: string;
@@ -48,7 +51,7 @@ interface Arac {
   note: string;
 }
 
-const BOS_ARAC: Arac = { link: "", brand: "", model: "", package: "", year: "", km: "", price: "", fuel: "", gear: "", plate: "", city: "", district: "", note: "" };
+const BOS_ARAC: Arac = { link: "", brand: "", model: "", package: "", declaredPainted: "", declaredChanged: "", declaredTramer: "", year: "", km: "", price: "", fuel: "", gear: "", plate: "", city: "", district: "", note: "" };
 
 function EkspertizTalebiIcerigi() {
   const params = useSearchParams();
@@ -180,6 +183,9 @@ function EkspertizTalebiIcerigi() {
             brand: arac.brand || undefined,
             model: arac.model || undefined,
             package: arac.package.trim() || undefined,
+            declared_painted: num(arac.declaredPainted),
+            declared_changed: num(arac.declaredChanged),
+            declared_tramer: num(arac.declaredTramer),
             year: num(arac.year),
             km: num(arac.km),
             price: num(arac.price),
@@ -288,6 +294,17 @@ function EkspertizTalebiIcerigi() {
                 </label>
                 <label className="block"><span className={lbl}>İlçe (zorunlu)</span><input required value={arac.district} onChange={set("district")} className={input} placeholder="Kadıköy" /></label>
               </div>
+              <fieldset className="mb-4 rounded-lg border border-kenarlik-acik p-4">
+                <legend className="px-1 text-sm font-medium text-metin-birincil">İlanda satıcı ne yazıyor? (isteğe bağlı)</legend>
+                <p className="mb-3 text-xs text-metin-ikincil">
+                  İlandaki boya, değişen ve tramer bilgisini yazarsanız raporda uzmanımızın bulgularıyla karşılaştırırız. İlanda yazmıyorsa boş bırakın.
+                </p>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <label className="block"><span className={lbl}>Boyalı parça sayısı</span><input type="number" min={0} value={arac.declaredPainted} onChange={set("declaredPainted")} className={input} placeholder="0" /></label>
+                  <label className="block"><span className={lbl}>Değişen parça sayısı</span><input type="number" min={0} value={arac.declaredChanged} onChange={set("declaredChanged")} className={input} placeholder="0" /></label>
+                  <label className="block"><span className={lbl}>Tramer tutarı (₺)</span><input type="number" min={0} value={arac.declaredTramer} onChange={set("declaredTramer")} className={input} placeholder="0" /></label>
+                </div>
+              </fieldset>
               <label className="block"><span className={lbl}>Not (satıcı randevusu, özel talep)</span>
                 <textarea value={arac.note} onChange={set("note")} className={input} rows={3} />
               </label>

@@ -216,6 +216,11 @@ class AIAnalysisWorker:
 
             # Satici beyani (kayitli ilan varsa) + paket: once personel raporu / talep formu, sonra kayitli ilan
             beyan = market_ingest.declared_condition(listing_id, vehicle_info.get("listing_url"))
+            form_beyan = vehicle_info.get("ilan_beyani")
+            if form_beyan and not (beyan or {}).get("known"):
+                # Kayitli ilan yoksa: musterinin talep formunda ilandan aktardigi beyan
+                beyan = {**form_beyan, "known": True, "source": "musteri_formu",
+                         "url": vehicle_info.get("listing_url") or None, "paket": (beyan or {}).get("paket")}
             paket = _real_package(vehicle_info.get("paket")) or (beyan or {}).get("paket")
 
             # 0) Admin piyasa degerini duzelttiyse yeni arama yapilmaz; kaynak ilanlar korunur

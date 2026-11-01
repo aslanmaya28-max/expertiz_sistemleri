@@ -37,13 +37,17 @@ def client():
 
     from fastapi.testclient import TestClient
     from yerimebak_ai_v5.main import app
-    from yerimebak_ai_v5.services import checkout_service, dispatch_service, expertiz_service, pricing_service
+    from yerimebak_ai_v5.services import (
+        account_service, checkout_service, dispatch_service, expertiz_service, market_ingest, pricing_service,
+    )
 
     # Sema bu surecte daha once hazirlandiysa sifirlanan veritabani icin tekrar kur
     dispatch_service._schema_ready = False
     expertiz_service._reports_schema_ensured = False
     pricing_service._schema_ready = False
     checkout_service._schema_ready = False
+    account_service._schema_ready = False
+    market_ingest._schema_ready = False
 
     with TestClient(app, base_url="http://localhost") as test_client:
         yield test_client
@@ -1077,14 +1081,18 @@ def test_web_emsal_kaynakli_degerleme_kontrol_isareti_ve_musteri_kaynaklari(clie
     report_id = _create_paid_request(
         client, customer_token, "34 WEB 01", "İstanbul", package_index=3, district="Pendik",
         vehicle={"brand": "Fiat", "model": "Egea", "package": "1.3 Multijet Urban", "year": 2021, "km": 45000,
-                 "price": 960000, "fuel": "Dizel", "transmission": "Manuel"},
+                 "price": 960000, "fuel": "Dizel", "transmission": "Manuel",
+                 # Musteri ilandan aktardi: "boyasiz, tramersiz"; degisen alani bos (ilanda yazmiyor)
+                 "declared_painted": 0, "declared_tramer": 0},
     )
     client.post(f"/api/v1/expertiz/admin/requests/{report_id}/assign", headers=_auth(admin_token), json={"personnel_id": person["id"]})
     client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/start", headers=_auth(staff))
     client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/media", headers=_auth(staff),
                 files={"file": ("kurumsal.pdf", PDF_BYTES, "application/pdf")}, data={"category": "corporate_report"})
+    rapor = _tam_rapor(report_id, person["id"])
+    rapor["adim4"]["parcaDurumlari"] = {"kaput": "boyali"}
     submitted = client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/submit", headers=_auth(staff),
-                            json={"tam_rapor": _tam_rapor(report_id, person["id"])})
+                            json={"tam_rapor": rapor})
     assert submitted.status_code == 200, submitted.text
 
     report = client.get(f"/api/v1/expertiz/admin/reports/{report_id}", headers=_auth(admin_token)).json()["report"]
@@ -1097,6 +1105,12 @@ def test_web_emsal_kaynakli_degerleme_kontrol_isareti_ve_musteri_kaynaklari(clie
     assert d["piyasaDegeri"] == 925_000
     assert [k["price"] for k in d["piyasaKaynaklari"]] == [905_000, 925_000, 940_000]
     assert {k["kod"] for k in d["kontrolGerekli"]} == {"az_emsal"}
+    # Satici beyani talep formundan: personel boyali parca buldu, degisen beyan edilmedigi icin karsilastirilmadi
+    beyan = d["ilanBeyaniKarsilastirma"]
+    assert d["boyaliParcaSayisi"] >= 1
+    assert beyan["ilanBeyaniVar"] is True and beyan["ilanBeyani"]["kaynak"] == "musteri_formu"
+    assert beyan["ilanBeyani"]["degisen"] is None and beyan["uyumlu"] is False
+    assert len(beyan["farklar"]) == 1 and "boyalı" in beyan["farklar"][0]
     assert any(o.get("baslik") == "Kontrol gerekli" for o in ai["oneriler"])
     assert ai["marketReference"]["scope"]["rejected"] == {"fiyat sayfada yok": 3}
 
@@ -1120,12 +1134,12 @@ def test_web_emsal_kaynakli_degerleme_kontrol_isareti_ve_musteri_kaynaklari(clie
     conn = DatabaseConfig.get_connection()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT metadata FROM audit_logs WHERE action = 'market_value_override' AND entity_id = %s ORDER BY id",
+        cur.execute("SELECT metadata FROM audit_logs WHERE action = 'market_value_override' AND entity_id = %s",
                     (report_id,))
         logs = [dict(r)["metadata"] for r in cur.fetchall()]
     finally:
         DatabaseConfig.return_connection(conn)
-    assert [(m["ai_value"], m["admin_value"]) for m in logs] == [(925_000, 950_000), (925_000, 940_000)]
+    assert sorted((m["ai_value"], m["admin_value"]) for m in logs) == [(925_000, 940_000), (925_000, 950_000)]
 
     published = client.post(f"/api/v1/expertiz/admin/reports/{report_id}/publish", headers=_auth(admin_token))
     assert published.status_code == 200, published.text
@@ -1139,105 +1153,3 @@ def test_web_emsal_kaynakli_degerleme_kontrol_isareti_ve_musteri_kaynaklari(clie
     assert all(e["url"].startswith("https://") for e in ref["emsaller"])
     # Admin'e ozel kontrol onerileri musteriye gitmez
     assert not any(o.get("baslik") == "Kontrol gerekli" for o in customer["ai"].get("oneriler") or [])
-
-# ---------------------------------------------------------------------------
-# Chrome eklentisi uc noktalari (gercek veritabani + gercek API anahtari)
-# ---------------------------------------------------------------------------
-
-_EXT_LISTING_URL = "https://www.arabam.com/ilan/galeriden-satilik-renault-clio-1-0-tce-touch/test/9777001"
-_EXT_TEXT = ("Renault Clio 1.0 TCe Touch\n{price} TL\nMarka\nRenault\nSeri\nClio\nModel\n1.0 TCe Touch\nYıl\n2021\n"
-             "Kilometre\n48.500 km\nBoya, Değişen ve Tramer\nOrijinal\nBoyalı\nDeğişmiş\nBelirtilmemiş\n"
-             "Boyalı\nMotor Kaputu\nTramer tutarı\n0 TL\n")
-
-
-def _api_key(client, token):
-    me = client.get("/api/v1/auth/me", headers=_auth(token)).json()
-    key = (me.get("user") or me).get("api_key")
-    assert key, "API anahtari /auth/me icinde donmeli"
-    return key
-
-
-def _db(sql, args=()):
-    import psycopg2
-
-    conn = psycopg2.connect(TEST_DB)
-    with conn, conn.cursor() as cur:
-        cur.execute(sql, args)
-        rows = cur.fetchall() if cur.description else None
-    conn.close()
-    return rows
-
-
-def test_extension_ingest_endpoints_auth_update_and_protection(client, admin_token, customer_token):
-    ext = "/api/v1/extension"
-    _create_personnel(client, admin_token, "eklenti@yerimebak.test", "İstanbul", "Üsküdar", "Eklenti Personel")
-    staff_key = _api_key(client, _login(client, "eklenti@yerimebak.test", "Personel123"))
-    customer_key = _api_key(client, customer_token)
-    body = {"url": _EXT_LISTING_URL, "text": _EXT_TEXT.format(price="1.050.000"), "title": "Renault Clio | arabam.com"}
-
-    # Kimlik: anahtarsiz 401, musteri 403, personel 200
-    assert client.post(f"{ext}/listing", json=body).status_code == 401
-    assert client.post(f"{ext}/listing", json=body, headers={"X-API-Key": customer_key}).status_code == 403
-    assert client.post(f"{ext}/search", json={"url": _EXT_LISTING_URL, "cards": []},
-                       headers={"X-API-Key": customer_key}).status_code == 403
-    first = client.post(f"{ext}/listing", json=body, headers={"X-API-Key": staff_key})
-    assert first.status_code == 200, first.text
-    listing_id = first.json()["listing_id"]
-    assert _db("SELECT status, price FROM listings WHERE id = %s", (listing_id,)) == [("talep", 1050000)]
-
-    # Ayni ilan tekrar kaydedilince yeni satir acilmaz; fiyat degisimi fiyat gecmisine yazilir
-    body["text"] = _EXT_TEXT.format(price="1.020.000")
-    again = client.post(f"{ext}/listing", json=body, headers={"X-API-Key": staff_key})
-    assert again.status_code == 200 and again.json()["listing_id"] == listing_id
-    assert _db("SELECT count(*) FROM listings WHERE url LIKE %s", ("%/9777001",)) == [(1,)]
-    assert _db("SELECT price FROM listings WHERE id = %s", (listing_id,)) == [(1020000,)]
-    assert [r[0] for r in _db("SELECT price FROM price_history WHERE listing_id = %s ORDER BY id", (listing_id,))] == [1050000, 1020000]
-
-    # Arama sayfasi ayni ilani (boya bilgisiz) tekrar gorurse once kaydedilen boya/degisen bilgisi silinmez
-    card = {"url": "/ilan/galeriden-satilik-renault-clio-1-0-tce-touch/test/9777001", "text": "Clio\t2021\t48.500\t1.010.000 TL"}
-    search = client.post(f"{ext}/search", headers={"X-API-Key": staff_key},
-                         json={"url": "https://www.arabam.com/ikinci-el/otomobil/renault-clio", "brand": "Renault", "model": "Clio", "cards": [card]})
-    assert search.status_code == 200 and search.json()["saved"] == 1
-    paint = _db("SELECT paint_info FROM listings WHERE id = %s", (listing_id,))[0][0]
-    assert paint and "Motor Kaputu" in paint
-
-    # Vitrindeki (active) ilanin durumu eklenti tarafindan degistirilmez
-    _db("UPDATE listings SET status = 'active' WHERE id = %s", (listing_id,))
-    client.post(f"{ext}/listing", json=body, headers={"X-API-Key": staff_key})
-    client.post(f"{ext}/search", headers={"X-API-Key": staff_key},
-                json={"url": "https://www.arabam.com/ikinci-el/otomobil/renault-clio", "brand": "Renault", "model": "Clio", "cards": [card]})
-    assert _db("SELECT status FROM listings WHERE id = %s", (listing_id,)) == [("active",)]
-
-    # Yanlis site, bos sayfa, asiri buyuk istek
-    bad_site = client.post(f"{ext}/listing", headers={"X-API-Key": staff_key},
-                           json={"url": "https://www.sahibinden.com/ilan/1", "text": _EXT_TEXT.format(price="1.000.000")})
-    assert bad_site.status_code == 400
-    empty = client.post(f"{ext}/listing", headers={"X-API-Key": staff_key}, json={"url": _EXT_LISTING_URL, "text": "yükleniyor"})
-    assert empty.status_code == 422
-    huge = client.post(f"{ext}/listing", headers={"X-API-Key": staff_key}, json={"url": _EXT_LISTING_URL, "text": "x" * 300_001})
-    assert huge.status_code == 422
-    too_many = client.post(f"{ext}/search", headers={"X-API-Key": staff_key},
-                           json={"url": "https://www.arabam.com/x", "brand": "Renault", "model": "Clio",
-                                 "cards": [{"url": "/ilan/a/1", "text": "1.000.000 TL"}] * 201})
-    assert too_many.status_code == 422
-
-
-def test_extension_analyze_deducts_credit_and_blocks_without_credits(client, admin_token, customer_token):
-    """Eklentinin kredi dusen 'Analiz Et' uc noktasi: 1 kredi duser; kredi yoksa 402."""
-    _seed_listings()
-    key = _api_key(client, customer_token)
-    _db("UPDATE users SET credits = 2 WHERE email = %s", ("musteri@yerimebak.test",))
-    vehicle = {"brand": "Fiat", "model": "Egea", "year": 2021, "mileage_km": 45000, "fuel_type": "Benzin",
-               "gear_type": "Manuel", "listed_price": 880000, "source": "arabam", "url": "https://www.arabam.com/ilan/x/1",
-               "paint_info": {"has_paint": True, "has_changed": False}}
-    ok = client.post("/api/v1/extension/analyze", json=vehicle, headers={"X-API-Key": key})
-    assert ok.status_code == 200, ok.text
-    body = ok.json()
-    assert body["billing"]["credits_deducted"] == 1 and body["billing"]["credits_remaining"] == 1
-    assert body["dealer_verdict"]["decision"] and body["commercial_analysis"]["optimal_purchase_price"] > 0
-    assert _db("SELECT credits FROM users WHERE email = %s", ("musteri@yerimebak.test",)) == [(1,)]
-
-    _db("UPDATE users SET credits = 0 WHERE email = %s", ("musteri@yerimebak.test",))
-    assert client.post("/api/v1/extension/analyze", json=vehicle, headers={"X-API-Key": key}).status_code == 402
-    assert _db("SELECT credits FROM users WHERE email = %s", ("musteri@yerimebak.test",)) == [(0,)]
-    assert client.post("/api/v1/extension/analyze", json=vehicle).status_code == 401
