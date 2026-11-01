@@ -20,7 +20,7 @@ from urllib.parse import urlsplit, urlunsplit
 from yerimebak_ai_v5.core.ai.inspection_valuation import PART_LABELS, evaluate
 from yerimebak_ai_v5.core.database_config import DatabaseConfig
 from yerimebak_ai_v5.core.market_reference_service import get_market_reference_service
-from yerimebak_ai_v5.services import pricing_service
+from yerimebak_ai_v5.services import pricing_service, web_market_reference
 
 logger = logging.getLogger(__name__)
 
@@ -309,10 +309,15 @@ def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
     if not payment.check_credits_before_analysis(user["id"]):
         return _error("Yetersiz kredi. Analiz için kredi paketi satın alın.", 402, "insufficient_credits")
 
-    reference = get_market_reference_service().get_reference(
-        brand=brand, model=model, year=year, km=km, fuel=fuel, transmission=transmission,
-        exclude_id=listing.get("id") if listing else None, listed_price=price,
-    )
+    reference = web_market_reference.get_reference({
+        "brand": brand, "model": model, "year": year, "km": km, "fuel": fuel,
+        "transmission": transmission, "package": payload.get("package"), "listed_price": price,
+    })
+    if not reference or not reference.get("found"):
+        reference = get_market_reference_service().get_reference(
+            brand=brand, model=model, year=year, km=km, fuel=fuel, transmission=transmission,
+            exclude_id=listing.get("id") if listing else None, listed_price=price,
+        )
     if not reference.get("count") or str(reference.get("source", "")).startswith("last_resort"):
         return _error(
             f"{brand} {model} {year} için yeterli güncel piyasa verisi yok. Kredi düşülmedi; "
@@ -336,6 +341,11 @@ def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
     recommended = float(degerleme.get("onerilenAlimFiyati") or ai_value)
     verdict_key = (degerleme.get("fiyatYorumu") or {}).get("karar", "MAKUL")
     karar, karar_aciklama = VERDICTS.get(verdict_key, VERDICTS["MAKUL"])
+    flags = reference.get("kontrol") or []
+    confidence = degerleme.get("guvenSkoru") or 0
+    if any(f.get("kod") in ("az_emsal", "genis_aralik") for f in flags):
+        confidence = min(confidence, 50)
+        karar_aciklama += " Emsal sayısı az veya fiyat aralığı geniş; sonucu ilan bilgileriyle birlikte değerlendirin."
     purchase_price = min(float(price), recommended)
     projection = inflation_projection(ai_value, purchase_price)
 
@@ -349,7 +359,11 @@ def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
             "max": reference.get("market_max_price"),
             "emsalSayisi": reference.get("count"),
             "hasarsizEmsalSayisi": reference.get("clean_count"),
-            "guvenSkoru": degerleme.get("guvenSkoru"),
+            "guvenSkoru": confidence,
+            "kaynak": reference.get("source"),
+            "kaynaklar": [{"site": s.get("site"), "url": s.get("url"), "fiyat": s.get("price"),
+                           "km": s.get("km"), "yil": s.get("year")} for s in (reference.get("samples") or [])[:10]],
+            "uyarilar": [f["mesaj"] for f in flags if f.get("mesaj")],
             "guncelGun": reference.get("recent_days"),
         },
         "degerleme": {
@@ -381,7 +395,8 @@ def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
                       "tramer_amount": tramer_amount},
         valuation_data={"credits_deducted": ANALYSIS_COST, "karar": karar, "tavsiye_fiyat": int(recommended),
                         "ai_degeri": degerleme.get("aiDegeri"), "piyasa_ortalama": reference.get("market_avg_price"),
-                        "getiri": projection},
+                        "getiri": projection, "piyasa_kaynagi": reference.get("source"),
+                        "web_maliyet_usd": (reference.get("scope") or {}).get("cost_usd", 0)},
     )
     if not deduction.get("success"):
         return _error("Yetersiz kredi. Analiz için kredi paketi satın alın.", 402, "insufficient_credits")

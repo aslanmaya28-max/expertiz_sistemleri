@@ -11,6 +11,7 @@ from yerimebak_ai_v5.core.engine_v8 import YerimebakEngineV8, VehicleData, Deman
 from yerimebak_ai_v5.core.market_reference_service import get_market_reference_service
 from yerimebak_ai_v5.services.payment_service import get_payment_service
 from yerimebak_ai_v5.services.auth_service import get_auth_service
+from yerimebak_ai_v5.services import web_market_reference
 from yerimebak_ai_v5.api.v1.endpoints.auth import get_authenticated_user, get_admin_user
 
 router = APIRouter()
@@ -66,16 +67,23 @@ async def analyze_vehicle(
         )
     
     try:
-        market_reference = get_market_reference_service().get_reference(
-            brand=request.brand,
-            model=request.model,
-            year=request.year,
-            km=request.mileage_km,
-            fuel=request.fuel_type,
-            transmission=request.gear_type,
-            listed_price=request.listed_price,
-        )
-        market_avg = market_reference.get("market_avg_price") or request.listed_price
+        market_reference = web_market_reference.get_reference({
+            "brand": request.brand, "model": request.model, "year": request.year,
+            "km": request.mileage_km, "fuel": request.fuel_type, "transmission": request.gear_type,
+            "listed_price": request.listed_price,
+        })
+        if not market_reference or not market_reference.get("found"):
+            market_reference = get_market_reference_service().get_reference(
+                brand=request.brand, model=request.model, year=request.year, km=request.mileage_km,
+                fuel=request.fuel_type, transmission=request.gear_type, listed_price=request.listed_price,
+            )
+        if (not market_reference.get("count")
+                or str(market_reference.get("source", "")).startswith("last_resort")):
+            raise HTTPException(status_code=422, detail={
+                "code": "insufficient_market_data",
+                "message": "Yeterli güncel piyasa verisi yok. Analiz yapılmadı ve kredi düşülmedi.",
+            })
+        market_avg = market_reference["market_avg_price"]
 
         vehicle = VehicleData(
             make_model=f"{request.brand} {request.model}",
@@ -106,6 +114,8 @@ async def analyze_vehicle(
         }
         valuation_history = {
             "credits_deducted": 1,
+            "piyasa_kaynagi": market_reference.get("source"),
+            "web_maliyet_usd": (market_reference.get("scope") or {}).get("cost_usd", 0),
             "opportunity_score": valuation.technical_scoring.opportunity_score,
             "risk_percentage": valuation.technical_scoring.risk_percentage,
             "decision": valuation.dealer_verdict.decision,

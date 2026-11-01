@@ -407,7 +407,13 @@ export interface ValuationHorizon {
 export interface ValuationResult {
   success: boolean;
   arac: { marka: string; model: string; yil: number; km: number; yakit?: string | null; vites?: string | null; ilanFiyati: number; ilanLinki?: string | null };
-  piyasa: { ortalama: number; medyan: number; min: number; max: number; emsalSayisi: number; hasarsizEmsalSayisi?: number; guvenSkoru: number; guncelGun?: number };
+  piyasa: {
+    ortalama: number; medyan: number; min: number; max: number; emsalSayisi: number;
+    hasarsizEmsalSayisi?: number; guvenSkoru: number; guncelGun?: number;
+    kaynak: "web_listings" | "listings";
+    kaynaklar: { site?: string | null; url?: string | null; fiyat?: number | null; km?: number | null; yil?: number | null }[];
+    uyarilar: string[];
+  };
   degerleme: {
     temizPiyasaDegeri: number;
     toplamDegerKaybiYuzde: number;

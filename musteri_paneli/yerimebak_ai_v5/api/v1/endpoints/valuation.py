@@ -19,6 +19,7 @@ class ValuationRequest(BaseModel):
     listing_url: Optional[str] = None
     brand: Optional[str] = None
     model: Optional[str] = None
+    package: Optional[str] = None
     year: Optional[int] = None
     km: Optional[int] = None
     listed_price: Optional[int] = None
