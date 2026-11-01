@@ -170,6 +170,7 @@ def decision_summary(
 
 
 RISK_TIMEOUT_SECONDS = 90
+DISPLAYED_RISK_CONFIDENCE = ("yuksek", "orta")
 _RISK_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="model-risk")
 
 
@@ -587,9 +588,11 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
     )
     risks = _model_risks_safe(risk_future)
     risk_cost = float((risks.get("scope") or {}).get("cost_usd") or 0)
+    # Musteriye yalniz kaynagi dogrulanmis (yuksek/orta) maddeler gider; forum vb. dusuk guven atilir
+    risks = {**risks, "riskler": [r for r in (risks.get("riskler") or []) if r.get("guven") in DISPLAYED_RISK_CONFIDENCE]}
     result["modelRiskleri"] = {
         "riskler": risks.get("riskler") or [],
-        "bulunamadi": bool(risks.get("bulunamadi", True)),
+        "bulunamadi": not risks["riskler"],
         "mesaj": ("Model araştırması bu sefer tamamlanamadı; bakım ve sorular genel kurallarla hazırlandı."
                   if risks.get("hata") else
                   "Bu model/motor için kaynağı doğrulanmış bilinen sorun bulunamadı."

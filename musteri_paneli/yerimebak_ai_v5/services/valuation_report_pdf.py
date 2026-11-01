@@ -61,10 +61,8 @@ def build_pdf(report):
         if item.get('belirtiler'):
             text('Belirtiler: '+'; '.join(item['belirtiler']))
         text('Nasıl kontrol edilir: '+str(item.get('kontrol') or 'Servis kayıtlarıyla doğrulayın.'))
-        confidence = item.get('guven')
-        if confidence:
-            label = {'yuksek': 'yüksek', 'orta': 'orta', 'dusuk': 'düşük'}.get(confidence, confidence)
-            text('Güven: '+label+(' - doğrulanmamış anlatım' if confidence == 'dusuk' else ''))
+        if item.get('guven') == 'yuksek':
+            text('Resmi kaynak (geri çağırma / servis bülteni)')
         cost = item.get('tahminiMaliyet')
         text('Maliyet: '+(f'{_money(cost.get("min"))} - {_money(cost.get("max"))}'
                           if isinstance(cost, dict) else 'kaynakta belirtilmemiş'))
@@ -123,9 +121,11 @@ def build_pdf(report):
         heading('Modelin bilinen sorunları')
         risks = report.get('modelRiskleri') or {}
         text('Bu başlıklar arıza teşhisi değildir; araç sürümü, şasi numarası ve servis kayıtlarıyla doğrulayın.')
-        for item in risks.get('riskler') or []:
+        # Eski kayıtlarda düşük güvenli maddeler olabilir; müşteriye gösterilmez.
+        shown = [r for r in risks.get('riskler') or [] if r.get('guven') in ('yuksek', 'orta')]
+        for item in shown:
             risk_details(item)
-        if not risks.get('riskler'):
+        if not shown:
             text(risks.get('mesaj') or 'Bu model/motor için kaynağı doğrulanmış bilinen sorun bulunamadı.')
     if 'bakim' in report:
         heading('Bu kilometrede doğrulanacak bakımlar')

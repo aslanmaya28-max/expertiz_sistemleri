@@ -10,11 +10,8 @@ function tl(value?: number | null) {
   return new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 0 }).format(value) + " ₺";
 }
 
-const GUVEN: Record<string, { etiket: string; renk: string; not?: string }> = {
-  yuksek: { etiket: "Güven: yüksek", renk: "bg-green-100 text-green-800" },
-  orta: { etiket: "Güven: orta", renk: "bg-yellow-100 text-yellow-800" },
-  dusuk: { etiket: "Güven: düşük", renk: "bg-slate-100 text-slate-700", not: "Doğrulanmamış anlatım; servisle teyit edin." },
-};
+/** Müşteriye yalnız kaynağı doğrulanmış maddeler gösterilir (eski kayıtlarda düşük güvenli madde olabilir). */
+const GOSTERILEN_GUVEN = new Set(["yuksek", "orta"]);
 
 function KopyalaButonu({ metin, etiket = "Kopyala" }: { metin: string; etiket?: string }) {
   const [tamam, setTamam] = useState(false);
@@ -54,6 +51,7 @@ function Kaynaklar({ urller }: { urller?: string[] }) {
 /** Pazarlık planı, model riskleri, bakım ve satıcı soruları (eski raporlarda bu alanlar olmayabilir). */
 export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
   const { pazarlikPlani: plan, modelRiskleri, bakim, saticiSorulari } = sonuc;
+  const riskler = (modelRiskleri?.riskler || []).filter((r) => GOSTERILEN_GUVEN.has(r.guven));
   return (
     <>
       {plan && (
@@ -116,17 +114,16 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
         <section className="bg-white rounded-xl border border-kenarlik-acik p-6" aria-label="Modelin bilinen sorunları">
           <h2 className="text-lg font-semibold text-metin-birincil">Modelin bilinen sorunları</h2>
           <p className="mt-1 text-xs text-metin-ikincil">Arıza teşhisi değildir; araç sürümü, şasi numarası ve servis kayıtlarıyla doğrulayın.</p>
-          {modelRiskleri.riskler.length === 0 ? (
+          {riskler.length === 0 ? (
             <p className="mt-3 text-sm text-metin-ikincil">{modelRiskleri.mesaj || "Bu model/motor için kaynağı doğrulanmış bilinen sorun bulunamadı."}</p>
           ) : (
             <ul className="mt-3 space-y-4">
-              {modelRiskleri.riskler.map((r) => {
-                const g = GUVEN[r.guven] || GUVEN.dusuk;
+              {riskler.map((r) => {
                 return (
                   <li key={r.baslik} className="rounded-lg border border-kenarlik-acik p-4 text-sm">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-metin-birincil">{r.baslik}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${g.renk}`}>{g.etiket}</span>
+                      {r.guven === "yuksek" && <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">Resmi kaynak</span>}
                     </div>
                     {r.aciklama && <p className="mt-1 text-metin-ikincil">{r.aciklama}</p>}
                     <dl className="mt-2 grid gap-1 text-metin-ikincil">
@@ -135,7 +132,6 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
                       <div><dt className="inline font-medium text-metin-birincil">Nasıl kontrol edilir: </dt><dd className="inline">{r.kontrol}</dd></div>
                       <div><dt className="inline font-medium text-metin-birincil">Tahmini masraf: </dt><dd className="inline">{r.tahminiMaliyet ? `${tl(r.tahminiMaliyet.min)} – ${tl(r.tahminiMaliyet.max)}` : "kaynakta belirtilmemiş"}</dd></div>
                     </dl>
-                    {g.not && <p className="mt-1 text-xs text-metin-ikincil">{g.not}</p>}
                     <Kaynaklar urller={r.kaynaklar} />
                   </li>
                 );

@@ -98,6 +98,25 @@ def test_risk_servisi_coksede_rapor_ve_kredi_dogru(client, musteri, monkeypatch)
     assert _krediler(uid) == 2
 
 
+def test_dusuk_guvenli_riskler_musteriye_gitmez(client, musteri, monkeypatch):
+    _, headers = musteri
+    seen = []
+    dusuk = {'riskler': [{'baslik': 'Forumda yazılan şanzıman sorunu', 'kontrol': 'Yol testi',
+                          'kaynaklar': ['https://forum.example/x'], 'guven': 'dusuk', 'belirtiler': []}],
+             'bulunamadi': False, 'scope': {'cost_usd': 0.01}}
+    monkeypatch.setattr(valuation_service.web_market_reference, 'get_reference', lambda v: dict(REFERENCE))
+    monkeypatch.setattr(vehicle_risk, 'get_model_risks', lambda v: dict(dusuk))
+    real_questions = vehicle_risk.seller_questions
+    monkeypatch.setattr(vehicle_risk, 'seller_questions', lambda v, r, f: seen.append(r) or real_questions(v, r, f))
+    r = client.post('/api/v1/valuation/analyze', headers=headers, json=_payload())
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body['modelRiskleri']['riskler'] == [] and body['modelRiskleri']['bulunamadi'] is True
+    assert 'doğrulanmış bilinen sorun bulunamadı' in body['modelRiskleri']['mesaj']
+    assert seen[0]['riskler'] == []  # sorular/bakım düşük güvenli maddeden üretilmez
+    assert 'Forumda' not in str(body['saticiSorulari']) + str(body['bakim'])
+
+
 def test_emsal_yoksa_422_ve_kredi_dusmez(client, musteri, monkeypatch):
     uid, headers = musteri
     monkeypatch.setattr(valuation_service.web_market_reference, 'get_reference', lambda v: {'found': False})

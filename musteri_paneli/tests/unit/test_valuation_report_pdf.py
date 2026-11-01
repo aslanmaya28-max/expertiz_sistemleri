@@ -56,8 +56,10 @@ def test_pdf_akilli_alici_bolumleri_turkce_ve_uzun_url():
                           'kanitIlanlar': [{'site': 'arabam.com', 'url': long_url, 'fiyat': 930000, 'yil': 2020, 'km': 58000},
                                            {'site': 'otoshops', 'url': None, 'fiyat': 940000, 'yil': 2020, 'km': 61000}]},
         'modelRiskleri': {'riskler': [{'baslik': f'Şanzıman titreşimi {n}', 'aciklama': 'Düşük devirde sarsıntı.',
-                                       'belirtiler': ['Kalkışta titreme'], 'kontrol': 'Yol testi', 'guven': 'dusuk',
-                                       'kaynaklar': [long_url]} for n in range(25)],
+                                       'belirtiler': ['Kalkışta titreme'], 'kontrol': 'Yol testi', 'guven': 'orta',
+                                       'kaynaklar': [long_url]} for n in range(25)]
+                          + [{'baslik': 'Forum söylentisi', 'kontrol': '-', 'guven': 'dusuk', 'kaynaklar': []},
+                             {'baslik': 'Resmi geri çağırma', 'kontrol': 'Şasi sorgusu', 'guven': 'yuksek', 'kaynaklar': []}],
                           'bulunamadi': False},
         'bakim': [{'baslik': 'Fren ve lastik kontrolü', 'aciklama': 'Geçmişi doğrulayın.', 'kontrol': 'Faturalar'}],
         'saticiSorulari': ['Ekspertize izin veriyor musunuz?', 'Motor kaputu neden boyandı?'],
@@ -69,10 +71,11 @@ def test_pdf_akilli_alici_bolumleri_turkce_ve_uzun_url():
         assert len(document.pages) >= 3  # 25 risk sayfa taşırır
         text = '\n'.join(page.extract_text() for page in document.pages)
         for part in ('Pazarlık planı', 'Açılış teklifi: 900.000 TL', 'Modelin bilinen sorunları', 'Şanzıman titreşimi 24',
-                     'doğrulanmamış anlatım', 'kaynakta belirtilmemiş', 'Bu kilometrede doğrulanacak bakımlar',
+                     'Resmi kaynak', 'kaynakta belirtilmemiş', 'Bu kilometrede doğrulanacak bakımlar',
                      'Satıcıya sorulacak sorular', '2. Motor kaputu neden boyandı?',
                      'Bu aracı YerimeBak ile yerinde inceletin', 'https://www.yerimebak.com.tr/ekspertiz-talebi'):
             assert part in text, part
+        assert 'Forum söylentisi' not in text and 'doğrulanmamış' not in text and 'Güven:' not in text
         assert 'Maliyet' not in text.split('Bu kilometrede doğrulanacak bakımlar')[1].split('Satıcıya sorulacak')[0]
         for page in document.pages:
             assert all(0 <= ch['x0'] < ch['x1'] <= page.width+1 for ch in page.chars)
