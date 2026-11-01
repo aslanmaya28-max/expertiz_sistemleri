@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import DegerlemeSonucu from "@/bilesenler/DegerlemeSonucu";
+import { AnalizBekleme } from "@/bilesenler/AkilliAliciBolumleri";
 import { useEffect, useRef, useState } from "react";
 import { notifyCreditsChanged, useAuth } from "@/kancalar/yetkiKullan";
 import {
@@ -297,6 +298,7 @@ export default function AracAnalizSayfasi() {
             className="w-full py-3 bg-birincil text-white font-medium rounded-lg hover:bg-birincil-koyu transition-colors disabled:opacity-50">
             {busy === "analyze" ? "Analiz ediliyor..." : `Analiz Et (${meta?.cost_credits ?? 1} kredi)`}
           </button>
+          {busy === "analyze" && <AnalizBekleme />}
         </form>
       )}
       <p className="mt-6 text-center text-xs text-metin-ikincil">Piyasa değeri internetteki güncel ilanlardan bulunur; yeterli ilan bulunamazsa analiz yapılmaz ve kredi düşülmez.</p>

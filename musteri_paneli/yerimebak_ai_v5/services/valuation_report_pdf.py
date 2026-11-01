@@ -49,6 +49,27 @@ def build_pdf(report):
             pdf.add_page()
         text(label, True, 13)
 
+    def source_links(sources):
+        for source in sources or []:
+            text(source, size=9)
+
+    def risk_details(item):
+        text(item.get('baslik'), True)
+        text(item.get('aciklama'))
+        if item.get('etkiledigi'):
+            text('Etkilediği sürümler: '+item['etkiledigi'])
+        if item.get('belirtiler'):
+            text('Belirtiler: '+'; '.join(item['belirtiler']))
+        text('Nasıl kontrol edilir: '+str(item.get('kontrol') or 'Servis kayıtlarıyla doğrulayın.'))
+        confidence = item.get('guven')
+        if confidence:
+            label = {'yuksek': 'yüksek', 'orta': 'orta', 'dusuk': 'düşük'}.get(confidence, confidence)
+            text('Güven: '+label+(' - doğrulanmamış anlatım' if confidence == 'dusuk' else ''))
+        cost = item.get('tahminiMaliyet')
+        text('Maliyet: '+(f'{_money(cost.get("min"))} - {_money(cost.get("max"))}'
+                          if isinstance(cost, dict) else 'kaynakta belirtilmemiş'))
+        source_links(item.get('kaynaklar'))
+
     vehicle, decision = report['arac'], report['karar']
     valuation, market = report['degerleme'], report['piyasa']
     identity = report['rapor']
@@ -76,6 +97,50 @@ def build_pdf(report):
     ):
         text(label, True)
         text(value)
+    plan = report.get('pazarlikPlani')
+    if plan:
+        heading('Pazarlık planı')
+        for label, key in (('Açılış teklifi', 'acilisTeklifi'), ('Hedef fiyat', 'hedefFiyat'),
+                           ('Üst sınır', 'ustSinir'), ('Potansiyel kazanç', 'potansiyelKazanc')):
+            text(f'{label}: {_money(plan.get(key))}', True)
+        if plan.get('uyari'):
+            text(plan['uyari'])
+        text('Adımlar', True)
+        for index, step in enumerate(plan.get('adimlar') or [], 1):
+            text(f'{index}. {step}')
+        text('Gerekçeler', True)
+        for reason in plan.get('gerekceler') or []:
+            text('- '+reason)
+        text('Kanıt ilanlar', True)
+        for sample in plan.get('kanitIlanlar') or []:
+            text(f'{sample.get("site") or "Kaynak"} - {_money(sample.get("fiyat"))} - {sample.get("yil") or "—"} - {sample.get("km") or "—"} km')
+            if sample.get('url'):
+                text(sample['url'], size=9)
+        if plan.get('saticiMesaji'):
+            text('Satıcıya mesaj', True)
+            text(plan['saticiMesaji'])
+    if 'modelRiskleri' in report:
+        heading('Modelin bilinen sorunları')
+        risks = report.get('modelRiskleri') or {}
+        text('Bu başlıklar arıza teşhisi değildir; araç sürümü, şasi numarası ve servis kayıtlarıyla doğrulayın.')
+        for item in risks.get('riskler') or []:
+            risk_details(item)
+        if not risks.get('riskler'):
+            text(risks.get('mesaj') or 'Bu model/motor için kaynağı doğrulanmış bilinen sorun bulunamadı.')
+    if 'bakim' in report:
+        heading('Bu kilometrede doğrulanacak bakımlar')
+        for item in report.get('bakim') or []:
+            text(item.get('baslik'), True)
+            text(item.get('aciklama'))
+            if item.get('kontrol'):
+                text('Nasıl kontrol edilir: '+str(item['kontrol']))
+    if 'saticiSorulari' in report:
+        heading('Satıcıya sorulacak sorular')
+        for index, question in enumerate(report.get('saticiSorulari') or [], 1):
+            text(f'{index}. {question}')
+    heading('Bu aracı YerimeBak ile yerinde inceletin')
+    text('Satın almadan önce ilan beyanlarını ve bakım geçmişini yerinde uzman incelemesiyle doğrulatın. Ekspertiz talebi oluşturun:')
+    text('https://www.yerimebak.com.tr/ekspertiz-talebi')
     heading('Fiyatlar')
     fair = valuation.get('adilFiyatAraligi') or {}
     text('İlan fiyatı: '+_money(vehicle.get('ilanFiyati')))
