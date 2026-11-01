@@ -95,3 +95,10 @@ desktop.ini
 **/.kilocode/
 **/.clinerules
 .worktrees/
+
+# Claude <-> Codex koprusu: gorev/sonuc dosyalari yerelde kalir
+kopru/codex_icin/
+kopru/codex_sonuc/
+kopru/claude_icin/
+kopru/claude_sonuc/
+kopru/log/
