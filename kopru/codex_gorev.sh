@@ -29,8 +29,13 @@ mkdir -p kopru/codex_sonuc kopru/log
 PY="$(python -c 'import sys; print(sys.executable)' 2>/dev/null || true)"
 PY="$(printf '%s' "$PY" | tr '\\' '/')"
 PY_DIR="$(dirname "$PY")"
-TEST_DB="postgresql://postgres:test@localhost:55432/ybtest"
-VARSAYILAN_TEST="cd musteri_paneli && TEST_DATABASE_URL=$TEST_DB SECRET_KEY=test OPENROUTER_API_KEY= \"$PY\" -m pytest tests -q -p no:cacheprovider -W ignore"
+# Her gorevin kendi test veritabani olur (paralel gorevler birbirinin semasini sifirlamasin)
+DB_ADI="ybtest_$(printf '%s' "$AD" | cut -d- -f1)"
+TEST_DB="postgresql://postgres:test@localhost:55432/$DB_ADI"
+export KOPRU_TEST_DB="$TEST_DB"
+# Calisma kopyasinda .env yok: testlerin ihtiyac duydugu degerler burada verilir
+export SECRET_KEY="${SECRET_KEY:-test}" OPENROUTER_API_KEY="" TEST_DATABASE_URL="$TEST_DB"
+VARSAYILAN_TEST="cd musteri_paneli && \"$PY\" -m pytest tests -q -p no:cacheprovider -W ignore"
 TEST_KOMUTU="$(sed -n 's/^Test:[[:space:]]*//p' "$GOREV" | head -1)"
 TEST_KOMUTU="${TEST_KOMUTU:-$VARSAYILAN_TEST}"
 
@@ -39,6 +44,8 @@ if command -v docker >/dev/null 2>&1 && ! docker ps --format '{{.Names}}' | grep
   docker run -d --rm --name yb-test-db -e POSTGRES_PASSWORD=test -e POSTGRES_DB=ybtest \
     -p 55432:5432 postgres:16-alpine >/dev/null && sleep 6 || echo "Uyari: test veritabani baslatilamadi" >&2
 fi
+docker exec yb-test-db psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_ADI'" 2>/dev/null | grep -q 1 \
+  || docker exec yb-test-db psql -U postgres -c "CREATE DATABASE $DB_ADI" >/dev/null 2>&1 || true
 
 if [ ! -d "$CALISMA" ]; then
   if git show-ref --verify --quiet "refs/heads/$DAL"; then
@@ -48,12 +55,27 @@ if [ ! -d "$CALISMA" ]; then
   fi
 fi
 
+# Yeni calisma kopyasinda bagimliliklar: site node_modules (baglanti) ve Flutter paket ayari (kopya)
+if [ -d musteri_paneli/frontend/node_modules ] && [ ! -e "$CALISMA/musteri_paneli/frontend/node_modules" ]; then
+  cmd //c mklink /J "$(cygpath -w "$CALISMA/musteri_paneli/frontend/node_modules")" \
+    "$(cygpath -w musteri_paneli/frontend/node_modules)" >/dev/null 2>&1 \
+    || ln -s "$KOK/musteri_paneli/frontend/node_modules" "$CALISMA/musteri_paneli/frontend/node_modules"
+fi
+if [ -d expertiz_paneli/.dart_tool ] && [ ! -d "$CALISMA/expertiz_paneli/.dart_tool" ]; then
+  cp -r expertiz_paneli/.dart_tool "$CALISMA/expertiz_paneli/.dart_tool"
+fi
+FLUTTER_SDK="$(dirname "$(dirname "$(command -v flutter 2>/dev/null || echo /x/x/x)")")"
+FLUTTER_SDK_W="$(cygpath -m "$FLUTTER_SDK" 2>/dev/null || echo "$FLUTTER_SDK")"
+PUB_CACHE_W="$(cygpath -m "${PUB_CACHE:-$LOCALAPPDATA/Pub/Cache}" 2>/dev/null || true)"
+TEMP_W="$(cygpath -m "${TEMP:-${TMP:-}}" 2>/dev/null || true)"
+
 sed -i 's/^Durum:.*/Durum: calisiyor/' "$GOREV"
 
 KURALLAR="Sen Codex'sin ve Claude'dan gelen bir gorevi yapiyorsun (kopru protokolu: kopru/README.md, kurallar: AGENTS.md).
 Calisma klasorun: $CALISMA (dal: $DAL). Yalnizca bu klasorde degisiklik yap; push yapma, baska dala gecme.
 Kabuk PowerShell: komutlari '&&' ile zincirleme, tek tek calistir.
-Python: $PY  (pytest kurulu). Uctan uca test veritabani hazir: $TEST_DB
+Python: $PY  (pytest kurulu). Bu gorevin uctan uca test veritabani (sadece senin): $TEST_DB
+Testler icin ortam degiskenleri: SECRET_KEY=test, OPENROUTER_API_KEY= (bos), TEST_DATABASE_URL=bu adres (PowerShell: $env:SECRET_KEY="test" vb.). node_modules ve Flutter paket ayari hazir; npm install / flutter pub get calistirma.
 
 TESLIM KURALI (zorunlu):
 1. Isin bitince su test komutunu calistir (bash sozdizimi; PowerShell'de ortam degiskenlerini \$env: ile ver):
@@ -72,6 +94,8 @@ codex_calistir() {
   # $1: talimat metni, $2: cikti dosyasi
   printf '%s' "$1" | codex exec -C "$KOK_W/$CALISMA" -s workspace-write \
     --add-dir "$KOK_W/.git" ${PY_DIR:+--add-dir "$PY_DIR"} \
+    ${FLUTTER_SDK_W:+--add-dir "$FLUTTER_SDK_W"} ${PUB_CACHE_W:+--add-dir "$PUB_CACHE_W"} \
+    ${TEMP_W:+--add-dir "$TEMP_W"} \
     -c sandbox_workspace_write.network_access=true \
     -o "$2" $EK_SECENEK - >>"$LOG" 2>&1
 }
@@ -100,6 +124,14 @@ while :; do
   KIRLI="$(git -C "$CALISMA" status --porcelain | head -5)"
   echo "== Test kapisi turu $TUR: kod=$TEST_KODU, commit edilmemis: ${KIRLI:-yok}" >>"$LOG"
 
+  if [ $TEST_KODU -eq 0 ] && [ -n "$KIRLI" ]; then
+    # Codex'in sandbox'i bazen git kilit dosyasini olusturamiyor; testler yesilse kapi commit eder
+    BASLIK="$(head -1 "$GOREV" | sed 's/^# //')"
+    git -C "$CALISMA" add -A
+    git -C "$CALISMA" commit -q -m "$BASLIK" -m "Kopru gorevi $AD (Codex). Testler gectikten sonra kopru kapisi commit etti." \
+      -m "Co-Authored-By: Codex <noreply@openai.com>" >>"$LOG" 2>&1 && KIRLI=""
+    echo "== Kapi commit etti: $(git -C "$CALISMA" log --oneline -1)" >>"$LOG"
+  fi
   if [ $TEST_KODU -eq 0 ] && [ -z "$KIRLI" ]; then
     DURUM="bitti"; break
   fi

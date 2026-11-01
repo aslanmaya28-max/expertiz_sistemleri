@@ -35,6 +35,8 @@ Test: <komut>              <!-- isteğe bağlı; çalışma kopyasının kökün
 
 `Test:` satırı yoksa tüm Python test paketi (`musteri_paneli/tests`) çalışır.
 
+Betik test ortamını kendisi hazırlar: `SECRET_KEY=test`, boş `OPENROUTER_API_KEY`, göreve özel test veritabanı (`TEST_DATABASE_URL`, `KOPRU_TEST_DB` = `ybtest_<numara>`), site `node_modules` bağlantısı ve Flutter paket ayarı. Paralel görevler birbirinin veritabanını sıfırlamaz. Testler geçtiği hâlde Codex commit edemediyse kapı, Codex adına commit eder.
+
 ## Claude → Codex
 
 ```sh
