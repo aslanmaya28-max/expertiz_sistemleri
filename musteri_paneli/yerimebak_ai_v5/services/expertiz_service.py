@@ -375,6 +375,7 @@ def _upsert_report_from_request(
             "plaka": payload.get("plate") or "",
             "marka": listing.get("brand") or "",
             "model": listing.get("model") or "",
+            "paket": listing.get("package") or "",
             "yil": listing.get("year"),
             "km": listing.get("km"),
             "price": listing.get("price"),
@@ -486,6 +487,11 @@ def _customer_ai(ai: Any) -> Optional[Dict[str, Any]]:
         out["oneriler"] = [o for o in out["oneriler"] if not (isinstance(o, dict) and o.get("hedef") == "admin")]
     ref = ai.get("marketReference")
     if isinstance(ref, dict):
+        # Web aramasiyla bulunan kaynak ilanlar herkese acik sayfalar; musteri "su ilanlara gore" gorur.
+        # Veritabanindaki (kaziyici) ilanlarin linki gosterilmez.
+        sample_keys = ("price", "km", "year", "title", "condition")
+        if "web_listings" in (ref.get("source"), ref.get("ai_source")):
+            sample_keys += ("site", "url")
         out["piyasaReferansi"] = {
             "bulundu": bool(ref.get("found")),
             "emsalSayisi": ref.get("count") or 0,
@@ -495,8 +501,9 @@ def _customer_ai(ai: Any) -> Optional[Dict[str, Any]]:
             "min": ref.get("market_min_price") or 0,
             "max": ref.get("market_max_price") or 0,
             "guncelGun": ref.get("recent_days"),
+            "kaynak": ref.get("source"),
             "emsaller": [
-                {k: sample.get(k) for k in ("price", "km", "year", "title", "condition")}
+                {k: sample.get(k) for k in sample_keys}
                 for sample in (ref.get("samples") or [])[:8]
                 if isinstance(sample, dict)
             ],

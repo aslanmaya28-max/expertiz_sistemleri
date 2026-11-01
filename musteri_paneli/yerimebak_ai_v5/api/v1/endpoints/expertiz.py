@@ -83,6 +83,12 @@ class PublishReportRequest(BaseModel):
     admin_note: Optional[str] = None
 
 
+class MarketValueRequest(BaseModel):
+    # None: admin duzeltmesini kaldirir, yapay zekanin buldugu degere doner
+    value: Optional[int] = None
+    note: Optional[str] = None
+
+
 class AssignRequest(BaseModel):
     personnel_id: str
     note: Optional[str] = None
@@ -202,6 +208,19 @@ async def admin_reanalyze_report(
 ) -> Dict[str, Any]:
     """Merkezi AI degerlemesini (piyasa + ekspertiz bulgulari) yeniden calistirir."""
     result = await dispatch_service.reanalyze_report(report_id, admin)
+    if "error" in result:
+        raise HTTPException(status_code=result.get("http_status", 400), detail=result["error"])
+    return result
+
+
+@router.post("/admin/reports/{report_id}/market-value")
+async def admin_set_market_value(
+    report_id: str,
+    request: MarketValueRequest,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    """Onaydan once temiz piyasa degerini duzeltir; yapay zeka degeri ile birlikte kaydedilir."""
+    result = await dispatch_service.set_market_value_override(report_id, request.value, request.note, admin)
     if "error" in result:
         raise HTTPException(status_code=result.get("http_status", 400), detail=result["error"])
     return result

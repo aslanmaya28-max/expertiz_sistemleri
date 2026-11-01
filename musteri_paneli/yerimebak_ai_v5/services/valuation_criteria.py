@@ -46,7 +46,7 @@ def build_criteria(
     km_adj = [a for a in degerleme.get("piyasaDuzeltmeleri") or [] if a.get("baslik") == "Kilometre farkı"]
     yil_adj = [a for a in degerleme.get("piyasaDuzeltmeleri") or [] if a.get("baslik") == "Model yılı farkı"]
     ref = market_reference or {}
-    found = bool(ref.get("found")) and ref.get("source") == "listings"
+    found = bool(ref.get("found")) and ref.get("source") in ("listings", "web_listings", "admin_manual")
 
     model_text = " ".join(str(v) for v in (vehicle.get("brand"), vehicle.get("model"), vehicle.get("year")) if v)
     paket = vehicle.get("paket") or ref.get("package")

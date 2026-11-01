@@ -74,6 +74,38 @@ def _to_float(value: Any) -> float:
         return 0.0
 
 
+# Personel formunun eski genel paket listesi; gercek paket adi degil (Style, FR gibi), eslesmede kullanilmaz
+_GENERIC_PACKAGES = {"standart", "comfort", "advanced", "premium", "lüks", "luks", "spor"}
+
+
+def _real_package(value: Any) -> Optional[str]:
+    text = str(value or "").strip()
+    if not text or text.lower() in _GENERIC_PACKAGES:
+        return None
+    return text
+
+
+def _override_reference(override: Dict[str, Any]) -> Dict[str, Any]:
+    """Adminin girdigi temiz piyasa degeri; yapay zekanin buldugu kaynak ilanlar bilgi olarak kalir."""
+    ref = dict(override.get("reference") or {})
+    value = int(override["value"])
+    ref.update({
+        "found": True,
+        "source": "admin_manual",
+        "ai_source": ref.get("source"),
+        "market_median_price": value,
+        "market_avg_price": value,
+        "confidence": 80,
+        "kontrol": [],
+        "uyari": None,
+        "admin_value": value,
+        "ai_value": override.get("ai_value"),
+        "admin_note": override.get("note"),
+    })
+    ref.setdefault("samples", [])
+    return ref
+
+
 def _compact_reference(ref: Dict[str, Any]) -> Dict[str, Any]:
     """Rapor icinde saklanan piyasa referansi (emsal ornekleri en fazla 10)."""
     ref = dict(ref or {})
@@ -182,24 +214,40 @@ class AIAnalysisWorker:
                 logger.error(f"[AI WORKER] Missing brand/model for {report_id}")
                 return False
 
-            # Satici beyani + paket: musterinin ilanindan (arabam.com 'Model' satiri, ör. 1.0 TCe Touch)
+            # Satici beyani (kayitli ilan varsa) + paket: once personel raporu / talep formu, sonra kayitli ilan
             beyan = market_ingest.declared_condition(listing_id, vehicle_info.get("listing_url"))
-            paket = (beyan or {}).get("paket")
+            paket = _real_package(vehicle_info.get("paket")) or (beyan or {}).get("paket")
 
-            market_reference = get_market_reference_service().get_reference(
-                brand=brand,
-                model=model,
-                year=year or None,
-                km=km or None,
-                fuel=vehicle_info.get("yakit"),
-                transmission=vehicle_info.get("sanziman"),
-                exclude_id=listing_id,
-                listed_price=price,
-                package=paket,
-            )
+            # 0) Admin piyasa degerini duzelttiyse yeni arama yapilmaz; kaynak ilanlar korunur
+            override = vehicle_info.get("admin_market_override")
+            # 1) Web aramasiyla kaynakli emsal (kaziyici gerektirmez)
+            from yerimebak_ai_v5.services import web_market_reference
 
-            # 5'ten az emsal: yapay zekadan (DeepSeek) etiketli fiyat tahmini; admin onayindan once kontrol edilir
-            if market_reference.get("source") != "listings":
+            market_reference = _override_reference(override) if override else web_market_reference.get_reference({
+                "brand": brand, "model": model, "year": year or None, "km": km or None, "package": paket,
+                "fuel": vehicle_info.get("yakit"), "transmission": vehicle_info.get("sanziman"),
+                "listed_price": price,
+            }) or {}
+            # 2) Yeterli web emsali yoksa veritabanindaki ilanlar (varsa)
+            if not override and not market_reference.get("found"):
+                web_attempt = market_reference
+                market_reference = get_market_reference_service().get_reference(
+                    brand=brand,
+                    model=model,
+                    year=year or None,
+                    km=km or None,
+                    fuel=vehicle_info.get("yakit"),
+                    transmission=vehicle_info.get("sanziman"),
+                    exclude_id=listing_id,
+                    listed_price=price,
+                    package=paket,
+                )
+                if web_attempt:
+                    market_reference["web_attempt"] = {
+                        "count": web_attempt.get("count"), "scope": web_attempt.get("scope")}
+
+            # Emsal yoksa: yapay zekadan (DeepSeek) etiketli fiyat tahmini; admin onayindan once kontrol edilir
+            if market_reference.get("source") not in ("listings", "web_listings", "admin_manual"):
                 from yerimebak_ai_v5.services import ai_price_estimate
 
                 tahmin = ai_price_estimate.estimate({
@@ -216,6 +264,16 @@ class AIAnalysisWorker:
                 listed_price=price,
                 vehicle={"km": km, "yil": year},
             )
+            # Web emsalinin "kontrol gerekli" isaretleri admin onay ekraninda gosterilir
+            if market_reference.get("kontrol"):
+                degerleme["kontrolGerekli"] = market_reference["kontrol"]
+            if override:
+                degerleme["adminDuzeltmesi"] = {k: override.get(k) for k in ("value", "note", "ai_value", "ai_source", "diff_pct", "admin", "at")}
+            if market_reference.get("source") in ("web_listings", "admin_manual"):
+                degerleme["piyasaKaynaklari"] = [
+                    {k: s.get(k) for k in ("site", "url", "price", "km", "year", "title", "condition", "declared")}
+                    for s in market_reference.get("samples") or []
+                ]
             liquidity = _liquidity(vehicle_info, degerleme, km)
             # Ilanda satıcının beyan ettiği durum ↔ personel ekspertiz bulguları
             adim1 = (vehicle_info.get("tam_rapor") or {}).get("adim1") or {}

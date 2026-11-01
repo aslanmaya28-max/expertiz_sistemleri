@@ -158,7 +158,8 @@ def _fulfill_credit(cursor: Any, oid: str, total_kurus: Optional[int]) -> Dict[s
 # Ekspertiz talebi
 # ---------------------------------------------------------------------------
 
-VEHICLE_FIELDS = ("brand", "model", "year", "km", "price", "fuel", "transmission")
+# package: musterinin ilandan yazdigi motor/paket (or. "1.0 EcoTSI Style DSG"); web emsal eslesmesinde kullanilir
+VEHICLE_FIELDS = ("brand", "model", "package", "year", "km", "price", "fuel", "transmission")
 
 
 def _clean_vehicle(raw: Any) -> Dict[str, Any]:

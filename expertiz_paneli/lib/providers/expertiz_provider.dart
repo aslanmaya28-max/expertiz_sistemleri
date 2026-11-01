@@ -272,6 +272,17 @@ class ExpertizProvider extends ChangeNotifier {
     }
   }
 
+  /// Talep formundaki yakit metnini formun yakit secenegine cevirir (bilinmiyorsa Benzin).
+  static String _yakit(String? value) {
+    final v = (value ?? '').toLowerCase();
+    for (final secenek in Adim1AracSaticiModel.yakitTurleri) {
+      if (v.isNotEmpty && secenek.toLowerCase().startsWith(v.substring(0, v.length < 3 ? v.length : 3))) {
+        return secenek;
+      }
+    }
+    return 'Benzin';
+  }
+
   void _initializeEmptyModels(String gorevId, String personelId, String plaka, Map<String, dynamic> vehicle) {
     _currentStep = 1;
     _adim1Model = Adim1AracSaticiModel(
@@ -280,7 +291,9 @@ class ExpertizProvider extends ChangeNotifier {
       marka: vehicle['brand']?.toString() ?? '',
       model: vehicle['model']?.toString() ?? '',
       yil: vehicle['year']?.toString(),
-      yakitTuru: 'Benzin',
+      // Musterinin talep formunda yazdigi motor/paket; personel sahada duzeltebilir
+      paket: (vehicle['package']?.toString() ?? '').isEmpty ? null : vehicle['package'].toString(),
+      yakitTuru: _yakit(vehicle['fuel']?.toString()),
       plaka: (vehicle['plate']?.toString() ?? '').isNotEmpty ? vehicle['plate'].toString() : plaka,
       saseNo: '',
       guncelKm: vehicle['km'] is num ? (vehicle['km'] as num).toInt() : int.tryParse('${vehicle['km'] ?? ''}') ?? 0,

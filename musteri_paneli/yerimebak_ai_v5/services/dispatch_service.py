@@ -201,6 +201,9 @@ def _admin_request(row: Dict[str, Any]) -> Dict[str, Any]:
             "model": model,
             "year": vehicle.get("yil"),
             "km": vehicle.get("km"),
+            "package": vehicle.get("paket") or "",
+            "fuel": vehicle.get("yakit") or "",
+            "transmission": vehicle.get("sanziman") or "",
             "title": title or "Arac bilgisi yok",
             "listing_url": row.get("ilan_linki") or vehicle.get("listing_url") or "",
             "image_url": vehicle.get("image_url") or "",
@@ -998,6 +1001,77 @@ async def reanalyze_report(report_id: str, admin: Dict[str, Any]) -> Dict[str, A
     refreshed = get_admin_report(report_id)
     if not ok:
         return {"error": "AI analizi tamamlanamadi; rapor verisini kontrol edip tekrar deneyin", "http_status": 502}
+    return {"success": True, "report": refreshed.get("report")}
+
+
+MIN_MARKET_VALUE, MAX_MARKET_VALUE = 50_000, 100_000_000
+
+
+async def set_market_value_override(
+    report_id: str, value: Optional[int], note: Optional[str], admin: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Admin: onaydan once temiz piyasa degerini duzeltir (value=None duzeltmeyi kaldirir).
+
+    Yapay zekanin buldugu deger ve adminin girdigi deger birlikte saklanir; pilotta dogruluk
+    bu kayitlardan olculur. Degerleme yeni web aramasi yapmadan, bu degerle yeniden hesaplanir.
+    """
+    note = (note or "").strip()[:500]
+    if value is not None and not MIN_MARKET_VALUE <= int(value) <= MAX_MARKET_VALUE:
+        return _error("Piyasa degeri 50.000 TL ile 100.000.000 TL arasinda olmali", 400)
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, status, data, ai_analiz_detay FROM reports WHERE id::text = %s FOR UPDATE",
+                       (str(report_id),))
+        row = cursor.fetchone()
+        if not row:
+            conn.rollback()
+            return _error("Rapor bulunamadi", 404)
+        row = dict(row)
+        if row.get("status") not in APPROVAL_STATUSES:
+            conn.rollback()
+            return _error("Yalnizca onay bekleyen raporlarin piyasa degeri duzeltilebilir", 400)
+        data = row.get("data") or {}
+        data = json.loads(data) if isinstance(data, str) else (data if isinstance(data, dict) else {})
+        ai = row.get("ai_analiz_detay") or {}
+        ai = json.loads(ai) if isinstance(ai, str) else (ai if isinstance(ai, dict) else {})
+        degerleme = ai.get("ekspertizDegerleme") if isinstance(ai.get("ekspertizDegerleme"), dict) else {}
+        previous = data.get("admin_market_override") if isinstance(data.get("admin_market_override"), dict) else {}
+        # Yapay zekanin kendi buldugu deger: daha once duzeltildiyse ilk kayittaki deger korunur
+        ai_value = previous.get("ai_value") or degerleme.get("piyasaDegeri")
+        ai_source = previous.get("ai_source") or degerleme.get("piyasaKaynagi")
+        ref = previous.get("reference") or ai.get("marketReference") or {}
+
+        if value is None:
+            data.pop("admin_market_override", None)
+            action, meta = "market_value_override_cleared", {"ai_value": ai_value}
+        else:
+            value = int(value)
+            diff = round((value - ai_value) / ai_value * 100, 1) if ai_value else None
+            data["admin_market_override"] = {
+                "value": value, "note": note, "ai_value": ai_value, "ai_source": ai_source,
+                "diff_pct": diff, "admin": admin.get("email") or str(admin.get("id", "")),
+                "at": datetime.now(timezone.utc).isoformat(),
+                # Kaynak ilanlar raporda kalsin diye yapay zekanin referansi saklanir
+                "reference": {k: ref.get(k) for k in ("source", "count", "samples", "scope", "package",
+                                                      "package_match", "kontrol") if k in ref},
+            }
+            action = "market_value_override"
+            meta = {"ai_value": ai_value, "admin_value": value, "diff_pct": diff, "ai_source": ai_source, "note": note}
+        cursor.execute("UPDATE reports SET data = %s, updated_at = NOW() WHERE id::text = %s",
+                       (Json(data), str(report_id)))
+        _write_audit(cursor, action, str(report_id), admin, meta)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+    ok = await run_central_ai(report_id)
+    refreshed = expertiz_service.get_admin_report(report_id)
+    if not ok:
+        return _error("Deger kaydedildi ama degerleme yeniden hesaplanamadi; tekrar deneyin", 502)
     return {"success": True, "report": refreshed.get("report")}
 
 

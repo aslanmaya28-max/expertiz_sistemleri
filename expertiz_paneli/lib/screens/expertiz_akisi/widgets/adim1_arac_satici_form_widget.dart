@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../models/expertiz/adim1_arac_satici_model.dart';
 import '../../../models/expertiz/durumlu_soru_model.dart';
-import '../../../services/market_radar_service.dart';
 import 'durumlu_soru_widget.dart';
 
 /// Adım 1: Araç ve Satıcı Bilgileri Form Widget'ı
@@ -27,6 +26,7 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _markaController;
   late TextEditingController _modelController;
+  late TextEditingController _paketController;
   late TextEditingController _plakaController;
   late TextEditingController _saseNoController;
   late TextEditingController _kmController;
@@ -41,6 +41,7 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
     super.initState();
     _markaController = TextEditingController(text: widget.model.marka);
     _modelController = TextEditingController(text: widget.model.model);
+    _paketController = TextEditingController(text: widget.model.paket ?? '');
     _plakaController = TextEditingController(text: widget.model.plaka);
     _saseNoController = TextEditingController(text: widget.model.saseNo);
     _kmController =
@@ -64,6 +65,7 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
   void dispose() {
     _markaController.dispose();
     _modelController.dispose();
+    _paketController.dispose();
     _plakaController.dispose();
     _saseNoController.dispose();
     _kmController.dispose();
@@ -79,6 +81,7 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
     final yeniModel = widget.model.copyWith(
       marka: _markaController.text,
       model: _modelController.text,
+      paket: _paketController.text.trim(),
       plaka: _plakaController.text,
       saseNo: _saseNoController.text,
       guncelKm: int.tryParse(_kmController.text) ?? 0,
@@ -144,64 +147,19 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
           ),
           const SizedBox(height: 12),
 
-          // 🎯 Paket/Seviye Seçimi
-          DropdownButtonFormField<String>(
-            initialValue:
-                widget.model.paket?.isEmpty ?? true ? null : widget.model.paket,
-            decoration: InputDecoration(
-              labelText: 'Paket / Seviye',
-              border: const OutlineInputBorder(),
-              prefixIcon: const Icon(Icons.star),
-              suffixIcon: _isSportPackageDetected()
-                  ? const Icon(Icons.sports_motorsports, color: Colors.orange)
-                  : null,
+          // Paket: ilandaki / ruhsattaki gibi motor + paket adi. AI emsal ilanlari bu paketten secer.
+          TextFormField(
+            enabled: widget.enabled,
+            controller: _paketController,
+            decoration: const InputDecoration(
+              labelText: 'Motor / Paket',
+              hintText: 'ör. 1.0 EcoTSI Style DSG, 1.3 Multijet Urban',
+              helperText: 'İlandaki gibi yazın; AI aynı paketteki ilanlarla karşılaştırır',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.star),
             ),
-            items: const [
-              DropdownMenuItem(value: 'Standart', child: Text('Standart')),
-              DropdownMenuItem(value: 'Comfort', child: Text('Comfort')),
-              DropdownMenuItem(value: 'Advanced', child: Text('Advanced')),
-              DropdownMenuItem(value: 'Premium', child: Text('Premium')),
-              DropdownMenuItem(value: 'Lüks', child: Text('Lüks')),
-              DropdownMenuItem(value: 'Spor', child: Text('Spor')),
-            ],
-            onChanged: widget.enabled
-                ? (value) {
-                    if (value != null) {
-                      final yeniModel = widget.model.copyWith(paket: value);
-                      widget.onChanged(yeniModel);
-                    }
-                  }
-                : null,
-            hint: const Text('Paketi seçin'),
+            onChanged: (_) => _updateModel(),
           ),
-          if (_isSportPackageDetected())
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.shade300),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.sports_motorsports, color: Colors.orange),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Spor paket tespit edildi! (%15-20 değer çarpanı uygulanacak)',
-                        style: TextStyle(
-                          color: Colors.orange.shade900,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
           const SizedBox(height: 12),
 
           DropdownButtonFormField<String>(
@@ -609,9 +567,6 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
   }
 
   /// Model isminden spor paket tespiti
-  bool _isSportPackageDetected() {
-    return MarketRadarService.isSportPackage(_modelController.text);
-  }
 }
 
 /// Keeps existing desktop field pairs, stacking them at narrow form widths.

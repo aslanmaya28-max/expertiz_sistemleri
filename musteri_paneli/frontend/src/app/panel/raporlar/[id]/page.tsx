@@ -471,12 +471,20 @@ function AiDegerleme({ ai }: { ai: CustomerAiAnalysis }) {
           <p className="mt-2 text-metin-ikincil">
             Emsal fiyat araligi {formatPrice(ref.min)} – {formatPrice(ref.max)}, medyan {formatPrice(ref.medyan)}
             {ref.guncelGun ? ` (son ${ref.guncelGun} gun oncelikli)` : ""}.
+            {ref.kaynak === "web_listings" || ref.kaynak === "admin_manual"
+              ? " İlanlar internette bulundu, fiyatları kaynak sayfada doğrulandı ve uzmanımız tarafından kontrol edildi."
+              : ""}
           </p>
           <ul className="mt-2 divide-y divide-kenarlik-acik">
             {ref.emsaller.map((e, i) => (
               <li key={i} className="flex justify-between gap-3 py-1.5">
                 <span className="text-metin-ikincil">
-                  {e.title || "Emsal ilan"} {e.year ? `• ${e.year}` : ""} {e.km ? `• ${new Intl.NumberFormat("tr-TR").format(e.km)} km` : ""}
+                  {e.url ? (
+                    <a href={e.url} target="_blank" rel="noopener noreferrer nofollow" className="underline decoration-dotted hover:text-birincil">
+                      {e.site || e.title || "Emsal ilan"}
+                    </a>
+                  ) : (e.title || "Emsal ilan")}{" "}
+                  {e.year ? `• ${e.year}` : ""} {e.km ? `• ${new Intl.NumberFormat("tr-TR").format(e.km)} km` : ""}
                   {e.condition === "clean" ? " • hasarsiz" : ""}
                 </span>
                 <span className="whitespace-nowrap font-medium text-metin-birincil">{formatPrice(e.price)}</span>

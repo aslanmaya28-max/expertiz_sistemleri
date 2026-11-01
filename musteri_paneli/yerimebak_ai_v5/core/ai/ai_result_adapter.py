@@ -344,6 +344,10 @@ def inspection_to_ai_analiz(
     elif (degerleme.get("guvenSkoru") or 0) < 50:
         oneri("Önemli", "Düşük güvenli piyasa değeri", degerleme.get("piyasaYontemi", ""),
               "Değeri yayınlamadan önce emsal ilanlarla karşılaştırın", 3, "Orta", hedef="admin")
+    # Web emsal kaynagi "kontrol gerekli" dediyse admin onaydan once bakar (musteriye gosterilmez)
+    for flag in degerleme.get("kontrolGerekli") or []:
+        oneri("Önemli", "Kontrol gerekli", flag.get("mesaj", ""),
+              "Kaynak ilanları açıp piyasa değerini doğrulayın; gerekirse düzeltin", 2, "Yüksek", hedef="admin")
     oneriler.sort(key=lambda o: o["oncelik"])
 
     # --- Kritik sorunlar

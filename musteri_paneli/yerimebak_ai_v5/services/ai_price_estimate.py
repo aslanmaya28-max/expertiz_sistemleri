@@ -11,7 +11,7 @@ internette arama yapmaz, eski ya da hatali olabilir. Bu yuzden:
 Ayarlar (.env):
   OPENROUTER_API_KEY   zorunlu (yoksa tahmin yapilmaz)
   AI_PRICE_ESTIMATE    off -> kapali (varsayilan: acik)
-  AI_PRICE_MODEL       varsayilan deepseek/deepseek-chat
+  AI_PRICE_MODEL       varsayilan deepseek/deepseek-v4.1-flash-1017
 """
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ def enabled() -> bool:
 
 
 def _model() -> str:
-    return (os.getenv("AI_PRICE_MODEL") or "deepseek/deepseek-chat").strip()
+    return (os.getenv("AI_PRICE_MODEL") or "deepseek/deepseek-v4.1-flash-1017").strip()
 
 
 def _prompt(vehicle: Dict[str, Any]) -> str:

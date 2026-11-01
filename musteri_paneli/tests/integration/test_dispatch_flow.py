@@ -53,14 +53,14 @@ def _auth(token):
     return {"Authorization": f"Bearer {token}"}
 
 
-def _create_paid_request(client, token, plate, city, note=None, package_index=0, district="Merkez"):
+def _create_paid_request(client, token, plate, city, note=None, package_index=0, district="Merkez", vehicle=None):
     """Katalogdan paket secer, talep acar ve odemeyi (simulasyon) tamamlar; rapor id doner."""
     firm = client.get("/api/v1/expertiz/packages").json()["firms"][0]
     package = firm["packages"][min(package_index, len(firm["packages"]) - 1)]
     body = {
         "firm_id": firm["id"], "package_id": package["id"], "plate": plate, "city": city, "district": district,
         "contract_accepted": True,
-        "vehicle": {"brand": "Fiat", "model": "Egea", "year": 2020, "km": 60000, "price": 850000},
+        "vehicle": vehicle or {"brand": "Fiat", "model": "Egea", "year": 2020, "km": 60000, "price": 850000},
     }
     if note:
         body["note"] = note
@@ -1045,3 +1045,97 @@ def test_ai_price_estimate_when_no_comparables(client, admin_token, customer_tok
     assert report["ai_analiz_detay"]["marketReference"]["source"] == "ai_estimate"
     customer = client.get(f"/api/v1/expertiz/reports/{report_id}", headers=_auth(customer_token))
     assert customer.status_code != 200 or customer.json()["report"].get("status") != "published"
+
+
+def test_web_emsal_kaynakli_degerleme_kontrol_isareti_ve_musteri_kaynaklari(client, admin_token, customer_token, monkeypatch):
+    """Kaziyicisiz: web aramasiyla dogrulanan emsaller -> personel raporu -> admin kontrol isareti -> onay -> musteri kaynaklari."""
+    from yerimebak_ai_v5.services import web_market_reference as wmr
+
+    def sayfa(url, fiyat, km, paket):
+        return {"url": url, "fiyat_tl": fiyat, "km": km, "yil": 2021, "paket": paket, "durum": "hatasız"}
+
+    ilanlar = [
+        sayfa("https://www.arabam.com/ilan/fiat-egea-1-3-multijet-urban/1", 905_000, 52_000, "1.3 Multijet Urban"),
+        sayfa("https://www.otosor.com.tr/egea-urban/2", 925_000, 40_000, "1.3 Multijet Urban"),
+        sayfa("https://www.arabam.com/ilan/fiat-egea-1-3-multijet-urban/3", 940_000, 61_000, "1.3 Multijet Urban"),
+        # Uydurma fiyat: sayfa metninde yok, kullanilmamali
+        sayfa("https://www.arabam.com/ilan/fiat-egea-1-3-multijet-urban/4", 610_000, 45_000, "1.3 Multijet Urban"),
+    ]
+    sorgular = []
+
+    def sahte_arama(query, _client):
+        sorgular.append(query)
+        kaynaklar = {i["url"]: f"Fiat Egea {i['paket']} {i['fiyat_tl']:,} TL".replace(",", ".") for i in ilanlar[:3]}
+        kaynaklar[ilanlar[3]["url"]] = "Fiat Egea 1.3 Multijet Urban 915.000 TL"
+        return {"listings": ilanlar, "sources": kaynaklar, "cost": 0.009}
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(wmr, "_search", sahte_arama)
+
+    person = _create_personnel(client, admin_token, "webemsal@yerimebak.test", "İstanbul", "Pendik", "Web Personel")
+    staff = _login(client, "webemsal@yerimebak.test", "Personel123")
+    report_id = _create_paid_request(
+        client, customer_token, "34 WEB 01", "İstanbul", package_index=3, district="Pendik",
+        vehicle={"brand": "Fiat", "model": "Egea", "package": "1.3 Multijet Urban", "year": 2021, "km": 45000,
+                 "price": 960000, "fuel": "Dizel", "transmission": "Manuel"},
+    )
+    client.post(f"/api/v1/expertiz/admin/requests/{report_id}/assign", headers=_auth(admin_token), json={"personnel_id": person["id"]})
+    client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/start", headers=_auth(staff))
+    client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/media", headers=_auth(staff),
+                files={"file": ("kurumsal.pdf", PDF_BYTES, "application/pdf")}, data={"category": "corporate_report"})
+    submitted = client.post(f"/api/v1/expertiz/personnel/tasks/{report_id}/submit", headers=_auth(staff),
+                            json={"tam_rapor": _tam_rapor(report_id, person["id"])})
+    assert submitted.status_code == 200, submitted.text
+
+    report = client.get(f"/api/v1/expertiz/admin/reports/{report_id}", headers=_auth(admin_token)).json()["report"]
+    assert report["status"] == "pending_admin"
+    ai = report["ai_analiz_detay"]
+    d = ai["ekspertizDegerleme"]
+    # Paket musterinin talep formundan geldi, 3 sorgu yapildi
+    assert len(sorgular) == 3 and all("1.3 Multijet Urban" in q for q in sorgular[:2])
+    assert d["piyasaKaynagi"] == "web_listings"
+    assert d["piyasaDegeri"] == 925_000
+    assert [k["price"] for k in d["piyasaKaynaklari"]] == [905_000, 925_000, 940_000]
+    assert {k["kod"] for k in d["kontrolGerekli"]} == {"az_emsal"}
+    assert any(o.get("baslik") == "Kontrol gerekli" for o in ai["oneriler"])
+    assert ai["marketReference"]["scope"]["rejected"] == {"fiyat sayfada yok": 3}
+
+    # Admin kaynaklara bakip piyasa degerini duzeltir: yeni arama yapilmaz, iki deger de kaydedilir
+    bad = client.post(f"/api/v1/expertiz/admin/reports/{report_id}/market-value", headers=_auth(admin_token), json={"value": 10})
+    assert bad.status_code == 400
+    fixed = client.post(f"/api/v1/expertiz/admin/reports/{report_id}/market-value", headers=_auth(admin_token),
+                        json={"value": 950_000, "note": "Urban paketinde 950 bin bandı daha gerçekçi"})
+    assert fixed.status_code == 200, fixed.text
+    assert len(sorgular) == 3
+    d2 = fixed.json()["report"]["ai_analiz_detay"]["ekspertizDegerleme"]
+    assert d2["piyasaKaynagi"] == "admin_manual" and d2["piyasaDegeri"] == 950_000
+    assert d2["adminDuzeltmesi"]["ai_value"] == 925_000 and d2["adminDuzeltmesi"]["diff_pct"] == 2.7
+    assert len(d2["piyasaKaynaklari"]) == 3 and not d2.get("kontrolGerekli")
+    assert "yapay zekânın bulduğu" in d2["piyasaYontemi"]
+    # Ikinci duzeltmede yapay zekanin ilk degeri korunur
+    again = client.post(f"/api/v1/expertiz/admin/reports/{report_id}/market-value", headers=_auth(admin_token),
+                        json={"value": 940_000})
+    assert again.json()["report"]["ai_analiz_detay"]["ekspertizDegerleme"]["adminDuzeltmesi"]["ai_value"] == 925_000
+    from yerimebak_ai_v5.core.database_config import DatabaseConfig
+    conn = DatabaseConfig.get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT metadata FROM audit_logs WHERE action = 'market_value_override' AND entity_id = %s ORDER BY id",
+                    (report_id,))
+        logs = [dict(r)["metadata"] for r in cur.fetchall()]
+    finally:
+        DatabaseConfig.return_connection(conn)
+    assert [(m["ai_value"], m["admin_value"]) for m in logs] == [(925_000, 950_000), (925_000, 940_000)]
+
+    published = client.post(f"/api/v1/expertiz/admin/reports/{report_id}/publish", headers=_auth(admin_token))
+    assert published.status_code == 200, published.text
+    # Yayindan sonra duzeltme yapilamaz
+    assert client.post(f"/api/v1/expertiz/admin/reports/{report_id}/market-value", headers=_auth(admin_token),
+                       json={"value": 900_000}).status_code == 400
+    customer = client.get(f"/api/v1/expertiz/reports/{report_id}", headers=_auth(customer_token)).json()["report"]
+    ref = customer["ai"]["piyasaReferansi"]
+    assert ref["kaynak"] == "admin_manual" and ref["emsalSayisi"] == 3
+    assert {e["site"] for e in ref["emsaller"]} == {"arabam.com", "otosor.com.tr"}
+    assert all(e["url"].startswith("https://") for e in ref["emsaller"])
+    # Admin'e ozel kontrol onerileri musteriye gitmez
+    assert not any(o.get("baslik") == "Kontrol gerekli" for o in customer["ai"].get("oneriler") or [])

@@ -37,6 +37,7 @@ interface Arac {
   brand: string;
   model: string;
   year: string;
+  package: string;
   km: string;
   price: string;
   fuel: string;
@@ -47,7 +48,7 @@ interface Arac {
   note: string;
 }
 
-const BOS_ARAC: Arac = { link: "", brand: "", model: "", year: "", km: "", price: "", fuel: "", gear: "", plate: "", city: "", district: "", note: "" };
+const BOS_ARAC: Arac = { link: "", brand: "", model: "", package: "", year: "", km: "", price: "", fuel: "", gear: "", plate: "", city: "", district: "", note: "" };
 
 function EkspertizTalebiIcerigi() {
   const params = useSearchParams();
@@ -178,6 +179,7 @@ function EkspertizTalebiIcerigi() {
           vehicle: {
             brand: arac.brand || undefined,
             model: arac.model || undefined,
+            package: arac.package.trim() || undefined,
             year: num(arac.year),
             km: num(arac.km),
             price: num(arac.price),
@@ -263,6 +265,7 @@ function EkspertizTalebiIcerigi() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="block"><span className={lbl}>Marka (zorunlu)</span><input required value={arac.brand} onChange={set("brand")} className={input} placeholder="Renault" /></label>
                 <label className="block"><span className={lbl}>Model (zorunlu)</span><input required value={arac.model} onChange={set("model")} className={input} placeholder="Clio" /></label>
+                <label className="block sm:col-span-2"><span className={lbl}>Motor / paket (ilandaki gibi)</span><input value={arac.package} onChange={set("package")} className={input} placeholder="1.0 TCe Touch, 1.3 Multijet Urban" /></label>
                 <label className="block"><span className={lbl}>Model yılı</span><input type="number" value={arac.year} onChange={set("year")} className={input} placeholder="2021" /></label>
                 <label className="block"><span className={lbl}>Kilometre</span><input type="number" value={arac.km} onChange={set("km")} className={input} placeholder="65000" /></label>
                 <label className="block"><span className={lbl}>İlan fiyatı (₺)</span><input type="number" value={arac.price} onChange={set("price")} className={input} placeholder="950000" /></label>

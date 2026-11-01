@@ -42,8 +42,8 @@ def test_estimate_calls_openrouter_with_deepseek(monkeypatch):
     monkeypatch.delenv("AI_PRICE_ESTIMATE", raising=False)
     calls = []
     out = ape.estimate(ARONA, transport=_transport('{"medyan": 1550000, "min": 1420000, "max": 1755000}', calls))
-    assert out["median"] == 1550000 and out["model"] == "deepseek/deepseek-chat"
-    assert calls[0]["model"] == "deepseek/deepseek-chat" and calls[0]["temperature"] == 0
+    assert out["median"] == 1550000 and out["model"] == "deepseek/deepseek-v4.1-flash-1017"
+    assert calls[0]["model"] == "deepseek/deepseek-v4.1-flash-1017" and calls[0]["temperature"] == 0
     assert "Arona" in calls[0]["messages"][1]["content"] and "2024" in calls[0]["messages"][1]["content"]
 
 

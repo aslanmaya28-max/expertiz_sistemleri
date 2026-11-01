@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/expertiz/adim2_dis_ekspertiz_model.dart';
 import '../../models/expertiz/adim3_ic_ekspertiz_model.dart';
 import '../../models/expertiz/adim4_boya_kaporta_model.dart';
@@ -387,6 +388,156 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
+  }
+
+  /// Admin, kaynak ilanlara bakıp temiz piyasa değerini düzeltir (yapay zekâ değeri de saklanır).
+  Future<void> _piyasaDegeriDuzelt() async {
+    final report = _selectedReport;
+    final d = _degerleme;
+    if (report == null) return;
+    final duzeltme = d?['adminDuzeltmesi'] is Map ? d!['adminDuzeltmesi'] as Map : null;
+    final degerCtrl = TextEditingController(text: (duzeltme?['value'] ?? d?['piyasaDegeri'] ?? '').toString());
+    final notCtrl = TextEditingController(text: duzeltme?['note']?.toString() ?? '');
+    final sonuc = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Piyasa değerini düzelt'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Yapay zekânın bulduğu temiz piyasa değeri: ${_tl(duzeltme?['ai_value'] ?? d?['piyasaDegeri'])}. '
+                'Gireceğiniz değer, bulgu kesintilerinden önceki temiz araç değeridir.',
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: degerCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Temiz piyasa değeri (TL)', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: notCtrl,
+                maxLines: 2,
+                decoration: const InputDecoration(labelText: 'Not (neden düzelttiniz?)', border: OutlineInputBorder()),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          if (duzeltme != null)
+            TextButton(onPressed: () => Navigator.pop(ctx, 'kaldir'), child: const Text('Düzeltmeyi kaldır')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Vazgeç')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, 'kaydet'), child: const Text('Kaydet ve yeniden hesapla')),
+        ],
+      ),
+    );
+    if (sonuc == null || !mounted) return;
+    final deger = int.tryParse(degerCtrl.text.replaceAll(RegExp(r'[^0-9]'), ''));
+    if (sonuc == 'kaydet' && deger == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Geçerli bir TL değeri girin'), backgroundColor: Colors.red));
+      return;
+    }
+    setState(() => _isProcessing = true);
+    try {
+      final result = await _expertizApi.setMarketValue(
+        report['id'].toString(),
+        sonuc == 'kaldir' ? null : deger,
+        note: notCtrl.text.trim(),
+      );
+      final fresh = result['report'];
+      if (fresh is Map && mounted) _selectReport(Map<String, dynamic>.from(fresh));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(sonuc == 'kaldir' ? 'Düzeltme kaldırıldı' : 'Piyasa değeri güncellendi'),
+          backgroundColor: Colors.green,
+        ));
+      }
+      await _loadReports(silent: true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Piyasa değeri kaydedilemedi: $e'), backgroundColor: Colors.red));
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  Future<void> _kaynakAc(String? url) async {
+    final uri = Uri.tryParse(url ?? '');
+    if (uri == null || !uri.hasScheme) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  String _duzeltmeMetni(Map duzeltme) {
+    final fark = duzeltme['diff_pct'];
+    final not = (duzeltme['note'] ?? '').toString();
+    final farkMetni = fark is num ? ' (${fark > 0 ? '+' : ''}${_yuzde(fark)})' : '';
+    final notMetni = not.isNotEmpty ? ' — $not' : '';
+    return 'Admin düzeltmesi: yapay zekâ ${_tl(duzeltme['ai_value'])} → ${_tl(duzeltme['value'])}$farkMetni$notMetni';
+  }
+
+  Widget _kontrolKutusu(List<Map> kontroller) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.6)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('KONTROL GEREKLİ — yayınlamadan önce kaynak ilanlara bakın',
+              style: TextStyle(color: Colors.orangeAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          for (final k in kontroller)
+            Text('• ${k['mesaj']}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Widget _kaynakListesi(List<Map> kaynaklar) {
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      title: Text('Kaynak ilanlar (${kaynaklar.length})', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+      children: [
+        for (final k in kaynaklar)
+          InkWell(
+            onTap: () => _kaynakAc(k['url']?.toString()),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.open_in_new, size: 14, color: Colors.white38),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      [
+                        (k['site'] ?? '').toString(),
+                        if (k['year'] != null) '${k['year']}',
+                        if (k['km'] is num) '${_tlFormat.format(k['km'])} km',
+                        if ((k['declared'] ?? '').toString().isNotEmpty) k['declared'].toString(),
+                      ].join(' • '),
+                      style: const TextStyle(color: Colors.white60, fontSize: 12),
+                    ),
+                  ),
+                  Text(_tl(k['price']), style: const TextStyle(color: Colors.white, fontSize: 12)),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   /// Onay ekranı: müşteriye gidecek paketin özeti + opsiyonel müşteri notu
@@ -1161,6 +1312,16 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
     final yorum = d['fiyatYorumu'] is Map ? d['fiyatYorumu'] as Map : null;
     final yapildi = d['degerlemeYapildi'] == true;
     final agir = d['agirHasar'] == true;
+    final kontroller = (d['kontrolGerekli'] as List? ?? const []).whereType<Map>().toList();
+    final kaynaklar = (d['piyasaKaynaklari'] as List? ?? const []).whereType<Map>().toList();
+    final duzeltme = d['adminDuzeltmesi'] is Map ? d['adminDuzeltmesi'] as Map : null;
+    final duzeltilebilir = ['pending_ai', 'pending_admin'].contains(_selectedReport?['status']);
+    final kaynakEtiketi = switch (d['piyasaKaynagi']) {
+      'ai_estimate' => 'Piyasa değeri (yapay zekâ tahmini)',
+      'web_listings' => 'Piyasa değeri (web emsal ilanları)',
+      'admin_manual' => 'Piyasa değeri (admin düzeltmesi)',
+      _ => 'Piyasa değeri (emsal ilanlar)',
+    };
     final yorumRenk = switch (yorum?['karar']) {
       'AVANTAJLI' => Colors.greenAccent,
       'MAKUL' => Colors.lightGreenAccent,
@@ -1196,6 +1357,12 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
       icon: Icons.price_check,
       color: agir ? Colors.redAccent : null,
       children: [
+        if (kontroller.isNotEmpty) _kontrolKutusu(kontroller),
+        if (duzeltme != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(_duzeltmeMetni(duzeltme), style: const TextStyle(color: Colors.lightBlueAccent, fontSize: 12)),
+          ),
         if (yapildi) ...[
           if (d['piyasaUyarisi'] != null)
             Padding(
@@ -1203,8 +1370,17 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
               child: Text('⚠️ ${d['piyasaUyarisi']}',
                   style: const TextStyle(color: Colors.orangeAccent, fontSize: 12, fontWeight: FontWeight.w600)),
             ),
-          satir(d['piyasaKaynagi'] == 'ai_estimate' ? 'Piyasa değeri (yapay zekâ tahmini)' : 'Piyasa değeri (emsal ilanlar)',
-              _tl(d['piyasaDegeri']), alt: d['piyasaYontemi']?.toString()),
+          satir(kaynakEtiketi, _tl(d['piyasaDegeri']), alt: d['piyasaYontemi']?.toString()),
+          if (duzeltilebilir)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: _isProcessing ? null : _piyasaDegeriDuzelt,
+                icon: const Icon(Icons.edit, size: 16),
+                label: const Text('Piyasa değerini düzelt'),
+              ),
+            ),
+          if (kaynaklar.isNotEmpty) _kaynakListesi(kaynaklar),
           for (final a in duzeltmeler)
             satir('${a['baslik']} (${_yuzde(a['yuzde'])})', '${(a['tutar'] as num? ?? 0) >= 0 ? '+' : ''}${_tl(a['tutar'])}',
                 alt: a['aciklama']?.toString()),

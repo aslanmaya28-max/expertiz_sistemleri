@@ -38,6 +38,14 @@ class YerimebakExpertizApiService {
     return _post('/expertiz/admin/reports/$reportId/reanalyze');
   }
 
+  /// Onaydan önce temiz piyasa değerini düzeltir; value null ise düzeltme kaldırılır.
+  Future<Map<String, dynamic>> setMarketValue(String reportId, int? value, {String? note}) {
+    return _post(
+      '/expertiz/admin/reports/$reportId/market-value',
+      body: {'value': value, 'note': note},
+    );
+  }
+
   Future<Map<String, dynamic>> rejectReport(String reportId, String reason) {
     return _post(
       '/expertiz/admin/reports/$reportId/reject',

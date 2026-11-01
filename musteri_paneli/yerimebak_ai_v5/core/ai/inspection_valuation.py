@@ -766,6 +766,10 @@ def compute_scores(f: InspectionFindings, losses: Dict[str, Any]) -> Dict[str, A
 # ---------------------------------------------------------------------------
 # Piyasa değeri
 # ---------------------------------------------------------------------------
+# Gercek ilanlardan gelen emsal kaynaklari: veritabani ilanlari ve web aramasiyla dogrulanan ilanlar
+COMPARABLE_SOURCES = ("listings", "web_listings")
+
+
 def _base_from_market(market: Dict[str, Any], f: InspectionFindings) -> Dict[str, Any]:
     """Piyasa referansından temiz araç (hasarsız) baz değerini ve km/yıl düzeltmesini çıkarır."""
     market = _dict(market)
@@ -774,11 +778,16 @@ def _base_from_market(market: Dict[str, Any], f: InspectionFindings) -> Dict[str
     source = market.get("source")
     base = None
     method = ""
-    if market.get("found") and source == "listings":
+    if market.get("found") and source in COMPARABLE_SOURCES:
+        web = " (web aramasıyla bulunan, fiyatı kaynak sayfada doğrulanan ilanlar)" if source == "web_listings" else ""
         if clean and int(market.get("clean_count") or 0) >= 3:
-            base, method = clean, "Hasarsız (boyasız/değişensiz) emsal ilanların medyanı"
+            base, method = clean, "Hasarsız (boyasız/değişensiz) emsal ilanların medyanı" + web
         elif median:
-            base, method = median, "Emsal ilanların medyanı (hasarlı olduğu bilinen ilanlar hariç)"
+            base, method = median, "Emsal ilanların medyanı (hasarlı olduğu bilinen ilanlar hariç)" + web
+    elif market.get("found") and source == "admin_manual" and median:
+        ai_value = _num(market.get("ai_value"))
+        base, method = median, ("Admin tarafından kontrol edilip girilen temiz piyasa değeri"
+                                + (f" (yapay zekânın bulduğu: {_fmt_tl(ai_value)})" if ai_value else ""))
     elif market.get("found") and source == "ai_estimate" and median:
         base, method = median, ("Yeterli emsal ilan yok — temiz piyasa değeri yapay zekâ tahminidir, "
                                 "gerçek emsal verisi değildir (düşük güven; admin kontrol etmeli)")
@@ -792,12 +801,12 @@ def _base_from_market(market: Dict[str, Any], f: InspectionFindings) -> Dict[str
     adjustments = []
     ref_km = _num(market.get("reference_median_km"))
     ref_year = _num(market.get("reference_median_year"))
-    if source == "listings" and f.km and ref_km and ref_km > 0:
+    if source in COMPARABLE_SOURCES and f.km and ref_km and ref_km > 0:
         km_pct = max(-10.0, min(10.0, (ref_km - f.km) / 10_000 * 0.8))
         if abs(km_pct) >= 0.3:
             adjustments.append({"baslik": "Kilometre farkı", "yuzde": round(km_pct, 2),
                                 "aciklama": f"Emsal medyan {_fmt_int(ref_km)} km, bu araç {_fmt_int(f.km)} km"})
-    if source == "listings" and f.year and ref_year:
+    if source in COMPARABLE_SOURCES and f.year and ref_year:
         yr_pct = max(-12.0, min(12.0, (f.year - ref_year) * 4.0))
         if abs(yr_pct) >= 0.3:
             adjustments.append({"baslik": "Model yılı farkı", "yuzde": round(yr_pct, 2),
@@ -890,7 +899,7 @@ def evaluate(
             i.tutar = base_value * i.yuzde / 100.0
         ai_value = base_value - loss_tl
         confidence = base_info["confidence"]
-        if base_info["source"] != "listings":
+        if base_info["source"] not in COMPARABLE_SOURCES + ("admin_manual",):
             confidence = min(confidence, 25)
         if base_info["stale"]:
             confidence = min(confidence, 60)

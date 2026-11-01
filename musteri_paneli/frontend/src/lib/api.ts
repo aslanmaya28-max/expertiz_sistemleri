@@ -279,7 +279,8 @@ export interface CustomerAiAnalysis {
     min: number;
     max: number;
     guncelGun?: number;
-    emsaller: { price?: number; km?: number; year?: number; title?: string; condition?: string }[];
+    kaynak?: string;
+    emsaller: { price?: number; km?: number; year?: number; title?: string; condition?: string; site?: string; url?: string }[];
   };
   likidite?: { liquidity_score?: number; estimated_days_to_sell?: number };
 }
@@ -347,6 +348,7 @@ export interface CustomerProfileResponse {
 export interface VehicleInput {
   brand?: string;
   model?: string;
+  package?: string;
   year?: number;
   km?: number;
   price?: number;

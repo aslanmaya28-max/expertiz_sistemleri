@@ -130,6 +130,7 @@ class SupabaseBridge:
 
         vehicle_snapshot = data.get("vehicle_snapshot", {})
         tam_rapor = data.get("tam_rapor", {})
+        override = data.get("admin_market_override")
 
         vehicle_snapshot = vehicle_snapshot if isinstance(vehicle_snapshot, dict) else {}
         tam_rapor = tam_rapor if isinstance(tam_rapor, dict) else {}
@@ -149,6 +150,11 @@ class SupabaseBridge:
             "plaka": report.get("plaka") or vehicle_snapshot.get("plaka", ""),
             "firma": report.get("firma") or report.get("ekspertiz_firmasi", ""),
             "location": vehicle_snapshot.get("location", ""),
+            # Musterinin talep formundaki bilgiler; personel raporu varsa onunkiler oncelikli
+            "paket": vehicle_snapshot.get("paket") or "",
+            "admin_market_override": override if isinstance(override, dict) else None,
+            "yakit": vehicle_snapshot.get("yakit") or "",
+            "sanziman": vehicle_snapshot.get("sanziman") or vehicle_snapshot.get("vites") or "",
         }
 
         if tam_rapor and isinstance(tam_rapor, dict):
@@ -170,9 +176,9 @@ class SupabaseBridge:
                     vehicle_info["model"] = adim1["model"]
                 vehicle_info["yil"] = adim1.get("yil", vehicle_info["year"])
                 vehicle_info["km"] = adim1.get("guncelKm", vehicle_info["km"])
-                vehicle_info["paket"] = adim1.get("paket", "")
-                vehicle_info["yakit"] = adim1.get("yakit") or adim1.get("yakitTuru", "")
-                vehicle_info["sanziman"] = adim1.get("sanziman") or vehicle_snapshot.get("vites") or ""
+                vehicle_info["paket"] = adim1.get("paket") or vehicle_info["paket"]
+                vehicle_info["yakit"] = adim1.get("yakit") or adim1.get("yakitTuru") or vehicle_info["yakit"]
+                vehicle_info["sanziman"] = adim1.get("sanziman") or vehicle_info["sanziman"]
                 vehicle_info["renk"] = adim1.get("renk", "")
 
             adim5 = tam_rapor.get("adim5", {})
