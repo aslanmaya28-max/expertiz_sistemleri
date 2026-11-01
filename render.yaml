@@ -1,0 +1,91 @@
+# Render Blueprint: YerimeBak API (api.yerimebak.com.tr)
+# Render panelinde: New + > Blueprint > bu depo. Gizli degerler (sync: false) kurulumda sorulur.
+# Rehber: musteri_paneli/docs/CANLIYA_CIKIS.md
+services:
+  - type: web
+    name: yerimebak-api
+    runtime: docker
+    rootDir: musteri_paneli
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: frankfurt
+    # Ucretsiz plan istek gelmeyince uyur; arka plan AI isleyicisi icin en az starter
+    plan: starter
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      # --- Zorunlu gizli degerler
+      - key: DATABASE_URL          # Supabase > Connect > Session pooler (port 5432) adresi
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: MEDIA_SIGNING_KEY
+        generateValue: true
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: INITIAL_ADMIN_EMAIL   # ilk girisden sonra silinebilir
+        sync: false
+      - key: INITIAL_ADMIN_PASSWORD
+        sync: false
+      # --- Dosyalar: Supabase Storage (Render diski kalici degil)
+      - key: MEDIA_STORAGE
+        value: supabase
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_MEDIA_BUCKET
+        value: report-media
+      # --- Odeme (PayTR)
+      - key: PAYTR_MERCHANT_ID
+        sync: false
+      - key: PAYTR_MERCHANT_KEY
+        sync: false
+      - key: PAYTR_MERCHANT_SALT
+        sync: false
+      - key: PAYTR_TEST_MODE
+        value: "1"                 # magaza canliya alininca 0
+      - key: PAYMENT_SIMULATION
+        value: "false"
+      - key: PAYTR_OK_URL
+        value: https://www.yerimebak.com.tr/odeme/sonuc?durum=basarili
+      - key: PAYTR_FAIL_URL
+        value: https://www.yerimebak.com.tr/odeme/sonuc?durum=basarisiz
+      # --- E-posta
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_SECURITY
+        value: starttls
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: ADMIN_NOTIFY_EMAIL
+        sync: false
+      # --- Adresler
+      - key: PUBLIC_SITE_URL
+        value: https://www.yerimebak.com.tr
+      - key: ADMIN_SITE_URL
+        value: https://admin.yerimebak.com.tr
+      - key: CORS_ORIGINS
+        value: https://www.yerimebak.com.tr,https://yerimebak.com.tr,https://admin.yerimebak.com.tr
+      # Render onunde Cloudflare var: gercek istemci IP'si bu baslikta
+      - key: CLIENT_IP_HEADERS
+        value: cf-connecting-ip,true-client-ip,x-forwarded-for
+      # --- Kapasite: Supabase session pooler baglanti sinirina gore (2 x 5 = 10 baglanti)
+      - key: WEB_CONCURRENCY
+        value: "2"
+      - key: DB_POOL_MAX
+        value: "5"
+      # --- Yapay zeka degerlemesi
+      - key: WEB_PRICE_MODEL
+        value: deepseek/deepseek-v4.1-flash-1017
+      - key: AI_PRICE_MODEL
+        value: deepseek/deepseek-v4.1-flash-1017
+      - key: SENTRY_DSN
+        sync: false

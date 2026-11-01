@@ -1,187 +1,106 @@
-# YerimeBak — Canlıya Çıkış Rehberi (www.yerimebak.com.tr)
+# YerimeBak — Canlıya Çıkış Rehberi
 
-Müşteri sitesi ve admin paneli **Vercel**'de çalışır. API, veritabanı ve kazıyıcılar ise **bir sunucuda** Docker Compose ile çalışır. Sunucuda dışarıya yalnızca nginx (80/443) açılır.
+Sunucu kiralamak, Docker veya nginx kurmak gerekmez. Üç hizmet kullanılır, üçü de GitHub'a bağlıdır ve `main` dalına her gönderimde kendiliğinden güncellenir.
 
-| Adres | Nerede | Servis |
+| Adres | Hizmet | Ne çalışır |
 |---|---|---|
-| https://www.yerimebak.com.tr | Vercel | Müşteri sitesi (Next.js) — ana adres |
-| https://yerimebak.com.tr | Vercel | → www yönlendirmesi |
-| https://admin.yerimebak.com.tr | Vercel | Flutter admin / personel paneli |
-| https://api.yerimebak.com.tr | Sunucu | FastAPI + PostgreSQL + Redis + kazıyıcılar |
+| https://www.yerimebak.com.tr | Vercel | Müşteri sitesi (Next.js) |
+| https://admin.yerimebak.com.tr | Vercel | Admin ve personel paneli (Flutter) |
+| https://api.yerimebak.com.tr | Render | API ve yapay zekâ değerlemesi |
+| — | Supabase | Veritabanı (PostgreSQL) ve dosyalar (fotoğraf, kurumsal rapor) |
 
-> İstenirse her şey tek sunucuda da çalışır: `.env` içine `COMPOSE_PROFILES=tek-sunucu` ve `NGINX_CONF=nginx.conf` yazılır, sertifika `tek` moduyla alınır (bkz. 3).
+**Aylık maliyet (yaklaşık):**
+- Render Starter: 7 $
+- Supabase: test için ücretsiz, canlıda Pro 25 $ (ücretsiz plan bir hafta işlem olmazsa projeyi duraklatır ve otomatik yedek almaz)
+- Vercel Pro: 20 $ (ücretsiz plan ticari kullanıma izin vermez)
+- OpenRouter: rapor başına yaklaşık 0,03 $
 
-## 1. DNS (METUnic → yerimebak.com.tr → DNS Kayıtları)
+## 1. Supabase
 
-| Ad | Tür | Değer |
-|---|---|---|
-| `@` | A | Vercel'in verdiği IP (Vercel → Project → Domains) |
-| `www` | CNAME | Vercel'in verdiği CNAME |
-| `admin` | CNAME | Vercel'in verdiği CNAME |
-| `api` | A | API sunucusunun IP adresi |
+1. https://supabase.com → **New project**. Bölge: **Central EU (Frankfurt)**. Veritabanı şifresini güçlü seçip bir yere kaydedin.
+2. **Connect** → **Session pooler** adresini kopyalayın (port **5432**). Bu, Render'daki `DATABASE_URL` değeri olacak. Şifre yerine 1. adımdaki şifreyi yazın, sonuna `?sslmode=require` ekleyin:
+   ```
+   postgresql://postgres.<proje>:<şifre>@aws-0-eu-central-1.pooler.supabase.com:5432/postgres?sslmode=require
+   ```
+   > **Transaction pooler (6543) kullanmayın.** Arka plandaki yapay zekâ işleyicisi oturum kilidi kullanıyor, transaction pooler bunu bozar.
+3. **Storage** → **New bucket**. Ad: `report-media`. **Public bucket kapalı** kalsın (dosyalar yalnızca API'nin imzalı bağlantısıyla açılır).
+4. **Project Settings → API** bölümünden **Project URL** (`SUPABASE_URL`) ve **service_role** anahtarını (`SUPABASE_SERVICE_ROLE_KEY`) alın. service_role anahtarı tam yetkilidir: yalnızca Render'a girilir, sitede ya da kodda kullanılmaz.
 
-## 1b. Vercel projeleri
+Tablolar uygulama ilk açıldığında kendiliğinden oluşur.
+
+## 2. Render (API)
+
+1. https://render.com → GitHub ile giriş → **New + → Blueprint** → `expertiz_sistemleri` deposu. Render kök klasördeki `render.yaml` dosyasını okur.
+2. Sorulan gizli değerleri girin:
+
+| Değişken | Nereden |
+|---|---|
+| `DATABASE_URL` | Supabase session pooler adresi (1.2) |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase API ayarları (1.4) |
+| `OPENROUTER_API_KEY` | https://openrouter.ai/keys |
+| `INITIAL_ADMIN_EMAIL`, `INITIAL_ADMIN_PASSWORD` | İlk admin hesabı (en az 8 karakter, büyük + küçük harf + rakam) |
+| `PAYTR_MERCHANT_ID/KEY/SALT` | PayTR mağaza paneli → Bilgi |
+| `SMTP_HOST/USER/PASSWORD/FROM`, `ADMIN_NOTIFY_EMAIL` | E-posta hizmeti (ör. kurumsal e-posta, Brevo) |
+| `SENTRY_DSN` | İsteğe bağlı, hata izleme |
+
+`SECRET_KEY` ve `MEDIA_SIGNING_KEY` Render tarafından rastgele üretilir.
+
+3. İlk yayın bitince kontrol edin: `https://yerimebak-api.onrender.com/health` → `{"status":"ok"}`. Kayıtlarda (Logs) `Ilk admin hesabi olusturuldu` satırı görülür.
+4. **Settings → Custom Domains** → `api.yerimebak.com.tr` ekleyin. Render'ın gösterdiği CNAME değerini DNS'e girin (bkz. 4).
+
+İlk admin hesabı oluştuktan sonra panelden şifreyi değiştirin, `INITIAL_ADMIN_*` değişkenlerini Render'dan silin.
+
+## 3. Vercel (site ve panel)
 
 | Proje | Kök klasör | Ortam değişkenleri |
 |---|---|---|
 | `yerimebak-site` | `musteri_paneli/frontend` | `NEXT_PUBLIC_API_BASE_URL=https://api.yerimebak.com.tr/api/v1`, `API_BACKEND_URL=https://api.yerimebak.com.tr`, `COMPANY_*` |
 | `yerimebak-admin` | `expertiz_paneli` | `YERIMEBAK_API_BASE_URL=https://api.yerimebak.com.tr/api/v1` |
 
-- **Admin projesi:** Flutter SDK'yı derleme sırasında kendisi indirir (`scripts/vercel_build.sh`, ayarlar `vercel.json`'da).
-- **Otomatik yayın:** Her iki proje de GitHub'a bağlı; `main` dalına her push otomatik yayınlanır.
-- **Değişkenler:** `NEXT_PUBLIC_*` ve `YERIMEBAK_API_BASE_URL` derlemeye gömülür. Değiştirince yeniden yayınlamak (Redeploy) gerekir.
+Bu değişkenler derlemeye gömülür; değiştirirseniz **Redeploy** gerekir.
 
-## 1c. API sunucusu
+## 4. DNS (METUnic → yerimebak.com.tr → DNS Kayıtları)
 
-- Ubuntu 22.04+ / Debian 12, en az 2 vCPU · 4 GB RAM · 40 GB disk (ör. Hetzner CX22).
-- Docker Engine + Compose eklentisi kurulu olmalı.
-- Güvenlik duvarında yalnızca 22, 80 ve 443 açık olmalı.
+| Ad | Tür | Değer |
+|---|---|---|
+| `@` | A | Vercel'in verdiği IP |
+| `www` | CNAME | Vercel'in verdiği değer |
+| `admin` | CNAME | Vercel'in verdiği değer |
+| `api` | CNAME | Render'ın verdiği değer (ör. `yerimebak-api.onrender.com`) |
 
-## 2. Ortam değişkenleri
+SSL sertifikalarını Vercel ve Render kendisi alır ve yeniler.
 
-```sh
-cd musteri_paneli
-cp .env.example .env
-```
+## 5. PayTR
 
-Doldurulması **zorunlu** alanlar:
+- Mağaza paneli → Ayarlar → **Bildirim URL**: `https://api.yerimebak.com.tr/api/v1/payments/paytr/callback`
+- Mağaza canlıya alınana kadar `PAYTR_TEST_MODE=1`, sonra Render'da `0` yapın.
+- İade için mağazada iade yetkisi açık olmalı.
 
-| Değişken | Açıklama |
-|---|---|
-| `POSTGRES_PASSWORD`, `DATABASE_URL` | Güçlü, rastgele şifre (iki yerde aynı) |
-| `SECRET_KEY` | `openssl rand -hex 32` |
-| `INITIAL_ADMIN_EMAIL`, `INITIAL_ADMIN_PASSWORD` | İlk admin hesabı (bkz. 5) |
-| `PAYTR_MERCHANT_ID/KEY/SALT` | PayTR mağaza paneli → Bilgi |
-| `PAYMENT_SIMULATION=false` | Canlıda **mutlaka** false |
-| `PAYTR_TEST_MODE=0` | PayTR mağazası canlı onaylandıktan sonra 0 |
-| `SMTP_*`, `SMTP_FROM` | E-posta doğrulama, şifre sıfırlama, makbuz ve bildirimler için |
-| `ADMIN_NOTIFY_EMAIL` | Yeni ödenmiş talep bildirimlerinin gideceği adres |
-| `COMPANY_*` | Şirket unvanı, adres, vergi dairesi/no, MERSİS, telefon, KEP — yasal sayfalarda ve mesafeli satış sözleşmesinde gösterilir |
+## 6. Yayından sonra kontrol listesi
 
-İsteğe bağlı: `SENTRY_DSN` (hata izleme), `OFFSITE_PATH` + `RCLONE_CONFIG_OFFSITE_*` (sunucu dışı yedek).
+- [ ] Müşteri olarak kayıt ol, e-postayı doğrula.
+- [ ] İlan linkiyle ekspertiz talebi aç, PayTR test kartıyla öde.
+- [ ] Admin: talebi personele ata.
+- [ ] Personel: raporu doldur, fotoğraf ve kurumsal PDF yükle, gönder.
+- [ ] Admin → Raporlar: yapay zekâ değerlemesi, kaynak ilanlar ve "kontrol gerekli" uyarıları geliyor mu; gerekiyorsa piyasa değerini düzelt; onayla.
+- [ ] Müşteri panelinde 4 rapor ve fotoğraflar açılıyor mu.
+- [ ] Render'ı yeniden başlat (Manual Deploy) → fotoğraflar hâlâ açılıyor mu (Supabase Storage çalışıyor demektir).
+- [ ] İptal / iade akışını dene.
+- [ ] Render Logs'ta hız sınırı kayıtlarındaki IP'ler gerçek ziyaretçi IP'si mi (değilse `CLIENT_IP_HEADERS` ayarı).
 
-> `COMPANY_*` değerleri müşteri sitesinde gösterilir. Vercel kullanılıyorsa bunlar Vercel projesine (`yerimebak-site`) girilir, sunucu `.env`'ine değil.
+## 7. Yedekleme
 
-## 3. İlk kurulum ve SSL
+- Supabase Pro günlük yedek alır (7 gün geri dönüş).
+- Ek güvence için ayda bir yerel döküm: `pg_dump "<DATABASE_URL>" | gzip > yedek-$(date +%F).sql.gz`
 
-nginx sertifika olmadan açılamaz. Bu yüzden ilk sertifika betikle alınır:
-
-```sh
-docker compose build
-sh scripts/ilk_sertifika.sh info@yerimebak.com.tr api   # Vercel kurulumu: yalnızca api.yerimebak.com.tr
-# sh scripts/ilk_sertifika.sh info@yerimebak.com.tr tek  # her şey tek sunucuda
-```
-
-Betik şunları yapar:
-
-1. nginx'i durdurur.
-2. certbot'u standalone modda çalıştırıp sertifika alır (`api` modunda yalnızca api.yerimebak.com.tr).
-3. Tüm servisleri başlatır.
-
-Yenileme `certbot` servisiyle otomatik yapılır (12 saatte bir kontrol). nginx 6 saatte bir yeniden yüklenir.
-
-Kontrol:
-
-```sh
-docker compose ps
-curl https://api.yerimebak.com.tr/health
-curl -I https://www.yerimebak.com.tr
-```
-
-## 4. PayTR ayarları
-
-PayTR Mağaza Paneli → Ayarlar:
-
-- **Bildirim URL**: `https://api.yerimebak.com.tr/api/v1/payments/paytr/callback`
-- Başarılı / başarısız dönüş adresleri `.env` içindeki `PAYTR_OK_URL` / `PAYTR_FAIL_URL` ile aynı olmalı.
-- İade (admin → İptal / İade ve kredi paketi iadesi) PayTR iade API'sini kullanır. Mağazada iade yetkisi açık olmalı.
-
-## 5. İlk admin hesabı
-
-`.env` içine admin e-postası ve şifresi yazılır. Uygulama açılırken bu e-postada hesap yoksa admin hesabını oluşturur:
-
-```
-INITIAL_ADMIN_EMAIL=admin-epostaniz@ornek.com
-INITIAL_ADMIN_PASSWORD=<en az 8 karakter, büyük + küçük harf + rakam>
-```
-
-`docker compose up -d app` sonrası https://admin.yerimebak.com.tr adresinden giriş yapılır. Log'da `Ilk admin hesabi olusturuldu` satırı görülür.
-
-Hesap oluştuktan sonra:
-
-- Şifreyi panelden (Ayarlar → Şifre Değiştir) değiştirin.
-- İki satırı `.env` içinden silin. Hesap silinmez.
-- Var olan bir hesabın şifresi bu yolla değişmez.
-
-Sonraki adımlar https://admin.yerimebak.com.tr üzerinden yapılır:
-
-- **Personel**: yeni personel eklenir. İlk girişte şifresini değiştirmesi istenir.
-- **Fiyatlandırma**: kurumsal ekspertiz firmaları ve fiyatları girilir.
-- **Piyasa Verisi**: kazıyıcılar (arabam / Borusan) buradan başlatılıp durdurulur. Kazıyıcılar otomatik başlamaz.
-
-## 6. Yedekleme
-
-- `backup` servisi her gün PostgreSQL dökümü alır. Dökümler `./data/backups` altında 14 gün saklanır.
-- Sunucu dışı kopya için `.env` içinde rclone ayarlarını doldurup şunu çalıştırın:
-  ```sh
-  docker compose --profile offsite up -d offsite-backup
-  ```
-  Bu servis saatte bir veritabanı yedeklerini ve medya dosyalarını uzak depoya eşitler.
-- Geri yükleme:
-  ```sh
-  gunzip -c data/backups/<dosya>.sql.gz | docker compose exec -T postgres psql -U "$POSTGRES_USER" "$POSTGRES_DB"
-  ```
-
-## 7. Güncelleme
-
-```sh
-git pull
-docker compose up -d --build
-```
-
-Veritabanı şeması uygulama açılışında otomatik güncellenir.
-
-## 8. Kod dışı yapılacaklar (canlı öncesi)
+## 8. Kod dışı yapılacaklar
 
 - [ ] Yasal metinler (KVKK, gizlilik, kullanım koşulları, mesafeli satış, iptal/iade) avukata kontrol ettirilmeli.
-- [ ] e-Arşiv fatura için bir entegratör (GİB özel entegratör) seçilmeli. O zamana kadar Finans → **Fatura CSV** dökümü muhasebeye verilir.
-- [ ] PayTR mağaza başvurusu canlıya alınmalı. Gerçek kartla küçük tutarlı ödeme + iade testi yapılmalı.
-- [ ] SMTP hesabı (ör. kurumsal e-posta / Brevo / SES) açılmalı. SPF ve DKIM kayıtları eklenmeli.
+- [ ] e-Arşiv fatura entegratörü seçilmeli. O zamana kadar Finans → **Fatura CSV** dökümü muhasebeye verilir.
+- [ ] PayTR mağazası canlıya alınmalı. Gerçek kartla küçük tutarlı ödeme ve iade denenmeli.
+- [ ] SMTP hesabında SPF ve DKIM kayıtları eklenmeli.
 - [ ] Kurumsal ekspertiz firmalarının fiyatları admin panelinden girilmeli.
-- [ ] SMS ile doğrulama istenirse bir SMS sağlayıcısı (Netgsm, İleti Merkezi vb.) seçilmeli. Şu an doğrulama e-posta ile yapılıyor.
 
-## 9. Kapasite ve hız
+## Eski kurulum
 
-Yük testi k6 ile yapıldı: 20.813 ilanlık veritabanı, 4 vCPU. Yük aracı da aynı makinede çalıştı.
-
-**Senaryo:** Kullanıcı ortalama 5 saniyede bir tıklıyor. İsteklerin dağılımı:
-- %40 vitrin sayfası
-- %20 marka filtresi
-- %20 rastgele araç detayı
-- %20 istatistik / marka listesi
-
-| Eşzamanlı kullanıcı | İstek/sn | Ortanca | %95 | Hata |
-|---|---|---|---|---|
-| 5.000 | 818 | 0,7 ms | 8 ms | %0 |
-| 10.000 | 1.327 | 102 ms | 2,3 sn | %0 (makine dolu; yük aracı tek başına 1 çekirdek kullanıyor) |
-
-Optimizasyon öncesi (tek işlem, önbelleksiz) 1.000 kullanıcıda ortanca yanıt 2 saniyeydi.
-
-**Hızı sağlayanlar:**
-- **nginx önbelleği:** Herkese açık vitrin istekleri 30 saniye önbellekte tutulur, Python'a gitmez. Giriş yapmış kullanıcıda önbellek kapalıdır.
-- **Redis önbelleği:** Araç detayı (60 sn), liste (120 sn), istatistik ve marka listesi (300 sn).
-- **Çoklu çalışan:** `WEB_CONCURRENCY` ayarı ve uvloop. Güvenlik katmanı saf ASGI'ye çevrildi. İstek başına işlemci maliyeti yaklaşık 3 kat düştü.
-- **Tek AI taraması:** Çok işlemde kurtarma taramasını PostgreSQL kilidiyle yalnızca bir işlem yapar.
-- **Görsel optimizasyonu kapalı:** Vercel'de ilan görselleri doğrudan kaynak CDN'den gelir; kota/ücret aşımı olmaz.
-
-**Sunucu boyutu önerisi:**
-
-| Beklenen eşzamanlı kullanıcı | Sunucu (Hetzner) | Ayar |
-|---|---|---|
-| ~1.000'e kadar | CX23 (2 vCPU, 4 GB) | `WEB_CONCURRENCY=2` |
-| ~5.000 | 4 vCPU / 8 GB (CPX31 veya CCX13) | `WEB_CONCURRENCY=4` |
-| ~10.000 | 8 vCPU / 16 GB (CPX51 veya CCX33) | `WEB_CONCURRENCY=8` |
-
-- Hetzner'de sunucu büyütme (Rescale) birkaç dakikalık kesintiyle yapılır. Veriler korunur.
-- Kazıyıcılar Chromium çalıştırır ve yoğun işlemci kullanır. Yoğun saatlerde çalıştırmayın veya ayrı küçük bir sunucuya taşıyın.
-- Vercel'in ücretsiz Hobby planı ticari kullanıma izin vermez. Canlıda **Pro** plan gerekir.
+Docker Compose, nginx ve kazıyıcılı eski kurulum `git tag arsiv/docker-surum` etiketinde duruyor.

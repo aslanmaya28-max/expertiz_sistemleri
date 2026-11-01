@@ -6,6 +6,7 @@ from pydantic import BaseModel, field_validator
 from yerimebak_ai_v5.core.database_config import DatabaseConfig
 from yerimebak_ai_v5.services.auth_service import get_auth_service, _create_jwt
 from yerimebak_ai_v5.core.supabase_auth import validate_supabase_jwt
+from yerimebak_ai_v5.core.client_ip import client_ip as _client_ip
 
 router = APIRouter()
 
@@ -370,7 +371,7 @@ async def register(request: RegisterRequest, http_request: Request) -> Dict[str,
 
     account_service.record_consents(
         result["user"]["id"], ["terms_of_use", "kvkk_notice"],
-        ip=http_request.headers.get("x-real-ip") or (http_request.client.host if http_request.client else None),
+        ip=_client_ip(http_request.headers, http_request.client.host if http_request.client else None),
     )
     return result
 

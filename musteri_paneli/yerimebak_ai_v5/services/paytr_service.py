@@ -184,15 +184,10 @@ def verify_callback(form: Dict[str, Any]) -> bool:
 
 
 def client_ip(headers: Dict[str, str], fallback: Optional[str]) -> str:
-    """PayTR musterinin gercek IP'sini ister; nginx X-Real-IP (Cloudflare'den) iletir."""
-    for key in ("x-real-ip", "cf-connecting-ip"):
-        value = headers.get(key)
-        if value:
-            return value.split(",")[0].strip()
-    forwarded = headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return fallback or "127.0.0.1"
+    """PayTR musterinin gercek IP'sini ister (bkz. core/client_ip.py)."""
+    from yerimebak_ai_v5.core.client_ip import client_ip as _client_ip
+
+    return _client_ip(headers, fallback)
 
 
 def basket_line(name: str, price_tl: float, qty: int = 1) -> Tuple[str, float, int]:

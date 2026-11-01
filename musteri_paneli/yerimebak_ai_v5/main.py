@@ -44,12 +44,10 @@ _RATE_LIMIT_MAX_KEYS = 50_000
 
 
 def _rate_limit_key(request: Request) -> str:
-    """Client IP bazli rate limit anahtari.
+    """Client IP bazli rate limit anahtari (vekil basligi: core/client_ip.py)."""
+    from yerimebak_ai_v5.core.client_ip import client_ip as _client_ip
 
-    X-Real-IP nginx tarafindan yazilir (istemci degistiremez). X-Forwarded-For'un
-    ilk degeri istemcinin gonderdigi sahte bir deger olabilecegi icin kullanilmaz.
-    """
-    client_ip = request.headers.get("X-Real-IP") or (request.client.host if request.client else "unknown")
+    client_ip = _client_ip(request.headers, request.client.host if request.client else "unknown")
     return f"rl:{client_ip}:{request.scope.get('path', '')}"
 
 # Asil hiz siniri nginx'tedir (tum calisanlar icin ortak). Bu ikinci savunma hattidir;
@@ -162,6 +160,10 @@ app.add_middleware(
         "yerimebak.com.tr",
         "app.yerimebak.com.tr",
         "api.yerimebak.com.tr",
+        # Render'in verdigi adres (saglik kontrolu, ilk kurulum)
+        "*.onrender.com",
+        # Ek alan adlari: EXTRA_ALLOWED_HOSTS=ornek.com,*.ornek.com
+        *[h.strip() for h in os.getenv("EXTRA_ALLOWED_HOSTS", "").split(",") if h.strip()],
     ],
 )
 
