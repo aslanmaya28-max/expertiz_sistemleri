@@ -20,9 +20,10 @@ Görev ve sonuç dosyaları depoya girmez (`.gitignore`). Yalnızca bu README, �
 
 ```markdown
 # <Başlık>
-Durum: bekliyor        <!-- bekliyor | calisiyor | bitti | iptal -->
+Durum: bekliyor        <!-- bekliyor | calisiyor | bitti | iptal | test-basarisiz | hata -->
 Gönderen: Claude | Codex
 Dal: degerleme-web-kaynak   <!-- görevin başlayacağı dal -->
+Test: <komut>              <!-- isteğe bağlı; çalışma kopyasının kökünden çalışır -->
 
 ## Amaç
 ## Bağlam (ilgili dosyalar, kararlar)
@@ -31,6 +32,8 @@ Dal: degerleme-web-kaynak   <!-- görevin başlayacağı dal -->
 ## Yapma (sınırlar)
 ## Teslim
 ```
+
+`Test:` satırı yoksa tüm Python test paketi (`musteri_paneli/tests`) çalışır.
 
 ## Claude → Codex
 
@@ -45,6 +48,14 @@ Betik:
 3. Codex'in son mesajını `codex_sonuc/<ad>.md` dosyasına, tüm akışı `log/` altına yazar.
 
 Codex işini `codex/<ad>` dalına commit eder. Claude farkı inceler ve uygunsa kendi dalına birleştirir. Codex `main`'e ya da başka bir dala dokunmaz, `push` yapmaz.
+
+### Test kapısı
+
+Codex teslimden önce testleri çalıştırır; başarısızlık varsa nedenini bulup düzeltir. Testi gevşetmez, atlamaz veya silmez; testler geçince Türkçe mesajla commit eder. Çalıştıramadığı testi açıkça yazar ve 'bitti' demez.
+
+Betik testleri tekrar çalıştırır ve commit edilmemiş değişiklik kalmadığını denetler. Kapı geçilmezse sorunu Codex'e geri gönderir; en fazla 3 tur çalışır (`KOPRU_TUR` ile değişir). Tur sınırında kapı geçilmezse durum `test-basarisiz`, Codex hata koduyla çıkarsa `hata` olur.
+
+Sonuç dosyasına **Köprü test kapısı** bölümü eklenir: sonuç, tur sayısı, test komutu ve son test çıktısının yolu. Test çıktıları `kopru/log/` altındadır.
 
 ## Codex → Claude
 
