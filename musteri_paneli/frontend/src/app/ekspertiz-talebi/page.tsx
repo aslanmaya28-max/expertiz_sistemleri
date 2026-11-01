@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/kancalar/yetkiKullan";
 import { ILLER } from "@/lib/iller";
 import { ekspertizOnDoldurma } from "@/lib/ekspertizOnDoldurma";
+import { AramaliSecim, SayiAlani } from "@/bilesenler/AracFormAlanlari";
+import { MARKALAR, modelleri } from "@/lib/aracFormu";
 import { uyelikAdresi } from "@/lib/uyelikYonlendirme";
 import {
   createExpertizRequest,
@@ -111,6 +113,7 @@ function EkspertizTalebiIcerigi() {
 
   const set = (key: keyof Arac) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setArac((a) => ({ ...a, [key]: e.target.value }));
+  const setDeger = (key: keyof Arac) => (deger: string) => setArac((a) => ({ ...a, [key]: deger }));
 
   function ilerle() {
     setError(null);
@@ -239,12 +242,12 @@ function EkspertizTalebiIcerigi() {
                 <input value={arac.link} onChange={set("link")} disabled={busy} className="mt-2 w-full border border-kenarlik-acik rounded-lg px-3 py-2" placeholder="https://www.sahibinden.com/ilan/..." />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="block"><span className={lbl}>Marka (zorunlu)</span><input required value={arac.brand} onChange={set("brand")} className={input} placeholder="Renault" /></label>
-                <label className="block"><span className={lbl}>Model (zorunlu)</span><input required value={arac.model} onChange={set("model")} className={input} placeholder="Clio" /></label>
+                <label className="block"><span className={lbl}>Marka (zorunlu)</span><AramaliSecim required value={arac.brand} onChange={setDeger("brand")} secenekler={MARKALAR} className={input} placeholder="Marka yazın veya seçin" /></label>
+                <label className="block"><span className={lbl}>Model (zorunlu)</span><AramaliSecim required value={arac.model} onChange={setDeger("model")} secenekler={modelleri(arac.brand)} className={input} placeholder={arac.brand ? "Model yazın veya seçin" : "Önce marka"} /></label>
                 <label className="block sm:col-span-2"><span className={lbl}>Motor / paket (ilandaki gibi)</span><input value={arac.package} onChange={set("package")} className={input} placeholder="1.0 TCe Touch, 1.3 Multijet Urban" /></label>
-                <label className="block"><span className={lbl}>Model yılı</span><input type="number" value={arac.year} onChange={set("year")} className={input} placeholder="2021" /></label>
-                <label className="block"><span className={lbl}>Kilometre</span><input type="number" value={arac.km} onChange={set("km")} className={input} placeholder="65000" /></label>
-                <label className="block"><span className={lbl}>İlan fiyatı (₺)</span><input type="number" value={arac.price} onChange={set("price")} className={input} placeholder="950000" /></label>
+                <label className="block"><span className={lbl}>Model yılı</span><SayiAlani binlik={false} enFazlaHane={4} value={arac.year} onChange={setDeger("year")} className={input} placeholder="2021" /></label>
+                <label className="block"><span className={lbl}>Kilometre</span><SayiAlani enFazlaHane={7} value={arac.km} onChange={setDeger("km")} className={input} placeholder="65.000" /></label>
+                <label className="block"><span className={lbl}>İlan fiyatı (₺)</span><SayiAlani enFazlaHane={10} value={arac.price} onChange={setDeger("price")} className={input} placeholder="950.000" /></label>
                 <label className="block"><span className={lbl}>Plaka</span><input value={arac.plate} onChange={set("plate")} className={input} placeholder="34 ABC 123" /></label>
                 <label className="block"><span className={lbl}>Yakıt</span>
                   <select value={arac.fuel} onChange={set("fuel")} className={input}>
@@ -270,9 +273,9 @@ function EkspertizTalebiIcerigi() {
                   İlandaki boya, değişen ve tramer bilgisini yazarsanız raporda uzmanımızın bulgularıyla karşılaştırırız. İlanda yazmıyorsa boş bırakın.
                 </p>
                 <div className="grid gap-4 sm:grid-cols-3">
-                  <label className="block"><span className={lbl}>Boyalı parça sayısı</span><input type="number" min={0} value={arac.declaredPainted} onChange={set("declaredPainted")} className={input} placeholder="0" /></label>
-                  <label className="block"><span className={lbl}>Değişen parça sayısı</span><input type="number" min={0} value={arac.declaredChanged} onChange={set("declaredChanged")} className={input} placeholder="0" /></label>
-                  <label className="block"><span className={lbl}>Tramer tutarı (₺)</span><input type="number" min={0} value={arac.declaredTramer} onChange={set("declaredTramer")} className={input} placeholder="0" /></label>
+                  <label className="block"><span className={lbl}>Boyalı parça sayısı</span><SayiAlani enFazlaHane={2} value={arac.declaredPainted} onChange={setDeger("declaredPainted")} className={input} placeholder="0" /></label>
+                  <label className="block"><span className={lbl}>Değişen parça sayısı</span><SayiAlani enFazlaHane={2} value={arac.declaredChanged} onChange={setDeger("declaredChanged")} className={input} placeholder="0" /></label>
+                  <label className="block"><span className={lbl}>Tramer tutarı (₺)</span><SayiAlani enFazlaHane={9} value={arac.declaredTramer} onChange={setDeger("declaredTramer")} className={input} placeholder="0" /></label>
                 </div>
               </fieldset>
               <label className="block"><span className={lbl}>Not (satıcı randevusu, özel talep)</span>

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import DegerlemeSonucu from "@/bilesenler/DegerlemeSonucu";
 import { AnalizBekleme } from "@/bilesenler/AkilliAliciBolumleri";
+import { AracSemasi, AramaliSecim, SayiAlani } from "@/bilesenler/AracFormAlanlari";
+import { MARKALAR, degerlemeFormHatasi, modelleri } from "@/lib/aracFormu";
 import { useEffect, useRef, useState } from "react";
 import { notifyCreditsChanged, useAuth } from "@/kancalar/yetkiKullan";
 import {
@@ -18,13 +20,6 @@ import {
   type ValuationPartsResponse,
   type ValuationResult,
 } from "@/lib/api";
-
-const DURUM_RENK: Record<PartStatus, string> = {
-  orijinal: "bg-white text-metin-ikincil border-kenarlik-acik",
-  lokal_boyali: "bg-yellow-50 text-yellow-800 border-yellow-300",
-  boyali: "bg-orange-50 text-orange-800 border-orange-300",
-  degisen: "bg-red-50 text-red-800 border-red-300",
-};
 
 interface Form {
   link: string;
@@ -95,10 +90,20 @@ export default function AracAnalizSayfasi() {
     delete next[originKey(key)];
     return next;
   });
-  const set = (key: keyof Form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const set = (key: keyof Form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setValue(key)(e.target.value);
+  const setValue = (key: keyof Form) => (value: string) => {
     clearOrigin(key);
-    setForm((f) => ({ ...f, [key]: e.target.value }));
+    setForm((f) => ({ ...f, [key]: value }));
   };
+  function parcaDegistir(parca: string, durum: PartStatus) {
+    clearOrigin(`parts.${parca}`);
+    setParts((p) => {
+      const copy = { ...p };
+      if (durum === "orijinal") delete copy[parca];
+      else copy[parca] = durum;
+      return copy;
+    });
+  }
 
   function badge(key: string) {
     const source = origins[originKey(key)];
@@ -171,6 +176,12 @@ export default function AracAnalizSayfasi() {
     setHata(null);
     setSonuc(null);
     try {
+      const formHatasi = degerlemeFormHatasi(form);
+      if (formHatasi) {
+        setHata({ message: formHatasi });
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
       const res = await analyzeValuation({
         request_id: crypto.randomUUID(),
         listing_url: form.link.trim() || undefined,
@@ -191,6 +202,7 @@ export default function AracAnalizSayfasi() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       setHata({ message: err instanceof Error ? err.message : "Analiz başarısız", code: err instanceof ApiError ? err.code : undefined });
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
       analyzeInFlight.current = false;
       setBusy(null);
@@ -281,10 +293,10 @@ export default function AracAnalizSayfasi() {
             <div className="mt-4 grid grid-cols-2 gap-4">
               <div><label className={label}>Paket / motor{badge("package")}</label><input value={form.package} onChange={set("package")} className={input} /></div>
               <div><label className={label}>Şehir{badge("location")}</label><input value={form.location} onChange={set("location")} className={input} /></div>
-              <div><label className={label}>Marka{badge("brand")}</label><input required value={form.brand} onChange={set("brand")} className={input} placeholder="Volkswagen" /></div>
-              <div><label className={label}>Model{badge("model")}</label><input required value={form.model} onChange={set("model")} className={input} placeholder="Passat" /></div>
-              <div><label className={label}>Model yılı{badge("year")}</label><input required type="number" min={1980} value={form.year} onChange={set("year")} className={input} placeholder="2020" /></div>
-              <div><label className={label}>Kilometre{badge("km")}</label><input required type="number" min={0} value={form.km} onChange={set("km")} className={input} placeholder="85000" /></div>
+              <div><label className={label}>Marka{badge("brand")}</label><AramaliSecim required ariaLabel="Marka" value={form.brand} onChange={setValue("brand")} secenekler={MARKALAR} className={input} placeholder="Marka yazın veya seçin" /></div>
+              <div><label className={label}>Model{badge("model")}</label><AramaliSecim required ariaLabel="Model" value={form.model} onChange={setValue("model")} secenekler={modelleri(form.brand)} className={input} placeholder={form.brand ? "Model yazın veya seçin" : "Önce marka"} /></div>
+              <div><label className={label}>Model yılı{badge("year")}</label><SayiAlani required ariaLabel="Model yılı" binlik={false} enFazlaHane={4} value={form.year} onChange={setValue("year")} className={input} placeholder="2020" /></div>
+              <div><label className={label}>Kilometre{badge("km")}</label><SayiAlani required ariaLabel="Kilometre" enFazlaHane={7} value={form.km} onChange={setValue("km")} className={input} placeholder="85.000" /></div>
               <div>
                 <label className={label}>Yakıt{badge("fuel")}</label>
                 <select value={form.fuel} onChange={set("fuel")} className={input}>
@@ -299,46 +311,27 @@ export default function AracAnalizSayfasi() {
                   <option value="">Seçiniz</option><option>Otomatik</option><option>Manuel</option><option>Yarı Otomatik</option>
                 </select>
               </div>
-              <div className="col-span-2"><label className={label}>İlan fiyatı (₺){badge("price")}</label><input required type="number" min={10000} value={form.price} onChange={set("price")} className={input} placeholder="1250000" /></div>
+              <div className="col-span-2"><label className={label}>İlan fiyatı (₺){badge("price")}</label><SayiAlani required ariaLabel="İlan fiyatı" enFazlaHane={10} value={form.price} onChange={setValue("price")} className={input} placeholder="1.250.000" /></div>
             </div>
           </section>
 
           <section className="bg-white rounded-xl border border-kenarlik-acik p-6">
             <h2 className="text-lg font-semibold text-metin-birincil">3. Boya / değişen ve hasar kaydı</h2>
-            <p className="text-sm text-metin-ikincil mt-1">İlandaki ekspertiz bilgisine göre parçaları işaretleyin. Boş bıraktıklarınız orijinal sayılır.</p>
+            <p className="text-sm text-metin-ikincil mt-1">İlandaki ekspertiz bilgisine göre parçaları araç üzerinde işaretleyin. İşaretlemedikleriniz orijinal sayılır.</p>
             {(["painted_count", "changed_count"] as const).map((key) => origins[key] && (
               <p className="mt-2 text-sm" key={key}>{key === "painted_count" ? "Boyalı" : "Değişen"} parça sayısı: {origins[key].deger}{badge(key)}. Hangi parçalar olduğunu aşağıdan kontrol edin.</p>
             ))}
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              {(meta?.parts || []).map((part) => {
-                const value = parts[part.key] || "orijinal";
-                return (
-                  <div key={part.key} className="flex items-center justify-between gap-2 rounded-lg border border-kenarlik-acik px-3 py-2">
-                    <span className="text-sm text-metin-birincil">{part.label}{badge(`parts.${part.key}`)}</span>
-                    <select
-                      aria-label={part.label}
-                      value={value}
-                      onChange={(e) => {
-                        clearOrigin(`parts.${part.key}`);
-                        const next = e.target.value as PartStatus;
-                        setParts((p) => {
-                          const copy = { ...p };
-                          if (next === "orijinal") delete copy[part.key];
-                          else copy[part.key] = next;
-                          return copy;
-                        });
-                      }}
-                      className={`rounded-md border px-2 py-1 text-xs font-medium ${DURUM_RENK[value]}`}
-                    >
-                      {(meta?.statuses || []).map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-                    </select>
-                  </div>
-                );
-              })}
+            <div className="mt-4">
+              <AracSemasi
+                parcalar={parts}
+                etiketler={Object.fromEntries((meta?.parts || []).map((p) => [p.key, p.label]))}
+                onDegistir={parcaDegistir}
+                rozet={(k) => badge(`parts.${k}`)}
+              />
             </div>
             <div className="mt-4 max-w-xs">
               <label className={label}>Tramer / hasar kaydı tutarı (₺){badge("tramer")}</label>
-              <input type="number" min={0} value={form.tramer} onChange={set("tramer")} className={input} placeholder="0" />
+              <SayiAlani ariaLabel="Tramer tutarı" enFazlaHane={9} value={form.tramer} onChange={setValue("tramer")} className={input} placeholder="0" />
             </div>
           </section>
 
