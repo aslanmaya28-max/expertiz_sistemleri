@@ -10,7 +10,6 @@ from typing import Any, Dict, Optional
 from yerimebak_ai_v5.core.infrastructure.database_config import DatabaseConfig
 from yerimebak_ai_v5.services.expertiz_service import _ensure_expertiz_requests_schema, _write_audit
 from yerimebak_ai_v5.services.personnel_service import PERSONNEL_ROLES
-from yerimebak_ai_v5.services.payment_service import PaymentService, TIER_LIMITS
 
 NON_CUSTOMER_ROLES = ("admin",) + tuple(PERSONNEL_ROLES)
 MAX_LIMIT = 500
@@ -29,7 +28,6 @@ def _public_customer(row: Dict[str, Any]) -> Dict[str, Any]:
         "full_name": row.get("full_name") or "",
         "phone": row.get("phone") or "",
         "credits": int(row.get("credits") or 0),
-        "tier": row.get("tier") or "free",
         "is_active": bool(row.get("is_active", 1)),
         "created_at": str(row["created_at"]) if row.get("created_at") else None,
         "last_login": str(row["last_login"]) if row.get("last_login") else None,
@@ -55,7 +53,7 @@ def list_customers(search: Optional[str] = None, limit: int = 200) -> Dict[str, 
         _ensure_expertiz_requests_schema(cursor)
         cursor.execute(
             f"""
-            SELECT u.id, u.email, u.full_name, u.phone, u.credits, u.tier, u.is_active,
+            SELECT u.id, u.email, u.full_name, u.phone, u.credits, u.is_active,
                    u.created_at, u.last_login,
                    COUNT(q.id) FILTER (WHERE coalesce(q.status, '') <> 'Iptal' AND q.payment_status IN ('paid', 'paid_simulation')) AS request_count,
                    COALESCE(SUM(q.total_tl) FILTER (WHERE coalesce(q.status, '') <> 'Iptal' AND q.payment_status IN ('paid', 'paid_simulation')), 0) AS total_spent_tl,
@@ -123,7 +121,7 @@ def get_customer(customer_id: int) -> Dict[str, Any]:
         customer["total_spent_tl"] = sum(float(r.get("total_tl") or 0) for r in active_requests)
         customer["last_request_at"] = requests[0]["created_at"] if requests else None
         return {"success": True, "customer": _public_customer(customer), "requests": requests,
-                "credit_movements": movements, "tier_limits": TIER_LIMITS}
+                "credit_movements": movements}
     finally:
         DatabaseConfig.return_connection(conn)
 
@@ -175,27 +173,6 @@ def adjust_customer_credits(customer_id: int, amount: int, reason: str, admin: D
         _write_audit(cursor, 'CUSTOMER_CREDITS_ADJUSTED', 'user', str(customer_id), admin,
                      {'admin_id': admin.get('id'), 'amount': amount, 'reason': reason,
                       'credits_before': before, 'credits_after': customer['credits']})
-        conn.commit()
-        return {'success': True, 'customer': _public_customer(customer)}
-    finally:
-        DatabaseConfig.return_connection(conn)
-
-
-def set_customer_tier(customer_id: int, tier: str, note: Optional[str], admin: Dict[str, Any]) -> Dict[str, Any]:
-    if tier not in TIER_LIMITS:
-        return _error('Geçersiz seviye', 400)
-    conn = DatabaseConfig.get_connection()
-    try:
-        cursor = conn.cursor()
-        customer = _get_customer(cursor, customer_id, lock=True)
-        if not customer:
-            return _error('Müşteri bulunamadı', 404)
-        before, balance = customer.get('tier') or 'free', customer['credits']
-        cursor.execute('UPDATE users SET tier=%s WHERE id=%s', (tier, customer_id))
-        customer['tier'] = tier
-        _write_audit(cursor, 'CUSTOMER_TIER_CHANGED', 'user', str(customer_id), admin,
-                     {'admin_id': admin.get('id'), 'tier_before': before, 'tier_after': tier,
-                      'note': (note or '').strip(), 'credits_before': balance, 'credits_after': customer['credits']})
         conn.commit()
         return {'success': True, 'customer': _public_customer(customer)}
     finally:

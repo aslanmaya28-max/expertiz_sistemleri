@@ -95,14 +95,6 @@ class AuthService:
     def _p(self):
         return "%s"
 
-    def _is_valid_uuid(self, val: str) -> bool:
-        """Check if a string is a valid UUID (for backward compatibility with old API keys)."""
-        import re
-        uuid_pattern = re.compile(
-            r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
-            re.IGNORECASE
-        )
-        return bool(uuid_pattern.match(val))
 
     def register(self, email: str, password: str, full_name: str = None, phone: str = None) -> Dict[str, Any]:
         # 🔒 Email validasyonu
@@ -122,21 +114,19 @@ class AuthService:
             if cursor.fetchone():
                 return {"error": "Bu email adresi zaten kayitli"}
 
-            import uuid
-            api_key = f"yk-{uuid.uuid4().hex[:24]}"
             hashed_pw = _hash_password(password)
 
             # Hos geldin kredisi e-posta dogrulaninca yuklenir (account_service.verify_email)
             from yerimebak_ai_v5.services import account_service
             account_service.ensure_schema()
             cursor.execute(f"""
-                INSERT INTO users (email, password, full_name, phone, api_key, credits, tier, role, is_active,
+                INSERT INTO users (email, password, full_name, phone, credits, role, is_active,
                                    email_verified, welcome_credits_granted)
-                VALUES ({self._p}, {self._p}, {self._p}, {self._p}, {self._p}, 0, 'free', 'user', 1, FALSE, FALSE)
-            """, (email, hashed_pw, full_name, phone, api_key))
+                VALUES ({self._p}, {self._p}, {self._p}, {self._p}, 0, 'user', 1, FALSE, FALSE)
+            """, (email, hashed_pw, full_name, phone))
             conn.commit()
 
-            cursor.execute(f"SELECT id, email, full_name, phone, api_key, credits, tier, role FROM users WHERE email = {self._p}", (email,))
+            cursor.execute(f"SELECT id, email, full_name, phone, credits, role FROM users WHERE email = {self._p}", (email,))
             user = dict(cursor.fetchone())
             user["email_verified"] = False
 
@@ -148,7 +138,6 @@ class AuthService:
                 "success": True,
                 "user": user,
                 "token": token,
-                "api_key": api_key,
                 "email_verification_required": True,
                 "message": f"Kayit basarili. E-posta adresinize dogrulama baglantisi gonderdik.{bonus}"
             }
@@ -180,9 +169,7 @@ class AuthService:
                 "full_name": user.get('full_name'),
                 "phone": user.get('phone'),
                 "credits": user['credits'],
-                "tier": user['tier'],
                 "role": user['role'],
-                "api_key": user['api_key'],
             }
         finally:
             DatabaseConfig.return_connection(conn)  # 🔒 DÜZELTİLDİ: conn.close() -> pool'a geri ver
@@ -192,7 +179,7 @@ class AuthService:
         try:
             cursor = conn.cursor()
             cursor.execute(
-                f"SELECT id, email, full_name, phone, credits, tier, role FROM users WHERE id = {self._p}",
+                f"SELECT id, email, full_name, phone, credits, role FROM users WHERE id = {self._p}",
                 (user_id,),
             )
             row = cursor.fetchone()
@@ -232,9 +219,7 @@ class AuthService:
                     "id": user['id'],
                     "email": user['email'],
                     "full_name": user.get('full_name'),
-                    "api_key": user['api_key'],
                     "credits": user['credits'],
-                    "tier": user['tier'],
                     "role": user['role'],
                     "email_verified": user.get('email_verified') is not False,
                     "must_change_password": bool(user.get('must_change_password')),
@@ -274,38 +259,6 @@ class AuthService:
         finally:
             DatabaseConfig.return_connection(conn)
 
-    def verify_api_key(self, api_key: str) -> Optional[Dict[str, Any]]:
-        if not api_key:
-            return None
-
-        # Accept both new-style (yk-) and old-style (UUID) API keys
-        # Old admin accounts may have UUID-format keys without yk- prefix
-        if not (api_key.startswith("yk-") or self._is_valid_uuid(api_key)):
-            return None
-
-        conn = DatabaseConfig.get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(f"SELECT * FROM users WHERE api_key = {self._p}", (api_key,))
-            row = cursor.fetchone()
-
-            if not row:
-                return None
-
-            user = dict(row)
-            if not user.get('is_active', 1):
-                return None
-
-            return {
-                "id": user['id'],
-                "email": user['email'],
-                "credits": user['credits'],
-                "tier": user['tier'],
-                "role": user['role'],
-                "api_key": user['api_key'],
-            }
-        finally:
-            DatabaseConfig.return_connection(conn)  # 🔒 DÜZELTİLDİ: conn.close() -> pool'a geri ver
 
     def create_admin(self, email: str, password: str, admin_key: str) -> Dict[str, Any]:
         # 🔒 GÜVENLİK: Varsayilan admin key kaldirildi. Ortam degiskeni zorunlu.
@@ -351,18 +304,16 @@ class AuthService:
                 conn.commit()
                 return {"error": "Bu email zaten kayitli"}
 
-            import uuid
-            api_key = f"yk-{uuid.uuid4().hex[:24]}"
             hashed_pw = _hash_password(password)
 
             cursor.execute(f"""
-                INSERT INTO users (email, password, api_key, credits, tier, role, is_active,
+                INSERT INTO users (email, password, credits, role, is_active,
                                    email_verified, welcome_credits_granted)
-                VALUES ({self._p}, {self._p}, {self._p}, 1000, 'enterprise', 'admin', 1, TRUE, TRUE)
-            """, (email, hashed_pw, api_key))
+                VALUES ({self._p}, {self._p}, 1000, 'admin', 1, TRUE, TRUE)
+            """, (email, hashed_pw))
             conn.commit()
 
-            return {"success": True, "api_key": api_key, "message": "Admin hesabi olusturuldu"}
+            return {"success": True, "message": "Admin hesabi olusturuldu"}
         finally:
             DatabaseConfig.return_connection(conn)  # 🔒 DÜZELTİLDİ: conn.close() -> pool'a geri ver
 
@@ -383,6 +334,5 @@ def _create_user_jwt(user: Dict[str, Any]) -> str:
         "full_name": user.get("full_name"),
         "phone": user.get("phone"),
         "credits": user.get("credits", 0),
-        "tier": user.get("tier", "free"),
         "role": user.get("role", "user"),
     })

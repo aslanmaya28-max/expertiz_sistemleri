@@ -87,7 +87,7 @@ class ProductionSafetyTests(unittest.TestCase):
 
         self.assertEqual(
             {(v["price"], v["credits"]) for v in CREDIT_PACKAGES.values()},
-            {(100, 3), (250, 5), (400, 10), (750, 11)},
+            {(100, 1), (400, 5), (750, 10)},
         )
 
 

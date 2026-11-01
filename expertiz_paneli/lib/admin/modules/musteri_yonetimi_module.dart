@@ -251,7 +251,6 @@ class _MusteriDetayState extends State<_MusteriDetay> {
   late Map<String, dynamic> _customer = widget.customer;
   List<Map<String, dynamic>> _requests = [];
   List<Map<String, dynamic>> _movements = [];
-  Map<String, dynamic> _tierLimits = {};
 
   static const _reportStatusLabels = {
     'draft': 'Personel bekliyor',
@@ -282,7 +281,6 @@ class _MusteriDetayState extends State<_MusteriDetay> {
             .toList();
         _movements = (response['credit_movements'] as List? ?? const [])
             .whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
-        _tierLimits = Map<String, dynamic>.from(response['tier_limits'] as Map? ?? {});
         _loading = false;
       });
     } catch (e) {
@@ -316,19 +314,15 @@ class _MusteriDetayState extends State<_MusteriDetay> {
     return showDialog<String>(context: context, builder: (_) => const _PasifNedeniDialog());
   }
 
-  Future<void> _editCreditOrTier({required bool tier}) async {
+  Future<void> _editCredits() async {
     final payload = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => _CreditTierDialog(tier: tier, limits: _tierLimits, currentTier: _customer['tier'] as String? ?? 'free'),
+      builder: (_) => const _CreditDialog(),
     );
     if (payload == null || !mounted) return;
     setState(() => _saving = true);
     try {
-      if (tier) {
-        await widget.api.setCustomerTier(_id, tier: payload['tier'] as String, note: payload['note'] as String?);
-      } else {
-        await widget.api.adjustCustomerCredits(_id, amount: payload['amount'] as int, reason: payload['reason'] as String);
-      }
+      await widget.api.adjustCustomerCredits(_id, amount: payload['amount'] as int, reason: payload['reason'] as String);
       await _load();
     } catch (e) {
       if (!mounted) return;
@@ -358,14 +352,11 @@ class _MusteriDetayState extends State<_MusteriDetay> {
           const SizedBox(height: 16),
           _row(Icons.email, 'E-posta', c['email']?.toString() ?? '-'),
           _row(Icons.phone, 'Telefon', (c['phone'] as String?)?.isNotEmpty == true ? c['phone'] as String : '-'),
-          _row(Icons.workspace_premium, 'Paket / Kredi', '${c['tier'] ?? 'free'} • ${c['credits'] ?? 0} kredi'),
+          _row(Icons.credit_card, 'Kredi', '${c['credits'] ?? 0} kredi'),
           Wrap(spacing: 8, children: [
             OutlinedButton.icon(
-              onPressed: _saving || _loading ? null : () => _editCreditOrTier(tier: false),
+              onPressed: _saving || _loading ? null : _editCredits,
               icon: const Icon(Icons.add_card), label: const Text('Kredi yükle / düş')),
-            OutlinedButton.icon(
-              onPressed: _saving || _loading || _tierLimits.isEmpty ? null : () => _editCreditOrTier(tier: true),
-              icon: const Icon(Icons.workspace_premium), label: const Text('Seviye (galerici paketi)')),
           ]),
           _row(Icons.calendar_today, 'Kayıt', widget.date(c['created_at'])),
           _row(Icons.login, 'Son giriş', widget.date(c['last_login'])),
@@ -439,21 +430,17 @@ class _MusteriDetayState extends State<_MusteriDetay> {
   }
 }
 
-class _CreditTierDialog extends StatefulWidget {
-  const _CreditTierDialog({required this.tier, required this.limits, required this.currentTier});
-  final bool tier;
-  final Map<String, dynamic> limits;
-  final String currentTier;
+class _CreditDialog extends StatefulWidget {
+  const _CreditDialog();
 
   @override
-  State<_CreditTierDialog> createState() => _CreditTierDialogState();
+  State<_CreditDialog> createState() => _CreditDialogState();
 }
 
-class _CreditTierDialogState extends State<_CreditTierDialog> {
+class _CreditDialogState extends State<_CreditDialog> {
   final _form = GlobalKey<FormState>();
   final _amount = TextEditingController();
   final _reason = TextEditingController();
-  late String _tier = widget.limits.containsKey(widget.currentTier) ? widget.currentTier : widget.limits.keys.firstOrNull ?? 'free';
 
   @override
   void dispose() {
@@ -464,48 +451,29 @@ class _CreditTierDialogState extends State<_CreditTierDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.tier ? 'Seviye (galerici paketi)' : 'Kredi yükle / düş'),
+    title: const Text('Kredi yükle / düş'),
     content: SizedBox(width: 520, child: Form(key: _form, child: Column(mainAxisSize: MainAxisSize.min, children: [
-      if (widget.tier) ...[
-        DropdownButtonFormField<String>(
-          initialValue: _tier,
-          isExpanded: true,
-          decoration: const InputDecoration(labelText: 'Seviye'),
-          items: widget.limits.entries.map((entry) {
-            final limits = entry.value as Map;
-            final daily = limits['max_analyses_per_day'];
-            return DropdownMenuItem(value: entry.key,
-              child: Text('${entry.key} • günlük ${daily == -1 ? 'sınırsız' : daily} analiz',
-                maxLines: 2, overflow: TextOverflow.ellipsis));
-          }).toList(),
-          onChanged: (value) => setState(() => _tier = value!),
-        ),
-        const Padding(padding: EdgeInsets.symmetric(vertical: 8),
-          child: Text('Seviye yalnızca günlük analiz sınırını belirler. Kredi, satın alma veya admin yüklemesiyle gelir.')),
-      ] else
-        TextFormField(
-          controller: _amount,
-          keyboardType: const TextInputType.numberWithOptions(signed: true),
-          decoration: const InputDecoration(labelText: 'Miktar (+ yükle / - düş)'),
-          validator: (value) {
-            final amount = int.tryParse(value?.trim() ?? '');
-            return amount == null || amount == 0 || amount.abs() > 10000 ? '±1 ile ±10000 arasında tam sayı girin' : null;
-          },
-        ),
+      TextFormField(
+        controller: _amount,
+        keyboardType: const TextInputType.numberWithOptions(signed: true),
+        decoration: const InputDecoration(labelText: 'Miktar (+ yükle / - düş)'),
+        validator: (value) {
+          final amount = int.tryParse(value?.trim() ?? '');
+          return amount == null || amount == 0 || amount.abs() > 10000 ? '±1 ile ±10000 arasında tam sayı girin' : null;
+        },
+      ),
       TextFormField(
         controller: _reason,
         maxLength: 2000,
-        decoration: InputDecoration(labelText: widget.tier ? 'Not (isteğe bağlı)' : 'Neden (zorunlu)'),
-        validator: (value) => !widget.tier && (value?.trim().isEmpty ?? true) ? 'Neden zorunludur' : null,
+        decoration: const InputDecoration(labelText: 'Neden (zorunlu)'),
+        validator: (value) => (value?.trim().isEmpty ?? true) ? 'Neden zorunludur' : null,
       ),
     ]))),
     actions: [
       TextButton(onPressed: () => Navigator.pop(context), child: const Text('Vazgeç')),
       FilledButton(onPressed: () {
         if (!_form.currentState!.validate()) return;
-        Navigator.pop(context, widget.tier
-          ? {'tier': _tier, if (_reason.text.trim().isNotEmpty) 'note': _reason.text.trim()}
-          : {'amount': int.parse(_amount.text.trim()), 'reason': _reason.text.trim()});
+        Navigator.pop(context, {'amount': int.parse(_amount.text.trim()), 'reason': _reason.text.trim()});
       }, child: const Text('Kaydet')),
     ],
   );

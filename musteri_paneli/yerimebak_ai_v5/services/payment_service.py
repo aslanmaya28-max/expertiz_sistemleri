@@ -7,8 +7,7 @@ import os
 import uuid
 import logging
 import json
-from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 
 from yerimebak_ai_v5.core.database_config import DatabaseConfig
@@ -19,31 +18,18 @@ logger = logging.getLogger(__name__)
 # Arac degerleme kredi paketleri (fiyatlar KDV dahil). CREDIT_PACKAGES ortam
 # degiskeniyle (ayni JSON yapisi) kod degismeden ezilebilir.
 CREDIT_PACKAGES = json.loads(os.getenv("CREDIT_PACKAGES", json.dumps({
-    "paket3": {"credits": 3, "price": 100, "name": "3 Analiz", "popular": False},
-    "paket5": {"credits": 5, "price": 250, "name": "5 Analiz", "popular": False},
-    "paket10": {"credits": 10, "price": 400, "name": "10 Analiz", "popular": True},
-    "paket11": {"credits": 11, "price": 750, "name": "11 Analiz", "popular": False},
+    "paket1": {"credits": 1, "price": 100, "name": "1 Kredi", "popular": False},
+    "paket5": {"credits": 5, "price": 400, "name": "5 Kredi", "popular": True},
+    "paket10": {"credits": 10, "price": 750, "name": "10 Kredi", "popular": False},
 })))
 
 FREE_CREDITS_ON_REGISTER = int(os.getenv("FREE_CREDITS_ON_REGISTER", "3"))
-
-# Seviye (galerici paketi) yalnizca gunluk analiz sinirini belirler; aylik kredi yoktur.
-# Krediler: kayit hediyesi, paket satin alma ve admin yuklemesi.
-TIER_LIMITS = json.loads(os.getenv("TIER_LIMITS", json.dumps({
-    "free": {"max_analyses_per_day": 5},
-    "starter": {"max_analyses_per_day": 20},
-    "basic": {"max_analyses_per_day": 50},
-    "pro": {"max_analyses_per_day": 200},
-    "enterprise": {"max_analyses_per_day": -1},
-})))
 
 ANALYSIS_CREDIT_COST = int(os.getenv("ANALYSIS_CREDIT_COST", "1"))
 
 
 def credit_refusal(reason, credits=None):
-    """Kredi / gunluk sinir reddi -> (http_status, code, mesaj). Iki degerleme akisi da kullanir."""
-    if reason == "daily_limit":
-        return 429, "daily_limit", "Günlük analiz sınırınıza ulaştınız. Yarın tekrar deneyebilir veya paketinizi yükseltebilirsiniz."
+    """Kredi reddi -> (http_status, code, mesaj)."""
     mevcut = f" Mevcut krediniz: {credits}." if credits is not None else ""
     return 402, "insufficient_credits", "Yetersiz kredi. Analiz için kredi paketi satın alın." + mevcut
 
@@ -56,45 +42,25 @@ class PaymentService:
     def _p(self):
         return "%s"
 
-    @staticmethod
-    def _day_bounds(now=None):
-        local = (now or datetime.now(timezone.utc)).astimezone(ZoneInfo("Europe/Istanbul"))
-        start = local.replace(hour=0, minute=0, second=0, microsecond=0)
-        # analysis_history.created_at: UTC, TIMESTAMP WITHOUT TIME ZONE.
-        return tuple(d.astimezone(timezone.utc).replace(tzinfo=None)
-                     for d in (start, start + timedelta(days=1)))
-
-    @staticmethod
-    def _limits(user):
-        return TIER_LIMITS.get(user.get("tier"), TIER_LIMITS["free"])
-
     def _locked_user(self, cursor, user_id):
         cursor.execute("SELECT * FROM users WHERE id=%s FOR UPDATE", (user_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def _analysis_policy(self, user, daily_count, amount):
-        limit = int(self._limits(user)['max_analyses_per_day'])
-        if limit != -1 and daily_count >= limit:
-            return {'ok': False, 'reason': 'daily_limit', 'message': 'Günlük analiz sınırına ulaşıldı'}
+    @staticmethod
+    def _allowed(user, amount):
+        if not user:
+            return {'ok': False, 'reason': 'insufficient_credits', 'message': 'Kullanıcı bulunamadı'}
         if user['credits'] < amount:
             return {'ok': False, 'reason': 'insufficient_credits', 'message': 'Yetersiz kredi'}
         return {'ok': True, 'reason': None, 'message': 'Analiz yapılabilir'}
-
-    def _allowed(self, cursor, user, amount, now=None):
-        if not user:
-            return {'ok': False, 'reason': 'user_not_found', 'message': 'Kullanıcı bulunamadı'}
-        cursor.execute("""SELECT COUNT(*) AS count FROM analysis_history
-                          WHERE user_id=%s AND created_at >= %s AND created_at < %s""",
-                       (user['id'], *self._day_bounds(now)))
-        return self._analysis_policy(user, cursor.fetchone()['count'], amount)
 
     def analysis_allowed(self, user_id: int) -> Dict[str, Any]:
         conn = DatabaseConfig.get_connection()
         try:
             cursor = conn.cursor()
             user = self._locked_user(cursor, user_id)
-            result = self._allowed(cursor, user, ANALYSIS_CREDIT_COST)
+            result = self._allowed(user, ANALYSIS_CREDIT_COST)
             conn.commit()
             return result
         finally:
@@ -111,26 +77,15 @@ class PaymentService:
                 user = dict(row)
                 return user
 
-            api_key = f"yk-{uuid.uuid4().hex[:24]}"
             cursor.execute(f"""
-                INSERT INTO users (email, phone, full_name, api_key, credits, tier, role, is_active)
-                VALUES ({self._p}, {self._p}, {self._p}, {self._p}, 3, 'free', 'user', 1)
-            """, (email, phone, full_name, api_key))
+                INSERT INTO users (email, phone, full_name, credits, role, is_active)
+                VALUES ({self._p}, {self._p}, {self._p}, {self._p}, 'user', 1)
+            """, (email, phone, full_name, FREE_CREDITS_ON_REGISTER))
             conn.commit()
 
             cursor.execute(f"SELECT * FROM users WHERE email = {self._p}", (email,))
             row = cursor.fetchone()
             return dict(row)
-        finally:
-            DatabaseConfig.return_connection(conn)
-
-    def get_user_by_api_key(self, api_key: str) -> Optional[Dict[str, Any]]:
-        conn = DatabaseConfig.get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(f"SELECT * FROM users WHERE api_key = {self._p}", (api_key,))
-            row = cursor.fetchone()
-            return dict(row) if row else None
         finally:
             DatabaseConfig.return_connection(conn)
 
@@ -158,7 +113,6 @@ class PaymentService:
             "user_id": user['id'],
             "email": user['email'],
             "credits": user['credits'],
-            "tier": user['tier'],
             "role": user['role'],
         }
 
@@ -176,9 +130,8 @@ class PaymentService:
         try:
             cursor = conn.cursor()
             user = self._locked_user(cursor, user_id)
-            # Kilit bekleyişi gece yarısını geçebilir; sayım ve kayıt aynı anı kullanır.
             now = datetime.now(timezone.utc)
-            allowed = self._allowed(cursor, user, amount, now)
+            allowed = self._allowed(user, amount)
             if not allowed['ok']:
                 conn.commit()  # Satir kilidi birakilir; degisiklik yok.
                 return {"success": False, "error": allowed['message'], "code": allowed['reason'],
@@ -363,7 +316,6 @@ class PaymentService:
     def get_packages(self) -> Dict[str, Any]:
         return {
             "packages": CREDIT_PACKAGES,
-            "tier_limits": TIER_LIMITS,
             "analysis_cost": ANALYSIS_CREDIT_COST
         }
 

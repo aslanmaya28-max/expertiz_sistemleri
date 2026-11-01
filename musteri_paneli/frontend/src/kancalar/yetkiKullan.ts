@@ -9,7 +9,6 @@ interface User {
   email: string;
   full_name?: string;
   credits: number;
-  tier: string;
   role: string;
 }
 
@@ -30,7 +29,6 @@ function decodeUser(token: string | null): User | null {
       email: payload.email,
       full_name: payload.full_name,
       credits: payload.credits || 0,
-      tier: payload.tier || "free",
       role: payload.role || "user",
     };
   } catch {

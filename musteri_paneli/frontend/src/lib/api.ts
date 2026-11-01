@@ -290,7 +290,6 @@ export interface CreditBalanceResponse {
   user_id: number;
   email: string;
   credits: number;
-  tier: string;
   role: string;
 }
 
@@ -313,7 +312,6 @@ export interface CustomerProfile {
   full_name?: string | null;
   phone?: string | null;
   credits: number;
-  tier: string;
   role: string;
   company_name?: string | null;
   city?: string | null;

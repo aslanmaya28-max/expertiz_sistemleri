@@ -112,9 +112,6 @@ class CustomerCreditsRequest(BaseModel):
     reason: str = Field(min_length=1, max_length=2000)
 
 
-class CustomerTierRequest(BaseModel):
-    tier: str
-    note: Optional[str] = Field(default=None, max_length=2000)
 
 
 class CancelRequestPayload(BaseModel):
@@ -355,13 +352,6 @@ async def admin_adjust_customer_credits(
     return _raise_if_error(customer_service.adjust_customer_credits(customer_id, payload.amount, payload.reason, admin))
 
 
-@router.post("/admin/customers/{customer_id}/tier")
-async def admin_set_customer_tier(
-    customer_id: int,
-    payload: CustomerTierRequest,
-    admin: Dict[str, Any] = Depends(get_admin_user),
-) -> Dict[str, Any]:
-    return _raise_if_error(customer_service.set_customer_tier(customer_id, payload.tier, payload.note, admin))
 
 
 @router.post("/admin/customers/{customer_id}/status")
@@ -629,7 +619,7 @@ async def get_media_file(media_id: str, exp: int = 0, sig: str = "", orijinal: i
     if "error" in result:
         raise HTTPException(status_code=int(result.get("http_status") or 404), detail=result["error"])
     if orijinal:
-        user = await run_in_threadpool(get_authenticated_user, api_key=None, authorization=authorization)
+        user = await run_in_threadpool(get_authenticated_user, authorization=authorization)
         await run_in_threadpool(get_admin_user, user=user)
     elif result.get("inspection_photo"):
         from pathlib import Path

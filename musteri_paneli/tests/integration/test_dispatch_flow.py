@@ -58,7 +58,7 @@ def _auth(token):
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_kredili_web_degerleme_onbellek_ve_api_anahtari(client, monkeypatch):
+def test_kredili_web_degerleme_onbellek(client, monkeypatch):
     from yerimebak_ai_v5.services import email_service, web_market_reference as wmr
     from yerimebak_ai_v5.core.database_config import DatabaseConfig
 
@@ -106,8 +106,6 @@ def test_kredili_web_degerleme_onbellek_ve_api_anahtari(client, monkeypatch):
     conn = DatabaseConfig.get_connection()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT api_key FROM users WHERE email = 'webkredi@yerimebak.test'")
-        key = dict(cur.fetchone())["api_key"]
         cur.execute("""SELECT valuation_json FROM analysis_history
                        WHERE user_id = (SELECT id FROM users WHERE email = 'webkredi@yerimebak.test')""")
         import json
@@ -118,28 +116,10 @@ def test_kredili_web_degerleme_onbellek_ve_api_anahtari(client, monkeypatch):
         assert sorted(h["web_maliyet_usd"] for h in histories) == [0, 0.03]
     finally:
         DatabaseConfig.return_connection(conn)
-    api_payload = {"brand": "Seat", "model": "Ibiza", "year": 2024, "mileage_km": 30000,
-                   "fuel_type": "Benzin", "gear_type": "Otomatik", "listed_price": 960000}
-    api = client.post("/api/v1/analyze", headers={"X-API-Key": key}, json=api_payload)
-    assert api.status_code == 200, api.text
-    assert api.json()["market_reference"]["source"] == "web_listings"
-    assert api.json()["market_reference"]["scope"]["cached"] is True
-    assert api.json()["market_reference"]["scope"]["cost_usd"] == 0
-    assert api.json()["billing"]["credits_remaining"] == 0
+    third = client.post("/api/v1/valuation/analyze", headers=_auth(token), json=payload)
+    assert third.status_code == 200, third.text
+    assert third.json()["kredi"] == {"dusulen": 1, "kalan": 0}
     assert len(calls) == 3
-    conn = DatabaseConfig.get_connection()
-    try:
-        cur = conn.cursor()
-        cur.execute("""SELECT valuation_json FROM analysis_history
-                       WHERE user_id = (SELECT id FROM users WHERE email = 'webkredi@yerimebak.test')
-                       AND vehicle_json::jsonb->>'source' = 'manual_analysis'""")
-        history = dict(cur.fetchone())["valuation_json"]
-        if isinstance(history, str):
-            history = json.loads(history)
-        assert history["piyasa_kaynagi"] == "web_listings"
-        assert history["web_maliyet_usd"] == 0
-    finally:
-        DatabaseConfig.return_connection(conn)
 
 
 def test_web_onbellek_suresi_dolunca_yeniden_arama(client, monkeypatch):
@@ -179,10 +159,6 @@ def test_kredili_emsal_yoksa_kredi_dusmez(client, admin_token, monkeypatch):
     response = client.post("/api/v1/valuation/analyze", headers=_auth(admin_token), json=payload)
     assert response.status_code == 422, response.text
     assert response.json()["detail"]["code"] == "insufficient_market_data"
-    api = client.post("/api/v1/analyze", headers=_auth(admin_token), json={
-        "brand": "Bulunmayan", "model": "Arac", "year": 2024, "mileage_km": 30000,
-        "fuel_type": "Benzin", "gear_type": "Otomatik", "listed_price": 960000})
-    assert api.status_code == 422, api.text
     assert client.get("/api/v1/credits/balance", headers=_auth(admin_token)).json()["credits"] == before
 
 
@@ -950,9 +926,9 @@ def test_accounts_refunds_invoices_and_emails(client, admin_token):
 
         # --- Kredi paketi: kullanilmissa iade yok, kullanilmamissa iade + kredi dusumu
         # Mesafeli satis sozlesmesi onayi olmadan odeme baslamaz
-        assert client.post("/api/v1/payments/checkout/credits", headers=_auth(token), json={"package_key": "paket3"}).status_code == 400
+        assert client.post("/api/v1/payments/checkout/credits", headers=_auth(token), json={"package_key": "paket1"}).status_code == 400
         start = client.post("/api/v1/payments/checkout/credits", headers=_auth(token),
-                            json={"package_key": "paket3", "contract_accepted": True})
+                            json={"package_key": "paket1", "contract_accepted": True})
         assert start.status_code == 200, start.text
         oid = start.json()["order_id"]
         client.post(f"/api/v1/payments/checkout/{oid}/simulate", headers=_auth(token), json={"success": True})
@@ -961,7 +937,7 @@ def test_accounts_refunds_invoices_and_emails(client, admin_token):
         refunded = client.post(f"/api/v1/payments/admin/orders/{oid}/refund", headers=_auth(admin_token), json={"reason": "Yanlis paket"})
         assert refunded.status_code == 200, refunded.text
         after = client.get("/api/v1/auth/profile", headers=_auth(token)).json()["profile"]["credits"]
-        assert after == before - 3
+        assert after == before - 1
         assert client.post(f"/api/v1/payments/admin/orders/{oid}/refund", headers=_auth(admin_token), json={"reason": "x"}).status_code == 409
 
         # --- Fatura dokumu (CSV): satis + iade satirlari, fatura bilgileri
@@ -976,7 +952,7 @@ def test_accounts_refunds_invoices_and_emails(client, admin_token):
         assert client.get("/api/v1/expertiz/admin/finance/invoices.csv?start=bozuk", headers=_auth(admin_token)).status_code == 400
 
         # --- Eski havale/elle onay uclari kaldirildi
-        assert client.post("/api/v1/payments/order", headers=_auth(token), json={"package_key": "paket3"}).status_code in (404, 405)
+        assert client.post("/api/v1/payments/order", headers=_auth(token), json={"package_key": "paket1"}).status_code in (404, 405)
         assert client.post("/api/v1/payments/approve", headers=_auth(admin_token), json={"order_id": "x"}).status_code in (404, 405)
 
         # Onaylar kanit olarak saklanir
@@ -1293,7 +1269,7 @@ def test_web_emsal_kaynakli_degerleme_kontrol_isareti_ve_musteri_kaynaklari(clie
     assert not any(o.get("baslik") == "Kontrol gerekli" for o in customer["ai"].get("oneriler") or [])
 
 
-def test_kredi_reddi_gunluk_sinir_ve_basarisiz_dusumde_sonuc_verilmez(client, monkeypatch):
+def test_basarisiz_kredi_dusumunde_sonuc_verilmez(client, monkeypatch):
     """Gunluk sinir doluysa 429; kilitli kredi dusumu basarisizsa (es zamanli istek) analiz sonucu verilmez."""
     from yerimebak_ai_v5.services import email_service, payment_service, web_market_reference as wmr
     from yerimebak_ai_v5.core.database_config import DatabaseConfig
@@ -1316,9 +1292,6 @@ def test_kredi_reddi_gunluk_sinir_ve_basarisiz_dusumde_sonuc_verilmez(client, mo
         "listings": listings, "sources": {i["url"]: str(i["fiyat_tl"]) for i in listings}, "cost": 0.01})
     payload = {"brand": "Renault", "model": "Clio", "year": 2022, "km": 40000,
                "fuel": "Benzin", "transmission": "Manuel", "listed_price": 830000}
-    api_payload = {"brand": "Renault", "model": "Clio", "year": 2022, "mileage_km": 40000,
-                   "fuel_type": "Benzin", "gear_type": "Manuel", "listed_price": 830000}
-
     def kredi_ve_gecmis():
         conn = DatabaseConfig.get_connection()
         try:
@@ -1334,24 +1307,11 @@ def test_kredi_reddi_gunluk_sinir_ve_basarisiz_dusumde_sonuc_verilmez(client, mo
     baslangic = kredi_ve_gecmis()
     assert baslangic == (3, 0)
 
-    # 1) Gunluk sinir dolu (free: gunluk 0 analiz hakki) -> 429, kredi ve gecmis degismez
-    monkeypatch.setitem(payment_service.TIER_LIMITS, "free", {"max_analyses_per_day": 0})
-    r = client.post("/api/v1/valuation/analyze", headers=_auth(token), json=payload)
-    assert r.status_code == 429, r.text
-    assert r.json()["detail"]["code"] == "daily_limit"
-    a = client.post("/api/v1/analyze", headers=_auth(token), json=api_payload)
-    assert a.status_code == 429, a.text
-    assert kredi_ve_gecmis() == baslangic
-
-    # 2) On kontrol gecer ama kilitli dusum reddeder (es zamanli ikinci istek) -> sonuc verilmez
-    monkeypatch.setitem(payment_service.TIER_LIMITS, "free", {"max_analyses_per_day": 5})
+    # Ön kontrol geçse bile atomik kredi düşümü reddedilirse sonuç verilmez.
     monkeypatch.setattr(payment_service.PaymentService, "deduct_credits",
                         lambda self, *args, **kw: {"success": False, "error": "Yetersiz kredi",
                                                    "code": "insufficient_credits", "credits": 0})
     r = client.post("/api/v1/valuation/analyze", headers=_auth(token), json=payload)
     assert r.status_code == 402, r.text
     assert "piyasa" not in r.text and r.json()["detail"]["code"] == "insufficient_credits"
-    a = client.post("/api/v1/analyze", headers=_auth(token), json=api_payload)
-    assert a.status_code == 402, a.text
-    assert "technical_scoring" not in a.text
     assert kredi_ve_gecmis() == baslangic

@@ -13,7 +13,6 @@ final _musteri = {
   'full_name': 'Ali Veli',
   'phone': '',
   'credits': 3,
-  'tier': 'free',
   'is_active': true,
   'created_at': '2026-10-01 10:00:00',
   'request_count': 2,
@@ -48,76 +47,67 @@ void main() {
     view.resetDevicePixelRatio();
   });
 
-  for (final fail in [false, true]) {
-    testWidgets('kredi formu neden ister, sonucu yeniler; hata=$fail', (tester) async {
-      var balance = 3;
-      Map<String, dynamic>? sent;
-      await tester.pumpWidget(_app(MockClient((request) async {
-        if (request.method == 'POST') {
-          sent = jsonDecode(request.body) as Map<String, dynamic>;
-          if (fail) return http.Response('{"detail":"Bakiye eksiye düşemez"}', 400);
-          balance = 13;
-          return _json({'success': true});
+  for (final amount in [10, -2]) {
+    for (final fail in [false, true]) {
+      testWidgets('kredi formu neden ister, sonucu yeniler; miktar=$amount hata=$fail', (tester) async {
+        var balance = 3;
+        Map<String, dynamic>? sent;
+        await tester.pumpWidget(_app(MockClient((request) async {
+          if (request.method == 'POST') {
+            expect(request.url.path, '/api/v1/expertiz/admin/customers/1/credits');
+            sent = jsonDecode(request.body) as Map<String, dynamic>;
+            if (fail) return http.Response('{"detail":"Bakiye eksiye düşemez"}', 400);
+            balance += amount;
+            return _json({'success': true});
+          }
+          if (request.url.path.endsWith('/1')) {
+            return _json({'customer': {..._musteri, 'credits': balance}, 'requests': [],
+              'credit_movements': balance != 3 ? [{'credits_used': -amount, 'description': 'Telafi', 'created_at': '2026-11-01'}] : []});
+          }
+          return _json({'customers': [_musteri], 'active': 1});
+        })));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Ali Veli'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Kredi yükle / düş'));
+        await tester.pumpAndSettle();
+        await tester.enterText(find.widgetWithText(TextFormField, 'Miktar (+ yükle / - düş)'), '$amount');
+        await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
+        await tester.pumpAndSettle();
+        expect(sent, isNull);
+        expect(find.text('Neden zorunludur'), findsOneWidget);
+        await tester.enterText(find.widgetWithText(TextFormField, 'Neden (zorunlu)'), 'Telafi');
+        await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
+        await tester.pumpAndSettle();
+        expect(sent, {'amount': amount, 'reason': 'Telafi'});
+        if (fail) {
+          expect(find.textContaining('Bakiye eksiye'), findsOneWidget);
+        } else {
+          expect(find.text('${3 + amount} kredi'), findsOneWidget);
+          expect(find.text('Telafi'), findsOneWidget);
+          expect(find.text('${amount > 0 ? '+' : ''}$amount kredi'), findsOneWidget);
         }
-        if (request.url.path.endsWith('/1')) {
-          return _json({'customer': {..._musteri, 'credits': balance}, 'requests': [],
-            'credit_movements': balance == 13 ? [{'credits_used': -10, 'description': 'Telafi', 'created_at': '2026-11-01'}] : []});
-        }
-        return _json({'customers': [_musteri], 'active': 1});
-      })));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Ali Veli'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Kredi yükle / düş'));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.widgetWithText(TextFormField, 'Miktar (+ yükle / - düş)'), '10');
-      await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
-      await tester.pumpAndSettle();
-      expect(sent, isNull);
-      expect(find.text('Neden zorunludur'), findsOneWidget);
-      await tester.enterText(find.widgetWithText(TextFormField, 'Neden (zorunlu)'), 'Telafi');
-      await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
-      await tester.pumpAndSettle();
-      expect(sent, {'amount': 10, 'reason': 'Telafi'});
-      if (fail) {
-        expect(find.textContaining('Bakiye eksiye'), findsOneWidget);
-      } else {
-        expect(find.text('free • 13 kredi'), findsOneWidget);
-        expect(find.text('Telafi'), findsOneWidget);
-        expect(find.text('+10 kredi'), findsOneWidget);
-      }
-    });
+      });
+    }
   }
 
-  testWidgets('seviye sınırları API üzerinden gösterilir ve seçim kaydedilir', (tester) async {
-    var tier = 'free';
-    Map<String, dynamic>? sent;
+  testWidgets('müşteri detayı yalnız kredi gösterir, seviye kontrolü sunmaz', (tester) async {
     await tester.pumpWidget(_app(MockClient((request) async {
-      if (request.method == 'POST') {
-        sent = jsonDecode(request.body) as Map<String, dynamic>;
-        tier = 'pro';
-        return _json({'success': true});
-      }
       if (request.url.path.endsWith('/1')) {
-        return _json({'customer': {..._musteri, 'tier': tier}, 'requests': [],
-          'tier_limits': {'free': {'max_analyses_per_day': 5},
-            'pro': {'max_analyses_per_day': 201}}});
+        return _json({'customer': _musteri, 'requests': [], 'credit_movements': []});
       }
       return _json({'customers': [_musteri], 'active': 1});
     })));
     await tester.pumpAndSettle();
+    expect(find.textContaining('3 kredi'), findsOneWidget);
     await tester.tap(find.text('Ali Veli'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Seviye (galerici paketi)'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('pro • günlük 201 analiz').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
-    await tester.pumpAndSettle();
-    expect(sent, {'tier': 'pro'});
-    expect(find.text('pro • 3 kredi'), findsOneWidget);
+    expect(find.text('3 kredi'), findsOneWidget);
+    expect(find.text('Kredi'), findsOneWidget);
+    expect(find.textContaining('Seviye'), findsNothing);
+    expect(find.textContaining('free'), findsNothing);
+    expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+    expect(find.text('Kredi yükle / düş'), findsOneWidget);
   });
 
   testWidgets('musteri listesi, arama ve detay gosterilir', (tester) async {
