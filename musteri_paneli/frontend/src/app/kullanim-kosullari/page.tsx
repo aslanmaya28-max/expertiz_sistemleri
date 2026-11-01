@@ -20,7 +20,6 @@ export default async function KullanimKosullariSayfasi() {
           piyasa değeri, boya/değişen/tramer kaynaklı değer kaybı ve satın alma önerisi hesaplanır. Her analiz 1 kredi kullanır.</li>
         <li><strong>Ekspertiz hizmeti:</strong> Talebiniz, aracın bulunduğu ildeki YerimeBak uzmanına yönlendirilir; uzman aracı inceler
           ve seçtiğiniz anlaşmalı kurumsal ekspertiz firmasında kontrol yaptırır. Hazırlanan rapor panelinizde yayınlanır.</li>
-        <li><strong>Vitrin:</strong> Piyasadaki ilanların derlenmiş görünümü; ilanlar ilgili ilan sitelerindeki satıcılara aittir.</li>
       </ul>
 
       <h2>2. Değerlemelerin niteliği</h2>

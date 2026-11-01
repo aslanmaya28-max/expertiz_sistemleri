@@ -9,7 +9,6 @@ import { uyelikAdresi } from "@/lib/uyelikYonlendirme";
 import {
   createExpertizRequest,
   getExpertizPackages,
-  getVehicleDetail,
   type ExpertizFirm,
   type ExpertizPackage,
 } from "@/lib/api";
@@ -19,18 +18,6 @@ function tl(value: number) {
 }
 
 const ADIMLAR = ["Araç", "Hizmet Bedeli", "Ekspertiz Paketi", "Talep Onayı"];
-
-const trLower = (v: string) => v.toLocaleLowerCase("tr-TR").trim();
-
-/** Ilan konumundan ("İstanbul Kadıköy", "Kadıköy, İstanbul") il ve ilce cikarir. */
-function konumAyir(location?: string | null): { city: string; district: string } {
-  const text = (location || "").trim();
-  if (!text) return { city: "", district: "" };
-  const parts = text.split(/[/,-]|\s+/).map((p) => p.trim()).filter(Boolean);
-  const city = ILLER.find((il) => parts.some((p) => trLower(p) === trLower(il))) || "";
-  const district = city ? parts.filter((p) => trLower(p) !== trLower(city)).join(" ") : "";
-  return { city, district };
-}
 
 interface Arac {
   link: string;
@@ -58,7 +45,6 @@ function EkspertizTalebiIcerigi() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const donus = `/ekspertiz-talebi${params.toString() ? `?${params.toString()}` : ""}`;
-  const listingId = Number(params.get("aracId") || 0);
 
   const [adim, setAdim] = useState(0);
   const [arac, setArac] = useState<Arac>(BOS_ARAC);
@@ -87,10 +73,7 @@ function EkspertizTalebiIcerigi() {
       setLoading(true);
       setLoadError(null);
       try {
-        const [packages, detail] = await Promise.all([
-          getExpertizPackages({ signal: controller.signal }),
-          listingId ? getVehicleDetail(listingId, { signal: controller.signal }) : Promise.resolve(null),
-        ]);
+        const packages = await getExpertizPackages({ signal: controller.signal });
         if (!active) return;
         if (!packages.firms?.some((firm) => firm.packages?.length)) {
           throw new Error("Şu anda seçilebilir ekspertiz paketi bulunamadı.");
@@ -98,20 +81,6 @@ function EkspertizTalebiIcerigi() {
         setFirms(packages.firms);
         setServiceFee(packages.service_fee_tl);
         setVatRate(packages.vat_rate);
-        if (detail) {
-          setArac((a) => ({
-            ...a,
-            link: detail.url || "",
-            brand: detail.brand || "",
-            model: detail.model || "",
-            year: detail.year ? String(detail.year) : "",
-            km: detail.km ? String(detail.km) : "",
-            price: detail.price ? String(detail.price) : "",
-            fuel: detail.fuel || "",
-            gear: detail.transmission || "",
-            ...konumAyir(detail.location),
-          }));
-        }
       } catch (err) {
         if (active) setLoadError(controller.signal.aborted
           ? "Ekspertiz paketleri için sunucudan yanıt alınamadı. Yeniden deneyebilirsiniz."
@@ -127,7 +96,7 @@ function EkspertizTalebiIcerigi() {
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [authLoading, user, listingId, loadAttempt]);
+  }, [authLoading, user, loadAttempt]);
 
   const selectedFirm = useMemo(() => firms.find((f) => f.id === firmId) || null, [firms, firmId]);
   const selectedPackage = useMemo<ExpertizPackage | null>(
@@ -173,7 +142,6 @@ function EkspertizTalebiIcerigi() {
       const result = await createExpertizRequest({
           firm_id: selectedFirm.id,
           package_id: selectedPackage.id,
-          listing_id: listingId || undefined,
           listing_url: arac.link.trim() || undefined,
           plate: arac.plate,
           city: arac.city,

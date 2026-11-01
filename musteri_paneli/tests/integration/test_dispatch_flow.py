@@ -854,9 +854,6 @@ def test_accounts_refunds_invoices_and_emails(client, admin_token):
         assert any(a["title"] == "Talep iptal edildi" for a in dash["recent_activities"]) or dash["recent_activities"]
         assert client.get("/api/v1/expertiz/admin/dashboard", headers=_auth(token)).status_code == 403
 
-        # --- Vitrin toplu islemleri (admin)
-        assert client.post("/api/v1/vitrin/admin/activate-hidden", headers=_auth(token)).status_code == 403
-        assert client.post("/api/v1/vitrin/admin/activate-hidden", headers=_auth(admin_token)).json()["success"] is True
     finally:
         email_service.stop_capture()
 
@@ -975,8 +972,6 @@ def test_link_request_saved_listing_and_comparables_valuation(client, admin_toke
         cur.execute("SELECT count(*) FROM price_history ph JOIN listings l ON l.id = ph.listing_id WHERE l.brand = 'Renault'")
         assert cur.fetchone()[0] >= 11
     conn.close()
-    vitrin = client.get("/api/v1/vitrin/vehicles?brand=Renault").json()
-    assert all(v.get("brand") != "Renault" for v in vitrin.get("vehicles", []))
 
     # Ayni arac icin tekrar analiz ayni sonucu verir
     re_run = client.post(f"/api/v1/expertiz/admin/reports/{report_id}/reanalyze", headers=_auth(admin_token))

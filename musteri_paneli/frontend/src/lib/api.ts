@@ -40,56 +40,6 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
   return res.json();
 }
 
-export interface VehicleCard {
-  id: number;
-  brand: string;
-  model: string;
-  year: number;
-  price: number;
-  km: number;
-  fuel: string;
-  transmission: string;
-  source: string;
-  url: string;
-  image_url: string;
-  location: string;
-  title: string;
-  color: string;
-  paint_summary: { painted: number; local: number; changed: number };
-  ai_score: number | null;
-  market_avg_price: number | null;
-  price_deviation_pct: number;
-  risk_score: number | null;
-  risk_level: string | null;
-  decision: string | null;
-  net_profit_tl: number | null;
-  net_margin_pct: number | null;
-  exit_price: number | null;
-  days_to_sell: number | null;
-  buy_price_min: number | null;
-  buy_price_max: number | null;
-  analyzed_at: string | null;
-  status: string;
-  is_favorite?: boolean;
-}
-
-export interface VehicleListResponse {
-  total: number;
-  limit: number;
-  offset: number;
-  vehicles: VehicleCard[];
-}
-
-export interface FavoriteVehicle extends VehicleCard {
-  favorited_at?: string | null;
-}
-
-export interface FavoritesResponse {
-  success: boolean;
-  favorites: FavoriteVehicle[];
-  total: number;
-}
-
 export interface ExpertizPackage {
   id: string;
   name: string;
@@ -484,54 +434,6 @@ export interface ValuationResult {
   kredi: { dusulen: number; kalan: number };
 }
 
-export interface VitrinStats {
-  total_listings: number;
-  analyzed_listings: number;
-  avg_ai_score: number;
-  buy_opportunities: number;
-  avg_price: number;
-  by_source: Record<string, number>;
-  daily_new_listings: number;
-}
-
-export interface BrandInfo {
-  brand: string;
-  count: number;
-}
-
-export interface ModelInfo {
-  model: string;
-  count: number;
-}
-
-export function getVehicles(params: Record<string, string | number | undefined> = {}): Promise<VehicleListResponse> {
-  const sp = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== "") sp.set(k, String(v));
-  });
-  return fetchAPI<VehicleListResponse>(`/vitrin/vehicles?${sp.toString()}`);
-}
-
-export function getVehicleDetail(id: number, options?: RequestInit): Promise<VehicleCard> {
-  return fetchAPI<VehicleCard>(`/vitrin/vehicles/${id}`, options);
-}
-
-export function getBrands(): Promise<BrandInfo[]> {
-  return fetchAPI<BrandInfo[]>("/vitrin/brands");
-}
-
-export function getModels(brand: string): Promise<ModelInfo[]> {
-  return fetchAPI<ModelInfo[]>(`/vitrin/models?brand=${encodeURIComponent(brand)}`);
-}
-
-export function getStats(): Promise<VitrinStats> {
-  return fetchAPI<VitrinStats>("/vitrin/stats");
-}
-
-export function searchVehicles(q: string, limit = 20): Promise<{ query: string; total: number; vehicles: VehicleCard[] }> {
-  return fetchAPI(`/vitrin/search?q=${encodeURIComponent(q)}&limit=${limit}`);
-}
-
 export function getExpertizPackages(options?: RequestInit): Promise<ExpertizPackagesResponse> {
   return fetchAPI<ExpertizPackagesResponse>("/expertiz/packages", options);
 }
@@ -574,21 +476,6 @@ export function getCreditBalance(): Promise<CreditBalanceResponse> {
 
 export function getAnalysisHistory(): Promise<AnalysisHistoryResponse> {
   return fetchAPI<AnalysisHistoryResponse>("/credits/history");
-}
-
-export function getFavorites(): Promise<FavoritesResponse> {
-  return fetchAPI<FavoritesResponse>("/favorites");
-}
-
-export function addFavorite(listingId: number): Promise<{ success: boolean; listing_id: number }> {
-  return fetchAPI<{ success: boolean; listing_id: number }>("/favorites", {
-    method: "POST",
-    body: JSON.stringify({ listing_id: listingId }),
-  });
-}
-
-export function removeFavorite(listingId: number): Promise<{ success: boolean; listing_id: number }> {
-  return fetchAPI<{ success: boolean; listing_id: number }>(`/favorites/${listingId}`, { method: "DELETE" });
 }
 
 export function getProfile(): Promise<CustomerProfileResponse> {

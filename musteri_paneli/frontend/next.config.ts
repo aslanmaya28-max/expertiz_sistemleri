@@ -16,6 +16,13 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**" },
     ],
   },
+  // Vitrin kaldirildi (kaziyici yok); eski baglantilar ana sayfaya gider
+  async redirects() {
+    return [
+      { source: "/vitrin", destination: "/", permanent: true },
+      { source: "/arac-analiz/:id(\\d+)", destination: "/", permanent: true },
+    ];
+  },
   async rewrites() {
     return [
       {

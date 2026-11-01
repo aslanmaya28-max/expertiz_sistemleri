@@ -17,7 +17,6 @@ import '../personnel/personnel_dashboard.dart';
 import '../screens/personel/personel_bolge_sistemi.dart';
 import '../customer/customer_dashboard.dart';
 import '../customer/create_request_screen.dart';
-import '../screens/rapor_detay_sayfasi.dart';
 import '../screens/kategori_secimi.dart';
 import '../screens/maps_screen.dart';
 import '../screens/error_screen.dart';
@@ -272,50 +271,6 @@ GoRouter createRouter(BuildContext context) {
       ),
       
       // =================================================
-      // REPORT ROUTES (Dynamic)
-      // =================================================
-      
-      GoRoute(
-        path: '/rapor/:reportId',
-        pageBuilder: (context, state) {
-          // Raporu Supabase'den yükle
-          // TODO: Implement report loading from Supabase
-          
-          final reportId = state.pathParameters['reportId'] ?? '';
-          
-          return MaterialPage(
-            key: state.pageKey,
-            child: RaporDetaySayfasi(
-              reportId: reportId,
-              rapor: null, // Will be loaded from Supabase
-            ),
-          );
-        },
-        routes: [
-          GoRoute(
-            path: 'duzenle',
-            pageBuilder: (context, state) {
-              final reportId = state.pathParameters['reportId'] ?? '';
-              return MaterialPage(
-                key: state.pageKey,
-                child: RaporDuzenleScreen(reportId: reportId),
-              );
-            },
-          ),
-          GoRoute(
-            path: 'onay',
-            pageBuilder: (context, state) {
-              final reportId = state.pathParameters['reportId'] ?? '';
-              return MaterialPage(
-                key: state.pageKey,
-                child: RaporOnayScreen(reportId: reportId),
-              );
-            },
-          ),
-        ],
-      ),
-      
-      // =================================================
       // OTHER ROUTES
       // =================================================
       
@@ -432,34 +387,6 @@ class PersonelProfilScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text('Profilim')),
       body: Center(child: Text('Profilim - Coming Soon')),
-    );
-  }
-}
-
-class RaporDuzenleScreen extends StatelessWidget {
-  final String reportId;
-  
-  const RaporDuzenleScreen({super.key, required this.reportId});
-  
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Rapor Düzenle')),
-      body: Center(child: Text('Rapor Düzenle: $reportId')),
-    );
-  }
-}
-
-class RaporOnayScreen extends StatelessWidget {
-  final String reportId;
-  
-  const RaporOnayScreen({super.key, required this.reportId});
-  
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Rapor Onay')),
-      body: Center(child: Text('Rapor Onay: $reportId')),
     );
   }
 }

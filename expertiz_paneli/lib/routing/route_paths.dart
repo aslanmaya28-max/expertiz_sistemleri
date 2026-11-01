@@ -81,17 +81,8 @@ class RoutePaths {
   // REPORT ROUTES (Dynamic)
   // =====================================================
   
-  /// Rapor Detayı - Dynamic route
-  /// Usage: '/rapor/:reportId'
-  static String raporDetay(String reportId) => '/rapor/$reportId';
   
-  /// Rapor Düzenle - Dynamic route
-  /// Usage: '/rapor/:reportId/duzenle'
-  static String raporDuzenle(String reportId) => '/rapor/$reportId/duzenle';
   
-  /// Rapor Onay - Dynamic route
-  /// Usage: '/rapor/:reportId/onay'
-  static String raporOnay(String reportId) => '/rapor/$reportId/onay';
   
   // =====================================================
   // OTHER ROUTES

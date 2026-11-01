@@ -6,32 +6,28 @@ import type { FormEvent } from "react";
 import {
   getAnalysisHistory,
   getCreditBalance,
-  getFavorites,
   getMyExpertizReports,
   getMyExpertizRequests,
   getProfile,
-  removeFavorite,
   updateProfile,
   type AnalysisHistoryItem,
   type CreditBalanceResponse,
   type CustomerProfile,
   type ExpertizReportSummary,
   type ExpertizRequestSummary,
-  type FavoriteVehicle,
 } from "@/lib/api";
 import { useAuth } from "@/kancalar/yetkiKullan";
 import { BILDIRIM_EVENT } from "@/bilesenler/BildirimZili";
 import EpostaDogrulamaUyarisi from "@/bilesenler/EpostaDogrulamaUyarisi";
 import Ikon from "@/bilesenler/Ikon";
 
-type PanelTab = "ozet" | "analizler" | "ekspertiz" | "raporlar" | "favoriler" | "krediler" | "profil";
+type PanelTab = "ozet" | "analizler" | "ekspertiz" | "raporlar" | "krediler" | "profil";
 
 const tabs: { id: PanelTab; label: string }[] = [
   { id: "ozet", label: "Özet" },
   { id: "analizler", label: "Analizlerim" },
   { id: "ekspertiz", label: "Ekspertiz Taleplerim" },
   { id: "raporlar", label: "Raporlarım" },
-  { id: "favoriler", label: "Favoriler" },
   { id: "krediler", label: "Krediler" },
   { id: "profil", label: "Profil" },
 ];
@@ -97,7 +93,6 @@ export default function MusteriPaneli() {
   const [requests, setRequests] = useState<ExpertizRequestSummary[]>([]);
   const [reports, setReports] = useState<ExpertizReportSummary[]>([]);
   const [history, setHistory] = useState<AnalysisHistoryItem[]>([]);
-  const [favorites, setFavorites] = useState<FavoriteVehicle[]>([]);
   const [balance, setBalance] = useState<CreditBalanceResponse | null>(null);
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
@@ -110,19 +105,17 @@ export default function MusteriPaneli() {
       setDataLoading(true);
       setError(null);
       try {
-        const [requestResult, reportResult, historyResult, balanceResult, favoritesResult, profileResult] = await Promise.all([
+        const [requestResult, reportResult, historyResult, balanceResult, profileResult] = await Promise.all([
           getMyExpertizRequests(),
           getMyExpertizReports(),
           getAnalysisHistory(),
           getCreditBalance(),
-          getFavorites(),
           getProfile(),
         ]);
         setRequests(requestResult.requests || []);
         setReports(reportResult.reports || []);
         setHistory(historyResult.history || []);
         setBalance(balanceResult);
-        setFavorites(favoritesResult.favorites || []);
         setProfile(profileResult.profile);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Panel verileri yuklenemedi");
@@ -161,13 +154,7 @@ export default function MusteriPaneli() {
   const latestRequests = requests.slice(0, 4);
   const latestReports = reports.slice(0, 4);
   const latestHistory = history.slice(0, 5);
-  const latestFavorites = favorites.slice(0, 4);
   const creditCount = balance?.credits ?? user?.credits ?? 0;
-
-  async function handleRemoveFavorite(listingId: number) {
-    await removeFavorite(listingId);
-    setFavorites((current) => current.filter((vehicle) => vehicle.id !== listingId));
-  }
 
   if (loading) {
     return <div className="max-w-6xl mx-auto px-4 py-12 text-metin-ikincil">Panel yukleniyor...</div>;
@@ -218,11 +205,10 @@ export default function MusteriPaneli() {
         </div>
       )}
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard label="Aktif ekspertiz" value={activeRequests.length.toString()} hint="Sureci devam eden talepler" />
         <SummaryCard label="Yayinlanan rapor" value={reports.length.toString()} hint="Musteriye acik raporlar" />
         <SummaryCard label="Analiz gecmisi" value={history.length.toString()} hint="Krediyle yapilan analizler" />
-        <SummaryCard label="Favori arac" value={favorites.length.toString()} hint="Takip edilen vitrin araclari" />
         <SummaryCard label="Kredi bakiyesi" value={String(creditCount)} hint={balance?.tier ? `${balance.tier} paket` : "Kullanilabilir bakiye"} />
       </div>
 
@@ -260,9 +246,6 @@ export default function MusteriPaneli() {
               <PanelSection title="Yayinlanan Raporlar" count={latestReports.length}>
                 {latestReports.length === 0 ? <EmptyState text="Onaylanmis raporunuz hazir oldugunda burada gorunur." /> : latestReports.map((report) => <ReportRow key={report.id} report={report} />)}
               </PanelSection>
-              <PanelSection title="Favori Araclar" count={latestFavorites.length}>
-                {latestFavorites.length === 0 ? <EmptyState text="Vitrinden kaydettiginiz araclar burada gorunur." /> : latestFavorites.map((vehicle) => <FavoriteRow key={vehicle.id} vehicle={vehicle} onRemove={handleRemoveFavorite} />)}
-              </PanelSection>
               <QuickActions credits={creditCount} />
             </div>
           )}
@@ -282,12 +265,6 @@ export default function MusteriPaneli() {
           {activeTab === "raporlar" && (
             <PanelSection title="Raporlarim" count={reports.length}>
               {reports.length === 0 ? <EmptyState text="Yayinlanan raporunuz hazir oldugunda burada gorunur." /> : reports.map((report) => <ReportRow key={report.id} report={report} />)}
-            </PanelSection>
-          )}
-
-          {activeTab === "favoriler" && (
-            <PanelSection title="Favori Araclarim" count={favorites.length}>
-              {favorites.length === 0 ? <EmptyState text="Vitrindeki araclari favoriye eklediginizde burada takip edebilirsiniz." /> : favorites.map((vehicle) => <FavoriteRow key={vehicle.id} vehicle={vehicle} onRemove={handleRemoveFavorite} />)}
             </PanelSection>
           )}
 
@@ -436,58 +413,10 @@ function ReportRow({ report }: { report: ExpertizReportSummary }) {
   );
 }
 
-function FavoriteRow({ vehicle, onRemove }: { vehicle: FavoriteVehicle; onRemove: (listingId: number) => Promise<void> }) {
-  const title = vehicle.title || `${vehicle.brand} ${vehicle.model}`;
-  const [removing, setRemoving] = useState(false);
-
-  async function remove() {
-    setRemoving(true);
-    try {
-      await onRemove(vehicle.id);
-    } finally {
-      setRemoving(false);
-    }
-  }
-
-  return (
-    <div className="rounded-lg border border-kenarlik-acik p-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="font-semibold text-metin-birincil">{title}</div>
-          <div className="mt-1 text-sm text-metin-ikincil">
-            {vehicle.year || "-"} / {vehicle.km ? new Intl.NumberFormat("tr-TR").format(vehicle.km) + " km" : "-"} / {vehicle.location || "-"}
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={remove}
-            disabled={removing}
-            className="whitespace-nowrap rounded-lg border border-kenarlik-acik px-3 py-1.5 text-xs font-semibold text-metin-ikincil disabled:opacity-60"
-          >
-            {removing ? "Kaldiriliyor" : "Kaldir"}
-          </button>
-          <Link href={`/arac-analiz/${vehicle.id}`} className="whitespace-nowrap rounded-lg border border-kenarlik-acik px-3 py-1.5 text-xs font-semibold text-metin-birincil">
-            Incele
-          </Link>
-        </div>
-      </div>
-      <div className="mt-3 grid gap-2 text-xs text-metin-ikincil sm:grid-cols-3">
-        <span>Fiyat: {formatPrice(vehicle.price)}</span>
-        <span>Piyasa: {formatPrice(vehicle.market_avg_price)}</span>
-        <span>Kayit: {formatDate(vehicle.favorited_at || undefined)}</span>
-      </div>
-    </div>
-  );
-}
-
 function QuickActions({ credits }: { credits: number }) {
   return (
     <PanelSection title="Hizli Islemler">
       <div className="grid gap-3 sm:grid-cols-2">
-        <Link href="/vitrin" className="rounded-lg border border-kenarlik-acik p-4 text-sm font-semibold text-metin-birincil hover:border-birincil">
-          Vitrindeki araclari incele
-        </Link>
         <Link href="/arac-analiz" className="rounded-lg border border-kenarlik-acik p-4 text-sm font-semibold text-metin-birincil hover:border-birincil">
           Link veya arac analizi yap
         </Link>

@@ -22,13 +22,6 @@ def _dependency_calls(route):
 
 
 class AdminOnlyRouteTests(unittest.TestCase):
-    def test_vitrin_writes_require_admin(self):
-        from yerimebak_ai_v5.api.v1.endpoints import vitrin
-        from yerimebak_ai_v5.api.v1.endpoints.auth import get_admin_user
-
-        for method, path in (("PATCH", "/{vehicle_id}/status"), ("POST", "/{vehicle_id}/analyze")):
-            self.assertIn(get_admin_user, _dependency_calls(_route(vitrin.router, path, method)), path)
-
     def test_frontend_valuation_paths_exist_in_backend(self):
         from tests.unit.route_paths import api_paths
         from yerimebak_ai_v5.api.v1.router import api_router
