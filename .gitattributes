@@ -1,0 +1,2 @@
+# Kabuk betikleri her ortamda LF satir sonuyla kalir (Windows CRLF sh betiklerini bozar)
+*.sh text eol=lf
