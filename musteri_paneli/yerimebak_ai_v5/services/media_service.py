@@ -2,8 +2,8 @@
 """
 Ekspertiz medya servisi (hasar fotograflari ve kurumsal ekspertiz raporlari).
 
-- Dosyalar diskte MEDIA_ROOT/<report_id>/<media_id>.<uzanti> olarak saklanir
-  (Docker'da /app/data kalici volume'u altinda).
+- Dosyalar varsayılan olarak MEDIA_ROOT altında, MEDIA_STORAGE=supabase ise
+  gizli Supabase Storage bucket'ında saklanır.
 - Kayitlar `report_media` tablosunda tutulur.
 - Dosyalara imzali (HMAC) ve sureli URL ile erisilir; boylece hem Flutter
   (Image.network) hem web (<img src>) ek baslik gondermeden goruntuleyebilir.
@@ -12,13 +12,19 @@ Ekspertiz medya servisi (hasar fotograflari ve kurumsal ekspertiz raporlari).
 """
 import hashlib
 import hmac
+import logging
 import os
 import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
+from urllib.parse import quote
+
+import httpx
 
 from yerimebak_ai_v5.core.database_config import DatabaseConfig
+
+logger = logging.getLogger(__name__)
 
 CATEGORIES = {"inspection_photo", "corporate_report", "document"}
 SECTIONS = {"arac", "dis", "ic", "boya_kaporta", "kurumsal", "genel"}
@@ -40,6 +46,48 @@ def media_root() -> Path:
         return Path(configured)
     # .../musteri_paneli/yerimebak_ai_v5/services -> .../musteri_paneli/data/media
     return Path(__file__).resolve().parents[2] / "data" / "media"
+
+
+class _MediaStorageError(Exception):
+    """Depolama hataları API'ye anahtar veya sağlayıcı yanıtı taşımamalı."""
+
+
+def _storage_mode() -> str:
+    mode = (os.getenv("MEDIA_STORAGE") or "local").strip().lower()
+    if mode not in {"local", "supabase"}:
+        logger.error("Geçersiz medya depolama modu")
+        raise _MediaStorageError
+    return mode
+
+
+def _supabase_object(
+    method: str, report_id: str, file_name: str,
+    content: Optional[bytes] = None, content_type: Optional[str] = None,
+) -> bytes:
+    base_url = (os.getenv("SUPABASE_URL") or "").strip().rstrip("/")
+    key = (os.getenv("SUPABASE_SERVICE_ROLE_KEY") or "").strip()
+    bucket = (os.getenv("SUPABASE_MEDIA_BUCKET") or "report-media").strip()
+    if not base_url or not key or not bucket:
+        logger.error("Supabase medya depolama ayarları eksik")
+        raise _MediaStorageError
+    object_path = "/".join(quote(str(part), safe="") for part in (bucket, report_id, file_name))
+    headers = {"Authorization": f"Bearer {key}", "apikey": key}
+    if method == "POST":
+        headers.update({"Content-Type": content_type, "x-upsert": "false"})
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            response = client.request(
+                method, f"{base_url}/storage/v1/object/{object_path}",
+                headers=headers, content=content,
+            )
+            response.raise_for_status()
+            return response.content
+    except httpx.HTTPStatusError as exc:
+        logger.warning("Supabase medya isteği başarısız: işlem=%s durum=%s", method, exc.response.status_code)
+        raise _MediaStorageError from None
+    except (httpx.RequestError, httpx.InvalidURL):
+        logger.warning("Supabase medya bağlantı hatası: işlem=%s", method)
+        raise _MediaStorageError from None
 
 
 def _secret() -> bytes:
@@ -178,7 +226,7 @@ def store_media(
     item_label: Optional[str] = None,
     note: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Dosyayi diske yazar ve kaydini olusturur. Commit cagirana aittir."""
+    """Dosyayı seçili depoya yazar ve kaydını oluşturur. Commit çağırana aittir."""
     if category not in CATEGORIES:
         return {"error": "Gecersiz dosya kategorisi", "http_status": 400}
     if section and section not in SECTIONS:
@@ -195,12 +243,18 @@ def store_media(
 
     media_id = str(uuid.uuid4())
     file_name = f"{media_id}{_EXTENSIONS[content_type]}"
-    folder = media_root() / str(report_id)
-    folder.mkdir(parents=True, exist_ok=True)
-    target = folder / file_name
-    temp = folder / f".{file_name}.tmp"
-    temp.write_bytes(content)
-    os.replace(temp, target)
+    try:
+        if _storage_mode() == "supabase":
+            _supabase_object("POST", str(report_id), file_name, content, content_type)
+        else:
+            folder = media_root() / str(report_id)
+            folder.mkdir(parents=True, exist_ok=True)
+            target = folder / file_name
+            temp = folder / f".{file_name}.tmp"
+            temp.write_bytes(content)
+            os.replace(temp, target)
+    except _MediaStorageError:
+        return {"error": "Dosya depolama hizmetine yüklenemedi. Lütfen tekrar deneyin.", "http_status": 502}
 
     safe_name = Path(original_name or file_name).name[:200]
     cursor.execute(
@@ -244,7 +298,7 @@ def soft_delete_media(cursor: Any, report_id: str, media_id: str) -> bool:
 
 
 def open_media(media_id: str, expires_at: int, signature: str) -> Dict[str, Any]:
-    """Imza dogrulandiktan sonra dosya yolunu dondurur."""
+    """İmza doğrulandıktan sonra yerel yolu veya depodaki dosya baytlarını döndürür."""
     try:
         uuid.UUID(str(media_id))
     except ValueError:
@@ -264,11 +318,18 @@ def open_media(media_id: str, expires_at: int, signature: str) -> Dict[str, Any]
     if not row:
         return {"error": "Dosya bulunamadi", "http_status": 404}
     row = dict(row)
-    path = media_root() / str(row["report_id"]) / str(row["file_name"])
-    if not path.is_file():
-        return {"error": "Dosya bulunamadi", "http_status": 404}
+    try:
+        if _storage_mode() == "supabase":
+            stored_file = {"content": _supabase_object("GET", str(row["report_id"]), str(row["file_name"]))}
+        else:
+            path = media_root() / str(row["report_id"]) / str(row["file_name"])
+            if not path.is_file():
+                return {"error": "Dosya bulunamadi", "http_status": 404}
+            stored_file = {"path": str(path)}
+    except _MediaStorageError:
+        return {"error": "Dosya depolama hizmetinden okunamadı. Lütfen tekrar deneyin.", "http_status": 502}
     return {
-        "path": str(path),
+        **stored_file,
         "content_type": row["content_type"],
         "original_name": row.get("original_name") or row["file_name"],
     }
