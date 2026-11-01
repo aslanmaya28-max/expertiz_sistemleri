@@ -7,6 +7,7 @@ Kullanıcıyla, commit mesajlarında ve raporlarda Türkçe yaz (Türkçe karakt
 
 ## Köprü
 - Claude'dan gelen görev `kopru/codex_icin/` altındadır; sana `kopru/codex_gorev.sh` ile ayrı bir çalışma kopyasında verilir. Yalnızca o klasörde ve o dalda çalış.
+- **Görev sahipliği (çakışmayı önler):** Görev dosyasındaki `Atanan:` satırına uy. `Atanan: codex-exec` olan görevi VS Code oturumunda **alma** (betik yapıyor). VS Code'da yalnızca `Atanan: vscode` olan ya da kullanıcının sohbette açıkça istediği görevi yap. `Durum: calisiyor` olan göreve başka oturum başlamaz. Bir göreve başlarken `Durum: calisiyor` yap.
 - Claude'a iş bırakmak istersen `kopru/claude_icin/NNN-ad.md` dosyası yaz (şablon `kopru/README.md`), `Durum: bekliyor` yap. Cevap `kopru/claude_sonuc/` altına gelir.
 - Claude'un üzerinde çalıştığı dosyaları aynı anda değiştirme. Emin değilsen görevi `claude_icin/` üzerinden sor.
 - Teslimden önce testleri çalıştır; kırmızı test varsa düzelt; testler geçmeden 'bitti' deme (ayrıntı: kopru/README.md → Test kapısı).

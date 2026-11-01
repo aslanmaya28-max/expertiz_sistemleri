@@ -23,6 +23,7 @@ Görev ve sonuç dosyaları depoya girmez (`.gitignore`). Yalnızca bu README, �
 Durum: bekliyor        <!-- bekliyor | calisiyor | bitti | iptal | test-basarisiz | hata -->
 Gönderen: Claude | Codex
 Dal: degerleme-web-kaynak   <!-- görevin başlayacağı dal -->
+Atanan: codex-exec          <!-- codex-exec: betik yapar | vscode: VS Code'daki Codex yapar -->
 Test: <komut>              <!-- isteğe bağlı; çalışma kopyasının kökünden çalışır -->
 
 ## Amaç
@@ -34,6 +35,8 @@ Test: <komut>              <!-- isteğe bağlı; çalışma kopyasının kökün
 ```
 
 `Test:` satırı yoksa tüm Python test paketi (`musteri_paneli/tests`) çalışır.
+
+**Atanan** alanı aynı görevin iki Codex oturumunda birden yapılmasını önler: betik görevi başlatırken `Atanan: codex-exec` ve `Durum: calisiyor` yazar; VS Code'daki Codex bu görevi almaz. VS Code'da yaptırılacak görevler `Atanan: vscode` ile yazılır ve bitince Claude `kapi.sh` ile test kapısını çalıştırır.
 
 Betik test ortamını kendisi hazırlar: `SECRET_KEY=test`, boş `OPENROUTER_API_KEY`, göreve özel test veritabanı (`TEST_DATABASE_URL`, `KOPRU_TEST_DB` = `ybtest_<numara>`), site `node_modules` bağlantısı ve Flutter paket ayarı. Paralel görevler birbirinin veritabanını sıfırlamaz. Testler geçtiği hâlde Codex commit edemediyse kapı, Codex adına commit eder.
 

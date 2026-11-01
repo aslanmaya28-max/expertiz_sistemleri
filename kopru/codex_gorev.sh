@@ -69,6 +69,12 @@ FLUTTER_SDK_W="$(cygpath -m "$FLUTTER_SDK" 2>/dev/null || echo "$FLUTTER_SDK")"
 PUB_CACHE_W="$(cygpath -m "${PUB_CACHE:-$LOCALAPPDATA/Pub/Cache}" 2>/dev/null || true)"
 TEMP_W="$(cygpath -m "${TEMP:-${TMP:-}}" 2>/dev/null || true)"
 
+# Sahiplik: VS Code'daki Codex bu gorevi almasin (AGENTS.md -> Gorev sahipligi)
+if grep -q '^Atanan:[[:space:]]*vscode' "$GOREV"; then
+  echo "Gorev VS Code Codex'e atanmis (Atanan: vscode); betikle calistirilmaz." >&2; exit 1
+fi
+if grep -q '^Atanan:' "$GOREV"; then sed -i 's/^Atanan:.*/Atanan: codex-exec/' "$GOREV"; else sed -i '0,/^Durum:/s//Atanan: codex-exec
+Durum:/' "$GOREV"; fi
 sed -i 's/^Durum:.*/Durum: calisiyor/' "$GOREV"
 
 KURALLAR="Sen Codex'sin ve Claude'dan gelen bir gorevi yapiyorsun (kopru protokolu: kopru/README.md, kurallar: AGENTS.md).
