@@ -402,14 +402,22 @@ export interface ValuationPartsResponse {
   cost_credits: number;
 }
 
+export interface PrefillField {
+  deger: string | number;
+  kaynak: "ilan_sayfasi" | "ilan_metni" | "link_kelimeleri";
+  dogrulandi: boolean;
+}
+
 export interface ValuationPrefill {
+  fields?: Record<string, PrefillField>;
+  verified_count?: number;
   success: boolean;
   found: boolean;
   listing_id?: number;
   /** Kisa link (shbd.io) cozulduyse asil ilan adresi */
   url?: string;
   source?: "arabam" | "sahibinden" | null;
-  vehicle: VehicleInput & { title?: string; image_url?: string; location?: string };
+  vehicle: VehicleInput & { title?: string; image_url?: string; location?: string; package?: string; tramer_amount?: number; painted_count?: number; changed_count?: number };
   parts: Record<string, PartStatus>;
   message: string;
 }
@@ -418,6 +426,7 @@ export interface ValuationRequestPayload {
   listing_url?: string;
   brand?: string;
   model?: string;
+  package?: string;
   year?: number;
   km?: number;
   listed_price?: number;
@@ -597,6 +606,10 @@ export function getValuationParts(): Promise<ValuationPartsResponse> {
 
 export function prefillValuation(url: string): Promise<ValuationPrefill> {
   return fetchAPI<ValuationPrefill>(`/valuation/prefill?url=${encodeURIComponent(url)}`);
+}
+
+export function prefillValuationText(text: string): Promise<ValuationPrefill> {
+  return fetchAPI<ValuationPrefill>("/valuation/prefill-text", { method: "POST", body: JSON.stringify({ text }) });
 }
 
 export function analyzeValuation(payload: ValuationRequestPayload): Promise<ValuationResult> {

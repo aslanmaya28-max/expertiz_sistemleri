@@ -9,6 +9,9 @@ import {
   getCreditBalance,
   getValuationParts,
   prefillValuation,
+  prefillValuationText,
+  type PrefillField,
+  type ValuationPrefill,
   type PartStatus,
   type ValuationPartsResponse,
   type ValuationResult,
@@ -58,9 +61,11 @@ interface Form {
   fuel: string;
   gear: string;
   tramer: string;
+  package: string;
+  location: string;
 }
 
-const BOS_FORM: Form = { link: "", brand: "", model: "", year: "", km: "", price: "", fuel: "", gear: "", tramer: "" };
+const BOS_FORM: Form = { link: "", brand: "", model: "", year: "", km: "", price: "", fuel: "", gear: "", tramer: "", package: "", location: "" };
 
 export default function AracAnalizSayfasi() {
   const { user, loading: authLoading } = useAuth();
@@ -69,6 +74,9 @@ export default function AracAnalizSayfasi() {
   const [parts, setParts] = useState<Record<string, PartStatus>>({});
   const [bakiye, setBakiye] = useState<number | null>(null);
   const [prefillMsg, setPrefillMsg] = useState<string | null>(null);
+  const [origins, setOrigins] = useState<Record<string, PrefillField>>({});
+  const [listingText, setListingText] = useState("");
+  const [textOpen, setTextOpen] = useState(false);
   const [sonuc, setSonuc] = useState<ValuationResult | null>(null);
   const [hata, setHata] = useState<{ message: string; code?: string } | null>(null);
   const [busy, setBusy] = useState<"prefill" | "analyze" | null>(null);
@@ -82,8 +90,41 @@ export default function AracAnalizSayfasi() {
     getCreditBalance().then((b) => setBakiye(b.credits)).catch(() => undefined);
   }, [user]);
 
-  const set = (key: keyof Form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+  const originKey = (key: string) => (({ gear: "transmission", tramer: "tramer_amount" } as Record<string, string>)[key] || key);
+  const clearOrigin = (key: string) => setOrigins((o) => {
+    const next = { ...o };
+    delete next[originKey(key)];
+    return next;
+  });
+  const set = (key: keyof Form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    clearOrigin(key);
     setForm((f) => ({ ...f, [key]: e.target.value }));
+  };
+
+  function badge(key: string) {
+    const source = origins[originKey(key)];
+    if (!source) return null;
+    return <span className={`ml-2 inline-block rounded px-1.5 py-0.5 text-xs ${source.dogrulandi ? "bg-green-50 text-green-800" : "bg-yellow-50 text-yellow-800"}`}>
+      {source.dogrulandi ? (source.kaynak === "ilan_metni" ? "İlan metninden alındı" : "İlandan alındı") : source.kaynak === "link_kelimeleri" ? "Linkten tahmin — kontrol edin" : "Kayıtlı bilgi — kontrol edin"}
+    </span>;
+  }
+
+  function applyPrefill(res: ValuationPrefill) {
+    const v = res.vehicle || {};
+    // Her çıkarım yeni bir ilanı temsil eder: önceki ilandan eksik alan taşınmaz.
+    setForm((f) => ({
+      ...f, link: res.url || f.link,
+      brand: v.brand ?? "", model: v.model ?? "",
+      year: v.year != null ? String(v.year) : "", km: v.km != null ? String(v.km) : "",
+      price: v.price != null ? String(v.price) : "", fuel: v.fuel ?? "", gear: v.transmission ?? "",
+      tramer: v.tramer_amount != null ? String(v.tramer_amount) : "",
+      package: v.package ?? "", location: v.location ?? "",
+    }));
+    setParts(res.parts || {});
+    setOrigins(res.fields || {});
+    setPrefillMsg(res.message);
+    setTextOpen(!res.verified_count);
+  }
 
   async function linktenDoldur() {
     if (!form.link.trim()) return;
@@ -91,23 +132,22 @@ export default function AracAnalizSayfasi() {
     setHata(null);
     setPrefillMsg(null);
     try {
-      const res = await prefillValuation(form.link.trim());
-      const v = res.vehicle || {};
-      setForm((f) => ({
-        ...f,
-        link: res.url || f.link,
-        brand: v.brand ?? f.brand,
-        model: v.model ?? f.model,
-        year: v.year != null ? String(v.year) : f.year,
-        km: v.km != null ? String(v.km) : f.km,
-        price: v.price != null ? String(v.price) : f.price,
-        fuel: v.fuel ?? f.fuel,
-        gear: v.transmission ?? f.gear,
-      }));
-      if (res.parts && Object.keys(res.parts).length) setParts(res.parts);
-      setPrefillMsg(res.message);
+      applyPrefill(await prefillValuation(form.link.trim()));
     } catch (err) {
       setHata({ message: err instanceof Error ? err.message : "Link okunamadı" });
+      setTextOpen(true);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function metindenDoldur() {
+    setBusy("prefill");
+    setHata(null);
+    try {
+      applyPrefill(await prefillValuationText(listingText.trim()));
+    } catch (err) {
+      setHata({ message: err instanceof Error ? err.message : "Metin okunamadı" });
     } finally {
       setBusy(null);
     }
@@ -123,6 +163,7 @@ export default function AracAnalizSayfasi() {
         listing_url: form.link.trim() || undefined,
         brand: form.brand || undefined,
         model: form.model || undefined,
+        package: form.package || undefined,
         year: form.year ? Number(form.year) : undefined,
         km: form.km ? Number(form.km) : undefined,
         listed_price: form.price ? Number(form.price) : undefined,
@@ -193,48 +234,63 @@ export default function AracAnalizSayfasi() {
               <input value={form.link} onChange={set("link")} className={input} placeholder="https://www.arabam.com/ilan/..." />
               <button type="button" onClick={linktenDoldur} disabled={!form.link.trim() || busy !== null}
                 className="whitespace-nowrap rounded-lg border border-birincil px-4 py-2 text-sm font-semibold text-birincil disabled:opacity-50">
-                {busy === "prefill" ? "Okunuyor..." : "Linkten Doldur"}
+                {busy === "prefill" ? "Okunuyor..." : "Bilgileri getir"}
               </button>
             </div>
             {prefillMsg && <p className="mt-2 text-sm text-metin-ikincil">{prefillMsg}</p>}
+            <details className="mt-3 text-sm" open={textOpen} onToggle={(e) => setTextOpen(e.currentTarget.open)}>
+              <summary className="cursor-pointer font-medium text-birincil">İlan metnini yapıştırın</summary>
+              <textarea aria-label="İlan metni" maxLength={8000} rows={6} value={listingText}
+                onChange={(e) => setListingText(e.target.value)} className={`${input} mt-3`} placeholder="İlandaki araç bilgilerini ve açıklamayı buraya yapıştırın." />
+              <button type="button" disabled={busy !== null || !listingText.trim()} onClick={metindenDoldur}
+                className="mt-2 rounded-lg border border-birincil px-4 py-2 font-semibold text-birincil disabled:opacity-50">Metinden doldur</button>
+            </details>
           </section>
 
           <section className="bg-white rounded-xl border border-kenarlik-acik p-6">
             <h2 className="text-lg font-semibold text-metin-birincil">2. Araç bilgileri</h2>
             <div className="mt-4 grid grid-cols-2 gap-4">
-              <div><label className={label}>Marka</label><input required value={form.brand} onChange={set("brand")} className={input} placeholder="Volkswagen" /></div>
-              <div><label className={label}>Model</label><input required value={form.model} onChange={set("model")} className={input} placeholder="Passat" /></div>
-              <div><label className={label}>Model yılı</label><input required type="number" min={1980} value={form.year} onChange={set("year")} className={input} placeholder="2020" /></div>
-              <div><label className={label}>Kilometre</label><input required type="number" min={0} value={form.km} onChange={set("km")} className={input} placeholder="85000" /></div>
+              <div><label className={label}>Paket / motor{badge("package")}</label><input value={form.package} onChange={set("package")} className={input} /></div>
+              <div><label className={label}>Şehir{badge("location")}</label><input value={form.location} onChange={set("location")} className={input} /></div>
+              <div><label className={label}>Marka{badge("brand")}</label><input required value={form.brand} onChange={set("brand")} className={input} placeholder="Volkswagen" /></div>
+              <div><label className={label}>Model{badge("model")}</label><input required value={form.model} onChange={set("model")} className={input} placeholder="Passat" /></div>
+              <div><label className={label}>Model yılı{badge("year")}</label><input required type="number" min={1980} value={form.year} onChange={set("year")} className={input} placeholder="2020" /></div>
+              <div><label className={label}>Kilometre{badge("km")}</label><input required type="number" min={0} value={form.km} onChange={set("km")} className={input} placeholder="85000" /></div>
               <div>
-                <label className={label}>Yakıt</label>
+                <label className={label}>Yakıt{badge("fuel")}</label>
                 <select value={form.fuel} onChange={set("fuel")} className={input}>
+                  {form.fuel && !["Benzin", "Dizel", "Hibrit", "Elektrik", "LPG"].includes(form.fuel) && <option>{form.fuel}</option>}
                   <option value="">Seçiniz</option><option>Benzin</option><option>Dizel</option><option>Hibrit</option><option>Elektrik</option><option>LPG</option>
                 </select>
               </div>
               <div>
-                <label className={label}>Vites</label>
+                <label className={label}>Vites{badge("gear")}</label>
                 <select value={form.gear} onChange={set("gear")} className={input}>
+                  {form.gear && !["Otomatik", "Manuel", "Yarı Otomatik"].includes(form.gear) && <option>{form.gear}</option>}
                   <option value="">Seçiniz</option><option>Otomatik</option><option>Manuel</option><option>Yarı Otomatik</option>
                 </select>
               </div>
-              <div className="col-span-2"><label className={label}>İlan fiyatı (₺)</label><input required type="number" min={10000} value={form.price} onChange={set("price")} className={input} placeholder="1250000" /></div>
+              <div className="col-span-2"><label className={label}>İlan fiyatı (₺){badge("price")}</label><input required type="number" min={10000} value={form.price} onChange={set("price")} className={input} placeholder="1250000" /></div>
             </div>
           </section>
 
           <section className="bg-white rounded-xl border border-kenarlik-acik p-6">
             <h2 className="text-lg font-semibold text-metin-birincil">3. Boya / değişen ve hasar kaydı</h2>
             <p className="text-sm text-metin-ikincil mt-1">İlandaki ekspertiz bilgisine göre parçaları işaretleyin. Boş bıraktıklarınız orijinal sayılır.</p>
+            {(["painted_count", "changed_count"] as const).map((key) => origins[key] && (
+              <p className="mt-2 text-sm" key={key}>{key === "painted_count" ? "Boyalı" : "Değişen"} parça sayısı: {origins[key].deger}{badge(key)}. Hangi parçalar olduğunu aşağıdan kontrol edin.</p>
+            ))}
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
               {(meta?.parts || []).map((part) => {
                 const value = parts[part.key] || "orijinal";
                 return (
                   <div key={part.key} className="flex items-center justify-between gap-2 rounded-lg border border-kenarlik-acik px-3 py-2">
-                    <span className="text-sm text-metin-birincil">{part.label}</span>
+                    <span className="text-sm text-metin-birincil">{part.label}{badge(`parts.${part.key}`)}</span>
                     <select
                       aria-label={part.label}
                       value={value}
                       onChange={(e) => {
+                        clearOrigin(`parts.${part.key}`);
                         const next = e.target.value as PartStatus;
                         setParts((p) => {
                           const copy = { ...p };
@@ -252,7 +308,7 @@ export default function AracAnalizSayfasi() {
               })}
             </div>
             <div className="mt-4 max-w-xs">
-              <label className={label}>Tramer / hasar kaydı tutarı (₺)</label>
+              <label className={label}>Tramer / hasar kaydı tutarı (₺){badge("tramer")}</label>
               <input type="number" min={0} value={form.tramer} onChange={set("tramer")} className={input} placeholder="0" />
             </div>
           </section>
