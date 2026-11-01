@@ -3,6 +3,8 @@
 Kurumsal ekspertiz talep API'si.
 """
 from typing import Any, Dict, Optional
+# 'quote' adi asagidaki /quote uc noktasiyla cakismasin
+from urllib.parse import quote as url_quote
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
@@ -591,10 +593,21 @@ async def personnel_submit_report(
 # ---------------------------------------------------------------------------
 
 @router.get("/media/{media_id}")
-async def get_media_file(media_id: str, exp: int = 0, sig: str = "") -> FileResponse:
+async def get_media_file(media_id: str, exp: int = 0, sig: str = "") -> Response:
     result = media_service.open_media(media_id, exp, sig)
     if "error" in result:
         raise HTTPException(status_code=int(result.get("http_status") or 404), detail=result["error"])
+    if "content" in result:
+        filename = url_quote(result["original_name"])
+        disposition = (
+            f"inline; filename*=utf-8''{filename}" if filename != result["original_name"]
+            else f'inline; filename="{result["original_name"]}"'
+        )
+        return Response(
+            content=result["content"],
+            media_type=result["content_type"],
+            headers={"Content-Disposition": disposition, "Cache-Control": "private, max-age=3600"},
+        )
     return FileResponse(
         result["path"],
         media_type=result["content_type"],
