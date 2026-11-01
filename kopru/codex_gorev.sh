@@ -57,8 +57,8 @@ fi
 
 # Yeni calisma kopyasinda bagimliliklar: site node_modules (baglanti) ve Flutter paket ayari (kopya)
 if [ -d musteri_paneli/frontend/node_modules ] && [ ! -e "$CALISMA/musteri_paneli/frontend/node_modules" ]; then
-  cmd //c mklink /J "$(cygpath -w "$CALISMA/musteri_paneli/frontend/node_modules")" \
-    "$(cygpath -w musteri_paneli/frontend/node_modules)" >/dev/null 2>&1 \
+  cmd //c mklink /J "$(cygpath -wa "$CALISMA/musteri_paneli/frontend/node_modules")" \
+    "$(cygpath -wa musteri_paneli/frontend/node_modules)" >/dev/null 2>&1 \
     || ln -s "$KOK/musteri_paneli/frontend/node_modules" "$CALISMA/musteri_paneli/frontend/node_modules"
 fi
 if [ -d expertiz_paneli/.dart_tool ] && [ ! -d "$CALISMA/expertiz_paneli/.dart_tool" ]; then
