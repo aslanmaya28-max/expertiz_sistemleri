@@ -83,48 +83,45 @@ void main() async {
 
 }
 
-/// Mobil paylasim intent'lerini dinler ve ilan analiz kuyruguna yonlendirir.
 void _initShareListener(AuthRepository authRepository) {
-  // Platform tarafindan paylasilan metinleri dinle
-  sharing.ReceiveSharingIntent.instance.getMediaStream().listen((List<sharing.SharedMediaFile> value) {
-    _handleSharedContent(value, authRepository);
+  sharing.ReceiveSharingIntent.instance.getTextStream().listen((String value) {
+    _handleSharedText(value, authRepository);
   }, onError: (Object error) {
     debugPrint('Share listener hatasi: $error');
   });
 
-  // Uygulama kapaliyken gelen paylasimlari da isle
-  sharing.ReceiveSharingIntent.instance.getInitialMedia().then((List<sharing.SharedMediaFile> value) {
-    _handleSharedContent(value, authRepository);
+  sharing.ReceiveSharingIntent.instance.getInitialText().then((String? value) {
+    if (value != null) {
+      _handleSharedText(value, authRepository);
+    }
   });
 }
 
-/// Paylasilan medya dosyalarindan URL cikarir ve analiz kuyruguna ekler.
-void _handleSharedContent(List<sharing.SharedMediaFile> files, AuthRepository authRepository) async {
-  for (final file in files) {
-    final text = file.content;
-    if (text != null && text.isNotEmpty && (text.startsWith('http://') || text.startsWith('https://'))) {
-      debugPrint('Paylasilan URL yakalandi: $text');
+void _handleSharedText(String text, AuthRepository authRepository) async {
+  final trimmed = text.trim();
+  if (trimmed.isEmpty || (!trimmed.startsWith('http://') && !trimmed.startsWith('https://'))) {
+    debugPrint('Paylasilan metin gecerli bir URL degil: $trimmed');
+    return;
+  }
 
-      // Kullanici auth token'ini al
-      String? token;
-      try {
-        final session = authRepository.currentSession;
-        token = session?.accessToken;
-      } catch (e) {
-        debugPrint('Auth token alinamadi (muhtemelen giris yapilmamis): $e');
-      }
+  debugPrint('Paylasilan URL yakalandi: $trimmed');
 
+  String? token;
+  try {
+    final session = authRepository.currentSession;
+    token = session?.accessToken;
+  } catch (e) {
+    debugPrint('Auth token alinamadi (muhtemelen giris yapilmamis): $e');
+  }
 
-      if (token != null) {
-        await SharedListingIntakeService.submitSharedUrl(
-          rawText: text,
-          authToken: token,
-        );
-        debugPrint('URL analiz kuyruguna eklendi: $text');
-      } else {
-        debugPrint('Kullanici giris yapmamis, paylasim atlandi: $text');
-      }
-    }
+  if (token != null) {
+    await SharedListingIntakeService.submitSharedUrl(
+      rawText: trimmed,
+      authToken: token,
+    );
+    debugPrint('URL analiz kuyruguna eklendi: $trimmed');
+  } else {
+    debugPrint('Kullanici giris yapmamis, paylasim atlandi: $trimmed');
   }
 }
 

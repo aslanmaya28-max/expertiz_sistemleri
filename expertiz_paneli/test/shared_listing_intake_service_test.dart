@@ -39,13 +39,11 @@ void main() {
     });
 
     test('_extractUrl extracts url from text with extra content', () {
-      // Using reflection-like approach: buildPayload returns the trimmed text as url
       final payload = SharedListingIntakeService.buildPayload(
         'Check this car: https://www.sahibinden.com/ilan/1',
       );
 
-      // buildPayload uses rawText.trim(), so the full string becomes the url
-      expect(payload['url'], 'Check this car: https://www.sahibinden.com/ilan/1');
+      expect(payload['url'], 'https://www.sahibinden.com/ilan/1');
     });
   });
 }

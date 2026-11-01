@@ -391,24 +391,58 @@ class PaymentService:
             DatabaseConfig.return_connection(conn)
 
     def complete_queued_analysis(self, user_id: int, history_id: str, analysis_result: Dict[str, Any]) -> Dict[str, Any]:
-
-        """Kuyruktaki analizi tamamlar ve kredi duser.
+        """Kuyruktaki analizi tamamlar: once kredi dusup yeni history olusturur,
+        sonra eski queued kaydini gunceller.
 
         Args:
             user_id: Kullanici ID.
-            history_id: analysis_history ID.
+            history_id: analysis_history ID (queued kayit).
             analysis_result: Analiz sonucu verisi.
 
         Returns:
             Dict: {'success': True, ...} veya hata mesaji.
         """
-        return self.deduct_credits(
+        deduct_result = self.deduct_credits(
             user_id=user_id,
             amount=ANALYSIS_CREDIT_COST,
             description="URL analizi",
             vehicle_data=analysis_result.get("vehicle", analysis_result),
             valuation_data={**analysis_result.get("valuation", {}), "status": "completed"},
         )
+
+        if not deduct_result.get("success"):
+            return deduct_result
+
+        conn = DatabaseConfig.get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                UPDATE analysis_history
+                SET valuation_json = jsonb_set(
+                        COALESCE(valuation_json::jsonb, '{{}}'::jsonb),
+                        '{{status}}',
+                        {self._p}
+                    ),
+                    vehicle_json = jsonb_set(
+                        COALESCE(vehicle_json::jsonb, '{{}}'::jsonb),
+                        '{{status}}',
+                        {self._p}
+                    )
+                WHERE id = {self._p} AND user_id = {self._p}
+            """, (
+                json.dumps("completed"),
+                json.dumps("completed"),
+                history_id,
+                user_id,
+            ))
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Queued analysis status update failed: {e}")
+        finally:
+            DatabaseConfig.return_connection(conn)
+
+        deduct_result["queued_history_id"] = history_id
+        return deduct_result
 
     def get_packages(self) -> Dict[str, Any]:
         return {

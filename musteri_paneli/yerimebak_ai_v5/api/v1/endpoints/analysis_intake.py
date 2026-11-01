@@ -4,6 +4,7 @@ Analysis Intake API Endpoint - URL tabanli analiz girislerini kuyruga alir.
 Kaynak: manual_paste (web), mobile_share (Flutter), chrome_extension.
 """
 import asyncio
+import functools
 from fastapi import APIRouter, HTTPException, Depends
 
 from typing import Dict, Any
@@ -62,7 +63,7 @@ async def create_url_analysis(
     user: Dict[str, Any] = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Bir URL'yi analiz kuyruguna alir. Kredi dusmez, sadece kuyruk kaydi olusturur."""
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     try:
         result = await loop.run_in_executor(
             None, _sync_create_url_analysis, user["id"], request.url, request.source

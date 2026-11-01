@@ -8,14 +8,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class SharedListingIntakeService {
-  static const String _defaultApiBase = '/api/v1/analysis-intake/url';
+  static const String _defaultApiBase =
+      'https://api.yerimebak.com.tr/api/v1/analysis-intake/url';
 
-  /// Ham paylasim metninden URL cikarir ve backend'e gonderir.
-  ///
-  /// [rawText] paylasilan metin (genelde bir URL).
-  /// [apiBase] API base URL, testlerde override edilebilir.
-  ///
-  /// Returns: Map with 'success', 'status', 'history_id' keys.
   static Future<Map<String, dynamic>> submitSharedUrl({
     required String rawText,
     String apiBase = _defaultApiBase,
@@ -58,10 +53,6 @@ class SharedListingIntakeService {
     }
   }
 
-  /// Ham paylasim metninden URL ayiklar.
-  ///
-  /// Basit regex ile http/https linkini bulur.
-  /// Bulamazsa butun metni URL olarak dener.
   static String? _extractUrl(String text) {
     final urlRegex = RegExp(
       r'https?://[^\s]+',
@@ -71,16 +62,14 @@ class SharedListingIntakeService {
     if (match != null) {
       return match.group(0);
     }
-    // Regex bulamadiysa, tum metin gecerli bir URL olabilir
     if (text.startsWith('http://') || text.startsWith('https://')) {
       return text;
     }
     return null;
   }
 
-  /// Test amaciyla payload olusturur (bagimsiz, http cagrisi yapmaz).
   static Map<String, String> buildPayload(String rawText) {
-    final url = rawText.trim();
+    final url = _extractUrl(rawText.trim()) ?? rawText.trim();
     return {'url': url, 'source': 'mobile_share'};
   }
 }
