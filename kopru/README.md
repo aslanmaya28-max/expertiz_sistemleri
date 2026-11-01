@@ -59,6 +59,23 @@ Betik testleri tekrar çalıştırır ve commit edilmemiş değişiklik kalmadı
 
 Sonuç dosyasına **Köprü test kapısı** bölümü eklenir: sonuç, tur sayısı, test komutu ve son test çıktısının yolu. Test çıktıları `kopru/log/` altındadır.
 
+### Görev VS Code'daki Codex'te yapıldıysa
+
+Codex görevi kendi panelinde de yapabilir (`AGENTS.md` köprüyü anlatır). Bu durumda otomatik test kapısı çalışmaz; görev bitince Claude kapıyı ayrıca çalıştırır:
+
+```sh
+sh kopru/kapi.sh kopru/codex_icin/005-ad.md
+```
+
+Aynı testleri çalıştırır, yeşilse commit eder, `Durum`'u günceller ve çalışma kopyasındaki Claude notlarını `claude_icin/` klasörüne taşır.
+
+### Betikle verilen görevleri izleme
+
+`codex_gorev.sh` Codex'i panel dışında (`codex exec`) çalıştırır; bu oturumlar VS Code Codex panelinde listelenmez. İzlemek için:
+
+- Canlı akış: `kopru/log/<ad>-<zaman>.log` dosyasını VS Code'da açın (Codex çalıştıkça dolar).
+- Oturumun tamamı: terminalde `codex resume --all --include-non-interactive` → listeden görev klasörü `.worktrees/codex-<ad>` olan oturum.
+
 ## Codex → Claude
 
 Codex (VS Code içinde ya da `codex exec` ile) Claude'a iş bırakmak isterse `claude_icin/` klasörüne şablona uygun bir dosya yazar. Claude her çalışma başında bu klasörü kontrol eder (`sh kopru/bekleyenler.sh`), görevi yapar, cevabı `claude_sonuc/` klasörüne aynı adla yazar ve görev dosyasındaki durumu `bitti` yapar.

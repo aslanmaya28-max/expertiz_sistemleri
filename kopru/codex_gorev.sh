@@ -156,6 +156,14 @@ $SORUN
 $(cat "$GOREV")"
 done
 
+# Codex'in calisma kopyasina biraktigi Claude notlari ana klasore tasinir (sandbox oraya yazamaz)
+mkdir -p kopru/claude_icin
+for not_dosyasi in "$CALISMA"/kopru/claude_icin/*.md; do
+  [ -f "$not_dosyasi" ] || continue
+  hedef="kopru/claude_icin/$(basename "$not_dosyasi")"
+  [ -f "$hedef" ] || { cp "$not_dosyasi" "$hedef"; echo "Claude'a not tasindi: $hedef"; }
+done
+
 sed -i "s/^Durum:.*/Durum: $DURUM/" "$GOREV"
 {
   echo ""
