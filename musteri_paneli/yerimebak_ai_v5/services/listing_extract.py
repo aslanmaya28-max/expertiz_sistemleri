@@ -64,7 +64,9 @@ def canonical_url(url):
 
 def numeric_in_text(value, text):
     # Noktalı, virgüllü ve boşlukla binlik ayrılmış tam sayılar; alt sayı eşleşmesi yok.
-    for token in re.findall(r"(?<![\w.,])\d+(?:[.,\s]\d{3})*(?![\w.,])", text):
+    # Etikete bitişik sayı kabul edilir (sahibinden kopyası: "Yıl2024", "KM24.000");
+    # başka bir sayının parçası ("1.5" içindeki 1, "2024" içindeki 24) kabul edilmez.
+    for token in re.findall(r"(?<!\d)(?<!\d[.,])\d+(?:[.,\s]\d{3})*(?![.,]?\d)", text):
         if int(re.sub(r"\D", "", token)) == value:
             return True
     return False

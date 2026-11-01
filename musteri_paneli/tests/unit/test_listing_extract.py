@@ -83,7 +83,10 @@ def test_text_numbers_and_parts_need_evidence(monkeypatch):
 
 @pytest.mark.parametrize("text,value,expected", [("1.950.000 TL", 950000, False), ("1950000", 950000, False),
     ("950.000 TL", 950000, True), ("950,000 TL", 950000, True), ("950 000 TL", 950000, True),
-    ("2019 model", 2019, True), ("12019 km", 2019, False), ("85000.50", 85000, False)])
+    ("2019 model", 2019, True), ("12019 km", 2019, False), ("85000.50", 85000, False),
+    # sahibinden kopyasında etiket ve değer bitişik gelir
+    ("Yıl2024", 2024, True), ("KM24.000", 24000, True), ("Yıl2024", 24, False), ("Model1.5 PHEV", 1, False),
+    ("KM 24.000.", 24000, True)])
 def test_numeric_boundaries(text, value, expected):
     assert extract.numeric_in_text(value, text) is expected
 
