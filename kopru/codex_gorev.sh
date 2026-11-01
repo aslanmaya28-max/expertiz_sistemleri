@@ -75,7 +75,7 @@ KURALLAR="Sen Codex'sin ve Claude'dan gelen bir gorevi yapiyorsun (kopru protoko
 Calisma klasorun: $CALISMA (dal: $DAL). Yalnizca bu klasorde degisiklik yap; push yapma, baska dala gecme.
 Kabuk PowerShell: komutlari '&&' ile zincirleme, tek tek calistir.
 Python: $PY  (pytest kurulu). Bu gorevin uctan uca test veritabani (sadece senin): $TEST_DB
-Testler icin ortam degiskenleri: SECRET_KEY=test, OPENROUTER_API_KEY= (bos), TEST_DATABASE_URL=bu adres (PowerShell: $env:SECRET_KEY="test" vb.). node_modules ve Flutter paket ayari hazir; npm install / flutter pub get calistirma.
+Testler icin ortam degiskenleri: SECRET_KEY=test, OPENROUTER_API_KEY= (bos), TEST_DATABASE_URL=bu adres (PowerShell: \$env:SECRET_KEY="test" vb.). node_modules ve Flutter paket ayari hazir; npm install / flutter pub get calistirma.
 
 TESLIM KURALI (zorunlu):
 1. Isin bitince su test komutunu calistir (bash sozdizimi; PowerShell'de ortam degiskenlerini \$env: ile ver):
