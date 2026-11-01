@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from yerimebak_ai_v5.core.engine_v8 import YerimebakEngineV8, VehicleData, DemandLevel, Seasonality, DamageLevel
 from yerimebak_ai_v5.core.market_reference_service import get_market_reference_service
-from yerimebak_ai_v5.services.payment_service import get_payment_service
+from yerimebak_ai_v5.services.payment_service import credit_refusal, get_payment_service
 from yerimebak_ai_v5.services.auth_service import get_auth_service
 from yerimebak_ai_v5.services import web_market_reference
 from yerimebak_ai_v5.api.v1.endpoints.auth import get_authenticated_user, get_admin_user
@@ -60,11 +60,10 @@ async def analyze_vehicle(
     user = _authenticate(api_key_header, authorization_header, request.api_key)
     
     payment = get_payment_service()
-    if not payment.check_credits_before_analysis(user['id']):
-        raise HTTPException(
-            status_code=402,
-            detail=f"Yetersiz kredi. Mevcut: {user['credits']}, Gerekli: 1. Kredi satin almak icin /api/v1/payments/packages"
-        )
+    allowed = payment.analysis_allowed(user['id'])
+    if not allowed.get("ok"):
+        status, code, message = credit_refusal(allowed.get("reason"), user.get("credits"))
+        raise HTTPException(status_code=status, detail={"code": code, "message": message})
     
     try:
         market_reference = web_market_reference.get_reference({
@@ -134,6 +133,10 @@ async def analyze_vehicle(
             vehicle_data=vehicle_history,
             valuation_data=valuation_history,
         )
+        if not deduction.get("success"):
+            # Kredi dusulemediyse (es zamanli istek, gunluk sinir) analiz sonucu verilmez
+            status, code, message = credit_refusal(deduction.get("code"), deduction.get("credits"))
+            raise HTTPException(status_code=status, detail={"code": code, "message": message})
         
         return {
             "vehicle": {
@@ -165,8 +168,8 @@ async def analyze_vehicle(
             },
             "technical_summary": valuation.technical_summary,
             "billing": {
-                "credits_deducted": deduction.get("deducted", 1) if deduction.get("success") else 0,
-                "credits_remaining": deduction.get("credits_after", user['credits']) if deduction.get("success") else user['credits']
+                "credits_deducted": deduction.get("deducted", 1),
+                "credits_remaining": deduction.get("credits_after")
             }
         }
     except HTTPException:

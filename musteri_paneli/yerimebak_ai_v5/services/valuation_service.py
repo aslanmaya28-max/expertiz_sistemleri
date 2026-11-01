@@ -306,8 +306,12 @@ def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
     tramer_count = max(0, _int(payload.get("tramer_count")) or (1 if tramer_amount else 0))
 
     payment = get_payment_service()
-    if not payment.check_credits_before_analysis(user["id"]):
-        return _error("Yetersiz kredi. Analiz için kredi paketi satın alın.", 402, "insufficient_credits")
+    from yerimebak_ai_v5.services.payment_service import credit_refusal
+
+    allowed = payment.analysis_allowed(user["id"])
+    if not allowed.get("ok"):
+        status, code, message = credit_refusal(allowed.get("reason"))
+        return _error(message, status, code)
 
     reference = web_market_reference.get_reference({
         "brand": brand, "model": model, "year": year, "km": km, "fuel": fuel,
@@ -399,7 +403,9 @@ def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
                         "web_maliyet_usd": (reference.get("scope") or {}).get("cost_usd", 0)},
     )
     if not deduction.get("success"):
-        return _error("Yetersiz kredi. Analiz için kredi paketi satın alın.", 402, "insufficient_credits")
+        # Kilitli dusum son karardir (es zamanli istek, gunluk sinir): sonuc verilmez
+        status, code, message = credit_refusal(deduction.get("code"), deduction.get("credits"))
+        return _error(message, status, code)
     result["kredi"] = {"dusulen": ANALYSIS_COST, "kalan": deduction.get("credits_after")}
     result["success"] = True
     return result

@@ -38,6 +38,14 @@ TIER_LIMITS = json.loads(os.getenv("TIER_LIMITS", json.dumps({
 ANALYSIS_CREDIT_COST = int(os.getenv("ANALYSIS_CREDIT_COST", "1"))
 
 
+def credit_refusal(reason, credits=None):
+    """Kredi / gunluk sinir reddi -> (http_status, code, mesaj). Iki degerleme akisi da kullanir."""
+    if reason == "daily_limit":
+        return 429, "daily_limit", "Günlük analiz sınırınıza ulaştınız. Yarın tekrar deneyebilir veya paketinizi yükseltebilirsiniz."
+    mevcut = f" Mevcut krediniz: {credits}." if credits is not None else ""
+    return 402, "insufficient_credits", "Yetersiz kredi. Analiz için kredi paketi satın alın." + mevcut
+
+
 class PaymentService:
     def __init__(self):
         self._db_type = DatabaseConfig._get_db_type()

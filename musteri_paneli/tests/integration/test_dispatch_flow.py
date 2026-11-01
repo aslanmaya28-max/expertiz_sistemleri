@@ -174,7 +174,8 @@ def test_kredili_emsal_yoksa_kredi_dusmez(client, admin_token, monkeypatch):
     from yerimebak_ai_v5.services import web_market_reference as wmr
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setattr(wmr, "_search", lambda q, c: {"listings": [], "sources": {}})
-    before = client.get("/api/v1/auth/profile", headers=_auth(admin_token)).json()["profile"]["credits"]
+    # Bakiye /credits/balance'tan okunur: ayin seviye kredisi (004) ilk kredi isleminde eklenir
+    before = client.get("/api/v1/credits/balance", headers=_auth(admin_token)).json()["credits"]
     payload = {"brand": "Bulunmayan", "model": "Arac", "year": 2024, "km": 30000, "listed_price": 960000}
     response = client.post("/api/v1/valuation/analyze", headers=_auth(admin_token), json=payload)
     assert response.status_code == 422, response.text
@@ -183,7 +184,7 @@ def test_kredili_emsal_yoksa_kredi_dusmez(client, admin_token, monkeypatch):
         "brand": "Bulunmayan", "model": "Arac", "year": 2024, "mileage_km": 30000,
         "fuel_type": "Benzin", "gear_type": "Otomatik", "listed_price": 960000})
     assert api.status_code == 422, api.text
-    assert client.get("/api/v1/auth/profile", headers=_auth(admin_token)).json()["profile"]["credits"] == before
+    assert client.get("/api/v1/credits/balance", headers=_auth(admin_token)).json()["credits"] == before
 
 
 def _create_paid_request(client, token, plate, city, note=None, package_index=0, district="Merkez", vehicle=None):
@@ -1277,3 +1278,67 @@ def test_web_emsal_kaynakli_degerleme_kontrol_isareti_ve_musteri_kaynaklari(clie
     assert all(e["url"].startswith("https://") for e in ref["emsaller"])
     # Admin'e ozel kontrol onerileri musteriye gitmez
     assert not any(o.get("baslik") == "Kontrol gerekli" for o in customer["ai"].get("oneriler") or [])
+
+
+def test_kredi_reddi_gunluk_sinir_ve_basarisiz_dusumde_sonuc_verilmez(client, monkeypatch):
+    """Gunluk sinir doluysa 429; kilitli kredi dusumu basarisizsa (es zamanli istek) analiz sonucu verilmez."""
+    from yerimebak_ai_v5.services import email_service, payment_service, web_market_reference as wmr
+    from yerimebak_ai_v5.core.database_config import DatabaseConfig
+
+    outbox = email_service.capture_for_tests()
+    try:
+        reg = client.post("/api/v1/auth/register", json={"email": "kredired@yerimebak.test",
+                          "password": "Musteri123!", "terms_accepted": True})
+        assert reg.status_code == 200, reg.text
+        token = reg.json()["token"]
+        client.post("/api/v1/auth/verify-email", json={"token": _link_token(outbox[-1], "/eposta-dogrula")})
+    finally:
+        email_service.stop_capture()
+
+    listings = [{"url": f"https://www.arabam.com/ilan/renault-clio-red/{i}", "fiyat_tl": p,
+                 "km": 40000, "yil": 2022, "paket": "Touch", "kondisyon": "temiz"}
+                for i, p in enumerate((800000, 820000, 840000))]
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(wmr, "_search", lambda q, _c: {
+        "listings": listings, "sources": {i["url"]: str(i["fiyat_tl"]) for i in listings}, "cost": 0.01})
+    payload = {"brand": "Renault", "model": "Clio", "year": 2022, "km": 40000,
+               "fuel": "Benzin", "transmission": "Manuel", "listed_price": 830000}
+    api_payload = {"brand": "Renault", "model": "Clio", "year": 2022, "mileage_km": 40000,
+                   "fuel_type": "Benzin", "gear_type": "Manuel", "listed_price": 830000}
+
+    def kredi_ve_gecmis():
+        conn = DatabaseConfig.get_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT credits FROM users WHERE email = 'kredired@yerimebak.test'")
+            credits = dict(cur.fetchone())["credits"]
+            cur.execute("""SELECT count(*) AS n FROM analysis_history
+                           WHERE user_id = (SELECT id FROM users WHERE email = 'kredired@yerimebak.test')""")
+            return credits, dict(cur.fetchone())["n"]
+        finally:
+            DatabaseConfig.return_connection(conn)
+
+    baslangic = kredi_ve_gecmis()
+    assert baslangic == (3, 0)
+
+    # 1) Gunluk sinir dolu (free: gunluk 0 analiz hakki) -> 429, kredi ve gecmis degismez
+    monkeypatch.setitem(payment_service.TIER_LIMITS, "free", {"monthly_credits": 0, "max_analyses_per_day": 0})
+    r = client.post("/api/v1/valuation/analyze", headers=_auth(token), json=payload)
+    assert r.status_code == 429, r.text
+    assert r.json()["detail"]["code"] == "daily_limit"
+    a = client.post("/api/v1/analyze", headers=_auth(token), json=api_payload)
+    assert a.status_code == 429, a.text
+    assert kredi_ve_gecmis() == baslangic
+
+    # 2) On kontrol gecer ama kilitli dusum reddeder (es zamanli ikinci istek) -> sonuc verilmez
+    monkeypatch.setitem(payment_service.TIER_LIMITS, "free", {"monthly_credits": 0, "max_analyses_per_day": 5})
+    monkeypatch.setattr(payment_service.PaymentService, "deduct_credits",
+                        lambda self, *args, **kw: {"success": False, "error": "Yetersiz kredi",
+                                                   "code": "insufficient_credits", "credits": 0})
+    r = client.post("/api/v1/valuation/analyze", headers=_auth(token), json=payload)
+    assert r.status_code == 402, r.text
+    assert "piyasa" not in r.text and r.json()["detail"]["code"] == "insufficient_credits"
+    a = client.post("/api/v1/analyze", headers=_auth(token), json=api_payload)
+    assert a.status_code == 402, a.text
+    assert "technical_scoring" not in a.text
+    assert kredi_ve_gecmis() == baslangic
