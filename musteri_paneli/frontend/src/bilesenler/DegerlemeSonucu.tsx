@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { ValuationResult } from "@/lib/api";
+import { AkilliAliciBolumleri, SonrakiAdim } from "./AkilliAliciBolumleri";
 
 function tl(value?: number | null) {
   if (value == null) return "-";
@@ -81,6 +82,8 @@ export default function DegerlemeSonucu({ sonuc, onYeni }: { sonuc: ValuationRes
           </dl>
         </section>
       )}
+
+      <AkilliAliciBolumleri sonuc={sonuc} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Kutu baslik="İlan fiyatı" deger={tl(arac.ilanFiyati)} />
@@ -177,12 +180,11 @@ export default function DegerlemeSonucu({ sonuc, onYeni }: { sonuc: ValuationRes
         </section>
       )}
 
+      <SonrakiAdim sonuc={sonuc} />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-sm text-metin-ikincil">{sonuc.kredi.dusulen} kredi kullanıldı • Kalan: {sonuc.kredi.kalan}</span>
         <div className="flex gap-2">
-          <Link href="/ekspertiz-talebi" className="rounded-lg border border-kenarlik-acik px-4 py-2 text-sm font-semibold text-metin-birincil">
-            Bu araca ekspertiz yaptır
-          </Link>
           {onYeni && <button type="button" onClick={onYeni} className="rounded-lg bg-birincil px-4 py-2 text-sm font-semibold text-white">Yeni analiz</button>}
         </div>
       </div>

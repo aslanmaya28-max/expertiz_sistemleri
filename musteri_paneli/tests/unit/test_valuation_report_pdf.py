@@ -40,3 +40,39 @@ def test_turkish_pdf_long_content_and_complete_sections():
         assert DISCLAIMER in text
         for page in document.pages:
             assert all(0 <= ch['x0'] < ch['x1'] <= page.width+1 for ch in page.chars)
+
+
+def test_pdf_akilli_alici_bolumleri_turkce_ve_uzun_url():
+    long_url = 'https://forum.example.test/'+'ç'*10+'b'*900
+    report = {
+        'arac': {'marka': 'Renault', 'model': 'Clio', 'yil': 2020, 'km': 60000, 'ilanFiyati': 1050000},
+        'karar': {'sonuc': 'PAZARLIK YAP', 'aciklama': 'Fiyat yüksek', 'guvenSeviyesi': 'orta'},
+        'degerleme': {'temizPiyasaDegeri': 950000, 'tavsiyeFiyat': 920000,
+                      'adilFiyatAraligi': {'min': 900000, 'max': 960000}, 'kalemler': []},
+        'piyasa': {'guvenSkoru': 80, 'kaynaklar': []},
+        'pazarlikPlani': {'acilisTeklifi': 900000, 'hedefFiyat': 930000, 'ustSinir': 960000,
+                          'potansiyelKazanc': 120000, 'adimlar': ['Açılış teklifini verin.'],
+                          'gerekceler': ['Sağ ön çamurluk boyalı'], 'saticiMesaji': 'Merhaba, 2020 Renault Clio için 900.000 TL öneriyorum.',
+                          'kanitIlanlar': [{'site': 'arabam.com', 'url': long_url, 'fiyat': 930000, 'yil': 2020, 'km': 58000},
+                                           {'site': 'otoshops', 'url': None, 'fiyat': 940000, 'yil': 2020, 'km': 61000}]},
+        'modelRiskleri': {'riskler': [{'baslik': f'Şanzıman titreşimi {n}', 'aciklama': 'Düşük devirde sarsıntı.',
+                                       'belirtiler': ['Kalkışta titreme'], 'kontrol': 'Yol testi', 'guven': 'dusuk',
+                                       'kaynaklar': [long_url]} for n in range(25)],
+                          'bulunamadi': False},
+        'bakim': [{'baslik': 'Fren ve lastik kontrolü', 'aciklama': 'Geçmişi doğrulayın.', 'kontrol': 'Faturalar'}],
+        'saticiSorulari': ['Ekspertize izin veriyor musunuz?', 'Motor kaputu neden boyandı?'],
+        'rapor': {'id': 't', 'report_no': 'YD 2026-000002', 'created_at': '2026-11-02T10:00:00+00:00',
+                  'verification_code': 'YD-WXYZ-2345'},
+    }
+    content = build_pdf(report)
+    with pdfplumber.open(io.BytesIO(content)) as document:
+        assert len(document.pages) >= 3  # 25 risk sayfa taşırır
+        text = '\n'.join(page.extract_text() for page in document.pages)
+        for part in ('Pazarlık planı', 'Açılış teklifi: 900.000 TL', 'Modelin bilinen sorunları', 'Şanzıman titreşimi 24',
+                     'doğrulanmamış anlatım', 'kaynakta belirtilmemiş', 'Bu kilometrede doğrulanacak bakımlar',
+                     'Satıcıya sorulacak sorular', '2. Motor kaputu neden boyandı?',
+                     'Bu aracı YerimeBak ile yerinde inceletin', 'https://www.yerimebak.com.tr/ekspertiz-talebi'):
+            assert part in text, part
+        assert 'Maliyet' not in text.split('Bu kilometrede doğrulanacak bakımlar')[1].split('Satıcıya sorulacak')[0]
+        for page in document.pages:
+            assert all(0 <= ch['x0'] < ch['x1'] <= page.width+1 for ch in page.chars)

@@ -13,6 +13,7 @@ Yeterli emsal yoksa analiz yapilmaz ve kredi dusulmez.
 """
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlsplit, urlunsplit
@@ -166,6 +167,35 @@ def decision_summary(
              "aciklama": "Araç enflasyonu varsayımına dayanan tahmin; kesin değildir"},
         ],
     }
+
+
+RISK_TIMEOUT_SECONDS = 90
+_RISK_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="model-risk")
+
+
+def _risk_vehicle(brand, model, year, km, package, fuel, transmission) -> Dict[str, Any]:
+    return {"brand": brand, "model": model, "year": year, "km": km, "package": package,
+            "engine": package, "fuel": fuel, "transmission": transmission}
+
+
+def _model_risks_safe(future) -> Dict[str, Any]:
+    """Model riski aramasinin sonucu; hata/zaman asiminda rapor yine verilir."""
+    try:
+        risks = future.result(timeout=RISK_TIMEOUT_SECONDS)
+        if isinstance(risks, dict):
+            return risks
+    except Exception as exc:  # ag, zaman asimi, beklenmeyen hata: rapor engellenmez
+        logger.warning("[MODEL RISK] Arastirma tamamlanamadi: %s", str(exc)[:200])
+    return {"riskler": [], "bulunamadi": True, "hata": True,
+            "scope": {"cached": False, "searches": 0, "cost_usd": 0}}
+
+
+def _findings(parts: Dict[str, str], tramer_amount: int) -> List[Dict[str, Any]]:
+    durum = {"lokal_boyali": "lokal boyalı", "boyali": "boyalı", "degisen": "değişen"}
+    out = [{"baslik": f"{PART_LABELS.get(k, k)} ({durum.get(v, v)})"} for k, v in parts.items()]
+    if tramer_amount:
+        out.append({"baslik": f"{tramer_amount:,} TL tramer kaydı".replace(",", ".")})
+    return out
 
 
 def _listing_by_url(url: str) -> Optional[Dict[str, Any]]:
@@ -456,9 +486,14 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
         status, code, message = credit_refusal(allowed.get("reason"))
         return _error(message, status, code)
 
+    package = str(payload.get("package") or "").strip()[:80] or None
+    # Model riski aramasi piyasa aramasiyla ayni anda baslar (toplam sure en uzun arama kadar)
+    from yerimebak_ai_v5.services import vehicle_risk
+    risk_vehicle = _risk_vehicle(brand, model, year, km, package, fuel, transmission)
+    risk_future = _RISK_POOL.submit(vehicle_risk.get_model_risks, risk_vehicle)
     reference = web_market_reference.get_reference({
         "brand": brand, "model": model, "year": year, "km": km, "fuel": fuel,
-        "transmission": transmission, "package": payload.get("package"), "listed_price": price,
+        "transmission": transmission, "package": package, "listed_price": price,
     })
     if not reference or not reference.get("found"):
         reference = get_market_reference_service().get_reference(
@@ -496,8 +531,10 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
     projection = inflation_projection(ai_value, purchase_price)
 
     result = {
-        "arac": {"marka": brand, "model": model, "yil": year, "km": km, "yakit": fuel, "vites": transmission,
-                 "ilanFiyati": price, "ilanLinki": payload.get("listing_url") or None},
+        "arac": {"marka": brand, "model": model, "paket": package, "yil": year, "km": km, "yakit": fuel,
+                 "vites": transmission, "ilanFiyati": price, "ilanLinki": payload.get("listing_url") or None,
+                 # Ekspertiz talebine on doldurma icin musterinin beyani
+                 "beyanEdilenParcalar": parts, "tramerTutari": tramer_amount},
         "piyasa": {
             "ortalama": reference.get("market_avg_price"),
             "medyan": reference.get("market_median_price"),
@@ -539,6 +576,29 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
     result["ozet"] = summary["ozet"]
     result["bilgiKaynaklari"] = summary["bilgiKaynaklari"]
 
+    # Akilli alici bolumleri (tek rapor, 1 kredi): pazarlik plani, model riskleri, bakim, sorular
+    from yerimebak_ai_v5.services.negotiation import build_plan
+
+    result["pazarlikPlani"] = build_plan(
+        price=float(price), fair_min=(degerleme.get("adilFiyatAraligi") or {}).get("min"),
+        fair_max=(degerleme.get("adilFiyatAraligi") or {}).get("max"), recommended=recommended,
+        reference=reference, kalemler=degerleme.get("kalemler") or [],
+        confidence_level=summary["karar"]["guvenSeviyesi"], vehicle_title=f"{year} {brand} {model}",
+    )
+    risks = _model_risks_safe(risk_future)
+    risk_cost = float((risks.get("scope") or {}).get("cost_usd") or 0)
+    result["modelRiskleri"] = {
+        "riskler": risks.get("riskler") or [],
+        "bulunamadi": bool(risks.get("bulunamadi", True)),
+        "mesaj": ("Model araştırması bu sefer tamamlanamadı; bakım ve sorular genel kurallarla hazırlandı."
+                  if risks.get("hata") else
+                  "Bu model/motor için kaynağı doğrulanmış bilinen sorun bulunamadı."
+                  if not risks.get("riskler") else None),
+    }
+    result["bakim"] = vehicle_risk.upcoming_maintenance(risk_vehicle, risks)
+    result["saticiSorulari"] = vehicle_risk.seller_questions(risk_vehicle, risks, _findings(parts, tramer_amount))
+    web_cost = float((reference.get("scope") or {}).get("cost_usd") or 0)
+
     deduction = payment.deduct_credits(
         user["id"],
         amount=ANALYSIS_COST,
@@ -551,10 +611,11 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
         valuation_data={"credits_deducted": ANALYSIS_COST, "karar": result["karar"]["sonuc"], "tavsiye_fiyat": int(recommended),
                         "ai_degeri": degerleme.get("aiDegeri"), "piyasa_ortalama": reference.get("market_avg_price"),
                         "getiri": projection, "piyasa_kaynagi": reference.get("source"),
-                        "web_maliyet_usd": (reference.get("scope") or {}).get("cost_usd", 0)},
+                        "web_maliyet_usd": web_cost, "risk_maliyet_usd": risk_cost,
+                        "toplam_maliyet_usd": round(web_cost + risk_cost, 6)},
     )
     if not deduction.get("success"):
-        # Kilitli d???m son karard?r; e? zamanl? istekte kredi kalmad?ysa sonu? verilmez
+        # Kilitli düşüm son karardır; eş zamanlı istekte kredi kalmadıysa sonuç verilmez
         status, code, message = credit_refusal(deduction.get("code"), deduction.get("credits"))
         return _error(message, status, code)
     if deduction.get('report'):

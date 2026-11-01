@@ -5,6 +5,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/kancalar/yetkiKullan";
 import { ILLER } from "@/lib/iller";
+import { ekspertizOnDoldurma } from "@/lib/ekspertizOnDoldurma";
 import { uyelikAdresi } from "@/lib/uyelikYonlendirme";
 import {
   createExpertizRequest,
@@ -47,7 +48,8 @@ function EkspertizTalebiIcerigi() {
   const donus = `/ekspertiz-talebi${params.toString() ? `?${params.toString()}` : ""}`;
 
   const [adim, setAdim] = useState(0);
-  const [arac, setArac] = useState<Arac>(BOS_ARAC);
+  // Değerleme raporundan gelindiyse araç bilgileri doğrulanarak formu doldurur (müşteri değiştirebilir)
+  const [arac, setArac] = useState<Arac>(() => ({ ...BOS_ARAC, ...ekspertizOnDoldurma(new URLSearchParams(params.toString())) }));
   const [firms, setFirms] = useState<ExpertizFirm[]>([]);
   const [serviceFee, setServiceFee] = useState(0);
   const [vatRate, setVatRate] = useState(0.2);

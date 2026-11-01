@@ -447,6 +447,30 @@ export interface ValuationHorizon {
   getiriYuzde: number | null;
 }
 
+export interface PazarlikPlani {
+  durum?: string;
+  acilisTeklifi: number;
+  hedefFiyat: number;
+  ustSinir: number;
+  potansiyelKazanc: number;
+  adimlar: string[];
+  gerekceler: string[];
+  kanitIlanlar: { site?: string | null; url?: string | null; fiyat?: number | null; km?: number | null; yil?: number | null }[];
+  saticiMesaji: string;
+  uyari?: string | null;
+}
+
+export interface ModelRiski {
+  baslik: string;
+  aciklama?: string;
+  etkiledigi?: string;
+  belirtiler: string[];
+  kontrol: string;
+  tahminiMaliyet?: { min: number; max: number } | null;
+  kaynaklar: string[];
+  guven: "yuksek" | "orta" | "dusuk" | string;
+}
+
 export interface ValuationResult {
   tekrar?: boolean;
   rapor?: {
@@ -454,7 +478,12 @@ export interface ValuationResult {
     created_at: string; engine_version: string;
   };
   success: boolean;
-  arac: { marka: string; model: string; yil: number; km: number; yakit?: string | null; vites?: string | null; ilanFiyati: number; ilanLinki?: string | null };
+  arac: {
+    marka: string; model: string; paket?: string | null; yil: number; km: number; yakit?: string | null; vites?: string | null;
+    ilanFiyati: number; ilanLinki?: string | null;
+    /** Musteri beyani (ekspertiz on doldurmasi); eski raporlarda yok */
+    beyanEdilenParcalar?: Record<string, string> | null; tramerTutari?: number | null;
+  };
   piyasa: {
     ortalama: number; medyan: number; min: number; max: number; emsalSayisi: number;
     hasarsizEmsalSayisi?: number; guvenSkoru: number; guncelGun?: number;
@@ -491,6 +520,11 @@ export interface ValuationResult {
     simdiNeYapmali: string;
   };
   bilgiKaynaklari?: { alan: string; kaynak: string; aciklama: string }[];
+  /** Akilli alici bolumleri (tek rapor); eski raporlarda yok */
+  pazarlikPlani?: PazarlikPlani;
+  modelRiskleri?: { riskler: ModelRiski[]; bulunamadi: boolean; mesaj?: string | null };
+  bakim?: { baslik: string; aciklama: string; kontrol?: string }[];
+  saticiSorulari?: string[];
   getiri: null | {
     aylikEnflasyonYuzde: number;
     yillikEnflasyonYuzde: number;
