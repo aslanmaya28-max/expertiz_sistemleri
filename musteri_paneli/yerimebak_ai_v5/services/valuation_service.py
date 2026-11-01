@@ -378,7 +378,17 @@ def _clean_parts(raw: Any) -> Dict[str, str]:
 
 
 def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
+    from yerimebak_ai_v5.services.valuation_reports import request_guard
+
+    with request_guard(user['id'], payload.get('request_id')) as previous:
+        if previous is not None:
+            return previous
+        return _analyze_once(user, payload)
+
+
+def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
     from yerimebak_ai_v5.services.payment_service import get_payment_service
+    from yerimebak_ai_v5.services.valuation_reports import ENGINE_VERSION
 
     listing = None
     if payload.get("listing_url"):
@@ -506,6 +516,9 @@ def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
     deduction = payment.deduct_credits(
         user["id"],
         amount=ANALYSIS_COST,
+        report_data=result,
+        request_id=str(payload['request_id']) if payload.get('request_id') else None,
+        engine_version=ENGINE_VERSION,
         description=f"Arac degerleme: {brand} {model} {year}",
         vehicle_data={**result["arac"], "source": "panel_valuation", "parts": parts,
                       "tramer_amount": tramer_amount},
@@ -518,6 +531,8 @@ def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
         # Kilitli d???m son karard?r; e? zamanl? istekte kredi kalmad?ysa sonu? verilmez
         status, code, message = credit_refusal(deduction.get("code"), deduction.get("credits"))
         return _error(message, status, code)
+    if deduction.get('report'):
+        return deduction['report']
     result["kredi"] = {"dusulen": ANALYSIS_COST, "kalan": deduction.get("credits_after")}
     result["success"] = True
     return result

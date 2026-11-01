@@ -284,6 +284,19 @@ def verify(code, ip):
         if int(cursor.fetchone()['hits']) > 30:
             return {'error': 'Çok fazla doğrulama isteği; bir dakika sonra deneyin', 'http_status': 429}
         cursor.execute("DELETE FROM report_verify_limits WHERE window_at < NOW()-INTERVAL '1 day'")
+        normalized = code.upper().strip()
+        if normalized.startswith('YD-'):
+            cursor.execute('''SELECT report_no,created_at,report_json->'arac' AS vehicle
+                              FROM analysis_history WHERE verification_code=%s AND report_json IS NOT NULL''',
+                           (normalized,))
+            raw = cursor.fetchone()
+            if not raw:
+                return {'gecerli': False}
+            vehicle = raw['vehicle'] or {}
+            return {'gecerli': True, 'tur': 'degerleme', 'rapor_no': raw['report_no'],
+                    'tarih': _date(raw['created_at']).astimezone(ZoneInfo('Europe/Istanbul')).strftime('%d.%m.%Y'), 'marka': vehicle.get('marka'),
+                    'model': vehicle.get('model'), 'yil': vehicle.get('yil'),
+                    'seal_url': f'/api/v1/expertiz/verify/{normalized}/seal.png'}
         cursor.execute("SELECT * FROM reports WHERE status='published' AND data->>'verification_code'=%s", (code.upper().strip(),))
         raw = cursor.fetchone()
         if not raw:
@@ -294,7 +307,7 @@ def verify(code, ip):
         plate = str(row.get('plaka') or vehicle.get('plaka') or '')
         plate = re.sub(r'([A-Za-zÇĞİÖŞÜçğıöşü])([A-Za-zÇĞİÖŞÜçğıöşü]+)', lambda match: match[1]+'*'*len(match[2]), plate)
         code, number, date = seal_fields(row)
-        return {'gecerli': True, 'rapor_no': number, 'tarih': date, 'marka': vehicle.get('marka') or vehicle.get('brand'),
+        return {'gecerli': True, 'tur': 'ekspertiz', 'rapor_no': number, 'tarih': date, 'marka': vehicle.get('marka') or vehicle.get('brand'),
                 'model': vehicle.get('model'), 'yil': vehicle.get('yil') or vehicle.get('year'), 'plaka_maskeli': plate,
                 'durum': 'arsivlendi' if data.get('archive') else 'yayinlandi',
                 'seal_url': f'/api/v1/expertiz/verify/{code}/seal.png'}

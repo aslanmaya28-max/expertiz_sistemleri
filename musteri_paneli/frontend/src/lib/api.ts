@@ -136,6 +136,7 @@ export interface ReportChecklistItem {
 }
 
 export interface ReportVerification {
+  tur?: "ekspertiz" | "degerleme";
   gecerli: boolean;
   rapor_no?: string;
   tarih?: string;
@@ -294,6 +295,7 @@ export interface CreditBalanceResponse {
 }
 
 export interface AnalysisHistoryItem {
+  report_no?: string | null;
   id: string;
   user_id?: number;
   vehicle_json?: Record<string, unknown> | string | null;
@@ -415,6 +417,7 @@ export interface ValuationPrefill {
 }
 
 export interface ValuationRequestPayload {
+  request_id?: string;
   listing_url?: string;
   brand?: string;
   model?: string;
@@ -436,6 +439,11 @@ export interface ValuationHorizon {
 }
 
 export interface ValuationResult {
+  tekrar?: boolean;
+  rapor?: {
+    id: string; report_no: string; verification_code: string; verification_url: string;
+    created_at: string; engine_version: string;
+  };
   success: boolean;
   arac: { marka: string; model: string; yil: number; km: number; yakit?: string | null; vites?: string | null; ilanFiyati: number; ilanLinki?: string | null };
   piyasa: {
@@ -601,4 +609,27 @@ export function prefillValuation(url: string): Promise<ValuationPrefill> {
 
 export function analyzeValuation(payload: ValuationRequestPayload): Promise<ValuationResult> {
   return fetchAPI<ValuationResult>("/valuation/analyze", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export interface ValuationReportSummary {
+  id: string;
+  created_at: string;
+  arac: { marka?: string; model?: string; yil?: number };
+  karar?: string;
+  kredi: number;
+  report_no?: string;
+  verification_code?: string;
+  ozet_kayit: boolean;
+}
+
+export function getValuationReports(limit = 20, offset = 0, signal?: AbortSignal): Promise<{ reports: ValuationReportSummary[]; total: number }> {
+  return fetchAPI(`/valuation/reports?limit=${limit}&offset=${offset}`, { signal, cache: "no-store" });
+}
+
+export function getValuationReport(id: string, signal?: AbortSignal): Promise<ValuationResult | ValuationReportSummary> {
+  return fetchAPI(`/valuation/reports/${encodeURIComponent(id)}`, { signal, cache: "no-store" });
+}
+
+export function downloadValuationPdf(id: string): Promise<Blob> {
+  return fetchAPI(`/valuation/reports/${encodeURIComponent(id)}/pdf`, { cache: "no-store" }, "blob");
 }

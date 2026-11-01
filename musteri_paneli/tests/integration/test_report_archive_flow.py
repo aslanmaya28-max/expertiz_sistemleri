@@ -79,7 +79,8 @@ def test_package_archive_confirmation_and_customer_request(client, admin_token, 
     public = client.get(verify)
     assert public.status_code == 200 and public.json()['gecerli'] is True
     assert public.json()['plaka_maskeli'] == '34 A** 123'
-    assert set(public.json()) == {'gecerli', 'rapor_no', 'tarih', 'marka', 'model', 'yil', 'plaka_maskeli', 'durum', 'seal_url'}
+    assert set(public.json()) == {'gecerli', 'tur', 'rapor_no', 'tarih', 'marka', 'model', 'yil', 'plaka_maskeli', 'durum', 'seal_url'}
+    assert public.json()['tur'] == 'ekspertiz'
     assert client.get(public.json()['seal_url']).headers['content-type'] == 'image/png'
     assert client.get('/api/v1/expertiz/verify/YB-XXXX-XXXX').json() == {'gecerli': False}
     _age(report_id)
