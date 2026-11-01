@@ -1,15 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useAuth, useCredits } from "@/kancalar/yetkiKullan";
 
 export default function ProfilSayfasi() {
   const { user, loading, logout } = useAuth();
   const credits = useCredits();
-  const [token] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem("yerimebak_token");
-  });
 
   useEffect(() => {
     if (!loading && !user) {
@@ -48,11 +44,6 @@ export default function ProfilSayfasi() {
             </div>
           </>
         )}
-        <hr className="border-kenarlik-acik" />
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-metin-ikincil">API Anahtarı</span>
-          <code className="text-xs bg-gray-50 px-2 py-1 rounded select-all">{token ? "Bearer token aktif" : "-"}</code>
-        </div>
       </div>
 
       <div className="mt-6 flex gap-4">

@@ -254,11 +254,6 @@ class YerimebakExpertizApiService {
     return _post('/expertiz/admin/customers/$customerId/credits', body: {'amount': amount, 'reason': reason.trim()});
   }
 
-  Future<Map<String, dynamic>> setCustomerTier(int customerId, {required String tier, String? note}) {
-    return _post('/expertiz/admin/customers/$customerId/tier',
-        body: {'tier': tier, if (note?.trim().isNotEmpty == true) 'note': note!.trim()});
-  }
-
   /// Müşteri hesabını aktif/pasif yapar. Pasife almada [reason] zorunludur.
   Future<Map<String, dynamic>> setCustomerActive(int customerId, {required bool active, String? reason}) {
     final note = reason?.trim() ?? '';

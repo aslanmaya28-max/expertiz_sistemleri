@@ -22,7 +22,7 @@ def sql(query, params=(), fetch=False):
         DatabaseConfig.return_connection(conn)
 
 
-def test_admin_credit_and_tier_flow(client, admin_token, customer_token):
+def test_admin_credit_flow(client, admin_token, customer_token):
     headers = _auth(admin_token)
     customers = client.get('/api/v1/expertiz/admin/customers', headers=headers).json()['customers']
     uid = next(c['id'] for c in customers if c['email'] == 'musteri@yerimebak.test')
@@ -39,36 +39,25 @@ def test_admin_credit_and_tier_flow(client, admin_token, customer_token):
     for body in ({'amount': 0, 'reason': 'x'}, {'amount': 10001, 'reason': 'x'},
                  {'amount': 1, 'reason': ' '}, {'amount': 1.5, 'reason': 'x'}, {'amount': True, 'reason': 'x'}):
         assert post('/credits', body).status_code in (400, 422)
-    assert post('/tier', {'tier': 'unknown'}).status_code == 400
+    assert post('/tier', {'tier': 'unknown'}).status_code in (404, 405)
     _create_personnel(client, admin_token, 'credit-staff@test.com', 'İstanbul', 'Kadıköy', 'Kredi Personeli')
     staff = _login(client, 'credit-staff@test.com', 'Personel123')
     for token in (customer_token, staff):
         assert post('/credits', {'amount': 1, 'reason': 'x'}, _auth(token)).status_code == 403
-        assert post('/tier', {'tier': 'pro'}, _auth(token)).status_code == 403
-    # Seviye degisimi kredi eklemez (aylik kredi yok)
-    assert post('/tier', {'tier': 'pro', 'note': 'Galeri'}).json()['customer']['credits'] == 9
-    assert post('/tier', {'tier': 'pro'}).json()['customer']['credits'] == 9
     service = PaymentService()
     with ThreadPoolExecutor(max_workers=4) as pool:
         assert list(pool.map(lambda _: service.get_credit_balance(uid)['credits'], range(4))) == [9] * 4
     detail = client.get(url, headers=headers).json()
-    assert detail['tier_limits']['free'] == {'max_analyses_per_day': 5}
+    assert 'tier_limits' not in detail
+    assert 'tier' not in detail['customer']
     assert len(detail['credit_movements']) == 2
     audits = sql("SELECT action, metadata FROM audit_logs WHERE entity_id=%s AND action IN ('CUSTOMER_CREDITS_ADJUSTED', 'CUSTOMER_TIER_CHANGED')", (str(uid),), True)
-    assert len(audits) == 4
+    assert len(audits) == 2
+    assert all(r['action'] == 'CUSTOMER_CREDITS_ADJUSTED' for r in audits)
     adjustment = next(r['metadata'] for r in audits if r['action'] == 'CUSTOMER_CREDITS_ADJUSTED')
     assert adjustment['credits_before'] == 3 and adjustment['credits_after'] == 13
     assert adjustment['reason'] == 'Telafi'
 
-    assert post('/tier', {'tier': 'free'}).status_code == 200
-    sql('UPDATE users SET credits=20 WHERE id=%s', (uid,))
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        results = list(pool.map(lambda _: service.deduct_credits(uid), range(8)))
-    assert sum(r['success'] for r in results) == 5
-    assert all(r.get('code') == 'daily_limit' for r in results if not r['success'])
-    assert service.get_credit_balance(uid)['credits'] == 15
-    assert service.check_credits_before_analysis(uid) is False
-    assert service.analysis_allowed(uid)['reason'] == 'daily_limit'
 
 
 def test_analysis_timestamp_is_utc_even_with_local_database_timezone(client, monkeypatch):
@@ -86,3 +75,34 @@ def test_analysis_timestamp_is_utc_even_with_local_database_timezone(client, mon
     assert result['success']
     row = sql('SELECT created_at FROM analysis_history WHERE id=%s', (result['history_id'],), True)[0]
     assert abs((row['created_at'] - datetime.now(timezone.utc).replace(tzinfo=None)).total_seconds()) < 10
+
+
+@pytest.mark.parametrize("concurrent", [False, True])
+def test_free_user_can_spend_seven_credits_same_day(client, concurrent):
+    service = PaymentService()
+    uid = service.get_or_create_user(f"seven-{concurrent}@test.com")["id"]
+    sql("UPDATE users SET credits=7, tier='free' WHERE id=%s", (uid,))
+    if concurrent:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(lambda _: service.deduct_credits(uid), range(8)))
+    else:
+        results = [service.deduct_credits(uid) for _ in range(8)]
+    assert sum(r["success"] for r in results) == 7
+    failed = [r for r in results if not r["success"]]
+    assert len(failed) == 1 and failed[0]["code"] == "insufficient_credits"
+    assert service.get_credit_balance(uid)["credits"] == 0
+    assert service.analysis_allowed(uid)["reason"] == "insufficient_credits"
+    assert service.check_credits_before_analysis(uid) is False
+    assert sql("SELECT COUNT(*) AS n FROM analysis_history WHERE user_id=%s", (uid,), True)[0]["n"] == 7
+
+
+def test_eighth_web_valuation_requires_payment_after_seven_credits(client, customer_token):
+    uid = client.get('/api/v1/auth/me', headers=_auth(customer_token)).json()['user']['id']
+    sql("UPDATE users SET credits=7, tier='free' WHERE id=%s", (uid,))
+    service = PaymentService()
+    assert all(service.deduct_credits(uid)['success'] for _ in range(7))
+    response = client.post('/api/v1/valuation/analyze', headers=_auth(customer_token), json={
+        'brand': 'Seat', 'model': 'Ibiza', 'year': 2024, 'km': 30000, 'listed_price': 960000})
+    assert response.status_code == 402, response.text
+    assert response.json()['detail']['code'] == 'insufficient_credits'
+    assert service.get_credit_balance(uid)['credits'] == 0

@@ -38,7 +38,7 @@ export default function FiyatKartlari() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-4">
           <h2 className="text-3xl font-bold text-metin-birincil">Araç Değerleme Paketleri</h2>
-          <p className="mt-3 text-metin-ikincil">Her analiz 1 kredi. Ödeme onaylanınca krediler hemen hesabınıza yüklenir.</p>
+          <p className="mt-3 text-metin-ikincil">Her analiz 1 kredi. Tüm kullanıcılar için aynı kredi paketleri, KDV dahil fiyatlarla sunulur. Ödeme onaylanınca krediler hemen hesabınıza yüklenir.</p>
         </div>
         <div className="text-center mb-12">
           <span className="inline-flex items-center gap-2 px-4 py-2 bg-birincil/10 text-birincil rounded-full text-sm font-medium">
@@ -48,7 +48,7 @@ export default function FiyatKartlari() {
 
         {hata && <p className="text-center text-sm text-tehlike">{hata}</p>}
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {paketler.map((paket) => (
             <div
               key={paket.key}

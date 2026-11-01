@@ -270,11 +270,11 @@ def create_personnel(payload: Dict[str, Any], admin: Dict[str, Any]) -> Dict[str
         cursor.execute(
             """
             INSERT INTO users (
-                email, password, full_name, phone, api_key, credits, tier, role,
+                email, password, full_name, phone, credits, role,
                 is_active, must_change_password, city, district, expertise, il_id, region_id,
                 email_verified, welcome_credits_granted
             )
-            VALUES (%s, %s, %s, %s, %s, 0, 'staff', 'personel', 1, TRUE, %s, %s, %s, %s, %s, TRUE, TRUE)
+            VALUES (%s, %s, %s, %s, 0, 'personel', 1, TRUE, %s, %s, %s, %s, %s, TRUE, TRUE)
             RETURNING id, created_at
             """,
             (
@@ -282,7 +282,6 @@ def create_personnel(payload: Dict[str, Any], admin: Dict[str, Any]) -> Dict[str
                 _hash_password(temporary_password),
                 full_name,
                 phone,
-                f"yk-{uuid.uuid4().hex[:24]}",
                 location["city"],
                 district,
                 expertise,

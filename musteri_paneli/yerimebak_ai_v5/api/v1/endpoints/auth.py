@@ -130,7 +130,6 @@ def _public_profile(user: Dict[str, Any]) -> Dict[str, Any]:
         "full_name": user.get("full_name"),
         "phone": user.get("phone"),
         "credits": user.get("credits", 0),
-        "tier": user.get("tier", "free"),
         "role": role,
         "company_name": user.get("company_name"),
         "city": user.get("city"),
@@ -152,15 +151,9 @@ def _public_role(value: Any) -> str:
 
 
 def get_current_user(
-    api_key: str = Header(None, alias="X-API-Key"),
     authorization: str = Header(None, alias="Authorization"),
 ) -> Dict[str, Any]:
     auth = get_auth_service()
-
-    if api_key:
-        user = auth.verify_api_key(api_key)
-        if user:
-            return user
 
     if authorization and authorization.startswith("Bearer "):
         token = authorization[7:]
@@ -172,7 +165,7 @@ def get_current_user(
         if supabase_user:
             return supabase_user
 
-    raise HTTPException(status_code=401, detail="API Key veya token gerekli")
+    raise HTTPException(status_code=401, detail="Bearer token gerekli")
 
 
 def get_current_user_optional(authorization: str = Header(None, alias="Authorization")) -> Optional[Dict[str, Any]]:
@@ -188,15 +181,9 @@ def get_current_user_optional(authorization: str = Header(None, alias="Authoriza
 
 
 def get_authenticated_user(
-    api_key: str = Header(None, alias="X-API-Key"),
     authorization: str = Header(None, alias="Authorization"),
 ) -> Dict[str, Any]:
     auth = get_auth_service()
-
-    if api_key:
-        user = auth.verify_api_key(api_key)
-        if user:
-            return user
 
     if authorization and authorization.startswith("Bearer "):
         token = authorization[7:]
@@ -209,7 +196,7 @@ def get_authenticated_user(
         if supabase_user:
             return supabase_user
 
-    raise HTTPException(status_code=401, detail="Gecerli bir API Key veya token gerekli")
+    raise HTTPException(status_code=401, detail="Gecerli bir Bearer token gerekli")
 
 
 def _is_admin_role(value: Any) -> bool:
@@ -292,7 +279,6 @@ def _create_token_payload(user: Dict[str, Any]) -> str:
         "full_name": user.get("full_name"),
         "phone": user.get("phone"),
         "credits": user.get("credits", 0),
-        "tier": user.get("tier", "free"),
         "role": _public_role(user.get("role", "user")),
     })
 

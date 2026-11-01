@@ -209,7 +209,7 @@ export default function MusteriPaneli() {
         <SummaryCard label="Aktif ekspertiz" value={activeRequests.length.toString()} hint="Sureci devam eden talepler" />
         <SummaryCard label="Yayinlanan rapor" value={reports.length.toString()} hint="Musteriye acik raporlar" />
         <SummaryCard label="Analiz gecmisi" value={history.length.toString()} hint="Krediyle yapilan analizler" />
-        <SummaryCard label="Kredi bakiyesi" value={String(creditCount)} hint={balance?.tier ? `${balance.tier} paket` : "Kullanilabilir bakiye"} />
+        <SummaryCard label="Kredi bakiyesi" value={String(creditCount)} hint="Kullanılabilir bakiye" />
       </div>
 
       <div className="mt-6 overflow-x-auto border-b border-kenarlik-acik">
@@ -270,7 +270,7 @@ export default function MusteriPaneli() {
 
           {activeTab === "krediler" && <CreditPanel balance={balance} historyCount={history.length} />}
 
-          {activeTab === "profil" && <ProfilePanel profile={profile} email={user.email} credits={creditCount} tier={balance?.tier} role={balance?.role} onSaved={setProfile} />}
+          {activeTab === "profil" && <ProfilePanel profile={profile} email={user.email} credits={creditCount} role={balance?.role} onSaved={setProfile} />}
         </div>
       )}
     </div>
@@ -438,16 +438,14 @@ function CreditPanel({ balance, historyCount }: { balance: CreditBalanceResponse
         <div className="rounded-lg bg-gray-50 p-5">
           <div className="text-sm text-metin-ikincil">Kullanilabilir kredi</div>
           <div className="mt-2 text-4xl font-bold text-metin-birincil">{balance?.credits ?? 0}</div>
-          <div className="mt-2 text-sm text-metin-ikincil">Paket: {balance?.tier || "-"}</div>
         </div>
         <Link href="/fiyatlar" className="inline-flex w-full justify-center rounded-lg bg-birincil px-4 py-2 text-sm font-semibold text-white">
           Kredi paketlerini gor
         </Link>
       </PanelSection>
       <PanelSection title="Kullanim Ozeti">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3">
           <SummaryCard label="Toplam analiz" value={String(historyCount)} hint="Kredi gecmisinden gelen kayitlar" />
-          <SummaryCard label="Hesap tipi" value={balance?.tier || "-"} hint={balance?.role || "musteri"} />
         </div>
       </PanelSection>
     </div>
@@ -458,14 +456,12 @@ function ProfilePanel({
   profile,
   email,
   credits,
-  tier,
   role,
   onSaved,
 }: {
   profile: CustomerProfile | null;
   email: string;
   credits: number;
-  tier?: string;
   role?: string;
   onSaved: (profile: CustomerProfile) => void;
 }) {
@@ -501,7 +497,6 @@ function ProfilePanel({
       <div className="grid gap-4 md:grid-cols-2">
         <InfoLine label="E-posta" value={email} />
         <InfoLine label="Kredi" value={String(credits)} />
-        <InfoLine label="Paket" value={tier || "-"} />
         <InfoLine label="Rol" value={role || "musteri"} />
       </div>
       <form onSubmit={saveProfile} className="grid gap-4 md:grid-cols-2">

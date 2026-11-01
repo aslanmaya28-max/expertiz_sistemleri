@@ -144,7 +144,7 @@ app.add_middleware(
     allow_origins=_build_allowed_origins(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-API-Key", "X-CSRF-Token"],
+    allow_headers=["Authorization", "Content-Type", "X-CSRF-Token"],
     expose_headers=["X-Archive-Sha256", "Content-Disposition"],
 )
 
@@ -230,14 +230,14 @@ from yerimebak_ai_v5.core.broadcaster import broadcaster
 async def websocket_endpoint(websocket: WebSocket, token: str = None):
     if not token:
         query_params = dict(websocket.query_params)
-        token = query_params.get("token") or query_params.get("api_key")
+        token = query_params.get("token")
     if not token:
         await websocket.close(code=4001, reason="Authentication required")
         return
     try:
         from yerimebak_ai_v5.services.auth_service import get_auth_service
         auth = get_auth_service()
-        user = auth.verify_api_key(token) if len(token) > 30 else auth.verify_token(token)
+        user = auth.verify_token(token)
         if not user:
             await websocket.close(code=4001, reason="Invalid credentials")
             return

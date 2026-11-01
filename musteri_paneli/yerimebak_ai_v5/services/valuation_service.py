@@ -403,7 +403,7 @@ def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
                         "web_maliyet_usd": (reference.get("scope") or {}).get("cost_usd", 0)},
     )
     if not deduction.get("success"):
-        # Kilitli dusum son karardir (es zamanli istek, gunluk sinir): sonuc verilmez
+        # Kilitli d???m son karard?r; e? zamanl? istekte kredi kalmad?ysa sonu? verilmez
         status, code, message = credit_refusal(deduction.get("code"), deduction.get("credits"))
         return _error(message, status, code)
     result["kredi"] = {"dusulen": ANALYSIS_COST, "kalan": deduction.get("credits_after")}
