@@ -23,12 +23,14 @@ from yerimebak_ai_v5.scrapers.arabam_v4.extractors.identity_extractor import pac
 
 MAX_TEXT = 200_000
 MAX_CARDS = 120
+MAX_PRICE = 500_000_000
 
 _MONTHS = {
     "ocak": 1, "şubat": 2, "mart": 3, "nisan": 4, "mayıs": 5, "haziran": 6,
     "temmuz": 7, "ağustos": 8, "eylül": 9, "ekim": 10, "kasım": 11, "aralık": 12,
 }
-_MONEY = re.compile(r"(\d{1,3}(?:[.\s]\d{3})+|\d{4,9})\s*(?:TL|₺)", re.IGNORECASE)
+# Binlik ayirac yalnizca nokta: "62.000 985.000 TL" km ve fiyat olarak ayri okunur
+_MONEY = re.compile(r"(?<![\d.])(\d{1,3}(?:\.\d{3})+|\d{4,9})\s*(?:TL|₺)", re.IGNORECASE)
 _DAMAGE_WORDS = ("tramer", "hasar")
 
 
@@ -77,7 +79,7 @@ def _price_from_text(text: str) -> Optional[int]:
             if any(word in context for word in _DAMAGE_WORDS):
                 continue
             value = _int(match.group(1))
-            if value and value >= 10_000:
+            if value and 10_000 <= value <= MAX_PRICE:
                 return value
     return None
 

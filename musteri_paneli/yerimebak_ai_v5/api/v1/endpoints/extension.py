@@ -5,7 +5,7 @@ Reuses core v8 engine with credit deduction, returns enriched results.
 """
 from fastapi import APIRouter, HTTPException, Header
 from typing import Dict, Any, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from yerimebak_ai_v5.core.engine_v8 import YerimebakEngineV8, VehicleData
 from yerimebak_ai_v5.core.market_reference_service import get_market_reference_service
@@ -203,25 +203,25 @@ _INGEST_ROLES = {"admin", "field_staff", "personel", "personnel", "staff"}
 
 class ExtensionListingPage(BaseModel):
     """Eklentinin okudugu arabam.com ilan sayfasi (sayfa metni sunucuda ayristirilir)."""
-    url: str
-    text: str
-    title: str = ""
-    image_url: str = ""
-    location: str = ""
-    structured: Optional[list] = None
+    url: str = Field(max_length=2000)
+    text: str = Field(max_length=300_000)
+    title: str = Field("", max_length=500)
+    image_url: str = Field("", max_length=2000)
+    location: str = Field("", max_length=200)
+    structured: Optional[list] = Field(None, max_length=20)
 
 
 class ExtensionSearchCard(BaseModel):
-    url: str
-    text: str
+    url: str = Field(max_length=2000)
+    text: str = Field(max_length=5000)
 
 
 class ExtensionSearchPage(BaseModel):
     """Arama sonuc sayfasinda gorunen ilanlar (emsal olarak kaydedilir)."""
-    url: str
-    cards: list[ExtensionSearchCard]
-    brand: str = ""
-    model: str = ""
+    url: str = Field(max_length=2000)
+    cards: list[ExtensionSearchCard] = Field(max_length=200)
+    brand: str = Field("", max_length=60)
+    model: str = Field("", max_length=60)
 
 
 def _authenticate_staff(api_key: Optional[str]) -> Dict[str, Any]:

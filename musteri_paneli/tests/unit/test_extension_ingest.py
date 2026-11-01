@@ -176,3 +176,19 @@ def test_search_endpoint_saves_comparables(endpoints):
     )
     out = asyncio.run(extension.extension_save_search(req, api_key="yk-admin"))
     assert (out["found"], out["saved"]) == (1, 1) and saved[0]["status"] == "emsal"
+
+
+@pytest.mark.parametrize("text", [
+    "Clio\t2020\t62.000\t985.000 TL",          # km ve fiyat bitisik hucreler
+    "Clio 2020 62.000 985.000 TL",               # bosluklu
+    "Clio\n2020\n62.000\n985.000 TL",
+])
+def test_search_card_adjacent_km_and_price(text):
+    item = extension_ingest.parse_search_card("https://www.arabam.com/ilan/a/b/1", text, "Renault", "Clio")
+    assert (item["year"], item["km"], item["price"]) == (2020, 62000, 985000)
+
+
+def test_price_never_absurd():
+    for text in ("Clio 2020 1.234.567.890.123 TL", "Clio 99999999999 TL"):
+        item = extension_ingest.parse_search_card("https://www.arabam.com/ilan/a/b/1", text, "Renault", "Clio")
+        assert item is None or item["price"] < 1_000_000_000
