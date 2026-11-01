@@ -23,7 +23,7 @@ CREDIT_PACKAGES = json.loads(os.getenv("CREDIT_PACKAGES", json.dumps({
     "paket10": {"credits": 10, "price": 750, "name": "10 Kredi", "popular": False},
 })))
 
-FREE_CREDITS_ON_REGISTER = int(os.getenv("FREE_CREDITS_ON_REGISTER", "3"))
+FREE_CREDITS_ON_REGISTER = int(os.getenv("FREE_CREDITS_ON_REGISTER", "1"))
 
 ANALYSIS_CREDIT_COST = int(os.getenv("ANALYSIS_CREDIT_COST", "1"))
 

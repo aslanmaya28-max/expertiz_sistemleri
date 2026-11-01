@@ -74,7 +74,7 @@ def test_auth_and_customer_responses_do_not_expose_legacy_fields(client, admin_t
     assert_public(customers.json())
 
 
-def test_registration_login_and_verification_keep_three_credit_gift(client):
+def test_registration_login_and_verification_keep_one_credit_gift(client):
     from yerimebak_ai_v5.services import email_service
     from .test_dispatch_flow import _link_token
 
@@ -89,14 +89,14 @@ def test_registration_login_and_verification_keep_three_credit_gift(client):
         verification = client.post("/api/v1/auth/verify-email", json={
             "token": _link_token(outbox[-1], "/eposta-dogrula")})
         assert verification.status_code == 200, verification.text
-        assert verification.json()["credits_granted"] == 3
+        assert verification.json()["credits_granted"] == 1
         assert_public(verification.json())
         login = client.post("/api/v1/auth/login", json={"email": email, "password": "Musteri123!"})
         assert login.status_code == 200, login.text
         assert_public(login.json())
         assert_public_token(login.json()["token"])
         balance = client.get("/api/v1/credits/balance", headers=_auth(login.json()["token"]))
-        assert balance.json()["credits"] == 3
+        assert balance.json()["credits"] == 1
     finally:
         email_service.stop_capture()
 

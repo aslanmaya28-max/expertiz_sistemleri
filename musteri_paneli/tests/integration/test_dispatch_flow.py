@@ -70,9 +70,16 @@ def test_kredili_web_degerleme_onbellek(client, monkeypatch):
         token = reg.json()["token"]
         verified = client.post("/api/v1/auth/verify-email",
                                json={"token": _link_token(outbox[-1], "/eposta-dogrula")})
-        assert verified.json()["credits_granted"] == 3
+        assert verified.json()["credits_granted"] == 1  # kayit hediyesi: 1 deneme kredisi
     finally:
         email_service.stop_capture()
+    # Senaryo 3 analiz yapar: bakiye satin alinmis gibi 3'e tamamlanir
+    _conn = DatabaseConfig.get_connection()
+    try:
+        _conn.cursor().execute("UPDATE users SET credits = 3 WHERE email = 'webkredi@yerimebak.test'")
+        _conn.commit()
+    finally:
+        DatabaseConfig.return_connection(_conn)
 
     calls = []
     listings = [{"url": f"https://www.arabam.com/ilan/seat-ibiza/{i}", "fiyat_tl": p,
@@ -867,11 +874,11 @@ def test_accounts_refunds_invoices_and_emails(client, admin_token):
         assert client.get("/api/v1/auth/profile", headers=_auth(token)).json()["profile"]["email_verified"] is False
 
         ok = client.post("/api/v1/auth/verify-email", json={"token": vtoken})
-        assert ok.status_code == 200 and ok.json()["credits_granted"] == 3
+        assert ok.status_code == 200 and ok.json()["credits_granted"] == 1
         # Ayni baglanti ikinci kez kullanilamaz, kredi iki kez verilmez
         assert client.post("/api/v1/auth/verify-email", json={"token": vtoken}).status_code == 400
         profile = client.get("/api/v1/auth/profile", headers=_auth(token)).json()["profile"]
-        assert profile["email_verified"] is True and profile["credits"] == 3
+        assert profile["email_verified"] is True and profile["credits"] == 1
         assert client.post("/api/v1/auth/resend-verification", headers=_auth(token)).json()["already_verified"] is True
 
         # --- Sifremi unuttum: kayitli olmayan e-postada da ayni yanit
@@ -1305,7 +1312,7 @@ def test_basarisiz_kredi_dusumunde_sonuc_verilmez(client, monkeypatch):
             DatabaseConfig.return_connection(conn)
 
     baslangic = kredi_ve_gecmis()
-    assert baslangic == (3, 0)
+    assert baslangic == (1, 0)
 
     # Ön kontrol geçse bile atomik kredi düşümü reddedilirse sonuç verilmez.
     monkeypatch.setattr(payment_service.PaymentService, "deduct_credits",

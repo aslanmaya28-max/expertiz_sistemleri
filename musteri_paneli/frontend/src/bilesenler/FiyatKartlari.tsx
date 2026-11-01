@@ -42,7 +42,7 @@ export default function FiyatKartlari() {
         </div>
         <div className="text-center mb-12">
           <span className="inline-flex items-center gap-2 px-4 py-2 bg-birincil/10 text-birincil rounded-full text-sm font-medium">
-            Kayıt olana <strong>3 analiz ücretsiz</strong>
+            Kayıt olana <strong>1 analiz ücretsiz</strong>
           </span>
         </div>
 

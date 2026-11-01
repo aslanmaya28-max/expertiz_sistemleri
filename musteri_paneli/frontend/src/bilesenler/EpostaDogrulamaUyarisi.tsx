@@ -23,7 +23,7 @@ export default function EpostaDogrulamaUyarisi({ email }: { email: string }) {
   return (
     <div className="mt-6 flex flex-col gap-3 rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-900 sm:flex-row sm:items-center sm:justify-between">
       <span>
-        <strong>{email}</strong> adresini henüz doğrulamadınız. E-postanızdaki bağlantıya tıkladığınızda 3 ücretsiz analiz krediniz yüklenir.
+        <strong>{email}</strong> adresini henüz doğrulamadınız. E-postanızdaki bağlantıya tıkladığınızda 1 ücretsiz deneme krediniz yüklenir.
         {mesaj ? <span className="block mt-1 font-medium">{mesaj}</span> : null}
       </span>
       <button type="button" onClick={tekrarGonder} disabled={busy}
