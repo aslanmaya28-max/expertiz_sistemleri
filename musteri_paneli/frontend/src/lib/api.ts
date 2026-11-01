@@ -422,6 +422,8 @@ export interface ValuationPrefill {
   vehicle: VehicleInput & { title?: string; image_url?: string; location?: string; package?: string; tramer_amount?: number; painted_count?: number; changed_count?: number };
   parts: Record<string, PartStatus>;
   message: string;
+  /** Sahibinden: link okunamaz, musteri ilan metnini yapistirmali */
+  paste_text?: boolean;
 }
 
 export interface ValuationRequestPayload {

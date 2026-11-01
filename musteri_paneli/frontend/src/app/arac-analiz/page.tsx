@@ -52,6 +52,30 @@ export default function AracAnalizSayfasi() {
   const [origins, setOrigins] = useState<Record<string, PrefillField>>({});
   const [listingText, setListingText] = useState("");
   const [textOpen, setTextOpen] = useState(false);
+  const [yapistirUyarisi, setYapistirUyarisi] = useState(false);
+  const metinKutusu = useRef<HTMLTextAreaElement>(null);
+  const [panoVar, setPanoVar] = useState(false);
+  useEffect(() => {
+    setPanoVar(typeof navigator !== "undefined" && !!navigator.clipboard?.readText);
+  }, []);
+
+  function metinKutusunaGit() {
+    setTextOpen(true);
+    // details açıldıktan sonra odaklan (telefonda klavye ve "Yapıştır" balonu açılır)
+    window.setTimeout(() => {
+      metinKutusu.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      metinKutusu.current?.focus();
+    }, 50);
+  }
+
+  async function panodanYapistir() {
+    try {
+      const metin = await navigator.clipboard.readText();
+      if (metin.trim()) setListingText(metin.slice(0, 8000));
+    } catch {
+      metinKutusu.current?.focus();
+    }
+  }
   const [sonuc, setSonuc] = useState<ValuationResult | null>(null);
   const [hata, setHata] = useState<{ message: string; code?: string } | null>(null);
   const [busy, setBusy] = useState<"prefill" | "analyze" | null>(null);
@@ -85,6 +109,15 @@ export default function AracAnalizSayfasi() {
   }
 
   function applyPrefill(res: ValuationPrefill) {
+    if (res.paste_text) {
+      // Sahibinden: alanlara dokunma (müşterinin girdikleri kalsın), metin kutusuna yönlendir
+      setForm((f) => ({ ...f, link: res.url || f.link }));
+      setPrefillMsg(res.message);
+      setYapistirUyarisi(true);
+      metinKutusunaGit();
+      return;
+    }
+    setYapistirUyarisi(false);
     const v = res.vehicle || {};
     // Her çıkarım yeni bir ilanı temsil eder: önceki ilandan eksik alan taşınmaz.
     setForm((f) => ({
@@ -218,13 +251,28 @@ export default function AracAnalizSayfasi() {
                 {busy === "prefill" ? "Okunuyor..." : "Bilgileri getir"}
               </button>
             </div>
-            {prefillMsg && <p className="mt-2 text-sm text-metin-ikincil">{prefillMsg}</p>}
+            {prefillMsg && (
+              <p className={yapistirUyarisi ? "mt-3 rounded-lg bg-yellow-50 p-3 text-sm font-medium text-yellow-900" : "mt-2 text-sm text-metin-ikincil"}>
+                {prefillMsg}
+              </p>
+            )}
             <details className="mt-3 text-sm" open={textOpen} onToggle={(e) => setTextOpen(e.currentTarget.open)}>
               <summary className="cursor-pointer font-medium text-birincil">İlan metnini yapıştırın</summary>
-              <textarea aria-label="İlan metni" maxLength={8000} rows={6} value={listingText}
+              {yapistirUyarisi && (
+                <p className="mt-2 text-xs text-metin-ikincil">
+                  Telefonda: ilanı tarayıcıda açın, fiyattan açıklamanın sonuna kadar metne uzun basıp seçin ve Kopyala&apos;ya dokunun; sonra buraya dönüp yapıştırın.
+                </p>
+              )}
+              <textarea ref={metinKutusu} aria-label="İlan metni" maxLength={8000} rows={6} value={listingText}
                 onChange={(e) => setListingText(e.target.value)} className={`${input} mt-3`} placeholder="İlandaki araç bilgilerini ve açıklamayı buraya yapıştırın." />
-              <button type="button" disabled={busy !== null || !listingText.trim()} onClick={metindenDoldur}
-                className="mt-2 rounded-lg border border-birincil px-4 py-2 font-semibold text-birincil disabled:opacity-50">Metinden doldur</button>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {panoVar && (
+                  <button type="button" onClick={panodanYapistir} disabled={busy !== null}
+                    className="rounded-lg border border-kenarlik-acik px-4 py-2 font-semibold text-metin-birincil disabled:opacity-50">Kopyaladığımı yapıştır</button>
+                )}
+                <button type="button" disabled={busy !== null || !listingText.trim()} onClick={metindenDoldur}
+                  className="rounded-lg border border-birincil px-4 py-2 font-semibold text-birincil disabled:opacity-50">Metinden doldur</button>
+              </div>
             </details>
           </section>
 

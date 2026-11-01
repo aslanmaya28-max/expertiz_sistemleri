@@ -365,12 +365,24 @@ def _legacy_prefill_from_link(url: str) -> Dict[str, Any]:
     }
 
 
+SAHIBINDEN_PASTE_MESSAGE = (
+    "Sahibinden ilanını otomatik okuyamıyoruz. İlan sayfasındaki fiyatı, özellikler listesini ve "
+    "açıklamayı kopyalayıp aşağıdaki kutuya yapıştırın."
+)
+
+
 def prefill_from_link(url: str) -> Dict[str, Any]:
     from yerimebak_ai_v5.services import listing_extract
 
     legacy = _legacy_prefill_from_link(url)
     if "error" in legacy:
         return legacy
+    if not legacy.get("listing_id") and legacy.get("source") == "sahibinden":
+        # Sahibinden sayfası erişimi engelliyor ve aramada görünmüyor: ücretli arama yapılmaz.
+        # Link başlığı da güvenilir değil (satıcı başlığı eski yıl/km/fiyat içerebilir); tahmin yok.
+        # Müşteri ilan metnini yapıştırır; link rapora ilan linki olarak girer.
+        return {**legacy, "vehicle": {}, "parts": {}, "fields": {}, "verified_count": 0,
+                "paste_text": True, "message": SAHIBINDEN_PASTE_MESSAGE}
     extracted = listing_extract.from_link(legacy["url"])
     if extracted is None:
         # Anahtar yokken eski yanıt ve URL kelimesi tahmini korunur; yeşil rozet verilmez.

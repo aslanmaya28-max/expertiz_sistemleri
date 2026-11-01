@@ -77,8 +77,9 @@ def test_prefill_sahibinden_short_link(catalog, monkeypatch):
     res = valuation_service.prefill_from_link("https://shbd.io/s/JxlAmKg0")
     assert res["found"] is False and res["source"] == "sahibinden"
     assert res["url"] == valuation_service.normalize_url(SAHIBINDEN)
-    assert res["vehicle"] == {"brand": "Renault", "model": "Clio", "year": 2019}
-    assert "Sahibinden" in res["message"]
+    # Link başlığı güvenilmez: tahmin yok, müşteri ilan metnini yapıştırır
+    assert res["vehicle"] == {} and res["paste_text"] is True
+    assert res["message"] == valuation_service.SAHIBINDEN_PASTE_MESSAGE
 
 
 # shbd.io canli denemede (2026-10) sahibinden'in kendi kisa adresine 301 ile yonlendirdi
@@ -94,10 +95,21 @@ def test_shbd_redirects_to_site_short_link(fake_http):
     assert not listing_links.is_site_short_link("https://shbd.io/s/JxlAmKg0")
 
 
-def test_prefill_site_short_link_asks_full_link(catalog, monkeypatch):
+def test_prefill_site_short_link_asks_paste(catalog, monkeypatch):
     monkeypatch.setattr(listing_links, "resolve_short_link", lambda url, **kw: SITE_SHORT)
     monkeypatch.setattr(valuation_service, "_listing_by_url", lambda url: None)
     res = valuation_service.prefill_from_link("https://shbd.io/s/JxlAmKg0")
     assert res["found"] is False and res["source"] == "sahibinden"
-    assert res["vehicle"] == {}
-    assert "tam adresini" in res["message"]
+    assert res["vehicle"] == {} and res["paste_text"] is True
+    assert "açıklamayı kopyalayıp" in res["message"]
+
+
+def test_sahibinden_link_skips_paid_search(catalog, monkeypatch):
+    from yerimebak_ai_v5.services import listing_extract
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-fake")
+    monkeypatch.setattr(valuation_service, "_listing_by_url", lambda url: None)
+    def no_search(url):
+        raise AssertionError("sahibinden linkinde ücretli arama yapılmamalı")
+    monkeypatch.setattr(listing_extract, "from_link", no_search)
+    res = valuation_service.prefill_from_link(SAHIBINDEN)
+    assert res["paste_text"] is True and res["url"] == valuation_service.normalize_url(SAHIBINDEN)
