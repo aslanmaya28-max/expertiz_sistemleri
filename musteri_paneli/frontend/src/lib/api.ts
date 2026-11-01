@@ -10,8 +10,8 @@ export class ApiError extends Error {
   }
 }
 
-async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const token = getToken();
+async function fetchAPI<T>(endpoint: string, options?: RequestInit, responseType: "json" | "blob" = "json", authenticated = true): Promise<T> {
+  const token = authenticated ? getToken() : null;
   const res = await fetch(`${API_BASE}${endpoint}`, {
     headers: {
       "Content-Type": "application/json",
@@ -37,7 +37,7 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
     throw new ApiError(message, res.status, typeof detail === "object" ? detail?.code : undefined);
   }
 
-  return res.json();
+  return responseType === "blob" ? res.blob() as Promise<T> : res.json();
 }
 
 export interface ExpertizPackage {
@@ -135,7 +135,40 @@ export interface ReportChecklistItem {
   mikron?: number | null;
 }
 
+export interface ReportVerification {
+  gecerli: boolean;
+  rapor_no?: string;
+  tarih?: string;
+  marka?: string;
+  model?: string;
+  yil?: number | string;
+  plaka_maskeli?: string;
+  durum?: "yayinlandi" | "arsivlendi";
+  seal_url?: string;
+}
+
+export function verifyExpertizReport(code: string, signal?: AbortSignal): Promise<ReportVerification> {
+  return fetchAPI(`/expertiz/verify/${encodeURIComponent(code)}`, { signal, cache: "no-store" }, "json", false);
+}
+
+export function expertizSealUrl(code: string): string {
+  return `${API_BASE}/expertiz/verify/${encodeURIComponent(code)}/seal.png`;
+}
+
+export function downloadExpertizPackage(id: string): Promise<Blob> {
+  return fetchAPI(`/expertiz/reports/${encodeURIComponent(id)}/package`, undefined, "blob");
+}
+
+export function requestExpertizMedia(id: string): Promise<{ success: boolean }> {
+  return fetchAPI(`/expertiz/reports/${encodeURIComponent(id)}/media-request`, { method: "POST" });
+}
+
 export interface ExpertizReportSummary {
+  verification_code?: string;
+  report_no?: string;
+  seal_url?: string;
+  archive?: { at: string; by: string; sha256: string; file_count: number; bytes: number } | null;
+  media_retention?: { days: number; remaining_days: number; archive_eligible: boolean };
   id: string;
   status: string;
   plate?: string;

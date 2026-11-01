@@ -6,8 +6,10 @@ from typing import Any, Dict, Optional
 # 'quote' adi asagidaki /quote uc noktasiyla cakismasin
 from urllib.parse import quote as url_quote
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, Response, StreamingResponse
+from starlette.background import BackgroundTask
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, StrictInt
 
 from yerimebak_ai_v5.api.v1.endpoints.auth import get_admin_user, get_authenticated_user
@@ -621,10 +623,24 @@ async def personnel_submit_report(
 # ---------------------------------------------------------------------------
 
 @router.get("/media/{media_id}")
-async def get_media_file(media_id: str, exp: int = 0, sig: str = "") -> Response:
+async def get_media_file(media_id: str, exp: int = 0, sig: str = "", orijinal: int = 0,
+                         authorization: Optional[str] = Header(default=None)) -> Response:
     result = media_service.open_media(media_id, exp, sig)
     if "error" in result:
         raise HTTPException(status_code=int(result.get("http_status") or 404), detail=result["error"])
+    if orijinal:
+        user = await run_in_threadpool(get_authenticated_user, api_key=None, authorization=authorization)
+        await run_in_threadpool(get_admin_user, user=user)
+    elif result.get("inspection_photo"):
+        from pathlib import Path
+        from yerimebak_ai_v5.services import report_archive, stamp_service
+        row = await run_in_threadpool(report_archive.report_for_media, result["report_id"])
+        source = result.get("content")
+        if source is None:
+            source = await run_in_threadpool(Path(result["path"]).read_bytes)
+        result["content"], result["content_type"] = await run_in_threadpool(
+            stamp_service.stamp_photo, source, result["content_type"], *report_archive.seal_fields(row))
+        result["original_name"] = Path(result["original_name"]).stem + ".jpg"
     if "content" in result:
         filename = url_quote(result["original_name"])
         disposition = (
@@ -643,3 +659,63 @@ async def get_media_file(media_id: str, exp: int = 0, sig: str = "") -> Response
         content_disposition_type="inline",
         headers={"Cache-Control": "private, max-age=3600"},
     )
+
+
+class ArchiveConfirmRequest(BaseModel):
+    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+def _zip_response(result, report_id):
+    result = _raise_if_error(result)
+    file = result["file"]
+    def chunks():
+        try:
+            while chunk := file.read(128*1024):
+                yield chunk
+        finally:
+            file.close()
+    return StreamingResponse(chunks(), media_type="application/zip", background=BackgroundTask(file.close),
+                             headers={"Content-Disposition": f'attachment; filename="rapor-{url_quote(report_id, safe="")}.zip"',
+                                      "X-Archive-Sha256": result["sha256"], "Cache-Control": "no-store"})
+
+
+@router.get("/reports/{report_id}/package")
+def customer_report_package(report_id: str, user: Dict[str, Any] = Depends(get_authenticated_user)):
+    from yerimebak_ai_v5.services import report_archive
+    return _zip_response(report_archive.package_for(report_id, user), report_id)
+
+
+@router.get("/admin/reports/{report_id}/archive")
+def admin_report_archive(report_id: str, user: Dict[str, Any] = Depends(get_admin_user)):
+    from yerimebak_ai_v5.services import report_archive
+    return _zip_response(report_archive.package_for(report_id, user, admin=True), report_id)
+
+
+@router.post("/admin/reports/{report_id}/archive/confirm")
+def admin_confirm_archive(report_id: str, payload: ArchiveConfirmRequest, user: Dict[str, Any] = Depends(get_admin_user)):
+    from yerimebak_ai_v5.services import report_archive
+    return _raise_if_error(report_archive.confirm_archive(report_id, user, payload.sha256))
+
+
+@router.post("/reports/{report_id}/media-request")
+def customer_request_archived_media(report_id: str, user: Dict[str, Any] = Depends(get_authenticated_user)):
+    from yerimebak_ai_v5.services import report_archive
+    return _raise_if_error(report_archive.request_media(report_id, user))
+
+
+@router.get("/verify/{code}")
+def verify_report(code: str, request: Request):
+    from yerimebak_ai_v5.services import report_archive
+    from yerimebak_ai_v5.core.client_ip import client_ip
+    return _raise_if_error(report_archive.verify(code, client_ip(request.headers, request.client.host if request.client else None)))
+
+
+@router.get("/verify/{code}/seal.png")
+def verified_report_seal(code: str, request: Request):
+    from yerimebak_ai_v5.services import report_archive, stamp_service
+    from yerimebak_ai_v5.core.client_ip import client_ip
+    result = _raise_if_error(report_archive.verify(code, client_ip(request.headers, request.client.host if request.client else None)))
+    if not result["gecerli"]:
+        raise HTTPException(status_code=404, detail="Rapor bulunamadı")
+    return Response(stamp_service.seal_png(code.upper().strip(), result["rapor_no"], result["tarih"]),
+                    media_type="image/png", headers={"Cache-Control": "public, max-age=3600"})

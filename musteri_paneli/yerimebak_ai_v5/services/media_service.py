@@ -80,6 +80,8 @@ def _supabase_object(
                 method, f"{base_url}/storage/v1/object/{object_path}",
                 headers=headers, content=content,
             )
+            if method == "DELETE" and response.status_code == 404:
+                return b""  # Kesilmiş bir onay isteği güvenle tekrar denenebilir.
             response.raise_for_status()
             return response.content
     except httpx.HTTPStatusError as exc:
@@ -121,6 +123,24 @@ def ensure_media_schema(cursor: Any) -> None:
         """
     )
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_report_media_report ON report_media(report_id)")
+    cursor.execute("ALTER TABLE report_media ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ")
+
+
+def read_stored_media(row: Dict[str, Any]) -> bytes:
+    if _storage_mode() == "supabase":
+        return _supabase_object("GET", str(row["report_id"]), str(row["file_name"]))
+    return (media_root() / str(row["report_id"]) / str(row["file_name"])).read_bytes()
+
+
+def delete_stored_media(row: Dict[str, Any]) -> None:
+    if _storage_mode() == "supabase":
+        _supabase_object("DELETE", str(row["report_id"]), str(row["file_name"]))
+    else:
+        root = media_root().resolve()
+        path = (root / str(row["report_id"]) / str(row["file_name"])).resolve()
+        if not path.is_relative_to(root):
+            raise _MediaStorageError
+        path.unlink(missing_ok=True)
 
 
 def detect_content_type(head: bytes) -> Optional[str]:
@@ -170,7 +190,8 @@ def public_media(row: Dict[str, Any], ttl: int = URL_TTL_SECONDS) -> Dict[str, A
         "size_bytes": row.get("size_bytes"),
         "uploaded_by_name": row.get("uploaded_by_name"),
         "created_at": created.isoformat() if hasattr(created, "isoformat") else created,
-        "url": signed_url(media_id, ttl),
+        "url": None if row.get("archived_at") else signed_url(media_id, ttl),
+        "archived_at": row.get("archived_at"),
     }
 
 
@@ -318,6 +339,8 @@ def open_media(media_id: str, expires_at: int, signature: str) -> Dict[str, Any]
     if not row:
         return {"error": "Dosya bulunamadi", "http_status": 404}
     row = dict(row)
+    if row.get("archived_at"):
+        return {"error": "Dosya arşivlendi", "http_status": 410}
     try:
         if _storage_mode() == "supabase":
             stored_file = {"content": _supabase_object("GET", str(row["report_id"]), str(row["file_name"]))}
@@ -330,6 +353,8 @@ def open_media(media_id: str, expires_at: int, signature: str) -> Dict[str, Any]
         return {"error": "Dosya depolama hizmetinden okunamadı. Lütfen tekrar deneyin.", "http_status": 502}
     return {
         **stored_file,
+        **({"report_id": row["report_id"], "inspection_photo": True}
+           if row.get("category") == "inspection_photo" else {}),
         "content_type": row["content_type"],
         "original_name": row.get("original_name") or row["file_name"],
     }

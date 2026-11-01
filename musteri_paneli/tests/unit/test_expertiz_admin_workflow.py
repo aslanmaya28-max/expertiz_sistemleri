@@ -15,6 +15,8 @@ class FakeCursor:
 
     def execute(self, query, params=None):
         self.executed.append((query, params))
+        if "nextval('report_public_number_seq')" in query:
+            self.rows.append({"n": 1})
         if "UPDATE reports" in query:
             self.updated_data = params[2]
             report_id = params[3]
@@ -100,6 +102,8 @@ class ExpertizAdminWorkflowTests(unittest.TestCase):
         self.assertEqual(result["report"]["status"], "published")
         self.assertEqual(result["report"]["durum"], "Tamamlandı")
         self.assertEqual(result["report"]["data"]["published_by"], "admin@yerimebak.ai")
+        self.assertRegex(result["report"]["verification_code"], r"^YB-[A-Z2-9]{4}-[A-Z2-9]{4}$")
+        self.assertRegex(result["report"]["report_no"], r"^RAPOR \d{4}-000001$")
         self.assertTrue(conn.committed)
         self.assertTrue(
             any("CREATE TABLE IF NOT EXISTS audit_logs" in query for query, _ in conn.cursor_instance.executed)

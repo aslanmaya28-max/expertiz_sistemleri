@@ -22,6 +22,8 @@ openai>=1.0.0
 
 # Kurumsal rapor PDF metni
 pdfplumber>=0.10.3
+Pillow>=10.1
+pillow-heif>=0.18
 
 # Yardimcilar
 python-dotenv>=1.0.0

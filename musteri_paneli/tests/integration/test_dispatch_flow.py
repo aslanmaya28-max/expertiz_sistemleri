@@ -384,7 +384,15 @@ def test_full_dispatch_flow(client, admin_token, customer_token):
 
 
 
-JPEG_BYTES = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00" + b"\x00" * 200 + b"\xff\xd9"
+def _jpeg_fixture():
+    import io
+    from PIL import Image
+    output = io.BytesIO()
+    Image.new('RGB', (640, 480), '#899aaa').save(output, 'JPEG')
+    return output.getvalue()
+
+
+JPEG_BYTES = _jpeg_fixture()
 PDF_BYTES = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
 
 
@@ -443,7 +451,13 @@ def test_inspection_report_photos_and_submit(client, admin_token, customer_token
 
     # Imzali URL ile dosya okunur, imzasiz/bozuk imza reddedilir
     got = client.get(photo_media["url"])
-    assert got.status_code == 200 and got.content == JPEG_BYTES
+    assert got.status_code == 200 and got.content != JPEG_BYTES
+    import io
+    from PIL import Image
+    assert Image.open(io.BytesIO(got.content)).size == (640, 480)
+    assert client.get(photo_media["url"]+'&orijinal=1').status_code == 401
+    assert client.get(photo_media["url"]+'&orijinal=1', headers=_auth(token)).status_code == 403
+    assert client.get(photo_media["url"]+'&orijinal=1', headers=_auth(admin_token)).content == JPEG_BYTES
     assert client.get(photo_media["url"].replace("sig=", "sig=0")).status_code == 403
 
     # Taslak kaydet

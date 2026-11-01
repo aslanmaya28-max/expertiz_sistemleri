@@ -5,6 +5,9 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import {
   getMyExpertizReport,
+  downloadExpertizPackage,
+  requestExpertizMedia,
+  expertizSealUrl,
   type CustomerAiAnalysis,
   type ExpertizReportDetailResponse,
   type InspectionValuation,
@@ -44,6 +47,35 @@ export default function MusteriRaporDetaySayfasi() {
   const [data, setData] = useState<ExpertizReportDetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
+  const [action, setAction] = useState<"download" | "request" | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [requested, setRequested] = useState(false);
+
+  async function handleMediaAction(kind: "download" | "request") {
+    if (action) return;
+    setAction(kind);
+    setActionError(null);
+    try {
+      if (kind === "request") {
+        await requestExpertizMedia(id);
+        setRequested(true);
+      } else {
+        const blob = await downloadExpertizPackage(id);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `yerimebak-rapor-${id.replace(/[^a-zA-Z0-9_-]/g, "")}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "İşlem tamamlanamadı. Lütfen tekrar deneyin.");
+    } finally {
+      setAction(null);
+    }
+  }
 
   useEffect(() => {
     if (!loading && !user) {
@@ -103,7 +135,42 @@ export default function MusteriRaporDetaySayfasi() {
             <h1 className="text-2xl font-bold text-metin-birincil">{report.plate || "Ekspertiz Raporu"}</h1>
             <p className="mt-1 text-metin-ikincil">{report.firm_name || "YerimeBak"} tarafindan hazirlanan yayinlanmis rapor.</p>
           </div>
-          <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-semibold text-green-700">Yayinlandi</span>
+          <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-semibold text-green-700">{report.archive ? "Arşivlendi" : "Yayınlandı"}</span>
+        </div>
+
+        {report.verification_code && (
+          <div className="mt-5 flex flex-wrap items-center gap-5 rounded-lg bg-slate-50 p-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={expertizSealUrl(report.verification_code)} width={144} height={144} alt="YerimeBak doğrulanmış rapor mührü" />
+            <div>
+              <p className="font-semibold text-metin-birincil">{report.report_no}</p>
+              <p className="mt-1 text-sm text-metin-ikincil">Doğrulama kodu: <strong>{report.verification_code}</strong></p>
+              <Link href={`/dogrula/${encodeURIComponent(report.verification_code)}`} className="mt-2 inline-block text-sm font-semibold text-birincil hover:underline">Raporu doğrula</Link>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-5 rounded-lg border border-blue-200 bg-blue-50 p-4">
+          {report.archive ? (
+            <>
+              <h2 className="font-semibold text-blue-900">Fotoğraflar ve PDF dosyaları arşivlendi</h2>
+              <p className="mt-2 text-sm text-blue-900">Rapor metni ve yapay zekâ değerlemeniz bu sayfada kalır. Arşivdeki fotoğraf ve kurumsal rapor dosyalarını talep edebilirsiniz.</p>
+              <button type="button" disabled={!!action || requested} onClick={() => handleMediaAction("request")} className="mt-3 rounded-lg bg-birincil px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                {requested ? "Talebiniz iletildi" : action === "request" ? "İletiliyor…" : "Fotoğrafları talep et"}
+              </button>
+              {requested && <p role="status" className="mt-2 text-sm text-blue-900">Arşiv talebiniz ekibimize ulaştı. Günde bir kez talep gönderebilirsiniz.</p>}
+            </>
+          ) : (
+            <>
+              <button type="button" disabled={!!action} onClick={() => handleMediaAction("download")} className="rounded-lg bg-birincil px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                {action === "download" ? "Paket hazırlanıyor…" : "Tüm raporu indir (ZIP)"}
+              </button>
+              <p className="mt-2 text-sm text-blue-900">Fotoğraf ve PDF dosyaları yayından sonra {report.media_retention?.days ?? 7} gün panelde saklanır. Kendi kopyanızı indirin.
+                {report.media_retention && (report.media_retention.remaining_days > 0 ? ` Arşivlemeye ${report.media_retention.remaining_days} gün kaldı.` : " Saklama süresi doldu; dosyalar arşivlenene kadar indirilebilir.")}
+              </p>
+            </>
+          )}
+          {actionError && <p role="alert" className="mt-3 text-sm text-red-700">{actionError}</p>}
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -125,7 +192,7 @@ export default function MusteriRaporDetaySayfasi() {
 
       {report.ai && <AiDegerleme ai={report.ai} />}
 
-      {(report.corporate_reports?.length ?? 0) > 0 && (
+      {!report.archive && (report.corporate_reports?.length ?? 0) > 0 && (
         <section className="mt-6 rounded-lg border border-kenarlik-acik bg-white p-6">
           <h2 className="text-lg font-semibold text-metin-birincil">Kurumsal ekspertiz raporu</h2>
           {kurumsal && (
@@ -156,10 +223,10 @@ export default function MusteriRaporDetaySayfasi() {
       )}
 
       {bolumler.map((bolum) => (
-        <KontrolBolumu key={bolum.baslik} {...bolum} photos={report.photos ?? []} />
+        <KontrolBolumu key={bolum.baslik} {...bolum} photos={report.archive ? [] : report.photos ?? []} />
       ))}
 
-      {(report.photos?.length ?? 0) > 0 && (
+      {!report.archive && (report.photos?.length ?? 0) > 0 && (
         <section className="mt-6 rounded-lg border border-kenarlik-acik bg-white p-6">
           <h2 className="text-lg font-semibold text-metin-birincil">Tum fotograflar ({report.photos!.length})</h2>
           <FotoGaleri photos={report.photos!} />

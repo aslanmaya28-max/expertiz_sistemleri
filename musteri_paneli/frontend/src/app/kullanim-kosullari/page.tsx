@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Kullanım Koşulları" };
 export default async function KullanimKosullariSayfasi() {
   const s = await sirketBilgisi();
   return (
-    <YasalSayfa baslik="Kullanım Koşulları" guncelleme="Ekim 2026">
+    <YasalSayfa baslik="Kullanım Koşulları" guncelleme="Kasım 2026">
       <p>
         Bu koşullar, {s.unvan} (&quot;YerimeBak&quot;) tarafından sunulan yerimebak.com.tr internet sitesi ve uygulamalarının
         (&quot;Platform&quot;) kullanımını düzenler. Üye olarak bu koşulları kabul etmiş olursunuz.
@@ -21,6 +21,12 @@ export default async function KullanimKosullariSayfasi() {
         <li><strong>Ekspertiz hizmeti:</strong> Talebiniz, aracın bulunduğu ildeki YerimeBak uzmanına yönlendirilir; uzman aracı inceler
           ve seçtiğiniz anlaşmalı kurumsal ekspertiz firmasında kontrol yaptırır. Hazırlanan rapor panelinizde yayınlanır.</li>
       </ul>
+
+      <h3>Rapor dosyalarının saklanması</h3>
+      <p>Ekspertiz fotoğrafları ve PDF dosyaları raporun yayınlanmasından sonra 7 gün müşteri panelinde saklanır.
+        Bu süre içinde “Tüm raporu indir (ZIP)” ile kendi kopyanızı kaydedebilirsiniz. Süre dolduktan sonra dosyalar
+        arşive alınır ve panelden kaldırılır. Rapor metni ve yapay zekâ değerlemesi panelde görüntülenmeye devam eder.
+        Arşivlenen fotoğraf ve PDF dosyaları, paneldeki talep düğmesi üzerinden başvurmanız halinde tarafınıza iletilir.</p>
 
       <h2>2. Değerlemelerin niteliği</h2>
       <p>

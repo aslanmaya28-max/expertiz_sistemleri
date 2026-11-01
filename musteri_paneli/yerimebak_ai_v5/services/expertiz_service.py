@@ -157,6 +157,8 @@ def _create_reports_schema(cursor: Any) -> None:
     }
     for column, column_type in columns.items():
         cursor.execute(f"ALTER TABLE reports ADD COLUMN IF NOT EXISTS {column} {column_type}")
+    from yerimebak_ai_v5.services import report_archive
+    report_archive.ensure_schema(cursor)
 
 
 def _ensure_expertiz_requests_schema(cursor: Any) -> None:
@@ -539,6 +541,7 @@ def _ai_summary_fields(ai: Any) -> Dict[str, Any]:
 
 
 def _public_report(row: Dict[str, Any]) -> Dict[str, Any]:
+    from yerimebak_ai_v5.services import report_archive
     data = _json_loads(row.get("data"), {}) or {}
     vehicle = data.get("vehicle_snapshot", {}) if isinstance(data, dict) else {}
     tam_rapor = data.get("tam_rapor") if isinstance(data, dict) else None
@@ -570,6 +573,12 @@ def _public_report(row: Dict[str, Any]) -> Dict[str, Any]:
         "ai": _customer_ai(ai_raw),
         "admin_note": data.get("admin_note") if isinstance(data, dict) else None,
         "report": tam_rapor,
+        "verification_code": data.get("verification_code"),
+        "report_no": data.get("report_no"),
+        "seal_url": (f'/api/v1/expertiz/verify/{data["verification_code"]}/seal.png'
+                     if data.get("verification_code") else None),
+        "archive": data.get("archive"),
+        "media_retention": report_archive.retention(row),
     }
 
 
@@ -586,6 +595,8 @@ def _admin_report(row: Dict[str, Any]) -> Dict[str, Any]:
             "updated_at": row.get("updated_at"),
             "version_id": row.get("version_id") or 0,
             "data": data,
+            "archive_retry_sha256": ((data.get("archive_pending") or {}).get("sha256")
+                                     if (data.get("archive_pending") or {}).get("confirmed") else None),
             "ai_analiz_detay": row.get("ai_analiz_detay"),
             "ai_analysis_result": row.get("ai_analysis_result"),
             "ai_meta": _ai_meta_from_row(row),
@@ -839,7 +850,9 @@ def _notify_report_decision(
         )
         notification_service.notify_user(
             cursor, notification_service.customer_user_id(cursor, data), "report_ready",
-            "Ekspertiz raporunuz hazır", f"{label} raporunu görüntüleyebilirsiniz.", report_id,
+            "Ekspertiz raporunuz hazır",
+            f'{label} raporunu görüntüleyebilirsiniz. Fotoğraflar {os.getenv("ARCHIVE_AFTER_DAYS", "7")} gün panelinizde kalır. '
+            f'Tüm raporu indir ile kopyanızı kaydedin. Doğrulama kodu: {data.get("verification_code", "")}', report_id,
         )
     else:
         notification_service.notify_user(
@@ -853,7 +866,7 @@ def publish_admin_report(report_id: str, admin: Dict[str, Any], admin_note: Opti
     try:
         cursor = conn.cursor()
         _ensure_reports_schema(cursor)
-        cursor.execute("SELECT * FROM reports WHERE id::text = %s LIMIT 1", (str(report_id),))
+        cursor.execute("SELECT * FROM reports WHERE id::text = %s LIMIT 1 FOR UPDATE", (str(report_id),))
         row = _row_to_dict(cursor.fetchone())
         if not row:
             return {"error": "Rapor bulunamadi", "http_status": 404}
@@ -874,6 +887,8 @@ def publish_admin_report(report_id: str, admin: Dict[str, Any], admin_note: Opti
         data = _json_loads(row.get("data"), {}) or {}
         data["published_at"] = now
         data["published_by"] = admin.get("email") or admin.get("id")
+        from yerimebak_ai_v5.services import report_archive
+        report_archive.ensure_identity(cursor, row, data)
         if admin_note and admin_note.strip():
             data["admin_note"] = admin_note.strip()[:2000]
 

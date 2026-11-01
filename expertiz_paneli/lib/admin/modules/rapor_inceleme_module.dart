@@ -16,6 +16,7 @@ import '../../models/ai/ai_analiz_sonucu_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../services/yerimebak_expertiz_api_service.dart';
 import '../../core/theme/futuristic_theme.dart';
+import 'report_archive_action.dart';
 
 class RaporIncelemeModule extends StatefulWidget {
   const RaporIncelemeModule({super.key});
@@ -804,6 +805,11 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
                                   ],
                                 ),
                                 const SizedBox(height: 6),
+                                if (isReportArchived(report))
+                                  const Chip(
+                                    avatar: Icon(Icons.archive_outlined, size: 16),
+                                    label: Text('Arşivlendi'),
+                                  ),
                                 Text(
                                   'ID: ${(report['id']?.toString() ?? '').substring(0, report['id'].toString().length > 8 ? 8 : report['id'].toString().length)}',
                                   style: const TextStyle(
@@ -1600,6 +1606,24 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
 
   Widget _buildActionBar() {
     final status = _selectedReport?['status']?.toString();
+    if (status == 'published') {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: ReportArchiveAction(
+          key: ValueKey(_selectedReport!['id']),
+          report: _selectedReport!,
+          api: _expertizApi,
+          onArchived: (reportId) async {
+            await _loadReports(silent: true);
+            final response = await _expertizApi.getAdminReportDetail(reportId);
+            final report = response['report'];
+            if (mounted && _selectedReport?['id'].toString() == reportId && report is Map) {
+              _selectReport(Map<String, dynamic>.from(report));
+            }
+          },
+        ),
+      );
+    }
     final hasOfficialAi = _hasOfficialCentralAi(_selectedReport);
     final hasFallbackPreview = _hasFlutterFallbackPreview(_selectedReport);
     final canApprove = status == 'pending_admin' && hasOfficialAi;

@@ -1,9 +1,17 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'central_auth_client.dart';
+
+class ReportArchiveDownload {
+  const ReportArchiveDownload({required this.bytes, required this.sha256});
+
+  final Uint8List bytes;
+  final String sha256;
+}
 
 class YerimebakExpertizApiService {
   YerimebakExpertizApiService({
@@ -61,6 +69,28 @@ class YerimebakExpertizApiService {
 
   Future<Map<String, dynamic>> getAdminReportDetail(String reportId) {
     return _get('/expertiz/admin/reports/$reportId');
+  }
+
+  Future<ReportArchiveDownload> downloadReportArchive(String reportId) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/expertiz/admin/reports/$reportId/archive'),
+      headers: _headers(),
+    );
+    if (response.statusCode >= 400) {
+      throw ApiException(_errorMessage(_decodeResponse(response.body), response.statusCode), response.statusCode);
+    }
+    final sha256 = response.headers.entries
+        .where((header) => header.key.toLowerCase() == 'x-archive-sha256')
+        .map((header) => header.value.trim())
+        .firstOrNull ?? '';
+    if (!RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(sha256) || response.bodyBytes.isEmpty) {
+      throw ApiException('Arşiv dosyası veya doğrulama özeti alınamadı', 502);
+    }
+    return ReportArchiveDownload(bytes: response.bodyBytes, sha256: sha256);
+  }
+
+  Future<Map<String, dynamic>> confirmReportArchive(String reportId, String sha256) {
+    return _post('/expertiz/admin/reports/$reportId/archive/confirm', body: {'sha256': sha256});
   }
 
   Future<Map<String, dynamic>> triggerCentralAnalysis(String reportId) {
