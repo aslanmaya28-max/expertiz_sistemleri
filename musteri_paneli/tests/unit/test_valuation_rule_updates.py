@@ -42,7 +42,7 @@ def test_tramer_floor_applies_after_age_km_and_respects_total_cap(amount, expect
                        'market_median_price':2_000_000}, now=datetime(2026,11,2))
     tramer = next(k for k in result['kalemler'] if k['kategori']=='tramer')
     assert tramer['yuzde'] == pytest.approx(expected)
-    assert 'Tramerli araç algısı: en az %2 / tutarın 1,5 katı' in tramer['aciklama']
+    assert 'Kaporta ve tramer kaybı toplamı en az tutarın 1,5 katı; kayıt etkisi en az %2' in tramer['aciklama']
     assert result['toplamDegerKaybiYuzde'] <= 50
 
 
@@ -53,8 +53,11 @@ def test_total_cap_preserves_tramer_floor_with_bodywork(amount, floor):
                       {'found':True, 'source':'web_listings', 'count':5,
                        'market_median_price':2_000_000}, now=datetime(2026,11,2))
     tramer = next(k for k in result['kalemler'] if k['kategori']=='tramer')
-    assert tramer['yuzde'] >= floor
-    assert result['toplamDegerKaybiYuzde'] == 50
+    tavan = next(k for k in result['kalemler'] if k['kategori']=='kaporta')
+    # 1,5 kat tabanı kaporta + tramer toplamına uygulanır (kullanıcı kararı 03.11.2026); toplam tavan %50.
+    assert tramer['yuzde'] + tavan['yuzde'] >= floor - 0.01
+    assert tramer['yuzde'] >= 2.0
+    assert result['toplamDegerKaybiYuzde'] <= 50
     assert sum(k['tutar'] for k in result['kalemler']) == result['toplamDegerKaybiTutar']
 
 

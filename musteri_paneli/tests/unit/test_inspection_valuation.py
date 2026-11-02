@@ -104,9 +104,14 @@ def test_tramer_overlap_with_bodywork_is_not_double_counted():
     with_parts = _tam({"solOnKapi": "degisen"})
     with_parts["adim1"]["hasarKayitToplamTutar"] = 80_000
     t1 = next(k for k in evaluate(only_tramer, MARKET, now=NOW)["kalemler"] if k["kategori"] == "tramer")
-    t2 = next(k for k in evaluate(with_parts, MARKET, now=NOW)["kalemler"] if k["kategori"] == "tramer")
-    # %8 tramer / değer oranında 1,5 kat tabanı (%12), kaporta mahsubunun önüne geçer.
-    assert t2["yuzde"] == t1["yuzde"] == 12.0
+    kalemler = evaluate(with_parts, MARKET, now=NOW)["kalemler"]
+    t2 = next(k for k in kalemler if k["kategori"] == "tramer")
+    kapi = next(k for k in kalemler if k["kategori"] == "kaporta")
+    # %8 tramer / değer oranında 1,5 kat tabanı (%12). Kullanıcı kararı (03.11.2026): taban hasarın TOPLAMINA
+    # uygulanır; aynı kazanın değişen kapısı varsa tramer kalemi yalnız kalan kısmı taşır (eskiden ikisi de tam düşülüyordu).
+    assert t1["yuzde"] == 12.0
+    assert t2["yuzde"] + kapi["yuzde"] == pytest.approx(12.0, abs=0.01)
+    assert 2.0 <= t2["yuzde"] < t1["yuzde"]
 
 
 def test_tramer_overlap_still_applies_above_floors():
@@ -117,7 +122,8 @@ def test_tramer_overlap_still_applies_above_floors():
     t1 = next(k for k in evaluate(only_tramer, MARKET, now=NOW)["kalemler"] if k["kategori"] == "tramer")
     t2 = next(k for k in evaluate(with_parts, MARKET, now=NOW)["kalemler"] if k["kategori"] == "tramer")
     assert t1["yuzde"] == pytest.approx(2.12)
-    assert t2["yuzde"] == pytest.approx(2.1)
+    # Kaporta kalemi tabanı zaten karşılıyor; kaydın kendi etkisi ("tramerli araç" algısı) en az %2 kalır.
+    assert t2["yuzde"] == pytest.approx(2.0)
 
 
 def test_tramer_tiers():

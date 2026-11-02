@@ -660,13 +660,18 @@ def compute_losses(f: InspectionFindings, base_value: float = 0.0, now: Optional
         tier = tramer_loss_pct(f.tramer_amount, base_value)
         pct = max(tier - 0.5 * bodywork_pct, tier * 0.35)
         ratio = f.tramer_amount / base_value * 100
-        tramer_floor = min(MAX_TOTAL_LOSS_PCT, max(2.0, 150 * f.tramer_amount / base_value))
+        # "Tutarın 1,5 katı" alt sınırı hasarın TOPLAMINA (kaporta + yapısal + tramer) uygulanır (kullanıcı kararı,
+        # 03.11.2026). Eskiden yalnız tramer kalemine uygulanıyor, aynı hasarın parça kayıplarıyla üst üste biniyordu:
+        # Chery Tiggo: 180.000 TL tramer → 270.000 TL + aynı kazanın iki değişen kapısı 214.000 TL = %25,1.
+        # Kaydın kendi etkisi ("tramerli araç" algısı) en az %2 kalır.
+        toplam_taban = min(MAX_TOTAL_LOSS_PCT, max(2.0, 150 * f.tramer_amount / base_value))
+        tramer_floor = min(MAX_TOTAL_LOSS_PCT, max(2.0, toplam_taban - bodywork_pct))
         items.append(LossItem(
             "tramer", "tramer", "Tramer (hasar kaydı)", _fmt_tl(f.tramer_amount),
             min(MAX_TOTAL_LOSS_PCT, max(pct * cosmetic_factor, tramer_floor)), tier,
             f"Hasar tutarı araç değerinin {_fmt_pct(ratio)}'i"
             + (" · fiziksel izi kaporta kalemlerinde düşüldü, yalnızca kayıt etkisi eklendi" if bodywork_pct > 0 and pct < tier else "")
-            + " · Tramerli araç algısı: en az %2 / tutarın 1,5 katı",
+            + " · Kaporta ve tramer kaybı toplamı en az tutarın 1,5 katı; kayıt etkisi en az %2",
         ))
     elif f.tramer_amount > 0 or f.tramer_count > 0:
         tramer_floor = 2.0

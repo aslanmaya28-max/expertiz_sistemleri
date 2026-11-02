@@ -102,3 +102,21 @@ def test_birden_cok_degisen_parca_tek_soruda_hepsi_sorulur():
     sorular = vr.seller_questions(vehicle, {"riskler": []}, findings)
     parca_sorusu = [q for q in sorular if q.startswith("Beyan edilen")]
     assert parca_sorusu == ["Beyan edilen Sol Ön Kapı (değişen), Sol Arka Kapı (değişen) için hasarın nedeni ve onarım belgeleri var mı?"]
+
+
+def test_tramer_ile_ayni_hasarin_degisen_parcalari_iki_kez_dusulmez():
+    # Chery Tiggo 7 Pro Max (03.11.2026, kullanıcı kararı): 180.000 TL tramer + iki değişen kapı.
+    # Eskiden tramer tek başına tutarın 1,5 katı (270.000 TL) düşülüyor, kapılar ayrıca 214.000 TL: toplam %25,1.
+    # Şimdi 1,5 kat tabanı kaporta + tramer toplamına uygulanır: toplam %14, karar PAZARLIK.
+    from datetime import datetime
+    from yerimebak_ai_v5.core.ai.inspection_valuation import evaluate
+    market = {"found": True, "source": "web_listings", "count": 6, "market_median_price": 1_928_809,
+              "clean_median_price": 1_928_809, "clean_count": 4, "reference_median_year": 2025, "reference_median_km": 44_000}
+    r = evaluate({"adim1": {"yil": 2025, "guncelKm": 44_000, "hasarKayitToplamTutar": 180_000},
+                  "adim4": {"parcaDurumlari": {"solOnKapi": "degisen", "solArkaKapi": "degisen"}}},
+                 market, listed_price=1_730_000, now=datetime(2026, 11, 3))
+    assert r["toplamDegerKaybiYuzde"] == 14.0
+    assert r["toplamDegerKaybiTutar"] >= 270_000  # en az tramerin 1,5 katı
+    assert r["fiyatYorumu"]["karar"] == "PAZARLIK"
+    tramer = next(k for k in r["kalemler"] if k["kategori"] == "tramer")
+    assert tramer["yuzde"] >= 2.0
