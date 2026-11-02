@@ -131,3 +131,19 @@ def test_sikayet_bos_kalirsa_bir_kez_daha_aranir(monkeypatch):
     assert len(asked) == 2 and "kullanıcı yorumları" in asked[1]
     assert [c["baslik"] for c in result["kullaniciSikayetleri"]] == ["DCT şanzıman titremesi"]
     assert result["scope"]["searches"] == 3 and result["scope"]["cost_usd"] == pytest.approx(.022)
+
+
+@pytest.mark.parametrize("first,second", [
+    # Gerçek denemelerde aynı soruya gelen farklı cevaplar: hepsinde 2021 geçiş yılı, kasa NX4
+    ([G("TL", 2016, 2021, 2019), G("NX4", 2022, 2026, 2024)], [G("TL (3. nesil)", 2015, 2021, 2018), G("NX4 (4. nesil)", 2021, 2026, 2024)]),
+    ([G("Tucson III", 2016, 2020, 2019), G("Tucson IV", 2021, 2026, 2024)], [G("TL (3. nesil)", 2015, 2020, 2018), G("NX4 (4. nesil)", 2021, 2026, 2024)]),
+    ([G("JM", 2004, 2009), G("LM", 2009, 2015), G("TL", 2015, 2020, 2018), G("NX4", 2021, 2026, 2024)],
+     [G("1. nesil", 2004, 2010), G("2. nesil", 2015, 2020, 2018), G("3. nesil", 2021, 2026, 2024)]),
+])
+def test_kaynak_varyantlarinda_ayni_sonuc(first, second):
+    r = g.combine(first, second, 2021)
+    assert r["bulundu"] and "NX4" in r["kasa"] and r["gecis_yili"]
+    assert g.year_range(r, 2021) == (2021, 2023)
+    assert "TL" in r["onceki"]["kasa"] or "III" in r["onceki"]["kasa"]
+    for year in (2022, 2023):
+        assert not g.combine(first, second, year)["gecis_yili"]

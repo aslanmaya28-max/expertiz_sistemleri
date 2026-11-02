@@ -45,7 +45,7 @@ def _models() -> List[str]:
 
 def _cache_key(vehicle: Dict[str, Any]) -> str:
     values = [wmr.fold(vehicle.get(k)).strip() for k in ("brand", "model")]
-    return "vehicle-generations:v5:" + hashlib.sha256(json.dumps(values).encode()).hexdigest()
+    return "vehicle-generations:v6:" + hashlib.sha256(json.dumps(values).encode()).hexdigest()
 
 
 def _year(value: Any) -> int | None:
@@ -100,26 +100,60 @@ def _previous(generations: List[Dict[str, Any]], newest: Dict[str, Any], year: i
     return prev if prev["bitis"] >= year - 1 else None
 
 
+def _has_code(name: str) -> bool:
+    """Kasa kodu içeriyor mu: "NX4", "TL", "KF", "X98" (Roma rakamı "IV" kod sayılmaz)."""
+    for token in re.findall(r"[A-Za-z0-9]+", name):
+        if re.fullmatch(r"[A-Z]+\d+[A-Z0-9]*|[A-Z]{2,4}", token) and not re.fullmatch(r"[IVX]+", token):
+            return True
+    return False
+
+
+def _name(first: Dict[str, Any], second: Dict[str, Any]):
+    """Kodlu ad ("NX4 (4. nesil)") numaralı ya da Roma rakamlı addan ("Tucson IV") önce gelir."""
+    names = [n for n in (first.get("kasa"), second.get("kasa")) if n]
+    coded = [n for n in names if _has_code(n)] or [n for n in names if "nesil" not in n.lower()]
+    return (coded or names or [None])[0]
+
+
+def _align(first: List[Dict[str, Any]], second: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """İki listedeki kasaları başlangıç yılına göre (±1) eşleştirir; eşleşmeyen kasa atlanır.
+    Her kasa için gevşek (birleşik) ve sıkı (kesişim) yıl aralığı tutulur."""
+    pairs, used = [], set()
+    for a in first:
+        match = next((i for i, b in enumerate(second) if i not in used and abs(a["baslangic"] - b["baslangic"]) <= 1), None)
+        if match is None:
+            continue
+        used.add(match)
+        b = second[match]
+        faces = sorted(f for f in (a.get("makyaj"), b.get("makyaj")) if f)
+        pairs.append({"kasa": _name(a, b), "baslangic": min(a["baslangic"], b["baslangic"]),
+                      "bitis": max(a["bitis"], b["bitis"]), "sik_baslangic": max(a["baslangic"], b["baslangic"]),
+                      "sik_bitis": min(a["bitis"], b["bitis"]),
+                      "makyaj": faces[0] if faces else None, "makyaj_son": faces[-1] if faces else None})
+    return sorted(pairs, key=lambda g: g["baslangic"])
+
+
 def combine(first: List[Dict[str, Any]], second: List[Dict[str, Any]], year: int) -> Dict[str, Any]:
-    """İki kaynağın ortak sonucu. Aracın yılındaki en yeni kasa iki kaynakta da aynı olmalı
-    (başlangıç/bitiş ±1). Kaynaklardan biri yılı önceki kasada da gösteriyorsa geçiş yılıdır."""
-    a, b = _newest(first, year), _newest(second, year)
-    if not a or not b or abs(a["baslangic"] - b["baslangic"]) > 1 or abs(a["bitis"] - b["bitis"]) > 1:
+    """İki kaynağın ortak sonucu. Kasalar başlangıç yılına göre eşleştirilir; araç yılı iki kasanın
+    birleşik aralığına düşüyorsa geçiş yılıdır (ölçüm: kaynaklar yeni kasanın başlangıcını ±1 yıl
+    farklı veriyor; bu tam da geçiş yılının işaretidir)."""
+    aligned = _align(first, second)
+    matches = [g for g in aligned if g["baslangic"] <= year <= g["bitis"]]
+    if not matches or len(matches) > 2:
         return {"bulundu": False, "uyusmazlik": True}
-    faces = sorted(f for f in (a.get("makyaj"), b.get("makyaj")) if f)
-    result = {"bulundu": True, "kasa": b.get("kasa") or a.get("kasa"),
-              "baslangic": max(a["baslangic"], b["baslangic"]), "bitis": min(a["bitis"], b["bitis"]),
-              "makyaj": faces[0] if faces else None, "makyaj_son": faces[-1] if faces else None}
-    result["baslangic"] = min(result["baslangic"], year)
-    previous = [p for p in (_previous(first, a, year), _previous(second, b, year)) if p]
-    result["gecis_yili"] = bool(previous)
-    if previous:
-        prev = previous[-1]
-        pfaces = sorted(p["makyaj"] for p in previous if p.get("makyaj"))
-        result["onceki"] = {"bulundu": True, "kasa": prev.get("kasa"),
-                            "baslangic": min(p["baslangic"] for p in previous),
-                            "bitis": max(year, max(p["bitis"] for p in previous)),
-                            "makyaj": pfaces[0] if pfaces else None, "makyaj_son": pfaces[-1] if pfaces else None}
+    newest = matches[-1]
+    previous = matches[0] if len(matches) == 2 else None
+    if previous is None:
+        # Yeni kasa tam bu yıl başladıysa ve önceki kasa bir önceki yıla kadar sürdüyse de geçiş
+        # yılıdır: kasa değişiminde eski stok bir sonraki model yılı olarak da satılır
+        # (kullanıcının listesi: TL 2015–2021, NX4 2021–).
+        older = [g for g in aligned if g["baslangic"] < newest["baslangic"]]
+        if older and newest["baslangic"] >= year and older[-1]["bitis"] >= year - 1:
+            previous = older[-1]
+    result = {"bulundu": True, **newest, "gecis_yili": previous is not None}
+    if previous is not None:
+        result["onceki"] = {"bulundu": True, **previous, "bitis": max(previous["bitis"], year)}
+        result["baslangic"] = year  # yeni kasa havuzu geçiş yılından önceye inmez
     return result
 
 
@@ -180,10 +214,12 @@ def get_generation(vehicle: Dict[str, Any], timeout: float = 25.0) -> Dict[str, 
                 lists.append(parse_list(found["data"], found["cited"]))
         if len(lists) < 2 or not lists[0] or not lists[1]:
             return {"bulundu": False, "uyusmazlik": True, "cost_usd": cost}
-        wmr._cache_write(key, {"listeler": lists})  # yıl başına birleştirme her raporda yapılır
+        result = combine(lists[0], lists[1], year)
+        if result.get("bulundu"):  # yalnız uyuşan liste saklanır; uyuşmazsa sonraki raporda yeniden sorulur
+            wmr._cache_write(key, {"listeler": lists})
     else:
         lists = cached["listeler"]
-    result = combine(lists[0], lists[1], year)
+        result = combine(lists[0], lists[1], year)
     if not result.get("bulundu"):
         # Kaynaklar uyuşmazsa kasa bilinmez: çağıran yalnız aracın kendi yılını kullanır.
         logger.info("[KASA] %s %s %s: kaynaklar uyuşmadı", vehicle.get("brand"), vehicle.get("model"), year)
