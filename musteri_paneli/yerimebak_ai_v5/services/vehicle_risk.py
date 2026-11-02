@@ -415,7 +415,12 @@ def _verified_cited_complaints(items, cited, vehicle):
             url = url.rstrip("/")
             if url not in cited or _domain(urlsplit(url).hostname or "", _BLOCKED):
                 continue
-            hay = set(_tokens(unquote(urlsplit(url).path) + " " + cited[url]))
+            label = unquote(urlsplit(url).path) + " " + cited[url]
+            # Linkte/başlıkta başka kasa yılı aralığı, motor veya yakıt geçiyorsa atılır
+            # (ör. 2021 araç için ".../tucson-alinir-mi-2015-2020-kronik-ariza").
+            if _incompatible(label, vehicle):
+                continue
+            hay = set(_tokens(label))
             if all(token in hay for token in model_tokens) and url not in urls:
                 urls.append(url)
         count = len({_root_domain(url) for url in urls})

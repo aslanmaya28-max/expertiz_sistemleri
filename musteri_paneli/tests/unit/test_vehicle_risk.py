@@ -504,3 +504,15 @@ def test_takilan_risk_aramasi_sure_sinirinda_kesilir(monkeypatch):
     start = _time.monotonic()
     result = vr.get_model_risks(VEHICLE)
     assert _time.monotonic() - start < 2.5 and result["riskler"] == []
+
+
+
+def test_sonar_kaynagi_baska_kasa_yili_ise_atilir(monkeypatch):
+    eski = "https://otokarar.net/blog/seat-arona-alinir-mi-2014-2017-kronik-ariza"   # araç 2020
+    sv = "https://www.sikayetvar.com/seat/arona/titreme"
+    dh = "https://forum.donanimhaber.com/seat-arona-titreme"
+    _cited_search(monkeypatch, [{"baslik": "Titreme", "kaynaklar": [eski, sv]},
+                                {"baslik": "Turbo sesi", "kaynaklar": [sv, dh]}],
+                  {eski: "Seat Arona kronik arıza", sv: "Arona", dh: "Arona"})
+    result = vr.get_model_risks(VEHICLE)
+    assert [c["baslik"] for c in result["kullaniciSikayetleri"]] == ["Turbo sesi"]
