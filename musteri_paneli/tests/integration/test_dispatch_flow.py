@@ -17,6 +17,16 @@ pytestmark = pytest.mark.skipif(not TEST_DB, reason="TEST_DATABASE_URL tanimli d
 ADMIN_KEY = "test-admin-key"
 
 
+@pytest.fixture(autouse=True)
+def offline_model_risks(monkeypatch):
+    """Web emsal testindeki sahte API anahtarı model aramasına gerçek ağ açmasın."""
+    from yerimebak_ai_v5.services import vehicle_risk
+    monkeypatch.setattr(vehicle_risk, "get_model_risks", lambda v: {
+        "riskler": [], "kullaniciSikayetleri": [], "bulunamadi": True,
+        "scope": {"cost_usd": 0, "searches": 0},
+    })
+
+
 @pytest.fixture(scope="module")
 def client():
     os.environ["DATABASE_URL"] = TEST_DB
@@ -101,6 +111,7 @@ def test_kredili_web_degerleme_onbellek(client, monkeypatch):
     assert body["piyasa"]["kaynak"] == "web_listings"
     assert len(body["piyasa"]["kaynaklar"]) == 3
     assert body["piyasa"]["kaynaklar"][0]["fiyat"] == 900000
+    assert "site_stats" not in first.text and "web_site_stats" not in first.text
     assert body["piyasa"]["guvenSkoru"] <= 50 and body["piyasa"]["uyarilar"]
     # 3 emsal: dusuk guven -> kesin karar verilmez, egilim bilgi olarak kalir
     assert body["karar"]["sonuc"] == "EK DOĞRULAMA GEREKLİ" and body["karar"]["guvenSeviyesi"] == "dusuk"
@@ -108,11 +119,11 @@ def test_kredili_web_degerleme_onbellek(client, monkeypatch):
     assert set(body["ozet"]) == {"piyasaKonumu", "adilFiyat", "riskler", "pazarlikGerekceleri", "simdiNeYapmali"}
     assert any(k["kaynak"] == "musteri_beyani" for k in body["bilgiKaynaklari"])
     assert body["kredi"] == {"dusulen": 1, "kalan": 2}
-    assert len(calls) == 3
+    assert len(calls) == 6
     second = client.post("/api/v1/valuation/analyze", headers=_auth(token), json=payload)
     assert second.status_code == 200, second.text
     assert second.json()["kredi"] == {"dusulen": 1, "kalan": 1}
-    assert len(calls) == 3
+    assert len(calls) == 6
 
     conn = DatabaseConfig.get_connection()
     try:
@@ -124,13 +135,16 @@ def test_kredili_web_degerleme_onbellek(client, monkeypatch):
                      else r["valuation_json"] for r in cur.fetchall()]
         assert len(histories) == 2
         assert {h["piyasa_kaynagi"] for h in histories} == {"web_listings"}
-        assert sorted(h["web_maliyet_usd"] for h in histories) == [0, 0.03]
+        assert sorted(h["web_maliyet_usd"] for h in histories) == [0, 0.06]
+        # Her turdaki üç sorguda üç aday doğrulanır; önbellek aynı ölçümü saklar.
+        assert all(h["web_site_stats"] == {"arabam.com": {"kabul": 18, "red": 0}}
+                   for h in histories)
     finally:
         DatabaseConfig.return_connection(conn)
     third = client.post("/api/v1/valuation/analyze", headers=_auth(token), json=payload)
     assert third.status_code == 200, third.text
     assert third.json()["kredi"] == {"dusulen": 1, "kalan": 0}
-    assert len(calls) == 3
+    assert len(calls) == 6
 
 
 def test_web_onbellek_suresi_dolunca_yeniden_arama(client, monkeypatch):
@@ -148,7 +162,7 @@ def test_web_onbellek_suresi_dolunca_yeniden_arama(client, monkeypatch):
     monkeypatch.setenv("WEB_PRICE_CACHE_HOURS", "24")
     assert wmr.get_reference(vehicle, search=search)["found"]
     assert wmr.get_reference(vehicle, search=search)["scope"]["cached"]
-    assert len(calls) == 3
+    assert len(calls) == 6
     conn = DatabaseConfig.get_connection()
     try:
         cur = conn.cursor()
@@ -157,8 +171,8 @@ def test_web_onbellek_suresi_dolunca_yeniden_arama(client, monkeypatch):
         conn.commit()
     finally:
         DatabaseConfig.return_connection(conn)
-    assert wmr.get_reference(vehicle, search=search)["scope"]["cost_usd"] == 0.03
-    assert len(calls) == 6
+    assert wmr.get_reference(vehicle, search=search)["scope"]["cost_usd"] == 0.06
+    assert len(calls) == 12
 
 
 def test_kredili_emsal_yoksa_kredi_dusmez(client, admin_token, monkeypatch):
@@ -1224,8 +1238,8 @@ def test_web_emsal_kaynakli_degerleme_kontrol_isareti_ve_musteri_kaynaklari(clie
     assert report["status"] == "pending_admin"
     ai = report["ai_analiz_detay"]
     d = ai["ekspertizDegerleme"]
-    # Paket musterinin talep formundan geldi, 3 sorgu yapildi
-    assert len(sorgular) == 3 and all("1.3 Multijet Urban" in q for q in sorgular[:2])
+    # Paket talep formundan geldi; üç emsal için ikinci turla toplam altı sorgu.
+    assert len(sorgular) == 6 and all("1.3 Multijet Urban" in q for q in sorgular[:2])
     assert d["piyasaKaynagi"] == "web_listings"
     assert d["piyasaDegeri"] == 925_000
     assert [k["price"] for k in d["piyasaKaynaklari"]] == [905_000, 925_000, 940_000]
@@ -1237,7 +1251,7 @@ def test_web_emsal_kaynakli_degerleme_kontrol_isareti_ve_musteri_kaynaklari(clie
     assert beyan["ilanBeyani"]["degisen"] is None and beyan["uyumlu"] is False
     assert len(beyan["farklar"]) == 1 and "boyalı" in beyan["farklar"][0]
     assert any(o.get("baslik") == "Kontrol gerekli" for o in ai["oneriler"])
-    assert ai["marketReference"]["scope"]["rejected"] == {"fiyat sayfada yok": 3}
+    assert ai["marketReference"]["scope"]["rejected"] == {"fiyat sayfada yok": 6}
 
     # Admin kaynaklara bakip piyasa degerini duzeltir: yeni arama yapilmaz, iki deger de kaydedilir
     bad = client.post(f"/api/v1/expertiz/admin/reports/{report_id}/market-value", headers=_auth(admin_token), json={"value": 10})
@@ -1245,7 +1259,7 @@ def test_web_emsal_kaynakli_degerleme_kontrol_isareti_ve_musteri_kaynaklari(clie
     fixed = client.post(f"/api/v1/expertiz/admin/reports/{report_id}/market-value", headers=_auth(admin_token),
                         json={"value": 950_000, "note": "Urban paketinde 950 bin bandı daha gerçekçi"})
     assert fixed.status_code == 200, fixed.text
-    assert len(sorgular) == 3
+    assert len(sorgular) == 6
     d2 = fixed.json()["report"]["ai_analiz_detay"]["ekspertizDegerleme"]
     assert d2["piyasaKaynagi"] == "admin_manual" and d2["piyasaDegeri"] == 950_000
     assert d2["adminDuzeltmesi"]["ai_value"] == 925_000 and d2["adminDuzeltmesi"]["diff_pct"] == 2.7

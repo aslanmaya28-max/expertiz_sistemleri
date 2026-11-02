@@ -47,11 +47,10 @@ def test_two_replaced_doors_and_painted_fender_are_deducted_per_part():
                  MARKET, listed_price=1_000_000, now=NOW)
     kalemler = {k["anahtar"]: k for k in r["kalemler"]}
     assert set(kalemler) == {"solOnKapi", "sagOnKapi", "solArkaCamurluk"}
-    # ikinci değişen azalan etkiyle (%5 → %4,25)
-    assert sorted(round(kalemler[k]["yuzde"], 2) for k in ("solOnKapi", "sagOnKapi")) == [4.25, 5.0]
-    assert kalemler["solArkaCamurluk"]["yuzde"] == pytest.approx(1.8)
-    # Araç Endeks: değişenli araçlarda medyan ≈ -%9,4 → makul bant
-    assert 8 <= r["toplamDegerKaybiYuzde"] <= 13
+    # 012 tablosu: ikinci değişen azalan etkiyle (%6 → %5,1), arka çamurluk %2,7.
+    assert sorted(round(kalemler[k]["yuzde"], 2) for k in ("solOnKapi", "sagOnKapi")) == [5.1, 6.0]
+    assert kalemler["solArkaCamurluk"]["yuzde"] == pytest.approx(2.7)
+    assert r["toplamDegerKaybiYuzde"] == pytest.approx(13.8)
     assert r["aiDegeri"] == pytest.approx(1_000_000 * (1 - r["toplamDegerKaybiYuzde"] / 100), abs=1_000)
     assert sum(k["tutar"] for k in r["kalemler"]) == pytest.approx(r["toplamDegerKaybiTutar"], abs=2)
     assert r["fiyatYorumu"]["karar"] == "YUKSEK"
@@ -61,8 +60,8 @@ def test_two_replaced_doors_and_painted_fender_are_deducted_per_part():
 def test_paint_count_calibration_matches_market_data():
     two = evaluate(_tam({"solOnKapi": "boyali", "sagOnKapi": "boyali"}), MARKET, now=NOW)
     four = evaluate(_tam({k: "boyali" for k in ("solOnKapi", "sagOnKapi", "solArkaKapi", "sagArkaKapi")}), MARKET, now=NOW)
-    assert two["toplamDegerKaybiYuzde"] == pytest.approx(3.0)       # 1-2 boyalı ≈ -%3
-    assert 4.5 <= four["toplamDegerKaybiYuzde"] <= 6.0              # 3-5 boyalı ≈ -%5,2
+    assert two["toplamDegerKaybiYuzde"] == pytest.approx(5.0)  # 2 × %2,5
+    assert four["toplamDegerKaybiYuzde"] == pytest.approx(8.5)  # %2,5 × (1+1+0,7+0,7)
 
 
 def test_structural_damage_is_heavy_and_not_attenuated_by_age():
@@ -106,7 +105,19 @@ def test_tramer_overlap_with_bodywork_is_not_double_counted():
     with_parts["adim1"]["hasarKayitToplamTutar"] = 80_000
     t1 = next(k for k in evaluate(only_tramer, MARKET, now=NOW)["kalemler"] if k["kategori"] == "tramer")
     t2 = next(k for k in evaluate(with_parts, MARKET, now=NOW)["kalemler"] if k["kategori"] == "tramer")
-    assert t2["yuzde"] < t1["yuzde"]
+    # %8 tramer / değer oranında 1,5 kat tabanı (%12), kaporta mahsubunun önüne geçer.
+    assert t2["yuzde"] == t1["yuzde"] == 12.0
+
+
+def test_tramer_overlap_still_applies_above_floors():
+    only_tramer = _tam()
+    only_tramer["adim1"]["hasarKayitToplamTutar"] = 14_000
+    with_parts = _tam({"solOnKapi": "degisen"})
+    with_parts["adim1"]["hasarKayitToplamTutar"] = 14_000
+    t1 = next(k for k in evaluate(only_tramer, MARKET, now=NOW)["kalemler"] if k["kategori"] == "tramer")
+    t2 = next(k for k in evaluate(with_parts, MARKET, now=NOW)["kalemler"] if k["kategori"] == "tramer")
+    assert t1["yuzde"] == pytest.approx(2.12)
+    assert t2["yuzde"] == pytest.approx(2.1)
 
 
 def test_tramer_tiers():

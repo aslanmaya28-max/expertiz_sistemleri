@@ -473,6 +473,13 @@ export interface ModelRiski {
   guven: "yuksek" | "orta" | "dusuk" | string;
 }
 
+export interface KullaniciSikayeti {
+  baslik: string;
+  aciklama: string;
+  kaynakSayisi: number;
+  kaynaklar: string[];
+}
+
 export interface ValuationResult {
   tekrar?: boolean;
   rapor?: {
@@ -525,6 +532,7 @@ export interface ValuationResult {
   /** Akilli alici bolumleri (tek rapor); eski raporlarda yok */
   pazarlikPlani?: PazarlikPlani;
   modelRiskleri?: { riskler: ModelRiski[]; bulunamadi: boolean; mesaj?: string | null };
+  kullaniciSikayetleri?: KullaniciSikayeti[];
   bakim?: { baslik: string; aciklama: string; kontrol?: string }[];
   saticiSorulari?: string[];
   getiri: null | {

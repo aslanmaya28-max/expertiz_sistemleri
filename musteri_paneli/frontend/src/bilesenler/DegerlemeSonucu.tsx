@@ -9,19 +9,6 @@ function tl(value?: number | null) {
   return new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 0 }).format(value) + " ₺";
 }
 
-const KARAR_RENK: Record<string, string> = {
-  AL: "bg-green-50 border-green-300 text-green-800",
-  "PAZARLIK YAP": "bg-yellow-50 border-yellow-300 text-yellow-800",
-  ALMA: "bg-red-50 border-red-300 text-red-800",
-  "EK DOĞRULAMA GEREKLİ": "bg-slate-50 border-slate-300 text-slate-800",
-};
-
-const GUVEN_METNI: Record<string, string> = {
-  yuksek: "Veri güveni yüksek",
-  orta: "Veri güveni orta",
-  dusuk: "Veri güveni düşük",
-};
-
 const KAYNAK_ROZET: Record<string, string> = {
   musteri_beyani: "Beyan",
   kayitli_ilan: "Kayıtlı ilan",
@@ -32,7 +19,13 @@ const KAYNAK_ROZET: Record<string, string> = {
 };
 
 export default function DegerlemeSonucu({ sonuc, onYeni }: { sonuc: ValuationResult; onYeni?: () => void }) {
-  const { arac, piyasa, degerleme, karar, getiri, ozet, bilgiKaynaklari } = sonuc;
+  const { arac, piyasa, degerleme, getiri, ozet, bilgiKaynaklari } = sonuc;
+  const eskiEmsalMesaji = `Yalnızca ${piyasa.emsalSayisi} doğrulanmış emsal ilan bulundu (hedef 5)`;
+  const eskiEmsalUyarisi = (uyari: string) => (
+    [3, 4].includes(piyasa.emsalSayisi)
+    && [eskiEmsalMesaji, `${eskiEmsalMesaji}.`].includes(uyari)
+  );
+  const piyasaUyarilari = (piyasa.uyarilar || []).filter((uyari) => !eskiEmsalUyarisi(uyari));
   return (
     <div className="mt-8 space-y-6">
       {sonuc.rapor && <div className="rounded-lg border border-kenarlik-acik bg-white p-4 text-sm">
@@ -41,18 +34,6 @@ export default function DegerlemeSonucu({ sonuc, onYeni }: { sonuc: ValuationRes
         <Link href={`/dogrula/${sonuc.rapor.verification_code}`} className="text-birincil underline">Doğrulama kodu: {sonuc.rapor.verification_code}</Link>
         <p className="mt-2 text-metin-ikincil">Kredili değerleme raporu — uzman incelemesi içermez.</p>
       </div>}
-      <div className={`rounded-xl border-2 p-6 ${KARAR_RENK[karar.sonuc] || "border-kenarlik-acik"}`}>
-        <div className="text-sm font-medium opacity-80">{arac.marka} {arac.model} {arac.yil} • {new Intl.NumberFormat("tr-TR").format(arac.km)} km</div>
-        <div className="mt-1 text-3xl font-extrabold">{karar.sonuc}</div>
-        <p className="mt-2">{karar.aciklama}</p>
-        {karar.guvenSeviyesi && (
-          <p className="mt-2 text-sm font-medium opacity-80">
-            {GUVEN_METNI[karar.guvenSeviyesi]}
-            {karar.hesaplananEgilim ? ` • Hesaplanan eğilim: ${karar.hesaplananEgilim} (kesin karar değildir)` : ""}
-          </p>
-        )}
-      </div>
-
       {ozet && (
         <section className="bg-white rounded-xl border border-kenarlik-acik p-6" aria-label="Özet">
           <h2 className="text-lg font-semibold text-metin-birincil">Özet</h2>
@@ -67,7 +48,7 @@ export default function DegerlemeSonucu({ sonuc, onYeni }: { sonuc: ValuationRes
             </div>
             <div className="grid gap-1 py-3 sm:grid-cols-[220px_1fr]">
               <dt className="font-medium text-metin-birincil">En önemli riskler</dt>
-              <dd><ul className="list-disc space-y-1 pl-5 text-metin-ikincil">{ozet.riskler.map((r) => <li key={r}>{r}</li>)}</ul></dd>
+              <dd><ul className="list-disc space-y-1 pl-5 text-metin-ikincil">{ozet.riskler.filter((r) => !eskiEmsalUyarisi(r)).map((r) => <li key={r}>{r}</li>)}</ul></dd>
             </div>
             {ozet.pazarlikGerekceleri.length > 0 && (
               <div className="grid gap-1 py-3 sm:grid-cols-[220px_1fr]">
@@ -114,15 +95,18 @@ export default function DegerlemeSonucu({ sonuc, onYeni }: { sonuc: ValuationRes
       </section>
 
       <section className="bg-white rounded-xl border border-kenarlik-acik p-6">
-        <h2 className="text-lg font-semibold text-metin-birincil">Piyasa karşılaştırması</h2>
+        <h2 className="text-lg font-semibold text-metin-birincil">Benzer ilanlar</h2>
+        {[3, 4].includes(piyasa.emsalSayisi) && (
+          <p className="mt-2 text-sm text-metin-ikincil">{piyasa.emsalSayisi} benzer ilan bulundu; 5&apos;ten az olduğu için fiyatlar yön göstericidir.</p>
+        )}
         <p className="mt-2 text-sm text-metin-ikincil">
           {piyasa.emsalSayisi} güncel emsal ilan ({piyasa.hasarsizEmsalSayisi ?? 0} hasarsız). Ortalama {tl(piyasa.ortalama)}, medyan {tl(piyasa.medyan)},
           aralık {tl(piyasa.min)} – {tl(piyasa.max)}. Güven skoru: %{piyasa.guvenSkoru}.
         </p>
-        {piyasa.uyarilar?.length > 0 && (
+        {piyasaUyarilari.length > 0 && (
           <div className="mt-3 rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-900">
             <ul className="list-disc space-y-1 pl-5">
-              {piyasa.uyarilar.map((uyari) => <li key={uyari}>{uyari}</li>)}
+              {piyasaUyarilari.map((uyari) => <li key={uyari}>{uyari}</li>)}
             </ul>
           </div>
         )}

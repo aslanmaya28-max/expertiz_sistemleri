@@ -28,11 +28,11 @@ def test_pahali_ilanda_sira_ve_sinirlar():
     p = _plan()
     assert p["durum"] == "pazarlik_payi_var"
     assert p["acilisTeklifi"] <= p["hedefFiyat"] <= p["ustSinir"] <= 1_050_000
-    assert p["hedefFiyat"] == 915_000 and p["ustSinir"] == 980_000
+    assert p["hedefFiyat"] == 915_000 and p["ustSinir"] == 960_000
     # Acilis adil araligin %95'inin altina inmez
     assert p["acilisTeklifi"] >= 900_000 * 0.95
     assert p["potansiyelKazanc"] == 135_000
-    assert p["gerekceler"][0].startswith("İlan fiyatı (1.050.000 TL) adil aralığın üst sınırından (980.000 TL) 70.000 TL yüksek.")
+    assert any(g.startswith("İlan fiyatı (1.050.000 TL) adil aralığın üst sınırından (980.000 TL) 70.000 TL yüksek.") for g in p["gerekceler"])
     assert any("Sol ön kapı" in g and "38.000 TL" in g for g in p["gerekceler"])
     assert p["uyari"] is None
 

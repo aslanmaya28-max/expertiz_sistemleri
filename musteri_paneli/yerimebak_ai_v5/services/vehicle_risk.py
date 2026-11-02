@@ -1,6 +1,6 @@
 """Akıllı Alıcı için kaynaklı model riskleri ve kurallı alıcı kontrol listeleri.
 
-get_model_risks -> {riskler, bulunamadi, scope}. Araç alanları mevcut servislerle
+get_model_risks -> {riskler, kullaniciSikayetleri, bulunamadi, scope}. Araç alanları mevcut servislerle
 aynıdır: brand, model, year, package, fuel, transmission, km (engine isteğe bağlı).
 Önbellek yalnız model bilgisini tutar; bakım/sorular güncel araçla ayrıca üretilir.
 Anahtar terim denetimi bir iddianın doğruluk garantisi değildir; sonuçlar servis
@@ -62,8 +62,14 @@ Yalnız kaynakta açıkça yazan motor, şanzıman, model yılı kapsamını ve 
 Belirli km/yaş için kesin değişim aralığı uydurma. Şasi numarasıyla kontrolü öner.
 Sadece JSON: {{"riskler":[{{"baslik":"Triger seti", "aciklama":"",
 "etkiledigi":"motor/şanzıman/yıl aralığı", "belirtiler":[], "kontrol":"",
-"tahminiMaliyet":null, "kaynaklar":["https://..."], "guven":"dusuk"}}]}}.
+"tahminiMaliyet":null, "kaynaklar":["https://..."], "guven":"dusuk"}}],
+"kullaniciSikayetleri":[{{"baslik":"Triger sesi", "aciklama":"Kullanıcı beyanlarının kısa özeti",
+"kaynaklar":["https://..."]}}]}}.
 tahminiMaliyet yalnız aynı bakım için açıkça TL verilmişse {{"min":0,"max":0}} olabilir.
+Aynı aramada forum ve kullanıcı yorumlarında tekrarlanan şikâyetleri ayrıca
+kullaniciSikayetleri listesine ekle. Her başlık tek konu olsun; en az iki farklı
+alan adındaki kaynakta hem model adı hem konu açıkça geçsin. Kullanıcı beyanını
+arıza teşhisi veya doğrulanmış sorun gibi sunma; şikâyetlere maliyet yazma.
 """
 
 
@@ -80,7 +86,7 @@ def _cache_key(vehicle):
     values = [fold(vehicle.get(k)).strip() for k in
               ("brand", "model", "engine", "package", "fuel", "transmission")]
     values.append((wmr._int(vehicle.get("year")) or 0) // 5)
-    return "vehicle-risk:v1:" + hashlib.sha256(json.dumps(values).encode()).hexdigest()
+    return "vehicle-risk:v2:" + hashlib.sha256(json.dumps(values).encode()).hexdigest()
 
 
 def _search(query, client):
@@ -107,7 +113,9 @@ def _search(query, client):
     parsed = json.loads(match.group())
     if not isinstance(parsed, dict) or not isinstance(parsed.get("riskler"), list):
         raise ValueError("Arama yanıtında risk listesi yok")
-    return {"risks": parsed.get("riskler") or [], "sources": sources,
+    complaints = parsed.get("kullaniciSikayetleri")
+    return {"risks": parsed.get("riskler") or [],
+            "complaints": complaints if isinstance(complaints, list) else [], "sources": sources,
             "cost": (data.get("usage") or {}).get("cost") or 0}
 
 
@@ -235,9 +243,43 @@ def _verified_items(items, sources, vehicle):
     return output
 
 
+def _root_domain(url):
+    """Alt alan adları bağımsız kaynak sayılmaz; com.tr/co.uk de birlikte kalır."""
+    host = (urlsplit(url).hostname or "").lower().rstrip(".")
+    labels = host.split(".")
+    country_suffix = (len(labels) >= 3 and len(labels[-1]) == 2
+                      and labels[-2] in {"com", "co", "org", "net", "gov", "ac", "edu"})
+    return ".".join(labels[-3:] if country_suffix else labels[-2:])
+
+
+def _verified_complaints(items, sources, vehicle):
+    """Yalnız kaynak metniyle desteklenen, bağımsız alanlarda tekrarlanan konular."""
+    model = fold(vehicle.get("model")).strip()
+    model_pattern = r"(?<!\w)" + re.escape(model) + r"(?!\w)"
+    groups = {}
+    for item in items:
+        verified = _verify(item, sources, vehicle)
+        if not verified:
+            continue
+        topic = _topics(verified["baslik"])[0]
+        group = groups.setdefault(topic, {"baslik": verified["baslik"],
+                                          "aciklama": verified["aciklama"], "kaynaklar": []})
+        for url in verified["kaynaklar"]:
+            text = sources[url]
+            if (model and re.search(model_pattern, fold(text)) and topic in _topics(text)
+                    and _root_domain(url) and url not in group["kaynaklar"]):
+                group["kaynaklar"].append(url)
+    output = []
+    for group in groups.values():
+        count = len({_root_domain(url) for url in group["kaynaklar"]})
+        if count >= 2:
+            output.append({**group, "kaynakSayisi": count})
+    return sorted(output, key=lambda entry: entry["kaynakSayisi"], reverse=True)[:5]
+
+
 def get_model_risks(vehicle) -> dict:
     """Tek arama; opsiyonel 30 günlük DB önbelleği, arıza teşhisi değildir."""
-    result = {"riskler": [], "bulunamadi": True,
+    result = {"riskler": [], "kullaniciSikayetleri": [], "bulunamadi": True,
               "scope": {"cached": False, "searches": 0, "cost_usd": 0, "model": wmr.model_name()}}
     if not os.getenv("OPENROUTER_API_KEY") or not vehicle.get("brand") or not vehicle.get("model"):
         return result
@@ -249,8 +291,10 @@ def get_model_risks(vehicle) -> dict:
             # Ham adayları tutmak, ilk araçta elenen bir adayın uygun yılda
             # yeniden değerlendirilmesini de sağlar; yeniden arama yapılmaz.
             candidates = cached.pop("_candidates", [])
+            complaints = cached.pop("_complaint_candidates", [])
             sources = cached.pop("_sources", {})
             cached["riskler"] = _verified_items(candidates, sources, vehicle)
+            cached["kullaniciSikayetleri"] = _verified_complaints(complaints, sources, vehicle)
             cached["bulunamadi"] = not bool(cached["riskler"])
             return cached
     try:
@@ -259,6 +303,8 @@ def get_model_risks(vehicle) -> dict:
             found = _search(query, client)
         result["scope"].update(searches=1, cost_usd=float(found.get("cost") or 0))
         result["riskler"] = _verified_items(found.get("risks") or [], found.get("sources") or {}, vehicle)
+        result["kullaniciSikayetleri"] = _verified_complaints(
+            found.get("complaints") or [], found.get("sources") or {}, vehicle)
         result["bulunamadi"] = not bool(result["riskler"])
     except (httpx.HTTPError, ValueError, TypeError, KeyError, RuntimeError):
         return result
@@ -266,6 +312,7 @@ def get_model_risks(vehicle) -> dict:
     # İstemci/ayrıştırma hataları yukarıda döner ve önbelleğe girmez.
     if days:
         wmr._cache_write(key, {**result, "_candidates": found.get("risks") or [],
+                               "_complaint_candidates": found.get("complaints") or [],
                                "_sources": found.get("sources") or {}})
     return result
 

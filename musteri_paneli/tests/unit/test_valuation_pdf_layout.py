@@ -39,22 +39,70 @@ def tucson_report(risk_count=0):
     }
 
 
-def test_cover_has_logo_decision_badge_and_three_large_price_cards():
+def test_cover_has_logo_and_three_large_price_cards_without_decision():
     report = tucson_report()
     unchanged = deepcopy(report)
     with pdfplumber.open(io.BytesIO(build_pdf(report))) as document:
         first = document.pages[0]
         assert first.images, 'Marka logosu ilk sayfada olmalı'
-        assert len(first.rects) >= 4, 'Karar kutusu ve üç fiyat kartı olmalı'
+        assert len(first.rects) >= 3, 'Üç fiyat kartı olmalı'
         text = first.extract_text()
         for value in ('Araç değerleme raporu', 'Hyundai Tucson 2021', '1.6 CRDI Elite Plus',
-                      'EK DOĞRULAMA GEREKLİ', 'Adil fiyat aralığı', 'Tavsiye alım fiyatı', 'İlan fiyatı'):
+                      'Adil fiyat aralığı', 'Tavsiye alım fiyatı', 'İlan fiyatı'):
             assert value in text
         words = first.extract_words(extra_attrs=['size'])
         prices = [next(word for word in words if word['text'] == price and word['size'] >= 12)
                   for price in ('1.815.000', '1.935.000', '2.200.000')]
         assert max(word['top'] for word in prices)-min(word['top'] for word in prices) < 18
     assert report == unchanged
+
+
+def pdf_text(report):
+    with pdfplumber.open(io.BytesIO(build_pdf(report))) as document:
+        return '\n'.join(page.extract_text() for page in document.pages)
+
+
+def test_decision_data_is_preserved_but_never_exposed():
+    report = tucson_report()
+    report['karar']['aciklama'] = 'YALNIZ ADMIN KARAR AÇIKLAMASI'
+    text = pdf_text(report)
+    for hidden in ('Karar ve veri güveni', 'Veri güveni', 'Skor', 'Hesaplanan eğilim', 'EK DOĞRULAMA', 'YALNIZ ADMIN'):
+        assert hidden not in text
+    assert 'Şimdi ne yapmalı?' in text
+
+
+@pytest.mark.parametrize('count', [2, 3, 4, 5, 8])
+def test_small_comparable_count_note_only_for_three_or_four(count):
+    report = tucson_report()
+    report['piyasa']['emsalSayisi'] = count
+    legacy_warning = f'Yalnızca {count} doğrulanmış emsal ilan bulundu (hedef 5)'
+    report['piyasa']['uyarilar'] = [legacy_warning, 'Fiyat aralığı geniş; ilanları karşılaştırın.']
+    report['ozet']['riskler'].append(legacy_warning+'.')
+    unchanged = deepcopy(report)
+    text = pdf_text(report)
+    note = f"{count} benzer ilan bulundu; 5'ten az olduğu için fiyatlar yön göstericidir."
+    assert (note in text) == (count in (3, 4))
+    assert (legacy_warning in text) == (count not in (3, 4))
+    assert 'Fiyat aralığı geniş; ilanları karşılaştırın.' in text
+    assert report == unchanged
+
+
+@pytest.mark.parametrize('complaints', [None, [], [{'baslik': 'Vites geçişi', 'aciklama': 'Kullanıcılar sarsıntı bildiriyor.', 'kaynakSayisi': 2, 'kaynaklar': ['https://forum-a.example/tucson', 'https://forum-b.example/tucson']}]])
+def test_complaints_optional_empty_and_populated(complaints):
+    report = tucson_report()
+    if complaints is not None:
+        report['kullaniciSikayetleri'] = complaints
+    text = pdf_text(report)
+    title = 'Kullanıcıların en sık şikâyet ettiği konular'
+    assert (title in text) == (complaints is not None)
+    if complaints is not None:
+        assert 'Forum ve kullanıcı yorumlarından derlenmiştir; kullanıcı beyanıdır, arıza teşhisi değildir.' in text
+        if complaints:
+            assert 'Vites geçişi' in text and 'Kullanıcılar sarsıntı bildiriyor.' in text
+            assert '2 farklı kaynakta geçiyor' in text
+            assert 'https://forum-a.example/tucson' in text
+        else:
+            assert 'Birden fazla kaynakta tekrarlanan kullanıcı şikâyeti bulunamadı.' in text
 
 
 @pytest.mark.parametrize('risk_count', [0, 25])

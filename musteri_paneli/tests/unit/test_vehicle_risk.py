@@ -171,7 +171,7 @@ def test_search_protocol_without_network(monkeypatch):
     class Response:
         def raise_for_status(self): pass
         def json(self):
-            return {"choices": [{"message": {"content": '{"riskler": []}',
+            return {"choices": [{"message": {"content": '{"riskler": [], "kullaniciSikayetleri": []}',
                     "annotations": [{"url_citation": {"url": URL + "/", "content": TEXT}}]}}],
                     "usage": {"cost": .009}}
     class Client:
@@ -180,5 +180,74 @@ def test_search_protocol_without_network(monkeypatch):
             assert json["provider"] == {"only": ["test-provider"], "allow_fallbacks": False}
             assert json["plugins"][0]["id"] == "web"
             assert "Triger" in json["messages"][0]["content"]
+            assert "kullaniciSikayetleri" in json["messages"][0]["content"]
             return Response()
-    assert vr._search("Seat Arona", Client()) == {"risks": [], "sources": {URL: TEXT}, "cost": .009}
+    assert vr._search("Seat Arona", Client()) == {"risks": [], "complaints": [], "sources": {URL: TEXT}, "cost": .009}
+
+
+def complaint_search(monkeypatch, complaints, sources):
+    calls = []
+    def fake(query, client):
+        calls.append(query)
+        return {"risks": [], "complaints": complaints, "sources": sources, "cost": .009}
+    monkeypatch.setattr(vr, "_search", fake)
+    return calls
+
+
+def test_complaints_merge_topics_count_root_domains_and_omit_cost(monkeypatch):
+    urls = ["https://forum.first.com/topic", "https://first.com/other", "https://second.com/triger"]
+    calls = complaint_search(monkeypatch, [
+        {"baslik": "Triger sesi", "aciklama": "Kullanıcılar triger sesinden söz ediyor.",
+         "kaynaklar": urls[:2], "tahminiMaliyet": {"min": 10, "max": 20}},
+        {"baslik": "Timing belt sesi", "kaynaklar": urls[2:]},
+        {"baslik": "Turbo", "kaynaklar": [urls[0]]},
+    ], {url: "Seat Arona 1.0 TSI DSG triger sesi ve turbo yorumu." for url in urls})
+    result = vr.get_model_risks(VEHICLE)
+    assert len(calls) == 1 and result["scope"]["searches"] == 1
+    assert result["kullaniciSikayetleri"] == [{
+        "baslik": "Triger sesi", "aciklama": "Kullanıcılar triger sesinden söz ediyor.",
+        "kaynakSayisi": 2, "kaynaklar": urls}]
+
+
+@pytest.mark.parametrize("urls,text,vehicle", [
+    (["https://forum.first.com/topic", "https://first.com/topic"], TEXT, VEHICLE),
+    (["https://forum.first.com.tr/topic", "https://first.com.tr/topic"], TEXT, VEHICLE),
+    (["https://first.com/topic", "https://second.com/topic"], "Seat Ibiza triger sesi", VEHICLE),
+    (["https://first.com/topic", "https://second.com/topic"], "Citroen C30 triger sesi", {**VEHICLE, "model": "C3"}),
+    (["https://first.com/topic", "https://second.com/topic"], "Seat Arona turbo yorumu", VEHICLE),
+    (["https://first.com/topic", "https://second.com/topic"], "Seat Arona 1.4 TSI triger sorunu", VEHICLE),
+])
+def test_complaints_require_two_independent_model_and_topic_sources(monkeypatch, urls, text, vehicle):
+    complaint_search(monkeypatch, [{"baslik": "Triger sesi", "kaynaklar": urls}], {url: text for url in urls})
+    assert vr.get_model_risks(vehicle)["kullaniciSikayetleri"] == []
+
+
+def test_complaints_rank_source_counts_and_limit_five(monkeypatch):
+    complaints, sources = [], {}
+    for i, title in enumerate(["Triger", "Zincir", "Mekatronik", "Debriyaj", "Volan", "DPF", "EGR"]):
+        urls = [f"https://source{j}.com/{i}" for j in range(i + 2)]
+        complaints.append({"baslik": title, "kaynaklar": urls})
+        sources.update({url: f"Seat Arona 1.0 TSI DSG {title} şikâyeti" for url in urls})
+    complaint_search(monkeypatch, complaints, sources)
+    result = vr.get_model_risks(VEHICLE)["kullaniciSikayetleri"]
+    assert [c["baslik"] for c in result] == ["EGR", "DPF", "Volan", "Debriyaj", "Mekatronik"]
+    assert [c["kaynakSayisi"] for c in result] == [8, 7, 6, 5, 4]
+
+
+def test_complaints_cached_candidates_reverified_for_current_vehicle(monkeypatch):
+    monkeypatch.setenv("WEB_RISK_CACHE_DAYS", "30")
+    rows = {}
+    monkeypatch.setattr(vr.wmr, "_cache_read", lambda key, hours: deepcopy(rows.get(key)))
+    monkeypatch.setattr(vr.wmr, "_cache_write", lambda key, value: rows.update({key: deepcopy(value)}))
+    urls = ["https://first.com/topic", "https://second.com/topic"]
+    calls = complaint_search(monkeypatch, [{"baslik": "Triger", "kaynaklar": urls}],
+                            {url: "Seat Arona 2020-2021 1.0 TSI DSG triger sesi" for url in urls})
+    assert vr.get_model_risks(VEHICLE)["kullaniciSikayetleri"][0]["kaynakSayisi"] == 2
+    assert vr.get_model_risks(VEHICLE)["kullaniciSikayetleri"][0]["kaynakSayisi"] == 2
+    assert vr.get_model_risks({**VEHICLE, "year": 2024})["kullaniciSikayetleri"] == []
+    assert len(calls) == 1
+
+
+def test_complaints_empty_without_api_key(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "")
+    assert vr.get_model_risks(VEHICLE)["kullaniciSikayetleri"] == []

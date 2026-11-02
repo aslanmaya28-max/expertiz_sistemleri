@@ -14,7 +14,6 @@ DISCLAIMER = 'Bu rapor ilan/müşteri beyanına ve internetteki ilanlara dayanı
 
 
 TITLE = 'Araç değerleme raporu'
-GUVEN = {'yuksek': 'Yüksek', 'orta': 'Orta', 'dusuk': 'Düşük'}
 SEAL_TITLE = 'YERİMEBAK DEĞERLEME'
 BRAND = (14, 74, 120)
 INK = (27, 45, 61)
@@ -202,8 +201,12 @@ def build_pdf(report):
         source_links(item.get('kaynaklar'))
         pdf.ln(4)
 
-    vehicle, decision = report['arac'], report['karar']
+    vehicle = report['arac']
     valuation, market = report['degerleme'], report['piyasa']
+    def legacy_comparable_warning(value):
+        message = f'Yalnızca {market.get("emsalSayisi")} doğrulanmış emsal ilan bulundu (hedef 5)'
+        return (market.get('emsalSayisi') in (3, 4)
+                and value in (message, message+'.'))
     identity = report['rapor']
     date = datetime.fromisoformat(identity['created_at'].replace('Z', '+00:00')).astimezone(ZoneInfo('Europe/Istanbul')).strftime('%d.%m.%Y')
     top = pdf.get_y()
@@ -216,16 +219,6 @@ def build_pdf(report):
     text(f'{date} • {_num(vehicle.get("km"))} km • {vehicle.get("yakit") or "—"} • {vehicle.get("vites") or "—"}'
          + (f' • İlan fiyatı {_money(vehicle.get("ilanFiyati"))}' if vehicle.get('ilanFiyati') else ''))
     text('Uzman incelemesi içermez. İlan/müşteri beyanına dayalı hesaplama.', size=8.5, color=MUTED)
-    heading('Karar ve veri güveni')
-    verdict = decision.get('sonuc') or '—'
-    verdict_colors = {'AL': ((237, 248, 240), (25, 111, 69)),
-                      'PAZARLIK YAP': ((255, 246, 231), (170, 94, 13)),
-                      'ALMA': ((255, 239, 239), (168, 38, 43))}
-    fill, accent = verdict_colors.get(verdict, ((241, 246, 250), BRAND))
-    decision_text = f'Veri güveni: {GUVEN.get(decision.get("guvenSeviyesi"), "—")} • Skor: %{market.get("guvenSkoru", 0)}\n'+str(decision.get('aciklama') or '—')
-    if decision.get('hesaplananEgilim'):
-        decision_text += '\nHesaplanan eğilim (kesin karar değildir): '+decision['hesaplananEgilim']
-    panel(verdict, decision_text, fill, accent, badge=True)
     summary = report.get('ozet') or {}
     heading('Fiyatlar')
     fair = valuation.get('adilFiyatAraligi') or {}
@@ -239,7 +232,7 @@ def build_pdf(report):
     for label, value in (
         ('Piyasaya göre fiyatı', (summary.get('piyasaKonumu') or {}).get('metin')),
         ('Adil fiyat', f'{_money(fair.get("min"))} – {_money(fair.get("max"))}'),
-        ('En önemli riskler', summary.get('riskler') or []),
+        ('En önemli riskler', [risk for risk in summary.get('riskler') or [] if not legacy_comparable_warning(risk)]),
         ('Pazarlık gerekçeleri', summary.get('pazarlikGerekceleri') or []),
         ('Şimdi ne yapmalı?', summary.get('simdiNeYapmali')),
     ):
@@ -283,6 +276,19 @@ def build_pdf(report):
             risk_details(item)
         if not shown:
             text(risks.get('mesaj') or 'Bu model/motor için kaynağı doğrulanmış bilinen sorun bulunamadı.')
+    if 'kullaniciSikayetleri' in report:
+        heading('Kullanıcıların en sık şikâyet ettiği konular')
+        text('Forum ve kullanıcı yorumlarından derlenmiştir; kullanıcı beyanıdır, arıza teşhisi değildir.')
+        complaints = report.get('kullaniciSikayetleri') or []
+        if not complaints:
+            text('Birden fazla kaynakta tekrarlanan kullanıcı şikâyeti bulunamadı.')
+        for item in complaints:
+            ensure(30)
+            text(item.get('baslik'), True)
+            text(item.get('aciklama'))
+            text(f'{item.get("kaynakSayisi", 0)} farklı kaynakta geçiyor', size=8.5, color=MUTED)
+            source_links(item.get('kaynaklar'))
+            pdf.ln(4)
     if 'bakim' in report:
         heading('Bu kilometrede doğrulanacak bakımlar')
         # Açıklama her maddede aynı: bir kez yazılır, maddeler kısa liste olur.
@@ -306,6 +312,8 @@ def build_pdf(report):
     if valuation.get('ozet'):
         text(valuation['ozet'])
     heading('Benzer ilanlar')
+    if market.get('emsalSayisi') in (3, 4):
+        text(f"{market['emsalSayisi']} benzer ilan bulundu; 5'ten az olduğu için fiyatlar yön göstericidir.")
     text(f'{market.get("emsalSayisi", 0)} emsal • Ortalama: {_money(market.get("ortalama"))} • Medyan: {_money(market.get("medyan"))}')
     samples = list(market.get('kaynaklar') or [])
     for sample in (plan or {}).get('kanitIlanlar') or []:
@@ -319,6 +327,8 @@ def build_pdf(report):
             text(sample.get('site') or 'Kaynak', True, 8, MUTED, line_height=4)
             source_links([sample['url']])
     for warning in market.get('uyarilar') or []:
+        if legacy_comparable_warning(warning):
+            continue
         text(warning)
     sources = [source for source in report.get('bilgiKaynaklari') or []
                if source.get('kaynak') != 'tahmin' or report.get('getiri')]
