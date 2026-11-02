@@ -40,6 +40,86 @@ const result = {
 };
 const render = (Component, sonuc) => renderToStaticMarkup(React.createElement(Component, { sonuc }));
 
+const risk = (baslik, extra = {}) => ({ baslik, belirtiler: [], kontrol: 'Servise sorun', kaynaklar: [], guven: 'orta', ...extra });
+const complaint = (baslik, extra = {}) => ({ baslik, aciklama: 'Kullanıcı beyanı', kaynakSayisi: 2, kaynaklar: [], ...extra });
+const section = (html, title) => html.match(new RegExp(`<section[^>]*aria-label="${title}"[^>]*>([\\s\\S]*?)</section>`))?.[1] || '';
+const criticalTitle = 'Bu araçta en çok dikkat etmeniz gerekenler';
+const expertText = 'YerimeBak uzmanı bunu yerinde kontrol eder.';
+
+test('iki listede gruplar ve önem sırası korunur, girdi değişmez', () => {
+  const items = [
+    { baslik: 'Kasa düşük', kategori: 'trim_kasa', onem: 'dusuk' },
+    { baslik: 'Motor düşük', kategori: 'mekanik_motor', onem: 'dusuk' },
+    { baslik: 'Elektronik orta', kategori: 'elektronik', onem: 'orta' },
+    { baslik: 'Motor yüksek', kategori: 'mekanik_motor', onem: 'yuksek' },
+    { baslik: 'Motor orta', kategori: 'mekanik_motor', onem: 'orta' },
+  ];
+  const sonuc = { ...result, modelRiskleri: { riskler: items.map(i => risk(i.baslik, i)) }, kullaniciSikayetleri: items.map(i => complaint(i.baslik, i)) };
+  const original = JSON.stringify(sonuc);
+  const html = render(AkilliAliciBolumleri, sonuc);
+  for (const title of ['Modelin bilinen sorunları', 'Kullanıcıların en sık şikâyet ettiği konular']) {
+    const part = section(html, title);
+    const ordered = ['Mekanik ve motor', 'Motor yüksek', 'Motor orta', 'Motor düşük', 'Elektronik ve sensör', 'Elektronik orta', 'Trim, şasi ve kasa', 'Kasa düşük'];
+    ordered.forEach((text, i) => { assert.ok(part.includes(text), text); if (i) assert.ok(part.indexOf(ordered[i - 1]) < part.indexOf(text), text); });
+    assert.match(part, /bg-red-100[^>]*>Yüksek masraf/);
+    assert.match(part, /bg-orange-100[^>]*>Orta/);
+    assert.match(part, /bg-gray-100[^>]*>Küçük \/ konfor/);
+  }
+  assert.equal(JSON.stringify(sonuc), original);
+});
+
+test('boş grup yok; eski ve kısmi kategorili listeler hiçbir madde kaybetmeden grupsuz kalır', () => {
+  const grouped = render(AkilliAliciBolumleri, { ...result, kullaniciSikayetleri: [complaint('Sensör', { kategori: 'elektronik' })] });
+  assert.ok(grouped.includes('Elektronik ve sensör'));
+  assert.ok(!grouped.includes('Mekanik ve motor'));
+  assert.ok(!grouped.includes('Trim, şasi ve kasa'));
+  for (const extra of [{}, { kategori: 'elektronik', onem: 'dusuk' }]) {
+    const html = render(AkilliAliciBolumleri, { ...result, modelRiskleri: { riskler: [risk('Eski risk'), risk('Kısmi risk', extra)] }, kullaniciSikayetleri: [complaint('Eski şikâyet'), complaint('Kısmi şikâyet', extra)] });
+    for (const title of ['Eski risk', 'Kısmi risk', 'Eski şikâyet', 'Kısmi şikâyet']) assert.ok(html.includes(title));
+    for (const title of ['Mekanik ve motor', 'Elektronik ve sensör', 'Trim, şasi ve kasa', criticalTitle, expertText]) assert.ok(!html.includes(title));
+  }
+});
+
+test('kritik kutu doğrulanmış yüksek sorunu önce seçer ve kalan yeri en kaynaklı yüksek şikâyetle doldurur', () => {
+  const html = render(AkilliAliciBolumleri, { ...result, modelRiskleri: { riskler: [risk('Gizli risk', { guven: 'dusuk', onem: 'yuksek' }), risk('Doğrulanmış risk', { onem: 'yuksek' })] }, kullaniciSikayetleri: [complaint('Az kaynak', { onem: 'yuksek' }), complaint('Çok kaynak', { onem: 'yuksek', kaynakSayisi: 8 }), complaint('Orta kaynak', { onem: 'yuksek', kaynakSayisi: 4 })] });
+  const critical = section(html, criticalTitle);
+  assert.ok(critical.includes('Doğrulanmış risk'));
+  assert.ok(critical.includes('Çok kaynak'));
+  assert.ok(critical.indexOf('Doğrulanmış risk') < critical.indexOf('Çok kaynak'));
+  for (const text of ['Gizli risk', 'Az kaynak', 'Orta kaynak', expertText]) assert.ok(!critical.includes(text));
+  assert.equal((critical.match(/<li[ >]/g) || []).length, 2);
+  assert.ok(html.indexOf(criticalTitle) < html.indexOf('aria-label="Modelin bilinen sorunları"'));
+});
+
+test('kritik kutu iki doğrulanmış yüksek sorunla dolar; yüksek yokken kutu ve uzman satırı yoktur', () => {
+  const html = render(AkilliAliciBolumleri, { ...result, modelRiskleri: { riskler: [risk('Birinci', { guven: 'yuksek', onem: 'yuksek' }), risk('İkinci', { onem: 'yuksek' }), risk('Üçüncü', { onem: 'yuksek' })] }, kullaniciSikayetleri: [complaint('Şikâyet', { onem: 'yuksek', kaynakSayisi: 99 })] });
+  const critical = section(html, criticalTitle);
+  assert.ok(critical.includes('Birinci') && critical.includes('İkinci'));
+  assert.ok(!critical.includes('Üçüncü') && !critical.includes('Şikâyet'));
+  for (const onem of [undefined, 'orta', 'dusuk']) {
+    const low = render(AkilliAliciBolumleri, { ...result, modelRiskleri: { riskler: [risk('Triger yüksek maliyet', { onem, tahminiMaliyet: { min: 50000, max: 80000 } })] }, kullaniciSikayetleri: [complaint('Turbo', { onem })] });
+    assert.ok(!low.includes(criticalTitle));
+    assert.ok(!low.includes(expertText));
+    assert.ok(!low.includes('Yüksek masraf'));
+  }
+});
+
+test('uzman bağlantıları ayrıntılarda yüksek önem için rapor genelinde en fazla üç kez görünür', () => {
+  const sonuc = { ...result, modelRiskleri: { riskler: [risk('Risk yüksek', { onem: 'yuksek' }), risk('Risk orta', { onem: 'orta' })] }, kullaniciSikayetleri: [complaint('İlk yüksek', { onem: 'yuksek' }), complaint('İkinci yüksek', { onem: 'yuksek' }), complaint('Üçüncü yüksek', { onem: 'yuksek' }), complaint('Şikâyet düşük', { onem: 'dusuk' })] };
+  const html = render(AkilliAliciBolumleri, sonuc);
+  assert.equal(html.split(expertText).length - 1, 3);
+  const href = '/ekspertiz-talebi?brand=Hyundai&amp;model=Tucson&amp;year=2021&amp;km=66000&amp;price=2200000';
+  const links = [...html.matchAll(/<a[^>]+href="([^"]+)"[^>]*>YerimeBak uzmanı bunu yerinde kontrol eder\.<\/a>/g)];
+  assert.equal(links.length, 3);
+  for (const link of links) assert.equal(link[1], href);
+  const details = [...html.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map(m => m[1]);
+  for (const title of ['Risk orta', 'Şikâyet düşük', 'Üçüncü yüksek']) {
+    const item = details.find(m => m.includes(title));
+    assert.ok(item);
+    assert.ok(!item.includes(expertText));
+  }
+});
+
 test('karar verisi müşteriye gösterilmez; fiyatlar ve küçük emsal notu korunur', () => {
   for (const count of [2, 3, 4, 5, 8]) {
     const legacyWarning = `Yalnızca ${count} doğrulanmış emsal ilan bulundu (hedef 5)`;

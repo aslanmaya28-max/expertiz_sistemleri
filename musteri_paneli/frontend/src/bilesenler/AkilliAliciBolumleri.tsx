@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import type { ValuationResult } from "@/lib/api";
+import { useEffect, useState, type ReactNode } from "react";
+import type { SorunKategorisi, SorunOnemi, ValuationResult } from "@/lib/api";
 import { ekspertizTalepAdresi, guvenliWebAdresi } from "@/lib/ekspertizOnDoldurma";
 
 /** Sunucudaki vehicle_risk.GENEL_BAKIM_KONTROLU ile aynı: genel kontrol notu her maddede tekrarlanmaz */
@@ -15,6 +15,45 @@ function tl(value?: number | null) {
 
 /** Müşteriye yalnız kaynağı doğrulanmış maddeler gösterilir (eski kayıtlarda düşük güvenli madde olabilir). */
 const GOSTERILEN_GUVEN = new Set(["yuksek", "orta"]);
+
+const SORUN_GRUPLARI: { kategori: SorunKategorisi; baslik: string }[] = [
+  { kategori: "mekanik_motor", baslik: "Mekanik ve motor" },
+  { kategori: "elektronik", baslik: "Elektronik ve sensör" },
+  { kategori: "trim_kasa", baslik: "Trim, şasi ve kasa" },
+];
+const ONEM_SIRASI = { yuksek: 0, orta: 1, dusuk: 2 };
+type SorunMaddesi = { baslik: string; kategori?: SorunKategorisi; onem?: SorunOnemi };
+
+/** Kısmi/eski kayıtlar bölünmez; sıralama her zaman yeni dizide yapılır. */
+function sorunGruplari<T extends SorunMaddesi>(maddeler: T[]): { baslik?: string; maddeler: T[] }[] {
+  if (!maddeler.every((m) => SORUN_GRUPLARI.some((g) => g.kategori === m.kategori))) {
+    return [{ maddeler }];
+  }
+  return SORUN_GRUPLARI.map((g) => ({
+    baslik: g.baslik,
+    maddeler: maddeler.filter((m) => m.kategori === g.kategori)
+      .sort((a, b) => (a.onem ? ONEM_SIRASI[a.onem] : 3) - (b.onem ? ONEM_SIRASI[b.onem] : 3)),
+  })).filter((g) => g.maddeler.length > 0);
+}
+
+function GrupluListe<T extends SorunMaddesi>({ gruplar, madde }: {
+  gruplar: { baslik?: string; maddeler: T[] }[];
+  madde: (m: T) => ReactNode;
+}) {
+  return gruplar.map((g) => (
+    <div key={g.baslik || "eski-liste"}>
+      {g.baslik && <h3 className="mt-4 text-sm font-semibold text-metin-birincil">{g.baslik}</h3>}
+      <ul className="mt-3 space-y-4">{g.maddeler.map(madde)}</ul>
+    </div>
+  ));
+}
+
+function OnemEtiketi({ onem }: { onem?: SorunOnemi }) {
+  if (onem === "yuksek") return <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">Yüksek masraf</span>;
+  if (onem === "orta") return <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-800">Orta</span>;
+  if (onem === "dusuk") return <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">Küçük / konfor</span>;
+  return null;
+}
 
 function KopyalaButonu({ metin, etiket = "Kopyala" }: { metin: string; etiket?: string }) {
   const [tamam, setTamam] = useState(false);
@@ -55,6 +94,22 @@ function Kaynaklar({ urller }: { urller?: string[] }) {
 export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
   const { pazarlikPlani: plan, modelRiskleri, kullaniciSikayetleri, bakim, saticiSorulari } = sonuc;
   const riskler = (modelRiskleri?.riskler || []).filter((r) => GOSTERILEN_GUVEN.has(r.guven));
+  const riskGruplari = sorunGruplari(riskler);
+  const sikayetGruplari = sorunGruplari(kullaniciSikayetleri || []);
+  const kritik = [
+    ...riskler.filter((r) => r.onem === "yuksek"),
+    ...(kullaniciSikayetleri || []).filter((s) => s.onem === "yuksek")
+      .sort((a, b) => b.kaynakSayisi - a.kaynakSayisi),
+  ].slice(0, 2);
+  const uzmanMaddeleri = new Set<SorunMaddesi>([
+    ...riskGruplari.flatMap((g) => g.maddeler),
+    ...sikayetGruplari.flatMap((g) => g.maddeler),
+  ].filter((m) => m.onem === "yuksek").slice(0, 3));
+  const uzmanSatiri = (m: SorunMaddesi) => uzmanMaddeleri.has(m) && (
+    <Link href={ekspertizTalepAdresi(sonuc.arac)} className="mt-2 block text-xs text-birincil underline">
+      YerimeBak uzmanı bunu yerinde kontrol eder.
+    </Link>
+  );
   return (
     <>
       {plan && (
@@ -113,6 +168,15 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
         </section>
       )}
 
+      {kritik.length > 0 && (
+        <section className="rounded-xl border border-red-200 bg-red-50 p-6" aria-label="Bu araçta en çok dikkat etmeniz gerekenler">
+          <h2 className="text-lg font-semibold text-metin-birincil">Bu araçta en çok dikkat etmeniz gerekenler</h2>
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-metin-birincil">
+            {kritik.map((m, i) => <li key={`${m.baslik}-${i}`}>{m.baslik}</li>)}
+          </ul>
+        </section>
+      )}
+
       {modelRiskleri && (
         <section className="bg-white rounded-xl border border-kenarlik-acik p-6" aria-label="Modelin bilinen sorunları">
           <h2 className="text-lg font-semibold text-metin-birincil">Modelin bilinen sorunları</h2>
@@ -120,12 +184,12 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
           {riskler.length === 0 ? (
             <p className="mt-3 text-sm text-metin-ikincil">{modelRiskleri.mesaj || "Bu model/motor için kaynağı doğrulanmış bilinen sorun bulunamadı."}</p>
           ) : (
-            <ul className="mt-3 space-y-4">
-              {riskler.map((r) => {
+            <GrupluListe gruplar={riskGruplari} madde={(r) => {
                 return (
                   <li key={r.baslik} className="rounded-lg border border-kenarlik-acik p-4 text-sm">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-metin-birincil">{r.baslik}</span>
+                      <OnemEtiketi onem={r.onem} />
                       {r.guven === "yuksek" && <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">Resmi kaynak</span>}
                     </div>
                     {r.aciklama && <p className="mt-1 text-metin-ikincil">{r.aciklama}</p>}
@@ -136,10 +200,10 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
                       <div><dt className="inline font-medium text-metin-birincil">Tahmini masraf: </dt><dd className="inline">{r.tahminiMaliyet ? `${tl(r.tahminiMaliyet.min)} – ${tl(r.tahminiMaliyet.max)}` : "kaynakta belirtilmemiş"}</dd></div>
                     </dl>
                     <Kaynaklar urller={r.kaynaklar} />
+                    {uzmanSatiri(r)}
                   </li>
                 );
-              })}
-            </ul>
+              }} />
           )}
         </section>
       )}
@@ -151,16 +215,18 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
           {kullaniciSikayetleri.length === 0 ? (
             <p className="mt-3 text-sm text-metin-ikincil">Birden fazla kaynakta tekrarlanan kullanıcı şikâyeti bulunamadı.</p>
           ) : (
-            <ul className="mt-3 space-y-4">
-              {kullaniciSikayetleri.map((s) => (
+            <GrupluListe gruplar={sikayetGruplari} madde={(s) => (
                 <li key={s.baslik} className="rounded-lg border border-kenarlik-acik p-4 text-sm">
-                  <h3 className="font-semibold text-metin-birincil">{s.baslik}</h3>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="font-semibold text-metin-birincil">{s.baslik}</h4>
+                    <OnemEtiketi onem={s.onem} />
+                  </div>
                   <p className="mt-1 text-metin-ikincil">{s.aciklama}</p>
                   <p className="mt-2 text-xs text-metin-ikincil">{s.kaynakSayisi} farklı kaynakta geçiyor</p>
                   <Kaynaklar urller={s.kaynaklar} />
+                  {uzmanSatiri(s)}
                 </li>
-              ))}
-            </ul>
+              )} />
           )}
         </section>
       )}

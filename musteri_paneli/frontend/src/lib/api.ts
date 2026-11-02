@@ -462,6 +462,9 @@ export interface PazarlikPlani {
   uyari?: string | null;
 }
 
+export type SorunKategorisi = "mekanik_motor" | "elektronik" | "trim_kasa";
+export type SorunOnemi = "yuksek" | "orta" | "dusuk";
+
 export interface ModelRiski {
   baslik: string;
   aciklama?: string;
@@ -471,6 +474,8 @@ export interface ModelRiski {
   tahminiMaliyet?: { min: number; max: number } | null;
   kaynaklar: string[];
   guven: "yuksek" | "orta" | "dusuk" | string;
+  kategori?: SorunKategorisi;
+  onem?: SorunOnemi;
 }
 
 export interface KullaniciSikayeti {
@@ -478,6 +483,8 @@ export interface KullaniciSikayeti {
   aciklama: string;
   kaynakSayisi: number;
   kaynaklar: string[];
+  kategori?: SorunKategorisi;
+  onem?: SorunOnemi;
 }
 
 export interface ValuationResult {

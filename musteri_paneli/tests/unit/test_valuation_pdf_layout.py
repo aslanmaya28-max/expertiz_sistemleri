@@ -135,3 +135,97 @@ def test_two_digit_question_number_stays_with_its_text():
 def test_no_empty_information_sources_heading():
     with pdfplumber.open(io.BytesIO(build_pdf(tucson_report()))) as document:
         assert 'Bilgi kaynakları' not in '\n'.join(page.extract_text() for page in document.pages)
+
+
+GROUPS = ('Mekanik ve motor', 'Elektronik ve sensör', 'Trim, şasi ve kasa')
+CTA = 'YerimeBak uzmanı bunu yerinde kontrol eder.'
+CRITICAL = 'Bu araçta en çok dikkat etmeniz gerekenler'
+
+
+def issue(title, category='mekanik_motor', importance='yuksek', **extra):
+    return {'baslik': title, 'aciklama': 'Kontrol açıklaması.', 'kategori': category,
+            'onem': importance, 'guven': 'orta', 'kaynaklar': [], **extra}
+
+
+def test_issue_groups_order_severity_and_immutable_input():
+    report = tucson_report()
+    items = [issue('Trim düşük', 'trim_kasa', 'dusuk'),
+             issue('Motor düşük', importance='dusuk'), issue('Motor yüksek'),
+             issue('Sensör orta', 'elektronik', 'orta')]
+    report['modelRiskleri']['riskler'] = items
+    report['kullaniciSikayetleri'] = deepcopy(items)
+    unchanged = deepcopy(report)
+    text = pdf_text(report)
+    for section in (text.split('Modelin bilinen sorunları')[1].split('Kullanıcıların en sık')[0],
+                    text.split('Kullanıcıların en sık şikâyet ettiği konular')[1].split('Bu kilometrede')[0]):
+        assert section.index(GROUPS[0]) < section.index(GROUPS[1]) < section.index(GROUPS[2])
+        assert section.index('Motor yüksek') < section.index('Motor düşük')
+        assert all(label in section for label in ('Yüksek masraf', 'Orta', 'Küçük / konfor'))
+    assert report == unchanged
+
+
+def test_critical_box_prefers_verified_risk_then_most_sourced_complaint_and_caps_cta():
+    report = tucson_report()
+    report['modelRiskleri']['riskler'] = [issue('Düşük güven gizli', guven='dusuk'), issue('Doğrulanmış motor')]
+    report['kullaniciSikayetleri'] = [issue('Az kaynak', kaynakSayisi=2),
+                                     issue('En çok kaynak', kaynakSayisi=7), issue('İkinci kaynak', kaynakSayisi=5)]
+    text = pdf_text(report)
+    critical = text.split(CRITICAL)[1].split('Mekanik ve motor')[0]
+    assert critical.index('Doğrulanmış motor') < critical.index('En çok kaynak')
+    assert 'Az kaynak' not in critical and 'İkinci kaynak' not in critical
+    assert 'Düşük güven gizli' not in text
+    assert CTA not in critical
+    assert text.count(CTA) == 3
+
+
+@pytest.mark.parametrize('importance', [None, 'orta', 'dusuk'])
+def test_no_high_issue_means_no_critical_box_or_expert_line(importance):
+    report = tucson_report()
+    item = issue('Motor kontrolü', importance=importance)
+    report['modelRiskleri']['riskler'] = [item]
+    report['kullaniciSikayetleri'] = [deepcopy(item)]
+    text = pdf_text(report)
+    assert CRITICAL not in text and CTA not in text
+    assert GROUPS[0] in text and GROUPS[1] not in text and GROUPS[2] not in text
+    if importance is None:
+        assert 'Yüksek masraf' not in text and 'Küçük / konfor' not in text
+
+
+@pytest.mark.parametrize('partial', [False, True])
+def test_legacy_or_partial_category_list_stays_flat_without_losing_items(partial):
+    report = tucson_report()
+    items = [issue('Birinci'), issue('İkinci', 'elektronik')]
+    items[0].pop('kategori')
+    if not partial:
+        items[1].pop('kategori')
+    for item in items:
+        item.pop('onem')
+    report['modelRiskleri']['riskler'] = deepcopy(items)
+    report['kullaniciSikayetleri'] = deepcopy(items)
+    text = pdf_text(report)
+    assert all(group not in text for group in GROUPS)
+    assert text.count('Birinci') == 2 and text.count('İkinci') == 2
+    assert CRITICAL not in text and CTA not in text
+
+
+@pytest.mark.parametrize('model_count', [0, 1, 3])
+def test_critical_box_has_at_most_two_items_with_model_priority(model_count):
+    report = tucson_report()
+    report['modelRiskleri']['riskler'] = [issue(f'Model öncelik {n}') for n in range(model_count)]
+    report['kullaniciSikayetleri'] = [issue('Şikâyet az', kaynakSayisi=2),
+                                     issue('Şikâyet çok', kaynakSayisi=9)]
+    with pdfplumber.open(io.BytesIO(build_pdf(report))) as document:
+        text = '\n'.join(page.extract_text() for page in document.pages)
+        critical = text.split(CRITICAL)[1].split('Modelin bilinen sorunları')[0]
+        assert critical.count('1. ') == 1 and critical.count('2. ') == 1
+        assert '3. ' not in critical and CTA not in critical
+        if model_count:
+            assert 'Model öncelik 0' in critical
+        if model_count >= 2:
+            assert 'Şikâyet çok' not in critical and 'Model öncelik 1' in critical
+        else:
+            assert 'Şikâyet çok' in critical
+        # Uzman çağrısı kaynak URL'sinden bağımsız düz metindir.
+        for page in document.pages:
+            for link in page.hyperlinks:
+                assert CTA not in (link.get('uri') or '')

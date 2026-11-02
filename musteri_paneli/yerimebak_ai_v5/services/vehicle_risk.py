@@ -39,6 +39,24 @@ _TOPICS = {
     "lastik": ("lastik", "tyre", "tire"),
     "yag": ("yağ tüketimi", "oil consumption", "yağ kaçağı", "oil leak"),
     "sogutma": ("soğutma", "devirdaim", "coolant", "water pump"),
+    "adblue": ("adblue",),
+    "yakit_pompasi": ("yakıt pompası", "enjektör pompası", "fuel pump"),
+    "yag_pompasi": ("yağ pompası", "oil pump"),
+    "motor": ("motor arızası", "motor yağı", "engine failure", "engine oil"),
+    "egzoz": ("egzoz", "exhaust"),
+    "buji": ("buji", "kızdırma bujisi", "spark plug", "glow plug"),
+    "atesleme": ("ateşleme bobini", "ignition coil"),
+    "suspansiyon": ("süspansiyon", "amortisör", "suspension"),
+    "sensor": ("sensör", "sensor"),
+    "adas": ("adas", "şerit takip", "adaptif hız", "lane assist"),
+    "elektronik_unite": ("elektronik ünite", "ecu", "kontrol ünitesi"),
+    "multimedya": ("multimedya", "infotainment"),
+    "anahtarsiz": ("anahtarsız", "keyless"),
+    "gosterge": ("gösterge", "instrument cluster"),
+    "trim": ("trim", "iç trim sesi", "tıkırtı"),
+    "far_bugusu": ("far buğusu", "far buğu", "headlight condensation"),
+    "kaplama": ("kaplama", "döşeme", "boya soyulması"),
+    "kasa": ("kapı hizası", "bagaj hizası", "kapı/bagaj hizası", "şasi", "paslan", "paslı", "pas"),
     "geri_cagirma": ("geri çağırma", "recall", "servis bülteni", "service bulletin"),
 }
 _OFFICIAL = {
@@ -54,6 +72,9 @@ _OFFICIAL = {
 }
 _AUTHORITIES = ("nhtsa.gov", "gov.uk", "ec.europa.eu")
 _TECHNICAL = ("whatcar.com", "adac.de", "rac.co.uk", "theaa.com", "autocar.co.uk")
+_USER_SOURCES = ("sikayetvar.com", "donanimhaber.com", "technopat.net")
+_COMPILATIONS = ("araclo.com",)
+_BLOCKED = ("kronikmotor.com",)
 _PROMPT = """Şu araç için motor/şanzıman sürümüne özgü bilinen sorunları,
 geri çağırmaları/servis bültenlerini ve doğrulanacak büyük bakım kalemlerini bul: {vehicle}.
 Üretici, resmi geri çağırma ve güvenilir teknik incelemeleri öncele. Forum iddiasını
@@ -70,6 +91,17 @@ Aynı aramada forum ve kullanıcı yorumlarında tekrarlanan şikâyetleri ayrı
 kullaniciSikayetleri listesine ekle. Her başlık tek konu olsun; en az iki farklı
 alan adındaki kaynakta hem model adı hem konu açıkça geçsin. Kullanıcı beyanını
 arıza teşhisi veya doğrulanmış sorun gibi sunma; şikâyetlere maliyet yazma.
+Kullanıcı şikâyetlerinde herkese açık, dizine eklenen model sayfalarını tercih et:
+araclo.com kronik sorun derlemeleri, sikayetvar.com, forum.donanimhaber.com,
+technopat.net/sosyal ve arabalar.com.tr/blog. Yalnız kısa özet ve kaynak linki ver.
+Her risk ve kullanıcı şikâyetine kategori ve onem ekle. kategori yalnız
+mekanik_motor (motor, şanzıman, yakıt, soğutma, fren, süspansiyon), elektronik
+(sensör, ADAS, multimedya, gösterge, anahtarsız giriş) veya trim_kasa
+(trim sesi, far buğusu, kaplama, kapı/bagaj hizası, pas) olabilir.
+onem yalnız yuksek, orta veya dusuk olabilir; büyük motor/şanzıman/triger,
+turbo/pompa/soğutma masrafları yüksek; sensör/ADAS/süspansiyon orta;
+trim, far buğusu ve multimedya donması düşük önemlidir. Yakıt türüne aykırı
+parça veya sorun ekleme.
 """
 
 
@@ -86,7 +118,7 @@ def _cache_key(vehicle):
     values = [fold(vehicle.get(k)).strip() for k in
               ("brand", "model", "engine", "package", "fuel", "transmission")]
     values.append((wmr._int(vehicle.get("year")) or 0) // 5)
-    return "vehicle-risk:v2:" + hashlib.sha256(json.dumps(values).encode()).hexdigest()
+    return "vehicle-risk:v3:" + hashlib.sha256(json.dumps(values).encode()).hexdigest()
 
 
 def _search(query, client):
@@ -121,8 +153,11 @@ def _search(query, client):
 
 def _topics(text):
     text = fold(text)
+    # Kısa "pas" sözcüğü Passat/paspas gibi adları kanıt saymamalı;
+    # paslanma ve paslı çekimleri kendi açık kökleriyle eşleşir.
     return [key for key, terms in _TOPICS.items() if any(
-        re.search(r"\b" + re.escape(fold(term)), text) for term in terms)]
+        re.search(r"\b" + re.escape(fold(term)) + (r"\b" if term == "pas" else ""), text)
+        for term in terms)]
 
 
 def _gear(text):
@@ -134,6 +169,8 @@ def _gear(text):
 
 
 def _incompatible(text, vehicle):
+    if _fuel_incompatible(text, vehicle):
+        return True
     target = " ".join(str(vehicle.get(k) or "") for k in ("engine", "package", "transmission"))
     a, b = _displacements(target), _displacements(text)
     if a and b and not a & b:
@@ -157,13 +194,30 @@ def _incompatible(text, vehicle):
     return False
 
 
+def _fuel_incompatible(text, vehicle):
+    fuel, text = fold(vehicle.get("fuel")), fold(text)
+    if fuel in ("elektrik", "elektrikli", "electric", "ev"):
+        return bool(re.search(r"\b(motor yagi|engine oil|triger|timing belt|zincir|timing chain|sanziman yagi|transmission oil|egzoz|exhaust)\w*\b", text))
+    diesel = "dizel" in fuel or "diesel" in fuel
+    if diesel:
+        # Kızdırma bujisi dizelde mevcuttur; ateşleme bujisiyle karıştırma.
+        without_glow = re.sub(r"\b(kizdirma buj\w*|glow plugs?)\b", "", text)
+        return bool(re.search(r"\b(buji\w*|spark plugs?|atesleme bobin\w*|ignition coils?)\b", without_glow))
+    if any(term in fuel for term in ("benzin", "petrol", "gasoline", "hibrit", "hybrid", "lpg")):
+        return bool(re.search(r"\b(adblue|dpf|dizel partikul)\b", text)
+                    or ("dizel" in text and re.search(r"\b(enjektor|yakit) pompa\w*", text)))
+    return False
+
+
 def _domain(host, domains):
+    host = host.lower().rstrip(".")
     return any(host == d or host.endswith("." + d) for d in domains)
 
 
 def _confidence(url, text, vehicle):
     host = (urlsplit(url).hostname or "").lower()
-    if any(word in host + urlsplit(url).path.lower() for word in ("forum", "club", "reddit", "community")):
+    if (_domain(host, _USER_SOURCES + _COMPILATIONS)
+            or any(word in host + urlsplit(url).path.lower() for word in ("forum", "club", "reddit", "community"))):
         return "dusuk"
     # Sürüm/model kapsamı belirsiz bir metin yüksek/orta güven kazanamaz.
     target = _displacements(str(vehicle.get("engine") or "") + " " + str(vehicle.get("package") or ""))
@@ -202,11 +256,15 @@ def _verify(item, sources, vehicle):
     if not isinstance(item, dict) or not isinstance(item.get("baslik"), str):
         return None
     topics = _topics(item["baslik"])
-    if not topics or _incompatible(str(item.get("etkiledigi") or ""), vehicle):
+    details = " ".join(str(item.get(k) or "") for k in
+                       ("baslik", "aciklama", "etkiledigi", "belirtiler", "kontrol"))
+    if not topics or _fuel_incompatible(details, vehicle) or _incompatible(str(item.get("etkiledigi") or ""), vehicle):
         return None
     valid = {}
     for url in item.get("kaynaklar") or []:
         if not isinstance(url, str) or urlsplit(url).scheme not in ("https", "http"):
+            continue
+        if _domain(urlsplit(url).hostname or "", _BLOCKED):
             continue
         url = url.rstrip("/")
         text = sources.get(url)
@@ -224,13 +282,38 @@ def _verify(item, sources, vehicle):
         return None
     confidence = max((_confidence(url, text, vehicle) for url, text in valid.items()),
                      key=lambda c: {"dusuk": 0, "orta": 1, "yuksek": 2}[c])
+    cost = _cost(item.get("tahminiMaliyet"), valid.values(), topics)
+    category, severity = _classification(item, topics, cost)
     return {"baslik": item["baslik"], "aciklama": str(item.get("aciklama") or ""),
             "etkiledigi": str(item.get("etkiledigi") or "Kapsamı servisle doğrulayın"),
             "belirtiler": [s for s in item.get("belirtiler", []) if isinstance(s, str)]
             if isinstance(item.get("belirtiler"), list) else [],
             "kontrol": str(item.get("kontrol") or "Şasi numarası ve servis kaydıyla doğrulayın."),
-            "tahminiMaliyet": _cost(item.get("tahminiMaliyet"), valid.values(), topics),
+            "tahminiMaliyet": cost, "kategori": category, "onem": severity,
             "kaynaklar": list(valid), "guven": confidence}
+
+
+def _classification(item, topics, cost):
+    keys = set(topics)
+    category = item.get("kategori")
+    if category not in ("mekanik_motor", "elektronik", "trim_kasa"):
+        if keys & {"trim", "far_bugusu", "kaplama", "kasa"}:
+            category = "trim_kasa"
+        elif keys & {"sensor", "adas", "elektronik_unite", "multimedya", "anahtarsiz", "gosterge", "aku"}:
+            category = "elektronik"
+        else:
+            category = "mekanik_motor"
+    severity = item.get("onem")
+    if severity not in ("yuksek", "orta", "dusuk"):
+        if ((cost and cost["max"] >= 25000) or keys & {
+                "motor", "sanziman", "mekatronik", "triger", "zincir", "yakit_pompasi",
+                "yag_pompasi", "turbo", "sogutma"}):
+            severity = "yuksek"
+        elif keys & {"sensor", "adas", "elektronik_unite", "suspansiyon", "anahtarsiz", "gosterge"}:
+            severity = "orta"
+        else:
+            severity = "dusuk"
+    return category, severity
 
 
 def _verified_items(items, sources, vehicle):
@@ -263,7 +346,8 @@ def _verified_complaints(items, sources, vehicle):
             continue
         topic = _topics(verified["baslik"])[0]
         group = groups.setdefault(topic, {"baslik": verified["baslik"],
-                                          "aciklama": verified["aciklama"], "kaynaklar": []})
+                                          "aciklama": verified["aciklama"], "kaynaklar": [],
+                                          "kategori": verified["kategori"], "onem": verified["onem"]})
         for url in verified["kaynaklar"]:
             text = sources[url]
             if (model and re.search(model_pattern, fold(text)) and topic in _topics(text)
