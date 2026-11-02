@@ -112,7 +112,10 @@ def _name(first: Dict[str, Any], second: Dict[str, Any]):
     """Kodlu ad ("NX4 (4. nesil)") numaralı ya da Roma rakamlı addan ("Tucson IV") önce gelir."""
     names = [n for n in (first.get("kasa"), second.get("kasa")) if n]
     coded = [n for n in names if _has_code(n)] or [n for n in names if "nesil" not in n.lower()]
-    return (coded or names or [None])[0]
+    name = (coded or names or [None])[0]
+    if name and "(" in name:  # müşteriye kısa ad: "NX4 (4. nesil Tucson)" → "NX4"
+        name = name.split("(")[0].strip(" /-,") or name
+    return name
 
 
 def _align(first: List[Dict[str, Any]], second: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
