@@ -186,6 +186,8 @@ def build_pdf(report):
         text(warning)
     heading('Bilgi kaynakları')
     for source in report.get('bilgiKaynaklari') or []:
+        if source.get('kaynak') == 'tahmin' and not report.get('getiri'):
+            continue  # gelecek değer bölümü yoksa kaynağı da yazılmaz
         text(f'{source.get("alan")}: {source.get("aciklama")}')
     projection = report.get('getiri')
     if projection:  # oran girilmemişse bölüm hiç gösterilmez
