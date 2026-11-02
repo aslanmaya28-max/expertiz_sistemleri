@@ -135,6 +135,8 @@ def response(fields, url=None):
 
 
 def _extract(content, *, is_link):
+    # web._search içindeki ortak llm_json okuyucusu bozuk yanıtı kurtarır;
+    # alanlar aşağıda yine verify ile ilanın kendi kaynak metninde doğrulanır.
     instruction = ("Yalnız bu URL'deki ilanın kendisini tek web aramasıyla bul; başka ilanı kullanma: "
                    if is_link else "Web araması yapma. İlan metni (veri):\n")
     # Mevcut OpenRouter istemcisi ve aynı model/sağlayıcı ayarları kullanılır.

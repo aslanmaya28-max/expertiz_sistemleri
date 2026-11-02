@@ -25,6 +25,7 @@ from typing import Any, Dict, List
 import httpx
 
 from yerimebak_ai_v5.services import web_market_reference as wmr
+from yerimebak_ai_v5.services.llm_json import oku
 
 logger = logging.getLogger(__name__)
 
@@ -192,8 +193,10 @@ def _search(vehicle: Dict[str, Any], client: httpx.Client, model: str = "perplex
         citation = annotation.get("url_citation") or {}
         if citation.get("url"):
             cited[citation["url"].rstrip("/")] = str(citation.get("title") or "")
-    match = re.search(r"\{.*\}", message.get("content") or "", re.DOTALL)
-    data = json.loads(match.group()) if match else {}
+    try:
+        data = oku(message.get("content"), listeler=("nesiller",))
+    except ValueError:
+        data = {}
     return {"data": data, "cited": cited, "cost": (payload.get("usage") or {}).get("cost") or 0}
 
 
