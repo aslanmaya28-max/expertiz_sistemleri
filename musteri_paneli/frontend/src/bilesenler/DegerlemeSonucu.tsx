@@ -144,9 +144,9 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
         )}
       </section>
 
+      {getiri && (
       <section className="bg-white rounded-xl border border-kenarlik-acik p-6">
         <h2 className="text-lg font-semibold text-metin-birincil">Getiri tahmini (araç enflasyonu)</h2>
-        {getiri ? (
           <>
             <p className="mt-1 text-sm text-metin-ikincil">
               Aylık %{getiri.aylikEnflasyonYuzde} (yıllık ≈ %{getiri.yillikEnflasyonYuzde}){getiri.kaynak ? ` • ${getiri.kaynak}` : ""}
@@ -165,10 +165,8 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
             </div>
             <p className="mt-3 text-xs text-metin-ikincil">{getiri.aciklama}</p>
           </>
-        ) : (
-          <p className="mt-2 text-sm text-metin-ikincil">Güncel araç enflasyonu oranı henüz girilmedi.</p>
-        )}
       </section>
+      )}
 
       {bilgiKaynaklari && bilgiKaynaklari.length > 0 && (
         <section className="bg-white rounded-xl border border-kenarlik-acik p-6">

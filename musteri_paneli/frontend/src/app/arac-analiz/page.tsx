@@ -256,7 +256,7 @@ export default function AracAnalizSayfasi() {
         <div>
           <h1 className="text-3xl font-bold text-metin-birincil">Araç Değerleme</h1>
           <p className="text-metin-ikincil mt-1">
-            Piyasa ortalaması, boya/değişen/hasar değer kaybı, tavsiye fiyat ve enflasyona göre getiri.
+            Piyasa ortalaması, boya/değişen/hasar değer kaybı, tavsiye fiyat ve pazarlık planı.
           </p>
         </div>
         <div className="text-sm text-metin-ikincil">

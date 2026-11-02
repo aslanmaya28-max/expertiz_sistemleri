@@ -92,3 +92,13 @@ def test_hasari_beyan_edilmis_ucuz_ilanda_gizli_kusur_uyarisi_yok_ve_plan_tutarl
     assert plan["uyari"] is None
     # Hasar düşüldükten sonra da ucuzsa uyarı verilir ve bunu açıkça söyler.
     assert "bildirilen hasarın etkisi düşüldükten sonra" in dusuk_fiyat_uyarisi(1_300_000, ref, 484_131)
+
+
+def test_birden_cok_degisen_parca_tek_soruda_hepsi_sorulur():
+    vehicle = {"brand": "Chery", "model": "Tiggo 7 Pro Max", "year": 2025, "km": 44_000, "fuel": "Benzin",
+               "transmission": "Otomatik", "package": "1.6 T-GDI"}
+    findings = [{"baslik": "Sol Ön Kapı (değişen)"}, {"baslik": "Sol Arka Kapı (değişen)"},
+                {"baslik": "180.000 TL tramer kaydı"}]
+    sorular = vr.seller_questions(vehicle, {"riskler": []}, findings)
+    parca_sorusu = [q for q in sorular if q.startswith("Beyan edilen")]
+    assert parca_sorusu == ["Beyan edilen Sol Ön Kapı (değişen), Sol Arka Kapı (değişen) için hasarın nedeni ve onarım belgeleri var mı?"]

@@ -689,10 +689,12 @@ def seller_questions(vehicle, risks, findings) -> list:
     if findings:
         questions.append("Tramer kaydının detay dökümünü ve onarım faturalarını paylaşır mısınız?")
         values = findings if isinstance(findings, list) else [findings]
-        for finding in values[:1]:
-            title = finding.get("baslik") or finding.get("parca") if isinstance(finding, dict) else str(finding)
-            if title:
-                questions.append(f"Beyan edilen {title} için hasarın nedeni ve onarım belgeleri var mı?")
+        titles = [str((f.get("baslik") or f.get("parca")) if isinstance(f, dict) else f) for f in values]
+        parcalar = [t for t in titles if t and t != "None" and "tramer" not in t.lower()]
+        if parcalar:
+            # Eskiden yalnız ilk parça soruluyordu (Chery: iki kapı değişmişken yalnız sol ön kapı).
+            liste = ", ".join(parcalar[:3]) + (" ve diğer parçalar" if len(parcalar) > 3 else "")
+            questions.append(f"Beyan edilen {liste} için hasarın nedeni ve onarım belgeleri var mı?")
     seen = set()
     for entry in upcoming_maintenance(vehicle, risks):
         title = entry["baslik"]

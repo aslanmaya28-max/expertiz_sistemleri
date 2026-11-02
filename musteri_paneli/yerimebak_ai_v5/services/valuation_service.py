@@ -231,6 +231,8 @@ def decision_summary(
     else:
         adim = f"Bu fiyattan almayın; fiyat {_tl(recommended)} civarına inmezse başka ilanlara bakın."
 
+    if any((k.get("tutar") or 0) > 0 for k in kalemler) and "yerinde inceletin" not in adim:
+        adim += " Bildirilen hasarı ve onarım kalitesini aracı yerinde inceleterek doğrulatın."
     piyasa_kaynagi = reference.get("source")
     return {
         "karar": {"sonuc": sonuc, "aciklama": aciklama, "guvenSeviyesi": level,
@@ -704,7 +706,8 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
     )
     result["karar"].update(summary["karar"])
     result["ozet"] = summary["ozet"]
-    result["bilgiKaynaklari"] = summary["bilgiKaynaklari"]
+    result["bilgiKaynaklari"] = [b for b in summary["bilgiKaynaklari"]
+                                 if projection or b.get("alan") != "Gelecek değer"]
 
     # Akilli alici bolumleri (tek rapor, 1 kredi): pazarlik plani, model riskleri, bakim, sorular
     from yerimebak_ai_v5.services.negotiation import build_plan
@@ -750,6 +753,13 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
                   if not risks.get("riskler") else None),
     }
     result["bakim"] = vehicle_risk.upcoming_maintenance(risk_vehicle, risks)
+    if parts:
+        result["bakim"].insert(0, {
+            "baslik": "Değişen / boyalı parçaların kontrolü",
+            "aciklama": "Beyan edilen parçalarda onarımın kalitesini ve parçanın orijinal mi muadil mi olduğunu öğrenin.",
+            "kontrol": "Kapı ve kaput aralıklarının eşit olduğuna, fitillerin oturduğuna, renk tonu farkına; değişen kapılarda "
+                       "cam, kilit ve ayna elektriklerinin çalıştığına bakın.",
+        })
     result["saticiSorulari"] = vehicle_risk.seller_questions(risk_vehicle, risks, _findings(parts, tramer_amount))
     web_cost = float((reference.get("scope") or {}).get("cost_usd") or 0)
 
