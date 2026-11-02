@@ -525,7 +525,10 @@ def build_reference(results: List[Dict[str, Any]], v: Dict[str, Any], *, widened
     if tokens and not package_match:
         flags.append({"kod": "paket_eslesmedi", "mesaj": f"Aynı paketten ({v.get('package')}) yeterli ilan yok; diğer paketler de kullanıldı"})
     if not tokens:
-        flags.append({"kod": "paket_bilinmiyor", "mesaj": "Araç paketi girilmemiş; emsaller modelin tüm paketlerinden"})
+        # "1.5 TSI" gibi yalnız motor yazıldığında da buraya düşülür; "paket girilmemiş" demek müşteriyle çelişiyordu.
+        flags.append({"kod": "paket_bilinmiyor", "mesaj": (
+            "Donanım paketi belirtilmediği için emsaller bu motorun tüm donanım paketlerinden alındı"
+            if v.get("package") else "Araç paketi girilmemiş; emsaller modelin tüm paketlerinden")})
 
     confidence = min(85, 40 + 6 * len(kept)) + (5 if package_match else 0)
     if any(f["kod"] in ("az_emsal", "genis_aralik") for f in flags):

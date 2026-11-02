@@ -93,7 +93,11 @@ def test_missing_key_rules_still_work(monkeypatch):
     assert result["riskler"] == [] and result["bulunamadi"]
     maintenance = vr.upcoming_maintenance(VEHICLE, result)
     assert any("Triger" in x["baslik"] for x in maintenance)
-    assert all("doğrulayın" in x["aciklama"] for x in maintenance)
+    # Üretici periyodu kesin bilgi gibi yazılmaz; müşteriye neyi soracağı söylenir. Her madde kendi açıklamasını taşır
+    # (Cupra denemesinde dört maddede aynı kalıp cümle vardı).
+    assert all(any(f in x["aciklama"] for f in ("sorun", "isteyin", "doğrulayın")) for x in maintenance)
+    assert len({x["aciklama"] for x in maintenance}) == len(maintenance)
+    assert len({x["kontrol"] for x in maintenance}) == len(maintenance)
     questions = vr.seller_questions(VEHICLE, result, [])
     assert 6 <= len(questions) <= 10
     assert any("Ekspertize" in q for q in questions)

@@ -106,7 +106,7 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
         )}
         <p className="mt-2 text-sm text-metin-ikincil">
           {piyasa.emsalSayisi} güncel emsal ilan ({piyasa.hasarsizEmsalSayisi ?? 0} hasarsız). Ortalama{piyasa.duzeltme ? " (bu araca göre)" : ""} {tl(piyasa.ortalama)}, orta fiyat {tl(piyasa.medyan)},
-          aralık {tl(piyasa.min)} – {tl(piyasa.max)}. Güven skoru: %{piyasa.guvenSkoru}.
+          aralık {tl(piyasa.min)} – {tl(piyasa.max)}.
         </p>
         {(piyasa.takipIlanSayisi ?? 0) > 0 && (
           <p className="mt-2 text-xs text-metin-ikincil">Bu değerlendirmede YerimeBak piyasa takibinden {piyasa.takipIlanSayisi} ilan da kullanıldı.</p>

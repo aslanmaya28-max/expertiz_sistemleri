@@ -9,15 +9,36 @@ from yerimebak_ai_v5.core.ai.inspection_valuation import MODEL_VERSION
 ENGINE_VERSION = MODEL_VERSION
 
 
+def _names(cursor, sql):
+    cursor.execute(sql)
+    return {(row[0] if not isinstance(row, dict) else next(iter(row.values()))) for row in cursor.fetchall()}
+
+
 def ensure_schema(cursor):
+    """Rapor kolonları ve indeksleri.
+
+    Zaten varsa ALTER/CREATE INDEX çalıştırılmaz: "IF NOT EXISTS" olsa bile PostgreSQL tabloyu önce kilitler.
+    Sunucu açılırken (Render yeni sürümü yayınlarken eski sunucu rapor hazırlıyorsa) bu kilit, request_guard'ın
+    açık işlemini bekliyor, arkasındaki rapor sorguları da kilidi bekliyordu: değerleme sonsuza dek takılıyordu
+    (02.11.2026 yerel denemede ölçüldü). Kilit beklemesi ayrıca 10 sn ile sınırlıdır.
+    """
+    cursor.execute("SET LOCAL lock_timeout = '10s'")
     cursor.execute('CREATE SEQUENCE IF NOT EXISTS valuation_report_number_seq')
+    columns = _names(cursor, "SELECT column_name FROM information_schema.columns "
+                             "WHERE table_schema = current_schema() AND table_name = 'analysis_history'")
     for name, kind in (('report_json', 'JSONB'), ('report_no', 'TEXT'),
                        ('verification_code', 'TEXT'), ('request_id', 'TEXT'), ('engine_version', 'TEXT')):
-        cursor.execute(f'ALTER TABLE analysis_history ADD COLUMN IF NOT EXISTS {name} {kind}')
-    cursor.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_valuation_request ON analysis_history(user_id,request_id)')
-    cursor.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_valuation_code ON analysis_history(verification_code)')
-    cursor.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_valuation_number ON analysis_history(report_no)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_valuation_owner_date ON analysis_history(user_id,created_at DESC,id DESC)')
+        if name not in columns:
+            cursor.execute(f'ALTER TABLE analysis_history ADD COLUMN IF NOT EXISTS {name} {kind}')
+    indexes = _names(cursor, "SELECT indexname FROM pg_indexes "
+                             "WHERE schemaname = current_schema() AND tablename = 'analysis_history'")
+    for name, sql in (
+            ('idx_valuation_request', 'CREATE UNIQUE INDEX IF NOT EXISTS idx_valuation_request ON analysis_history(user_id,request_id)'),
+            ('idx_valuation_code', 'CREATE UNIQUE INDEX IF NOT EXISTS idx_valuation_code ON analysis_history(verification_code)'),
+            ('idx_valuation_number', 'CREATE UNIQUE INDEX IF NOT EXISTS idx_valuation_number ON analysis_history(report_no)'),
+            ('idx_valuation_owner_date', 'CREATE INDEX IF NOT EXISTS idx_valuation_owner_date ON analysis_history(user_id,created_at DESC,id DESC)')):
+        if name not in indexes:
+            cursor.execute(sql)
     cursor.execute('''CREATE OR REPLACE FUNCTION protect_valuation_snapshot() RETURNS trigger AS $$
         BEGIN
             IF OLD.report_json IS NOT NULL THEN

@@ -76,11 +76,21 @@ def _kalem_metni(k: Dict[str, Any]) -> str:
     return f"{baslik} ({durum.replace('I', 'ı').replace('İ', 'i').lower()})"
 
 
+def _uyari_metni(flag: Dict[str, Any], package: Optional[str]) -> str:
+    """Önbellekteki eski emsal aramalarında "paket girilmemiş" metni, yalnız motor yazılmış araçta da kalmıştı."""
+    if flag.get("kod") == "paket_bilinmiyor" and package:
+        return "Donanım paketi belirtilmediği için emsaller bu motorun tüm donanım paketlerinden alındı"
+    return flag["mesaj"]
+
 def _beyan_ozeti(text: Optional[str]) -> Optional[str]:
     """Motorun ekspertiz cümlesi kredili değerlemede beyana göre yazılır (ortada ekspertiz yok)."""
     if not text:
         return text
     text = text.replace("Ekspertizde kaporta işlemi tespit edilmedi", "Beyana göre araçta kaporta işlemi yok", 1)
+    # Fiyat yorumu da ekspertize değil hesaplanan değere göredir (araç görülmedi).
+    for eski, yeni in (("ekspertiz sonucuyla uyumlu", "hesaplanan değerle uyumlu"),
+                       ("ekspertiz sonucuna göre piyasanın altında", "hesaplanan değere göre piyasanın altında")):
+        text = text.replace(eski, yeni)
     return re.sub(r"^Ekspertizde (.+?) tespit edildi", r"Beyana göre araçta \1 var", text)
 
 
@@ -181,6 +191,12 @@ def decision_summary(
         riskler.append(f"İlan fiyatı benzer ilanlardan %{emsal_farki:.0f} yüksek. Fark yeni kasa, motor gücü, donanım "
                        "veya garantiden kaynaklanıyor olabilir; benzer ilanlarla aynı araç olduğu doğrulanmalı."
                        )
+    # İlan benzer ilan ortalamasının altındaysa satıcı bir kusuru belirtmemiş olabilir (kullanıcı kararı):
+    # ağır hasardan sonra en üste yazılır ki 4 maddelik özet kesilince kaybolmasın.
+    from yerimebak_ai_v5.services.negotiation import dusuk_fiyat_uyarisi
+    dusuk_fiyat = dusuk_fiyat_uyarisi(price, reference)
+    if dusuk_fiyat:
+        riskler.insert(1 if degerleme.get("agirHasar") else 0, dusuk_fiyat)
     riskler.append("Boya, değişen ve tramer bilgileri ilan/müşteri beyanına dayanıyor; uzman tarafından doğrulanmadı.")
 
     gerekceler: List[str] = []
@@ -205,6 +221,9 @@ def decision_summary(
     elif buyuk_fark:
         adim = (f"Önce satıcıya farkın nedenini sorun (kasa/model yılı, motor gücü, donanım, garanti). "
                 f"Açıklanamıyorsa {_tl(recommended)} civarına pazarlık edin; her durumda aracı yerinde inceletin.")
+    elif dusuk_fiyat:
+        adim = ("Fiyat piyasanın altında. Önce satıcıya fiyatın neden düşük olduğunu sorun; ödeme ya da kapora "
+                "göndermeden önce aracı yerinde inceletin.")
     elif karar == "AL":
         adim = "Fiyat uygun görünüyor. Ödeme yapmadan önce aracı yerinde inceletin."
     elif karar == "PAZARLIK YAP":
@@ -657,7 +676,7 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
                 "kasa": ((reference.get("scope") or {}).get("generation") or {}).get("kasa"),
                 "ayniYilSayisi": reference.get("same_year_count"),
             } if (reference.get("scope") or {}).get("normalized") else None),
-            "uyarilar": [f["mesaj"] for f in flags if f.get("mesaj") and f.get("kod") != "az_emsal"],
+            "uyarilar": [_uyari_metni(f, package) for f in flags if f.get("mesaj") and f.get("kod") != "az_emsal"],
             "guncelGun": reference.get("recent_days"),
         },
         "degerleme": {
@@ -696,6 +715,19 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
         reference=reference, kalemler=degerleme.get("kalemler") or [],
         confidence_level=summary["karar"]["guvenSeviyesi"], vehicle_title=f"{year} {brand} {model}",
     )
+    # Tavsiye alım fiyatı = pazarlık hedefi. Eskiden ilan piyasanın altındayken tavsiye ilan fiyatının
+    # üstünde kalıyordu (Cupra: ilan 2.265.000, tavsiye 2.275.000); özet metinleri de aynı rakamla yeniden yazılır.
+    hedef = result["pazarlikPlani"].get("hedefFiyat")
+    if hedef and float(hedef) < recommended:
+        recommended = float(hedef)
+        result["degerleme"]["tavsiyeFiyat"] = int(hedef)
+        summary = decision_summary(
+            price=float(price), degerleme=degerleme, recommended=recommended, verdict_key=verdict_key,
+            karar=karar, karar_aciklama=karar_aciklama, confidence=int(confidence), flags=flags,
+            reference=reference, from_saved_listing=bool(listing),
+        )
+        result["karar"].update(summary["karar"])
+        result["ozet"] = summary["ozet"]
     # Özet ile pazarlık planı aynı gerekçeleri gösterir. İlan piyasanın altındayken "benzer ilanların
     # ortası daha yüksek" bilgisi satıcının işine yarar; plan bunu gerekçe saymaz (Cupra Formentor denemesi).
     result["ozet"]["pazarlikGerekceleri"] = result["pazarlikPlani"]["gerekceler"][:3]
@@ -707,8 +739,13 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
     result["modelRiskleri"] = {
         "riskler": risks.get("riskler") or [],
         "bulunamadi": not risks["riskler"],
-        "mesaj": ("Model araştırması bu sefer tamamlanamadı; bakım ve sorular genel kurallarla hazırlandı."
+        "mesaj": ("Bu raporda bilinen teknik sorun araştırması tamamlanamadı; aşağıdaki kullanıcı şikâyetlerine "
+                  "ve bakım kontrollerine bakın. Bakım ve sorular genel kurallarla hazırlandı."
                   if risks.get("hata") else
+                  # Şikâyet varken "bilinen sorun bulunamadı" demek çelişkili görünüyordu (Cupra: DSG şikâyeti yüksek).
+                  "Üretici veya servis kaynağıyla doğrulanmış teknik sorun bulunamadı; kullanıcıların bildirdiği "
+                  "şikâyetler aşağıda ayrıca listelendi."
+                  if not risks.get("riskler") and result["kullaniciSikayetleri"] else
                   "Bu model/motor için kaynağı doğrulanmış bilinen sorun bulunamadı."
                   if not risks.get("riskler") else None),
     }

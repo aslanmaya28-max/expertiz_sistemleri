@@ -26,6 +26,30 @@ def _tl(value: Optional[float]) -> str:
     return f"{int(round(value)):,} TL".replace(",", ".")
 
 
+# Ilan benzer ilan ortalamasinin bu oranda altindaysa uyari sertlesir (gizli kusur / kapora dolandiriciligi).
+DUSUK_FIYAT_SERT_YUZDE = 10.0
+
+
+def dusuk_fiyat_uyarisi(price: float, reference: Dict[str, Any]) -> Optional[str]:
+    """Ilan benzer ilanlarin ortalamasinin altindaysa: satici bir kusuru belirtmemis olabilir (kullanici karari)."""
+    ortalama = reference.get("market_avg_price") or reference.get("market_median_price")
+    try:
+        ortalama, price = float(ortalama or 0), float(price or 0)
+    except (TypeError, ValueError):
+        return None
+    if ortalama <= 0 or price <= 0 or price >= ortalama:
+        return None
+    yuzde = (1 - price / ortalama) * 100
+    oran = f"%{yuzde:.1f}".replace(".", ",")
+    if yuzde >= DUSUK_FIYAT_SERT_YUZDE:
+        return (f"İlan fiyatı benzer ilanların ortalamasının {oran} altında. Bu kadar düşük fiyat; gizlenmiş bir hasara, "
+                "arızaya, ağır hasar kaydına ya da ilan dolandırıcılığına işaret edebilir. Satıcıyla konuşup fiyatın neden "
+                "düşük olduğunu öğrenin, aracı görmeden kesinlikle kapora göndermeyin ve satın almadan önce aracı yerinde inceletin.")
+    return (f"İlan fiyatı benzer ilanların ortalamasının {oran} altında. Bu bir fırsat olabilir, ama satıcı araçtaki bir "
+            "kusuru (hasar, arıza, yaklaşan bakım) belirtmemiş olabilir. Satıcıyla konuşup fiyatın neden düşük olduğunu "
+            "öğrenin ya da satın almadan önce aracı yerinde inceletin.")
+
+
 def _evidence(reference: Dict[str, Any], price: float, year: Optional[int], limit: int = 3) -> List[Dict[str, Any]]:
     """Pazarlikta saticiya gosterilecek en ucuz benzer ilanlar (yalnizca kaynak linki olanlar).
 
@@ -153,6 +177,9 @@ def build_plan(
         not_ = ("İlan fiyatı benzer ilanların belirgin şekilde üstünde. Fark yeni kasa, motor gücü, donanım veya "
                 "garantiden kaynaklanıyor olabilir; teklif vermeden önce satıcıdan nedenini isteyin.")
         uyari = f"{uyari} {not_}" if uyari else not_
+    dusuk = dusuk_fiyat_uyarisi(price, reference)
+    if dusuk:
+        uyari = f"{dusuk} {uyari}" if uyari else dusuk
 
     return {
         "durum": durum,

@@ -963,13 +963,20 @@ def _summary(r: Dict[str, Any], f: InspectionFindings) -> str:
         text = "Ekspertizde kaporta işlemi tespit edilmedi"
     text += f"; bulguların toplam değer kaybı {_fmt_pct(r['toplamDegerKaybiYuzde'])}."
     if r.get("aiDegeri"):
-        text += (f" Temiz piyasa değeri {_fmt_tl(r['temizPiyasaDegeri'])} üzerinden bulgular düşülerek "
-                 f"aracın değeri {_fmt_tl(r['aiDegeri'])} olarak belirlendi"
-                 f" (adil aralık {_fmt_tl(r['adilFiyatAraligi']['min'])} – {_fmt_tl(r['adilFiyatAraligi']['max'])}).")
+        aralik = f" (adil aralık {_fmt_tl(r['adilFiyatAraligi']['min'])} – {_fmt_tl(r['adilFiyatAraligi']['max'])})."
+        if r.get("toplamDegerKaybiTutar"):
+            text += (f" Temiz piyasa değeri {_fmt_tl(r['temizPiyasaDegeri'])} üzerinden bulgular düşülerek "
+                     f"aracın değeri {_fmt_tl(r['aiDegeri'])} olarak belirlendi" + aralik)
+        else:
+            # Değer kaybı yokken "düşülerek" yazılmaz; yuvarlanmış değer temiz değerden büyük görünüp çelişiyordu.
+            text += (f" Değer kaybı olmadığı için aracın değeri temiz piyasa değeri olan yaklaşık "
+                     f"{_fmt_tl(r['aiDegeri'])} kabul edildi" + aralik)
         yorum = r.get("fiyatYorumu")
         if yorum:
-            text += (f" İlan fiyatı {_fmt_tl(r['ilanFiyati'])} ({_fmt_pct(yorum['farkYuzde'], signed=True)}): "
-                     f"{yorum['aciklama']}.")
+            fark = yorum.get("farkYuzde") or 0
+            konum = ("hesaplanan değerle aynı" if abs(fark) < 0.05 else
+                     f"hesaplanan değerin {_fmt_pct(abs(fark))} {'altında' if fark < 0 else 'üstünde'}")
+            text += f" İlan fiyatı {_fmt_tl(r['ilanFiyati'])}, {konum}: {yorum['aciklama']}."
     else:
         text += " Yeterli piyasa verisi olmadığından TL değeri hesaplanamadı."
     if r["agirHasar"]:

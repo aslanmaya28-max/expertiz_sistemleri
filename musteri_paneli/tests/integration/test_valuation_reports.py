@@ -193,3 +193,23 @@ def test_waiting_request_locks_do_not_exhaust_business_pool(client, scenario, mo
     finally:
         db.DatabaseConfig.return_connection(occupied)
         small_pool.closeall()
+
+
+def test_sunucu_acilisindaki_sema_kontrolu_suren_degerlemeyi_kilitlemez(client, scenario):
+    """Render yeni sürümü yayınlarken eski sunucu rapor hazırlıyor olabilir. Yeni sunucunun açılış şema
+    kontrolü, request_guard'ın açık işlemini beklemeye girip arkasındaki rapor sorgularını da kilitliyordu
+    (02.11.2026 yerel denemede değerleme 5 dk takıldı). Şema zaten hazırsa kontrol hiç kilit almamalı."""
+    import time
+    from yerimebak_ai_v5.core.database_config import DatabaseConfig
+    from yerimebak_ai_v5.services.valuation_reports import ensure_schema, request_guard
+
+    uid = scenario[0]
+    with request_guard(uid, str(uuid.uuid4())):
+        conn = DatabaseConfig.get_connection()
+        try:
+            start = time.monotonic()
+            ensure_schema(conn.cursor())
+            conn.commit()
+            assert time.monotonic() - start < 5
+        finally:
+            DatabaseConfig.return_connection(conn)

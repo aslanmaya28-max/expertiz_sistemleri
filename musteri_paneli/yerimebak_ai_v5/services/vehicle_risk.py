@@ -571,6 +571,8 @@ def get_model_risks(vehicle) -> dict:
     finally:
         client.close()  # süren istekleri keser
         pool.shutdown(wait=False, cancel_futures=True)
+    # Risk araması düştüyse "bilinen sorun bulunamadı" denmez: bulunamamak ile aranamamak farklıdır.
+    result["hata"] = not risks_ok
     if not risks_ok and not complaints_ok:
         return result
     try:
@@ -618,6 +620,40 @@ def _risk_items(risks):
 
 GENEL_BAKIM_KONTROLU = "Tarih, kilometre ve servis faturalarını karşılaştırın."
 
+# Genel bakım maddelerinin kendi açıklaması ve kontrolü (eskiden dört maddede aynı kalıp cümle vardı).
+# Üreticiye özel periyot yazılmaz; müşteriye neyi soracağı ve neye bakacağı söylenir.
+BAKIM_REHBERI = {
+    "Fren ve lastik kontrolü": (
+        "Balata ve disklerin aşınmasını, lastiklerin diş derinliğini ve yaşını sorun; {km} km'de fren balatası "
+        "en az bir kez değişmiş olabilir.",
+        "Lastik yanağındaki DOT kodunun son dört hanesi üretim haftası ve yılıdır; dört lastiğin yaşına ve diş derinliğine bakın."),
+    "Periyodik bakım kayıtları": (
+        "{km} km ve {age} yaşındaki araçta bakımların düzenli aralıklarla yapıldığını gösteren kayıtları isteyin; "
+        "kayıtlar arasında uzun boşluk olmamalı.",
+        "Servis kayıtlarını tarih sırasıyla dizin; kilometre her kayıtta artmalı, geriye gitmemeli."),
+    "Akü kontrolü": (
+        "{age} yaşındaki araçta akünün değişip değişmediğini sorun; marş zorluğu ve start-stop uyarıları akü "
+        "yorgunluğuna işaret edebilir.",
+        "Akü üzerindeki üretim tarihine ve servis kaydına bakın."),
+    "Triger / zincir bakım geçmişi": (
+        "Motorun triger kayışı mı zincir mi kullandığını ve üreticinin değişim aralığını yetkili servise sorun. "
+        "Değişim zamanı geldiyse maliyetini pazarlıkta dikkate alın.",
+        "Faturada triger seti ya da zincir değişimi ve yapıldığı kilometre yazıyor mu, kontrol edin."),
+    "Şanzıman yağı ve filtre geçmişi": (
+        "{km} km'de şanzıman yağı ve filtresinin değişip değişmediğini sorun; değişim aralığı şanzıman tipine ve "
+        "üreticiye göre farklıdır.",
+        "Test sürüşünde vites geçişlerinde vuruntu, gecikme ya da kaçırma olup olmadığına dikkat edin."),
+    "Turbo ve enjektör kontrolü": (
+        "{km} km'nin üzerindeki araçta turbo ve enjektörlerle ilgili onarım geçmişini sorun.",
+        "Hızlanmada ıslık sesi, güç kaybı ya da egzozdan mavi veya siyah duman olup olmadığına bakın."),
+    "Debriyaj / çift kütleli volan kontrolü": (
+        "Debriyaj setinin değişip değişmediğini sorun.",
+        "Rölantide titreşim ya da tıkırtı ve kalkışta debriyajın kaçırması olup olmadığına dikkat edin."),
+    "DPF / EGR kontrolü": (
+        "Dizel araçta partikül filtresi (DPF) ve EGR temizliği ya da değişimi yapılıp yapılmadığını sorun.",
+        "Gösterge panelinde DPF uyarısı ve şehir içi kullanımda güç kaybı olup olmadığına bakın."),
+}
+
 
 def upcoming_maintenance(vehicle, risks) -> list:
     """Genel kontrol eşikleri üretici değişim periyodu değildir; geçmişi sorgular."""
@@ -651,11 +687,30 @@ def upcoming_maintenance(vehicle, risks) -> list:
         if keys & seen:
             continue
         seen.update(keys)
-        output.append({**entry, "baslik": title,
-                       "aciklama": f"{title}: {km:,} km ve {age} yaşındaki araçta son yapıldığı tarih ve kilometreyi doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.".replace(",", "."),
-                       "kontrol": entry.get("kontrol") or GENEL_BAKIM_KONTROLU})
+        rehber = BAKIM_REHBERI.get(title)
+        km_text = f"{km:,}".replace(",", ".")
+        if rehber:
+            aciklama, kontrol = rehber[0].format(km=km_text, age=age), rehber[1]
+        else:
+            # Modelin kendi risk başlığı: kaynaklı açıklaması korunur.
+            aciklama = entry.get("aciklama") or (f"{title}: {km_text} km ve {age} yaşındaki araçta son yapıldığı "
+                                                 "tarih ve kilometreyi doğrulayın.")
+            kontrol = entry.get("kontrol") or GENEL_BAKIM_KONTROLU
+        output.append({**entry, "baslik": title, "aciklama": aciklama, "kontrol": kontrol})
     return output
 
+
+# Genel bakım maddelerinden doğal satıcı soruları. Periyodik bakım zaten ilk sorularda (faturalar) var: tekrar sorulmaz.
+BAKIM_SORUSU = {
+    "Fren ve lastik kontrolü": "Fren balataları ve lastikler en son ne zaman değişti?",
+    "Periyodik bakım kayıtları": None,
+    "Akü kontrolü": "Akü en son ne zaman değişti?",
+    "Triger / zincir bakım geçmişi": "Triger seti veya zincir en son kaç km'de kontrol edildi/değişti? Faturası var mı?",
+    "Şanzıman yağı ve filtre geçmişi": "Şanzıman yağı ve filtresi en son kaç km'de değişti? Faturası var mı?",
+    "Turbo ve enjektör kontrolü": "Turbo ya da enjektörlerle ilgili bir onarım yapıldı mı?",
+    "Debriyaj / çift kütleli volan kontrolü": "Debriyaj seti en son kaç km'de değişti?",
+    "DPF / EGR kontrolü": "DPF ve EGR temizliği ya da değişimi yapıldı mı?",
+}
 
 def seller_questions(vehicle, risks, findings) -> list:
     """Risk, bakım ve beyanlardan tekrarsız 6–10 satıcı sorusu."""
@@ -675,11 +730,14 @@ def seller_questions(vehicle, risks, findings) -> list:
         if topics <= seen:
             continue
         seen.update(topics)
-        if "triger" in topics or "zincir" in topics:
+        if title in BAKIM_SORUSU:
+            question = BAKIM_SORUSU[title]
+        elif "triger" in topics or "zincir" in topics:
             question = "Triger seti veya zincir en son kaç km'de kontrol edildi/değişti? Faturası var mı?"
         else:
             question = f"{title} için son kontrol/bakım hangi tarih ve kilometrede yapıldı? Faturası var mı?"
-        questions.append(question)
+        if question:
+            questions.append(question)
         if len(questions) >= 9:
             break
     for question in ["Aracı soğuk motorla çalıştırıp test sürüşü yapabilir miyiz?",
