@@ -318,3 +318,25 @@ def test_her_tur_yapilandirilmis_sorgu_sayisini_korur(monkeypatch, searches):
     ref = wmr.get_reference(ARONA, search=lambda q: calls.append(q) or _arama(STYLE))
     assert len(calls) == searches * 2 and ref["count"] == 3
     assert "sahibinden.com ilanlarını verme" in wmr._PROMPT
+
+
+
+def test_takilan_arama_tur_suresinde_kesilir(monkeypatch):
+    """Ölçüm: bir sorgu 590 sn sürdü. Tur kesin süre sınırıyla biter, bitenlerle devam edilir."""
+    import time as _time
+    from yerimebak_ai_v5.services import web_market_reference as w
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-fake")
+    monkeypatch.setenv("WEB_PRICE_CACHE_HOURS", "0")
+    monkeypatch.setenv("WEB_ROUND_SECONDS", "1")
+    calls = []
+
+    def fake(query, client, **kw):
+        calls.append(query)
+        if len(calls) == 1:
+            _time.sleep(3)  # takılan arama
+        return {"listings": [], "sources": {}, "cost": .01}
+
+    monkeypatch.setattr(w, "_search", fake)
+    start = _time.monotonic()
+    w.get_reference({"brand": "Seat", "model": "Arona", "year": 2024, "km": 20000, "listed_price": 1_500_000})
+    assert _time.monotonic() - start < 2.9  # iki tur da ~1 sn'de kapanır, 3 sn beklenmez

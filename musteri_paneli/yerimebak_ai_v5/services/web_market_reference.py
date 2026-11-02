@@ -33,7 +33,7 @@ import re
 import statistics
 import threading
 import unicodedata
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlsplit
@@ -104,6 +104,24 @@ def enabled() -> bool:
 
 def model_name() -> str:
     return (os.getenv("WEB_PRICE_MODEL") or DEFAULT_MODEL).strip()
+
+
+def _llm_limits() -> Dict[str, Any]:
+    """DeepSeek düşünen modeldir; bazı sorgularda düşünmekten çıkamayıp dakikalarca
+    (ölçüm: 590 sn, 0,073 $, 0 ilan) çalışıyordu. Doğruluk kodda denetlendiği için düşünme
+    kapalı; çıktı sınırlı (düşünme kapalıyken aynı sorgu 9,8 sn, 0,008 $, 9 ilan)."""
+    limits: Dict[str, Any] = {"max_tokens": int(os.getenv("WEB_MAX_TOKENS") or 4000)}
+    if (os.getenv("WEB_REASONING") or "off").lower() != "on":
+        limits["reasoning"] = {"enabled": False}
+    return limits
+
+
+def _round_seconds() -> float:
+    """Bir arama turunun kesin üst sınırı; aşan arama kesilir, bitenlerle devam edilir."""
+    try:
+        return max(1.0, float(os.getenv("WEB_ROUND_SECONDS") or 75))
+    except ValueError:
+        return 75.0
 
 
 def _search_count() -> int:
@@ -261,6 +279,7 @@ def _search(query: str, client: httpx.Client, *, prompt: Optional[str] = None, w
         "temperature": 0,
         "messages": [{"role": "user", "content": prompt if prompt is not None else _PROMPT.format(arac=query)}],
         "usage": {"include": True},
+        **_llm_limits(),
     }
     if web:
         body["plugins"] = [{"id": "web", "max_results": 10}]
@@ -463,14 +482,24 @@ def get_reference(vehicle: Dict[str, Any], search: Optional[Callable[[str], Dict
         if search is not None:
             return [search(q) for q in qs]
         results = []
-        with httpx.Client(timeout=90.0) as client:
-            with ThreadPoolExecutor(len(qs)) as pool:
-                futures = [pool.submit(_search, q, client) for q in qs]
-                for fut in futures:
-                    try:
-                        results.append(fut.result())
-                    except Exception as exc:
-                        logger.warning("[WEB FIYAT] Arama basarisiz: %s", str(exc)[:200])
+        # httpx zaman aşımı "veri gelmezse" sınırıdır; OpenRouter bekleme boşlukları
+        # gönderdiği için toplam süreyi sınırlamaz. Tur için kesin süre burada uygulanır.
+        client = httpx.Client(timeout=90.0)
+        pool = ThreadPoolExecutor(len(qs))
+        try:
+            futures = [pool.submit(_search, q, client) for q in qs]
+            done, _pending = wait(futures, timeout=_round_seconds())
+            for fut in futures:
+                if fut not in done:
+                    logger.warning("[WEB FIYAT] Arama %.0f sn icinde bitmedi, atlandi", _round_seconds())
+                    continue
+                try:
+                    results.append(fut.result())
+                except Exception as exc:
+                    logger.warning("[WEB FIYAT] Arama basarisiz: %s", str(exc)[:200])
+        finally:
+            client.close()  # süren istekleri keser
+            pool.shutdown(wait=False, cancel_futures=True)
         return results
 
     results = run_round()

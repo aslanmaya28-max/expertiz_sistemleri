@@ -8,4 +8,4 @@ def _sikayet_aramasi_kapali(monkeypatch):
     # araması varsayılan olarak boş döner. Bu davranışı sınayan testler kendi sahtesini kurar.
     from yerimebak_ai_v5.services import vehicle_risk
     monkeypatch.setattr(vehicle_risk, "_search_complaints",
-                        lambda query, client: {"complaints": [], "sources": {}, "cost": 0})
+                        lambda query, client: {"complaints": [], "cited": {}, "cost": 0})

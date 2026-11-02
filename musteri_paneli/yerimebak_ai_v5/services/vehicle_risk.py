@@ -10,12 +10,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import datetime
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 import httpx
 
@@ -24,6 +25,8 @@ from yerimebak_ai_v5.services.web_market_reference import fold, _displacements
 
 
 # İlk değer, çıktı ve tekilleştirme anahtarıdır. Eş anlamlılar kaynakta aranır.
+logger = logging.getLogger(__name__)
+
 _TOPICS = {
     "triger": ("triger", "timing belt"),
     "zincir": ("zincir", "timing chain"),
@@ -59,6 +62,10 @@ _TOPICS = {
     "kaplama": ("kaplama", "döşeme", "boya soyulması"),
     "kasa": ("kapı hizası", "bagaj hizası", "kapı/bagaj hizası", "şasi", "paslan", "paslı", "pas"),
     "geri_cagirma": ("geri çağırma", "recall", "servis bülteni", "service bulletin"),
+    # Kullanıcı şikâyetlerinde sık geçen belirtiler (Sonar araması, 02.11.2026)
+    "ariza_lambasi": ("arıza lambası", "arıza ışığı", "check engine"),
+    "guc_kaybi": ("güç düşmesi", "güç kaybı", "çekiş kaybı", "nefes kesilmesi", "limp mode"),
+    "titreme": ("titreme", "sarsıntı", "vibration"),
 }
 _OFFICIAL = {
     "seat": ("seat.com", "seat.com.tr"), "volkswagen": ("volkswagen.com", "volkswagen.com.tr"),
@@ -138,7 +145,7 @@ def _cache_key(vehicle):
               ("brand", "model", "engine", "package", "fuel", "transmission")]
     values.append((wmr._int(vehicle.get("year")) or 0) // 5)
     # v4: ayrı Türkçe şikâyet araması eklendi; v3 kayıtlarında şikâyet adayı yok
-    return "vehicle-risk:v4:" + hashlib.sha256(json.dumps(values).encode()).hexdigest()
+    return "vehicle-risk:v5:" + hashlib.sha256(json.dumps(values).encode()).hexdigest()
 
 
 def _search(query, client):
@@ -146,7 +153,7 @@ def _search(query, client):
     body = {"model": wmr.model_name(), "temperature": 0,
             "plugins": [{"id": "web", "max_results": 10}],
             "messages": [{"role": "user", "content": _PROMPT.format(vehicle=query)}],
-            "usage": {"include": True}}
+            "usage": {"include": True}, **wmr._llm_limits()}
     provider = (os.getenv("WEB_PRICE_PROVIDER") or "").strip()
     if provider:
         body["provider"] = {"only": [provider], "allow_fallbacks": False}
@@ -348,29 +355,92 @@ def _verified_items(items, sources, vehicle):
 
 def _search_complaints(query, client):
     """Türkçe forum/şikâyet sitelerini hedefleyen ikinci arama (risk aramasıyla aynı anda)."""
-    body = {"model": wmr.model_name(), "temperature": 0,
-            "plugins": [{"id": "web", "max_results": 10}],
+    # Ölçüm (Tucson): DeepSeek+web eklentisi Türkçe forum getirmedi; Perplexity Sonar
+    # şikayetvar, donanimhaber, araclo, forumarac sayfalarını 6 sn'de, 0,006 $'a buldu.
+    body = {"model": _complaint_model(), "temperature": 0, "max_tokens": 2500,
             "messages": [{"role": "user", "content": _COMPLAINT_PROMPT.format(vehicle=query)}],
             "usage": {"include": True}}
-    provider = (os.getenv("WEB_PRICE_PROVIDER") or "").strip()
-    if provider:
-        body["provider"] = {"only": [provider], "allow_fallbacks": False}
     response = client.post(wmr._URL, headers={"Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}"}, json=body)
     response.raise_for_status()
     data = response.json()
     message = (data.get("choices") or [{}])[0].get("message") or {}
-    sources = {}
+    # Sonar sayfa metni döndürmez; yalnız gerçekten dönen linkler ve başlıkları tutulur.
+    cited = {}
     for annotation in message.get("annotations") or []:
         citation = annotation.get("url_citation") or {}
         if citation.get("url"):
-            sources[citation["url"].rstrip("/")] = citation.get("content") or ""
+            cited[citation["url"].rstrip("/")] = str(citation.get("title") or "")
     match = re.search(r"\{.*\}", message.get("content") or "", re.DOTALL)
     if not match:
         raise ValueError("Şikâyet aramasında JSON yok")
     parsed = json.loads(match.group())
     complaints = parsed.get("kullaniciSikayetleri") if isinstance(parsed, dict) else None
-    return {"complaints": complaints if isinstance(complaints, list) else [], "sources": sources,
+    return {"complaints": complaints if isinstance(complaints, list) else [], "cited": cited,
             "cost": (data.get("usage") or {}).get("cost") or 0}
+
+
+def _search_seconds():
+    """Model ve şikâyet aramalarının birlikte kesin üst sınırı (saniye)."""
+    try:
+        return max(1.0, float(os.getenv("WEB_RISK_SECONDS") or 60))
+    except ValueError:
+        return 60.0
+
+
+def _complaint_model():
+    return (os.getenv("WEB_COMPLAINT_MODEL") or "perplexity/sonar").strip()
+
+
+def _tokens(text):
+    return re.findall(r"[a-z0-9]+", fold(text))
+
+
+def _verified_cited_complaints(items, cited, vehicle):
+    """Sonar şikâyetleri: link aramada gerçekten dönmüş olmalı, linkte/başlıkta model adı
+    geçmeli, en az 2 farklı kök alan adı. Sayfa metni olmadığından kullanıcı beyanıdır."""
+    model_tokens = _tokens(vehicle.get("model"))
+    if not model_tokens:
+        return []
+    output = []
+    for item in items or []:
+        if not isinstance(item, dict) or not isinstance(item.get("baslik"), str) or not item["baslik"].strip():
+            continue
+        details = " ".join(str(item.get(k) or "") for k in ("baslik", "aciklama"))
+        if _fuel_incompatible(details, vehicle):
+            continue
+        urls = []
+        for url in item.get("kaynaklar") or []:
+            if not isinstance(url, str) or urlsplit(url).scheme not in ("https", "http"):
+                continue
+            url = url.rstrip("/")
+            if url not in cited or _domain(urlsplit(url).hostname or "", _BLOCKED):
+                continue
+            hay = set(_tokens(unquote(urlsplit(url).path) + " " + cited[url]))
+            if all(token in hay for token in model_tokens) and url not in urls:
+                urls.append(url)
+        count = len({_root_domain(url) for url in urls})
+        if count < 2:
+            continue
+        topics = _topics(item["baslik"])
+        category, severity = _classification(item, topics, None)
+        output.append({"baslik": item["baslik"].strip(), "aciklama": str(item.get("aciklama") or ""),
+                       "kaynaklar": urls, "kategori": category, "onem": severity, "kaynakSayisi": count})
+    return output
+
+
+def _merge_complaints(*lists):
+    """Aynı konu tek madde; kaynaklar birleşir, kaynak sayısı yeniden hesaplanır; en fazla 5."""
+    merged = {}
+    for entry in (e for group in lists for e in group):
+        topics = _topics(entry["baslik"])
+        key = topics[0] if topics else fold(entry["baslik"])
+        if key in merged:
+            target = merged[key]
+            target["kaynaklar"] += [u for u in entry["kaynaklar"] if u not in target["kaynaklar"]]
+            target["kaynakSayisi"] = len({_root_domain(u) for u in target["kaynaklar"]})
+        else:
+            merged[key] = dict(entry, kaynaklar=list(entry["kaynaklar"]))
+    return sorted(merged.values(), key=lambda e: e["kaynakSayisi"], reverse=True)[:5]
 
 
 def _root_domain(url):
@@ -423,44 +493,64 @@ def get_model_risks(vehicle) -> dict:
             # yeniden değerlendirilmesini de sağlar; yeniden arama yapılmaz.
             candidates = cached.pop("_candidates", [])
             complaints = cached.pop("_complaint_candidates", [])
+            cited_complaints = cached.pop("_cited_complaints", [])
+            cited = cached.pop("_cited", {})
             sources = cached.pop("_sources", {})
             cached["riskler"] = _verified_items(candidates, sources, vehicle)
-            cached["kullaniciSikayetleri"] = _verified_complaints(complaints, sources, vehicle)
+            cached["kullaniciSikayetleri"] = _merge_complaints(
+                _verified_complaints(complaints, sources, vehicle),
+                _verified_cited_complaints(cited_complaints, cited, vehicle))
             cached["bulunamadi"] = not bool(cached["riskler"])
             return cached
     errors = (httpx.HTTPError, ValueError, TypeError, KeyError, RuntimeError)
-    complaints_ok = True
+    query = wmr._vehicle_text({**vehicle, "km": None}) + " " + str(vehicle.get("engine") or "")
+    complaint_query = " ".join(str(p) for p in (vehicle.get("brand"), vehicle.get("model"),
+                                                vehicle.get("engine") or vehicle.get("package")) if p)
+    complaint_query += " kronik sorun şikayet"
+    # İki arama bağımsızdır: biri düşer ya da süreyi aşarsa diğerinin sonucu kullanılır.
+    # (Ölçüm: geçici bir risk araması hatası, başarılı şikâyetleri de siliyordu.)
+    client = httpx.Client(timeout=90.0)
+    pool = ThreadPoolExecutor(2)
     try:
-        query = wmr._vehicle_text({**vehicle, "km": None}) + " " + str(vehicle.get("engine") or "")
-        complaint_query = " ".join(str(p) for p in (vehicle.get("brand"), vehicle.get("model"),
-                                                    vehicle.get("engine") or vehicle.get("package")) if p)
-        complaint_query += " kronik sorun şikayet"
-        with httpx.Client(timeout=90.0) as client, ThreadPoolExecutor(2) as pool:
-            risk_future = pool.submit(_search, query, client)
-            complaint_future = pool.submit(_search_complaints, complaint_query, client)
-            found = risk_future.result()
+        risk_future = pool.submit(_search, query, client)
+        complaint_future = pool.submit(_search_complaints, complaint_query, client)
+        done, _pending = wait([risk_future, complaint_future], timeout=_search_seconds())
+
+        def take(future, label, empty):
+            if future not in done:
+                logger.warning("[MODEL RISK] %s araması %.0f sn içinde bitmedi", label, _search_seconds())
+                return empty, False
             try:
-                extra = complaint_future.result()
-            except errors:
-                # Şikâyet araması düşerse rapor ve doğrulanmış riskler yine verilir.
-                complaints_ok = False
-                extra = {"complaints": [], "sources": {}, "cost": 0}
-        # Şikâyetler iki aramanın kaynaklarıyla birlikte doğrulanır (2 farklı alan adı kuralı aynen).
-        found = {**found, "complaints": (found.get("complaints") or []) + (extra.get("complaints") or []),
-                 "sources": {**(extra.get("sources") or {}), **(found.get("sources") or {})},
-                 "cost": float(found.get("cost") or 0) + float(extra.get("cost") or 0)}
-        result["scope"].update(searches=2, cost_usd=found["cost"])
+                return future.result(), True
+            except errors as exc:
+                logger.warning("[MODEL RISK] %s araması başarısız: %s", label, str(exc)[:200])
+                return empty, False
+
+        found, risks_ok = take(risk_future, "Risk", {"risks": [], "complaints": [], "sources": {}, "cost": 0})
+        extra, complaints_ok = take(complaint_future, "Şikâyet", {"complaints": [], "cited": {}, "cost": 0})
+    finally:
+        client.close()  # süren istekleri keser
+        pool.shutdown(wait=False, cancel_futures=True)
+    if not risks_ok and not complaints_ok:
+        return result
+    try:
+        cost = float(found.get("cost") or 0) + float(extra.get("cost") or 0)
+        result["scope"].update(searches=2, cost_usd=cost, complaint_model=_complaint_model())
         result["riskler"] = _verified_items(found.get("risks") or [], found.get("sources") or {}, vehicle)
-        result["kullaniciSikayetleri"] = _verified_complaints(
-            found.get("complaints") or [], found.get("sources") or {}, vehicle)
+        result["kullaniciSikayetleri"] = _merge_complaints(
+            _verified_complaints(found.get("complaints") or [], found.get("sources") or {}, vehicle),
+            _verified_cited_complaints(extra.get("complaints") or [], extra.get("cited") or {}, vehicle))
         result["bulunamadi"] = not bool(result["riskler"])
-    except errors:
+    except errors as exc:
+        logger.warning("[MODEL RISK] Sonuç işlenemedi: %s", str(exc)[:200])
         return result
     # Başarıyla tamamlanan boş sonuç da aynı modelde yeniden arama maliyetini önler.
-    # İstemci/ayrıştırma hataları yukarıda döner ve önbelleğe girmez.
-    if days and complaints_ok:  # şikâyet araması düştüyse 30 gün boş şikâyetle kalınmasın
+    # Aramalardan biri düştüyse önbelleğe yazılmaz (30 gün eksik sonuçla kalınmasın).
+    if days and risks_ok and complaints_ok:
         wmr._cache_write(key, {**result, "_candidates": found.get("risks") or [],
                                "_complaint_candidates": found.get("complaints") or [],
+                               "_cited_complaints": extra.get("complaints") or [],
+                               "_cited": extra.get("cited") or {},
                                "_sources": found.get("sources") or {}})
     return result
 

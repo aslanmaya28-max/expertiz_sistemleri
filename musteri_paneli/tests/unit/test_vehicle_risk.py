@@ -392,7 +392,7 @@ def test_ayri_turkce_sikayet_aramasi_birlestirilir(monkeypatch):
         asked.append(query)
         return {"complaints": [{"baslik": "DSG şanzıman titremesi", "aciklama": "Kalkışta titreme bildiriliyor.",
                                 "kaynaklar": forum}],
-                "sources": {u: "Seat Arona 1.0 TSI DSG şanzıman titreme şikayeti" for u in forum}, "cost": .007}
+                "cited": {u: "Seat Arona DSG şanzıman titreme şikayeti" for u in forum}, "cost": .007}
 
     monkeypatch.setattr(vr, "_search_complaints", complaints)
     result = vr.get_model_risks(VEHICLE)
@@ -417,3 +417,90 @@ def test_sikayet_aramasi_dusse_de_riskler_gelir_ve_onbellege_yazilmaz(monkeypatc
     result = vr.get_model_risks(VEHICLE)
     assert result["riskler"] and result["kullaniciSikayetleri"] == []
     assert written == []  # 30 gün boyunca boş şikâyetle kalınmasın
+
+
+
+def _cited_search(monkeypatch, complaints, cited):
+    search(monkeypatch, [])
+    monkeypatch.setattr(vr, "_search_complaints",
+                        lambda query, client: {"complaints": complaints, "cited": cited, "cost": .006})
+
+
+def test_sonar_sikayeti_link_ve_model_dogrulamasi(monkeypatch):
+    """Sonar sayfa metni vermez: link aramada dönmüş, linkte/başlıkta model adı geçmeli, 2 alan adı."""
+    sv = "https://www.sikayetvar.com/seat/arona/dsg-titreme"
+    dh = "https://forum.donanimhaber.com/seat-arona-sanziman-sarsinti"
+    genel = "https://www.sikayetvar.com/seat/sanziman"            # modelsiz genel sayfa
+    uydurma = "https://www.technopat.net/sosyal/arona-dsg"        # aramada dönmemiş
+    yasak = "https://kronikmotor.com/seat/arona"
+    _cited_search(monkeypatch, [
+        {"baslik": "DSG şanzıman titremesi", "aciklama": "Kalkışta titreme.", "kaynaklar": [sv, dh, genel, uydurma]},
+        {"baslik": "Turbo sesi", "kaynaklar": [sv, genel]},                     # tek geçerli alan adı
+        {"baslik": "AdBlue arızası", "kaynaklar": [sv, dh]},                    # benzinliye aykırı
+        {"baslik": "Multimedya donması", "kaynaklar": [yasak, dh, sv]},
+    ], {sv: "Seat Arona DSG titreme", dh: "Arona şanzıman sarsıntı", genel: "Seat şanzıman", yasak: "Arona"})
+    result = vr.get_model_risks(VEHICLE)
+    by = {c["baslik"]: c for c in result["kullaniciSikayetleri"]}
+    assert set(by) == {"DSG şanzıman titremesi", "Multimedya donması"}
+    assert by["DSG şanzıman titremesi"]["kaynaklar"] == [sv, dh] and by["DSG şanzıman titremesi"]["kaynakSayisi"] == 2
+    assert yasak not in by["Multimedya donması"]["kaynaklar"]
+    assert by["DSG şanzıman titremesi"]["onem"] == "yuksek" and by["Multimedya donması"]["kategori"] == "elektronik"
+
+
+def test_sonar_ve_risk_aramasi_sikayetleri_ayni_konuda_birlesir(monkeypatch):
+    urls = ["https://first.com/arona-turbo", "https://second.com/arona-turbo"]
+    complaint_search(monkeypatch, [{"baslik": "Turbo", "kaynaklar": urls}],
+                     {u: "Seat Arona 1.0 TSI DSG turbo yorumu." for u in urls})
+    sv = "https://www.sikayetvar.com/seat/arona/turbo"
+    monkeypatch.setattr(vr, "_search_complaints", lambda q, c: {
+        "complaints": [{"baslik": "Turbo basınç kaybı", "kaynaklar": [sv, urls[0]]}],
+        "cited": {sv: "Arona turbo", urls[0]: "Arona turbo"}, "cost": .006})
+    result = vr.get_model_risks(VEHICLE)
+    assert len(result["kullaniciSikayetleri"]) == 1
+    assert result["kullaniciSikayetleri"][0]["kaynakSayisi"] == 3
+
+
+def test_deepseek_cagrilarinda_dusunme_kapali_ve_cikti_sinirli(monkeypatch):
+    bodies = []
+
+    class Resp:
+        def raise_for_status(self): pass
+        def json(self): return {"choices": [{"message": {"content": '{"riskler": []}'}}], "usage": {"cost": 0}}
+
+    class Client:
+        def post(self, url, headers=None, json=None):
+            bodies.append(json)
+            return Resp()
+
+    vr._search("Seat Arona", Client())
+    assert bodies[0]["reasoning"] == {"enabled": False} and bodies[0]["max_tokens"] == 4000
+    monkeypatch.setenv("WEB_REASONING", "on")
+    vr._search("Seat Arona", Client())
+    assert "reasoning" not in bodies[1]
+
+
+def test_risk_aramasi_dusse_de_sikayetler_kalir(monkeypatch):
+    """Ölçüm (Tucson): geçici risk araması hatası başarılı şikâyetleri de siliyordu."""
+    def fail(query, client):
+        raise ValueError("Arama yanıtında JSON yok")
+    monkeypatch.setattr(vr, "_search", fail)
+    sv, dh = "https://www.sikayetvar.com/seat/arona", "https://forum.donanimhaber.com/seat-arona-titreme"
+    monkeypatch.setattr(vr, "_search_complaints", lambda q, c: {
+        "complaints": [{"baslik": "DSG titreme", "kaynaklar": [sv, dh]}],
+        "cited": {sv: "Arona", dh: "Arona"}, "cost": .006})
+    result = vr.get_model_risks(VEHICLE)
+    assert result["riskler"] == [] and [c["baslik"] for c in result["kullaniciSikayetleri"]] == ["DSG titreme"]
+
+
+def test_takilan_risk_aramasi_sure_sinirinda_kesilir(monkeypatch):
+    import time as _time
+    monkeypatch.setenv("WEB_RISK_SECONDS", "1")
+
+    def slow(query, client):
+        _time.sleep(3)
+        return {"risks": [item()], "sources": {URL: TEXT}, "cost": .01}
+
+    monkeypatch.setattr(vr, "_search", slow)
+    start = _time.monotonic()
+    result = vr.get_model_risks(VEHICLE)
+    assert _time.monotonic() - start < 2.5 and result["riskler"] == []
