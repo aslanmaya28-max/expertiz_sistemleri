@@ -20,6 +20,13 @@ INK = (27, 45, 61)
 MUTED = (88, 105, 121)
 LIGHT = (245, 248, 251)
 RULE = (217, 227, 235)
+ISSUE_GROUPS = (('mekanik_motor', 'Mekanik ve motor'),
+                ('elektronik', 'Elektronik ve sensör'),
+                ('trim_kasa', 'Trim, şasi ve kasa'))
+ISSUE_IMPORTANCE = {'yuksek': ('Yüksek masraf', (163, 42, 42)),
+                    'orta': ('Orta', (164, 91, 17)),
+                    'dusuk': ('Küçük / konfor', MUTED)}
+EXPERT_LINE = 'YerimeBak uzmanı bunu yerinde kontrol eder.'
 
 
 def _money(value):
@@ -184,9 +191,42 @@ def build_pdf(report):
             text(source, size=8, color=MUTED, line_height=4,
                  link=source if source.startswith(('https://', 'http://')) else None)
 
+    expert_line_count = 0
+
+    def issue_label(item):
+        label = ISSUE_IMPORTANCE.get(item.get('onem'))
+        if label:
+            text(label[0], True, 8.5, label[1], line_height=4)
+
+    def expert_line(item):
+        nonlocal expert_line_count
+        if item.get('onem') == 'yuksek' and expert_line_count < 3:
+            text(EXPERT_LINE, size=8.5, color=BRAND)
+            expert_line_count += 1
+
+    def issue_groups(items):
+        # Kısmi/eski kayıtta kategorisiz maddeyi düşürmeden eski görünümü koru.
+        if not items or not all(item.get('kategori') in dict(ISSUE_GROUPS) for item in items):
+            return [(None, items)]
+        return [(label, [item for item in items if item['kategori'] == category])
+                for category, label in ISSUE_GROUPS
+                if any(item['kategori'] == category for item in items)]
+
+    def issue_details(items, render):
+        order = {'yuksek': 0, 'orta': 1, 'dusuk': 2}
+        for label, group in issue_groups(items):
+            if label:
+                ensure(48)
+                text(label, True, 10.5, BRAND)
+                pdf.ln(2)
+                group = sorted(group, key=lambda item: order.get(item.get('onem'), 3))
+            for item in group:
+                render(item)
+
     def risk_details(item):
         ensure(36)
         text(item.get('baslik'), True)
+        issue_label(item)
         text(item.get('aciklama'))
         if item.get('etkiledigi'):
             text('Etkilediği sürümler: '+item['etkiledigi'])
@@ -199,6 +239,17 @@ def build_pdf(report):
         text('Maliyet: '+(f'{_money(cost.get("min"))} - {_money(cost.get("max"))}'
                           if isinstance(cost, dict) else 'kaynakta belirtilmemiş'))
         source_links(item.get('kaynaklar'))
+        expert_line(item)
+        pdf.ln(4)
+
+    def complaint_details(item):
+        ensure(30)
+        text(item.get('baslik'), True)
+        issue_label(item)
+        text(item.get('aciklama'))
+        text(f'{item.get("kaynakSayisi", 0)} farklı kaynakta geçiyor', size=8.5, color=MUTED)
+        source_links(item.get('kaynaklar'))
+        expert_line(item)
         pdf.ln(4)
 
     vehicle = report['arac']
@@ -266,29 +317,31 @@ def build_pdf(report):
         text('Benzer ilanlar tablosuna bakın.', size=8.5, color=MUTED)
         if plan.get('saticiMesaji'):
             panel('Satıcıya mesaj', plan['saticiMesaji'])
+    risks = report.get('modelRiskleri') or {}
+    # Eski kayıtlarda düşük güvenli maddeler olabilir; müşteriye gösterilmez.
+    shown = [r for r in risks.get('riskler') or [] if r.get('guven') in ('yuksek', 'orta')]
+    complaints = report.get('kullaniciSikayetleri') or []
+    critical = [item for item in shown if item.get('onem') == 'yuksek'][:2]
+    critical += sorted((item for item in complaints if item.get('onem') == 'yuksek'),
+                       key=lambda item: item.get('kaynakSayisi') or 0, reverse=True)[:2-len(critical)]
+    if critical:
+        pdf.ln(5)
+        panel('Bu araçta en çok dikkat etmeniz gerekenler',
+              '\n'.join(f'{index}. {item.get("baslik") or "Kontrol başlığı"}'
+                        for index, item in enumerate(critical, 1)),
+              fill=(253, 245, 245), accent=ISSUE_IMPORTANCE['yuksek'][1])
     if 'modelRiskleri' in report:
         heading('Modelin bilinen sorunları')
-        risks = report.get('modelRiskleri') or {}
         text('Bu başlıklar arıza teşhisi değildir; araç sürümü, şasi numarası ve servis kayıtlarıyla doğrulayın.')
-        # Eski kayıtlarda düşük güvenli maddeler olabilir; müşteriye gösterilmez.
-        shown = [r for r in risks.get('riskler') or [] if r.get('guven') in ('yuksek', 'orta')]
-        for item in shown:
-            risk_details(item)
+        issue_details(shown, risk_details)
         if not shown:
             text(risks.get('mesaj') or 'Bu model/motor için kaynağı doğrulanmış bilinen sorun bulunamadı.')
     if 'kullaniciSikayetleri' in report:
         heading('Kullanıcıların en sık şikâyet ettiği konular')
         text('Forum ve kullanıcı yorumlarından derlenmiştir; kullanıcı beyanıdır, arıza teşhisi değildir.')
-        complaints = report.get('kullaniciSikayetleri') or []
         if not complaints:
             text('Birden fazla kaynakta tekrarlanan kullanıcı şikâyeti bulunamadı.')
-        for item in complaints:
-            ensure(30)
-            text(item.get('baslik'), True)
-            text(item.get('aciklama'))
-            text(f'{item.get("kaynakSayisi", 0)} farklı kaynakta geçiyor', size=8.5, color=MUTED)
-            source_links(item.get('kaynaklar'))
-            pdf.ln(4)
+        issue_details(complaints, complaint_details)
     if 'bakim' in report:
         heading('Bu kilometrede doğrulanacak bakımlar')
         # Açıklama her maddede aynı: bir kez yazılır, maddeler kısa liste olur.

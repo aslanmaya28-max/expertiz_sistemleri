@@ -55,7 +55,7 @@ def test_verified_and_turkish(monkeypatch):
     calls = search(monkeypatch, [item()])
     result = vr.get_model_risks(VEHICLE)
     assert len(calls) == 1
-    assert result["riskler"][0] == item()
+    assert result["riskler"][0] == item(kategori="mekanik_motor", onem="yuksek")
     assert not result["bulunamadi"]
     assert result["scope"]["cost_usd"] == .009
 
@@ -181,6 +181,11 @@ def test_search_protocol_without_network(monkeypatch):
             assert json["plugins"][0]["id"] == "web"
             assert "Triger" in json["messages"][0]["content"]
             assert "kullaniciSikayetleri" in json["messages"][0]["content"]
+            prompt = json["messages"][0]["content"]
+            for preferred in ("araclo.com", "sikayetvar.com", "forum.donanimhaber.com", "technopat.net/sosyal", "arabalar.com.tr/blog"):
+                assert preferred in prompt
+            assert "kronikmotor" not in prompt.lower()
+            assert "kategori" in prompt and "onem" in prompt
             return Response()
     assert vr._search("Seat Arona", Client()) == {"risks": [], "complaints": [], "sources": {URL: TEXT}, "cost": .009}
 
@@ -206,7 +211,7 @@ def test_complaints_merge_topics_count_root_domains_and_omit_cost(monkeypatch):
     assert len(calls) == 1 and result["scope"]["searches"] == 1
     assert result["kullaniciSikayetleri"] == [{
         "baslik": "Triger sesi", "aciklama": "Kullanıcılar triger sesinden söz ediyor.",
-        "kaynakSayisi": 2, "kaynaklar": urls}]
+        "kaynakSayisi": 2, "kaynaklar": urls, "kategori": "mekanik_motor", "onem": "yuksek"}]
 
 
 @pytest.mark.parametrize("urls,text,vehicle", [
@@ -230,8 +235,8 @@ def test_complaints_rank_source_counts_and_limit_five(monkeypatch):
         sources.update({url: f"Seat Arona 1.0 TSI DSG {title} şikâyeti" for url in urls})
     complaint_search(monkeypatch, complaints, sources)
     result = vr.get_model_risks(VEHICLE)["kullaniciSikayetleri"]
-    assert [c["baslik"] for c in result] == ["EGR", "DPF", "Volan", "Debriyaj", "Mekatronik"]
-    assert [c["kaynakSayisi"] for c in result] == [8, 7, 6, 5, 4]
+    assert [c["baslik"] for c in result] == ["EGR", "Volan", "Debriyaj", "Mekatronik", "Zincir"]
+    assert [c["kaynakSayisi"] for c in result] == [8, 6, 5, 4, 3]
 
 
 def test_complaints_cached_candidates_reverified_for_current_vehicle(monkeypatch):
@@ -251,3 +256,126 @@ def test_complaints_cached_candidates_reverified_for_current_vehicle(monkeypatch
 def test_complaints_empty_without_api_key(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "")
     assert vr.get_model_risks(VEHICLE)["kullaniciSikayetleri"] == []
+
+
+@pytest.mark.parametrize("host,blocked", [
+    ("kronikmotor.com", True), ("www.kronikmotor.com", True),
+    ("sub.kronikmotor.com.", True), ("kronikmotor.com.example.org", False),
+])
+def test_prohibited_source_domain_boundary(monkeypatch, host, blocked):
+    url = f"https://{host}/arona"
+    search(monkeypatch, [item(kaynaklar=[url])], {url: TEXT})
+    assert bool(vr.get_model_risks(VEHICLE)["riskler"]) is not blocked
+
+
+@pytest.mark.parametrize("host", ["sikayetvar.com", "forum.donanimhaber.com", "technopat.net", "araclo.com"])
+def test_preferred_user_sources_do_not_establish_verified_confidence(monkeypatch, host):
+    url = f"https://{host}/arona"
+    search(monkeypatch, [item(kaynaklar=[url])], {url: TEXT})
+    assert vr.get_model_risks(VEHICLE)["riskler"][0]["guven"] == "dusuk"
+
+
+@pytest.mark.parametrize("title,category,severity", [
+    ("Triger", "mekanik_motor", "yuksek"), ("Sensör arızası", "elektronik", "orta"),
+    ("Far buğusu", "trim_kasa", "dusuk"), ("Multimedya donması", "elektronik", "dusuk"),
+    ("Trim sesi", "trim_kasa", "dusuk"), ("Süspansiyon", "mekanik_motor", "orta"),
+    ("Yakıt pompası", "mekanik_motor", "yuksek"), ("Motor arızası", "mekanik_motor", "yuksek"),
+])
+def test_category_and_severity_fallback_in_both_lists(monkeypatch, title, category, severity):
+    urls = ["https://sikayetvar.com/arona", "https://forum.donanimhaber.com/arona"]
+    candidate = item(baslik=title, kaynaklar=urls)
+    monkeypatch.setattr(vr, "_search", lambda *args: {
+        "risks": [candidate], "complaints": [candidate], "cost": .009,
+        "sources": {url: f"Seat Arona 1.0 TSI DSG {title} şikâyeti" for url in urls}})
+    result = vr.get_model_risks(VEHICLE)
+    for key in ("riskler", "kullaniciSikayetleri"):
+        assert len(result[key]) == 1
+        assert result[key][0]["kategori"] == category
+        assert result[key][0]["onem"] == severity
+    assert "tahminiMaliyet" not in result["kullaniciSikayetleri"][0]
+
+
+def test_explicit_valid_category_and_severity_preserved(monkeypatch):
+    search(monkeypatch, [item(kategori="trim_kasa", onem="dusuk")])
+    result = vr.get_model_risks(VEHICLE)["riskler"][0]
+    assert (result["kategori"], result["onem"]) == ("trim_kasa", "dusuk")
+
+
+@pytest.mark.parametrize("verified,want", [(False, "dusuk"), (True, "yuksek")])
+def test_only_source_verified_cost_escalates_severity(monkeypatch, verified, want):
+    text = "Seat Arona 1.0 TSI DSG far buğusu."
+    if verified:
+        text += " Far buğusu onarımı 25.000–30.000 TL."
+    search(monkeypatch, [item(baslik="Far buğusu", tahminiMaliyet={"min": 25000, "max": 30000})], {URL: text})
+    assert vr.get_model_risks(VEHICLE)["riskler"][0]["onem"] == want
+
+
+@pytest.mark.parametrize("fuel,title,keep", [
+    ("Benzin", "AdBlue arızası", False), ("Hibrit", "DPF arızası", False),
+    ("Benzin", "Enjektör pompası (dizel)", False), ("Dizel", "AdBlue arızası", True),
+    ("Elektrik", "Triger", False), ("Elektrik", "Motor yağı", False),
+    ("Elektrik", "Trigerin kopması", False), ("Elektrik", "Motor yağının sızması", False),
+    ("Elektrik", "Şanzıman yağı", False), ("Elektrik", "Egzoz", False),
+    ("Dizel", "Buji", False), ("Dizel", "Ateşleme bobini", False),
+    ("Dizel", "Kızdırma bujisi", True),
+])
+def test_fuel_consistency_applies_to_risks_and_complaints(monkeypatch, fuel, title, keep):
+    urls = ["https://first.com/arona", "https://second.com/arona"]
+    candidate = item(baslik=title, aciklama="Kaynaklı şikâyet", kaynaklar=urls)
+    monkeypatch.setattr(vr, "_search", lambda *args: {
+        "risks": [candidate], "complaints": [candidate], "cost": 0,
+        "sources": {url: f"Seat Arona 1.0 TSI DSG {title}" for url in urls}})
+    result = vr.get_model_risks({**VEHICLE, "fuel": fuel})
+    for key in ("riskler", "kullaniciSikayetleri"):
+        assert bool(result[key]) is keep
+
+
+@pytest.mark.parametrize("field", ["aciklama", "belirtiler", "kontrol"])
+def test_fuel_conflicts_in_claim_details_are_dropped(monkeypatch, field):
+    search(monkeypatch, [item(**{field: ["AdBlue uyarısı"] if field == "belirtiler" else "AdBlue uyarısı"})])
+    assert vr.get_model_risks(VEHICLE)["riskler"] == []
+
+
+def test_fuel_conflicts_in_source_are_dropped(monkeypatch):
+    search(monkeypatch, [item()], {URL: TEXT + " AdBlue arızası."})
+    assert vr.get_model_risks(VEHICLE)["riskler"] == []
+
+
+def test_cached_candidate_is_rechecked_for_fuel(monkeypatch):
+    monkeypatch.setenv("WEB_RISK_CACHE_DAYS", "30")
+    monkeypatch.setattr(vr.wmr, "_cache_read", lambda *args: {
+        "scope": {"cached": True}, "_candidates": [item(aciklama="AdBlue")],
+        "_complaint_candidates": [], "_sources": {URL: TEXT}})
+    monkeypatch.setattr(vr, "_search", lambda *args: pytest.fail("Önbellek yeniden aramamalı"))
+    assert vr.get_model_risks(VEHICLE)["riskler"] == []
+
+
+@pytest.mark.parametrize('evidence,keep', [('konforlu bir otomobildir', False),
+                                         ('kapıda pas oluşumu var', True),
+                                         ('kapı paslı', True), ('kapı paslanması', True)])
+def test_passat_model_name_is_not_rust_evidence(monkeypatch, evidence, keep):
+    vehicle = {**VEHICLE, 'brand':'Volkswagen', 'model':'Passat', 'package':'1.4 TSI DSG'}
+    urls = ['https://whatcar.com/passat', 'https://forum.donanimhaber.com/passat']
+    candidate = item(baslik='Paslanma', aciklama='Kaporta kontrolü', etkiledigi='1.4 TSI DSG',
+                     kaynaklar=urls, tahminiMaliyet=None)
+    monkeypatch.setattr(vr, '_search', lambda *args: {
+        'risks':[candidate], 'complaints':[candidate], 'cost':0,
+        'sources':{url:f'Volkswagen Passat 1.4 TSI DSG {evidence}.' for url in urls}})
+    result = vr.get_model_risks(vehicle)
+    assert bool(result['riskler']) is keep
+    assert bool(result['kullaniciSikayetleri']) is keep
+
+
+@pytest.mark.parametrize('title,keep', [('GPF partikül filtresi arızası',True),
+                                     ('OPF benzin partikül filtresi arızası',True),
+                                     ('Dizel partikül filtresi arızası',False),
+                                     ('DPF arızası',False)])
+def test_gasoline_filter_is_not_confused_with_diesel_filter(monkeypatch, title, keep):
+    urls = ['https://whatcar.com/arona', 'https://forum.donanimhaber.com/arona']
+    candidate = item(baslik=title, aciklama='Filtreyi kontrol edin', kaynaklar=urls, tahminiMaliyet=None)
+    monkeypatch.setattr(vr, '_search', lambda *args: {
+        'risks':[candidate], 'complaints':[candidate], 'cost':0,
+        'sources':{url:f'Seat Arona 1.0 TSI DSG {title}.' for url in urls}})
+    result = vr.get_model_risks(VEHICLE)
+    assert bool(result['riskler']) is keep
+    assert bool(result['kullaniciSikayetleri']) is keep
