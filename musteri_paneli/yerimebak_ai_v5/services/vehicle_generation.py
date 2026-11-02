@@ -18,6 +18,8 @@ import os
 import re
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Dict, List
 
 import httpx
@@ -195,10 +197,48 @@ def _search(vehicle: Dict[str, Any], client: httpx.Client, model: str = "perplex
     return {"data": data, "cited": cited, "cost": (payload.get("usage") or {}).get("cost") or 0}
 
 
+LIST_PATH = Path(__file__).resolve().parents[1] / "data" / "kasa_listesi.json"
+
+
+@lru_cache(maxsize=1)
+def _curated() -> Dict[tuple, List[Dict[str, Any]]]:
+    """Elle kontrol edilmiş kasa listesi (yalnız 'onayli' modeller). Kaynaklar aynı soruya farklı
+    cevap verdiği için (ölçüm: MG HS iki çalıştırmada iki farklı liste) onaylı liste önceliklidir."""
+    try:
+        data = json.loads(LIST_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    out = {}
+    for entry in data.get("modeller") or []:
+        if entry.get("onayli") and entry.get("kasalar"):
+            key = (wmr.fold(entry.get("marka")).strip(), wmr.fold(entry.get("model")).strip())
+            out[key] = [g for g in parse_list({"nesiller": entry["kasalar"], "kaynaklar": ["liste"]}, {"liste": ""})]
+    return out
+
+
+def curated_generations(vehicle: Dict[str, Any]):
+    """Onaylı listede araç varsa kasaları; model adı listedeki adla başlıyorsa da eşleşir
+    (ör. "Seal U DM-i" → "Seal U")."""
+    brand = wmr.fold(vehicle.get("brand")).strip()
+    model = " ".join(re.findall(r"[a-z0-9]+", wmr.fold(vehicle.get("model"))))
+    best = None
+    for (b, m), generations in _curated().items():
+        name = " ".join(re.findall(r"[a-z0-9]+", m))
+        if b == brand and (model == name or model.startswith(name + " ")) and (best is None or len(name) > best[0]):
+            best = (len(name), generations)
+    return best[1] if best else None
+
+
 def get_generation(vehicle: Dict[str, Any], timeout: float = 25.0) -> Dict[str, Any]:
     """Aracın kasası; bulunamazsa {"bulundu": False}. Hata/zaman aşımı raporu engellemez."""
     year = wmr._int(vehicle.get("year"))
-    if not os.getenv("OPENROUTER_API_KEY") or not vehicle.get("brand") or not vehicle.get("model") or not year:
+    if not vehicle.get("brand") or not vehicle.get("model") or not year:
+        return {"bulundu": False}
+    curated = curated_generations(vehicle)
+    if curated:
+        result = combine(curated, curated, year)
+        return {**result, "kaynak": "liste", "cost_usd": 0.0}
+    if not os.getenv("OPENROUTER_API_KEY"):
         return {"bulundu": False}
     key = _cache_key(vehicle)
     cached = wmr._cache_read(key, CACHE_HOURS)

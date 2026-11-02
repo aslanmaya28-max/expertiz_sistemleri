@@ -168,3 +168,26 @@ def test_yeni_kelimesi_yalniz_baslik_ve_adreste_sayilir(ilan, beklenen):
     v = {"brand": "MG", "model": "HS", "year": 2024, "km": 33100}
     terms = wmr.kasa_terms({"kasa": "AS33"}, True, v)
     assert wmr.verify(full, sources, v, year_range=(2024, 2026), ambiguous_year=2024, terms=terms) == beklenen
+
+
+def test_onayli_liste_sonardan_once_kullanilir(monkeypatch, tmp_path):
+    import json
+    data = {"modeller": [
+        {"marka": "MG", "model": "HS", "onayli": True, "kasalar": [
+            {"kasa": "AS23 (HS I)", "baslangic": 2021, "bitis": 2024}, {"kasa": "AS33 (Yeni HS)", "baslangic": 2024, "bitis": 2026}]},
+        {"marka": "Renault", "model": "Clio", "onayli": False, "kasalar": [{"kasa": "X98", "baslangic": 2012, "bitis": 2019}]},
+        {"marka": "BYD", "model": "Seal U", "onayli": True, "kasalar": [{"kasa": "Seal U", "baslangic": 2024, "bitis": 2026}]},
+    ]}
+    path = tmp_path / "kasa.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    monkeypatch.setattr(g, "LIST_PATH", path)
+    monkeypatch.setattr(g, "get_generation", g.get_generation.gercek)
+    g._curated.cache_clear()
+    monkeypatch.setattr(g, "_search", lambda *a, **k: pytest.fail("Onaylı listede Sonar'a sorulmamalı"))
+    r = g.get_generation({"brand": "MG", "model": "HS", "year": 2024})
+    assert r["kaynak"] == "liste" and r["cost_usd"] == 0 and r["gecis_yili"]
+    assert r["kasa"] == "AS33" and r["onceki"]["kasa"] == "AS23"           # parantez içi kısaltıldı
+    assert g.get_generation({"brand": "BYD", "model": "Seal U DM-i", "year": 2024})["kasa"] == "Seal U"
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    assert g.get_generation({"brand": "Renault", "model": "Clio", "year": 2016}) == {"bulundu": False}  # onaysız: liste kullanılmaz
+    g._curated.cache_clear()

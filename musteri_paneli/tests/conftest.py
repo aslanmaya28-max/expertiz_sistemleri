@@ -15,4 +15,10 @@ def _sikayet_aramasi_kapali(monkeypatch):
 def _kasa_sorgusu_kapali(monkeypatch):
     # Kasa (nesil) sorgusu testlerde ağa çıkmaz; davranışı sınayan testler kendi sahtesini kurar.
     from yerimebak_ai_v5.services import vehicle_generation
-    monkeypatch.setattr(vehicle_generation, "get_generation", lambda vehicle, timeout=25.0: {"bulundu": False})
+    gercek = getattr(vehicle_generation.get_generation, "gercek", vehicle_generation.get_generation)
+
+    def kapali(vehicle, timeout=25.0):
+        return {"bulundu": False}
+
+    kapali.gercek = gercek  # davranışı sınayan testler gerçek fonksiyonu buradan alır
+    monkeypatch.setattr(vehicle_generation, "get_generation", kapali)

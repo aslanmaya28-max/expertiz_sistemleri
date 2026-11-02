@@ -1,0 +1,254 @@
+{
+  "_aciklama": "Türkiye pazarı kasa (nesil) listesi. Yıllar Türkiye model yılıdır; makyaj = facelift model yılı. 'onayli': false olan model, kullanıcı/admin kontrolünden geçene kadar sistemde kullanılmaz. 'not' alanı emin olunmayan bilgiyi işaretler. Taslak: Claude, 02.11.2026.",
+  "modeller": [
+    {"marka": "Renault", "model": "Clio", "onayli": false, "kasalar": [
+      {"kasa": "X85 (Clio III)", "baslangic": 2006, "bitis": 2012, "makyaj": 2009},
+      {"kasa": "X98 (Clio IV)", "baslangic": 2012, "bitis": 2019, "makyaj": 2016},
+      {"kasa": "BJA (Clio V)", "baslangic": 2019, "bitis": 2026, "makyaj": 2023}]},
+    {"marka": "Renault", "model": "Megane", "onayli": false, "kasalar": [
+      {"kasa": "Megane III", "baslangic": 2009, "bitis": 2016, "makyaj": 2014},
+      {"kasa": "Megane IV", "baslangic": 2016, "bitis": 2024, "makyaj": 2020, "not": "Sedan Bursa üretimi; bitiş yılı kontrol edilmeli"}]},
+    {"marka": "Renault", "model": "Symbol", "onayli": false, "kasalar": [
+      {"kasa": "Symbol II (Joy)", "baslangic": 2013, "bitis": 2020, "makyaj": 2017, "not": "makyaj yılı kontrol edilmeli"}]},
+    {"marka": "Renault", "model": "Taliant", "onayli": false, "kasalar": [
+      {"kasa": "Taliant", "baslangic": 2021, "bitis": 2026, "makyaj": 2024}]},
+    {"marka": "Renault", "model": "Fluence", "onayli": false, "kasalar": [
+      {"kasa": "Fluence", "baslangic": 2010, "bitis": 2016, "makyaj": 2013}]},
+    {"marka": "Renault", "model": "Captur", "onayli": false, "kasalar": [
+      {"kasa": "Captur I", "baslangic": 2013, "bitis": 2019, "makyaj": 2017},
+      {"kasa": "Captur II", "baslangic": 2020, "bitis": 2026, "makyaj": 2024}]},
+    {"marka": "Renault", "model": "Kadjar", "onayli": false, "kasalar": [
+      {"kasa": "Kadjar", "baslangic": 2015, "bitis": 2022, "makyaj": 2019}]},
+    {"marka": "Fiat", "model": "Egea", "onayli": false, "kasalar": [
+      {"kasa": "Tipo 356 (Egea)", "baslangic": 2016, "bitis": 2026, "makyaj": 2021, "not": "makyaj 2020 sonu tanıtıldı; 2021 model yılı kabul edildi"}]},
+    {"marka": "Fiat", "model": "Linea", "onayli": false, "kasalar": [
+      {"kasa": "Linea", "baslangic": 2007, "bitis": 2016, "makyaj": 2013}]},
+    {"marka": "Fiat", "model": "Doblo", "onayli": false, "kasalar": [
+      {"kasa": "Doblo II (263)", "baslangic": 2010, "bitis": 2022, "makyaj": 2015},
+      {"kasa": "Doblo III (K9)", "baslangic": 2023, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Fiat", "model": "Fiorino", "onayli": false, "kasalar": [
+      {"kasa": "Fiorino (225)", "baslangic": 2008, "bitis": 2024, "makyaj": 2016, "not": "üretimin bitiş yılı kontrol edilmeli"}]},
+    {"marka": "Volkswagen", "model": "Passat", "onayli": false, "kasalar": [
+      {"kasa": "B7", "baslangic": 2011, "bitis": 2014, "makyaj": null},
+      {"kasa": "B8", "baslangic": 2015, "bitis": 2023, "makyaj": 2019},
+      {"kasa": "B9", "baslangic": 2024, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Volkswagen", "model": "Golf", "onayli": false, "kasalar": [
+      {"kasa": "Golf 6", "baslangic": 2009, "bitis": 2012, "makyaj": null},
+      {"kasa": "Golf 7", "baslangic": 2013, "bitis": 2020, "makyaj": 2017},
+      {"kasa": "Golf 8", "baslangic": 2020, "bitis": 2026, "makyaj": 2024}]},
+    {"marka": "Volkswagen", "model": "Polo", "onayli": false, "kasalar": [
+      {"kasa": "6R/6C (Polo 5)", "baslangic": 2009, "bitis": 2017, "makyaj": 2014},
+      {"kasa": "AW (Polo 6)", "baslangic": 2018, "bitis": 2026, "makyaj": 2022}]},
+    {"marka": "Volkswagen", "model": "Jetta", "onayli": false, "kasalar": [
+      {"kasa": "Jetta 6", "baslangic": 2011, "bitis": 2018, "makyaj": 2015}]},
+    {"marka": "Volkswagen", "model": "Tiguan", "onayli": false, "kasalar": [
+      {"kasa": "Tiguan I", "baslangic": 2008, "bitis": 2016, "makyaj": 2012},
+      {"kasa": "Tiguan II", "baslangic": 2016, "bitis": 2024, "makyaj": 2021},
+      {"kasa": "Tiguan III", "baslangic": 2024, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Volkswagen", "model": "T-Roc", "onayli": false, "kasalar": [
+      {"kasa": "T-Roc", "baslangic": 2018, "bitis": 2026, "makyaj": 2022}]},
+    {"marka": "Volkswagen", "model": "Caddy", "onayli": false, "kasalar": [
+      {"kasa": "Caddy III/IV", "baslangic": 2004, "bitis": 2020, "makyaj": 2015, "not": "IV, III'ün kapsamlı makyajı sayıldı; ayrı kasa mı kontrol edilmeli"},
+      {"kasa": "Caddy V", "baslangic": 2021, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Toyota", "model": "Corolla", "onayli": false, "kasalar": [
+      {"kasa": "E170 (11. nesil)", "baslangic": 2013, "bitis": 2018, "makyaj": 2016},
+      {"kasa": "E210 (12. nesil)", "baslangic": 2019, "bitis": 2026, "makyaj": 2023}]},
+    {"marka": "Toyota", "model": "C-HR", "onayli": false, "kasalar": [
+      {"kasa": "C-HR I", "baslangic": 2017, "bitis": 2023, "makyaj": 2020},
+      {"kasa": "C-HR II", "baslangic": 2024, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Toyota", "model": "Yaris", "onayli": false, "kasalar": [
+      {"kasa": "XP130", "baslangic": 2011, "bitis": 2020, "makyaj": 2017},
+      {"kasa": "XP210", "baslangic": 2021, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Toyota", "model": "Auris", "onayli": false, "kasalar": [
+      {"kasa": "Auris II (E180)", "baslangic": 2013, "bitis": 2018, "makyaj": 2015}]},
+    {"marka": "Hyundai", "model": "Tucson", "onayli": false, "kasalar": [
+      {"kasa": "JM", "baslangic": 2004, "bitis": 2009, "makyaj": null},
+      {"kasa": "LM (ix35)", "baslangic": 2009, "bitis": 2015, "makyaj": 2013},
+      {"kasa": "TL", "baslangic": 2015, "bitis": 2021, "makyaj": 2018},
+      {"kasa": "NX4", "baslangic": 2021, "bitis": 2026, "makyaj": 2024}],
+     "kaynak": "kullanıcının gönderdiği liste (02.11.2026)"},
+    {"marka": "Hyundai", "model": "i20", "onayli": false, "kasalar": [
+      {"kasa": "PB", "baslangic": 2009, "bitis": 2014, "makyaj": 2012},
+      {"kasa": "GB", "baslangic": 2015, "bitis": 2020, "makyaj": 2018},
+      {"kasa": "BC3", "baslangic": 2020, "bitis": 2026, "makyaj": 2024}]},
+    {"marka": "Hyundai", "model": "i10", "onayli": false, "kasalar": [
+      {"kasa": "IA (2. nesil)", "baslangic": 2014, "bitis": 2019, "makyaj": 2017},
+      {"kasa": "AC3 (3. nesil)", "baslangic": 2020, "bitis": 2026, "makyaj": 2023}]},
+    {"marka": "Hyundai", "model": "Accent Blue", "onayli": false, "kasalar": [
+      {"kasa": "RB", "baslangic": 2011, "bitis": 2018, "makyaj": 2015, "not": "makyaj yılı kontrol edilmeli"}]},
+    {"marka": "Hyundai", "model": "Bayon", "onayli": false, "kasalar": [
+      {"kasa": "Bayon", "baslangic": 2021, "bitis": 2026, "makyaj": 2024}]},
+    {"marka": "Hyundai", "model": "Elantra", "onayli": false, "kasalar": [
+      {"kasa": "MD", "baslangic": 2011, "bitis": 2015, "makyaj": 2014},
+      {"kasa": "AD", "baslangic": 2016, "bitis": 2020, "makyaj": 2019},
+      {"kasa": "CN7", "baslangic": 2021, "bitis": 2026, "makyaj": 2024}]},
+    {"marka": "Ford", "model": "Focus", "onayli": false, "kasalar": [
+      {"kasa": "Focus III", "baslangic": 2011, "bitis": 2018, "makyaj": 2015},
+      {"kasa": "Focus IV", "baslangic": 2018, "bitis": 2025, "makyaj": 2022}]},
+    {"marka": "Ford", "model": "Fiesta", "onayli": false, "kasalar": [
+      {"kasa": "Fiesta 6", "baslangic": 2008, "bitis": 2017, "makyaj": 2013},
+      {"kasa": "Fiesta 7", "baslangic": 2017, "bitis": 2023, "makyaj": 2022}]},
+    {"marka": "Ford", "model": "Kuga", "onayli": false, "kasalar": [
+      {"kasa": "Kuga II", "baslangic": 2013, "bitis": 2019, "makyaj": 2017},
+      {"kasa": "Kuga III", "baslangic": 2020, "bitis": 2026, "makyaj": 2024}]},
+    {"marka": "Ford", "model": "Puma", "onayli": false, "kasalar": [
+      {"kasa": "Puma", "baslangic": 2020, "bitis": 2026, "makyaj": 2025}]},
+    {"marka": "Ford", "model": "Tourneo Courier", "onayli": false, "kasalar": [
+      {"kasa": "Courier I", "baslangic": 2014, "bitis": 2023, "makyaj": 2018},
+      {"kasa": "Courier II", "baslangic": 2024, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Ford", "model": "Tourneo Connect", "onayli": false, "kasalar": [
+      {"kasa": "Connect II", "baslangic": 2014, "bitis": 2022, "makyaj": 2018},
+      {"kasa": "Connect III", "baslangic": 2023, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Opel", "model": "Astra", "onayli": false, "kasalar": [
+      {"kasa": "Astra J", "baslangic": 2010, "bitis": 2015, "makyaj": 2012},
+      {"kasa": "Astra K", "baslangic": 2016, "bitis": 2021, "makyaj": 2019},
+      {"kasa": "Astra L", "baslangic": 2022, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Opel", "model": "Corsa", "onayli": false, "kasalar": [
+      {"kasa": "Corsa E", "baslangic": 2015, "bitis": 2019, "makyaj": null},
+      {"kasa": "Corsa F", "baslangic": 2020, "bitis": 2026, "makyaj": 2024}]},
+    {"marka": "Opel", "model": "Insignia", "onayli": false, "kasalar": [
+      {"kasa": "Insignia A", "baslangic": 2009, "bitis": 2017, "makyaj": 2013},
+      {"kasa": "Insignia B", "baslangic": 2017, "bitis": 2022, "makyaj": 2020}]},
+    {"marka": "Opel", "model": "Mokka", "onayli": false, "kasalar": [
+      {"kasa": "Mokka A (Mokka X)", "baslangic": 2012, "bitis": 2019, "makyaj": 2016},
+      {"kasa": "Mokka B", "baslangic": 2021, "bitis": 2026, "makyaj": 2025, "not": "makyaj yılı kontrol edilmeli"}]},
+    {"marka": "Peugeot", "model": "208", "onayli": false, "kasalar": [
+      {"kasa": "208 I", "baslangic": 2012, "bitis": 2019, "makyaj": 2015},
+      {"kasa": "208 II", "baslangic": 2020, "bitis": 2026, "makyaj": 2024}]},
+    {"marka": "Peugeot", "model": "2008", "onayli": false, "kasalar": [
+      {"kasa": "2008 I", "baslangic": 2013, "bitis": 2019, "makyaj": 2016},
+      {"kasa": "2008 II", "baslangic": 2020, "bitis": 2026, "makyaj": 2024}]},
+    {"marka": "Peugeot", "model": "301", "onayli": false, "kasalar": [
+      {"kasa": "301", "baslangic": 2012, "bitis": 2022, "makyaj": 2017, "not": "bitiş yılı kontrol edilmeli"}]},
+    {"marka": "Peugeot", "model": "308", "onayli": false, "kasalar": [
+      {"kasa": "308 II (T9)", "baslangic": 2014, "bitis": 2021, "makyaj": 2017},
+      {"kasa": "308 III (P5)", "baslangic": 2022, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Peugeot", "model": "3008", "onayli": false, "kasalar": [
+      {"kasa": "3008 II", "baslangic": 2017, "bitis": 2023, "makyaj": 2021},
+      {"kasa": "3008 III", "baslangic": 2024, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Peugeot", "model": "5008", "onayli": false, "kasalar": [
+      {"kasa": "5008 II", "baslangic": 2017, "bitis": 2024, "makyaj": 2021},
+      {"kasa": "5008 III", "baslangic": 2025, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Citroen", "model": "C-Elysee", "onayli": false, "kasalar": [
+      {"kasa": "C-Elysee", "baslangic": 2012, "bitis": 2022, "makyaj": 2017}]},
+    {"marka": "Citroen", "model": "C3", "onayli": false, "kasalar": [
+      {"kasa": "C3 III", "baslangic": 2017, "bitis": 2023, "makyaj": 2020},
+      {"kasa": "C3 IV", "baslangic": 2024, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Citroen", "model": "C4", "onayli": false, "kasalar": [
+      {"kasa": "C4 II", "baslangic": 2011, "bitis": 2018, "makyaj": 2015},
+      {"kasa": "C4 III", "baslangic": 2021, "bitis": 2026, "makyaj": 2025, "not": "makyaj yılı kontrol edilmeli"}]},
+    {"marka": "Citroen", "model": "C5 Aircross", "onayli": false, "kasalar": [
+      {"kasa": "C5 Aircross", "baslangic": 2019, "bitis": 2025, "makyaj": 2022}]},
+    {"marka": "Dacia", "model": "Duster", "onayli": false, "kasalar": [
+      {"kasa": "Duster I", "baslangic": 2010, "bitis": 2017, "makyaj": 2014},
+      {"kasa": "Duster II", "baslangic": 2018, "bitis": 2024, "makyaj": 2022},
+      {"kasa": "Duster III", "baslangic": 2024, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Dacia", "model": "Sandero", "onayli": false, "kasalar": [
+      {"kasa": "Sandero II", "baslangic": 2013, "bitis": 2020, "makyaj": 2017},
+      {"kasa": "Sandero III", "baslangic": 2021, "bitis": 2026, "makyaj": 2023}]},
+    {"marka": "Dacia", "model": "Jogger", "onayli": false, "kasalar": [
+      {"kasa": "Jogger", "baslangic": 2022, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Honda", "model": "Civic", "onayli": false, "kasalar": [
+      {"kasa": "FB (9. nesil)", "baslangic": 2012, "bitis": 2016, "makyaj": 2014},
+      {"kasa": "FC (10. nesil)", "baslangic": 2016, "bitis": 2021, "makyaj": 2019},
+      {"kasa": "FE (11. nesil)", "baslangic": 2022, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Honda", "model": "CR-V", "onayli": false, "kasalar": [
+      {"kasa": "CR-V IV", "baslangic": 2012, "bitis": 2017, "makyaj": 2015},
+      {"kasa": "CR-V V", "baslangic": 2018, "bitis": 2023, "makyaj": null},
+      {"kasa": "CR-V VI", "baslangic": 2023, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Skoda", "model": "Octavia", "onayli": false, "kasalar": [
+      {"kasa": "Octavia III (5E)", "baslangic": 2013, "bitis": 2020, "makyaj": 2017},
+      {"kasa": "Octavia IV (NX)", "baslangic": 2020, "bitis": 2026, "makyaj": 2024}]},
+    {"marka": "Skoda", "model": "Superb", "onayli": false, "kasalar": [
+      {"kasa": "Superb III (3V)", "baslangic": 2015, "bitis": 2023, "makyaj": 2019},
+      {"kasa": "Superb IV", "baslangic": 2024, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Skoda", "model": "Fabia", "onayli": false, "kasalar": [
+      {"kasa": "Fabia III", "baslangic": 2015, "bitis": 2021, "makyaj": 2018},
+      {"kasa": "Fabia IV", "baslangic": 2021, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Skoda", "model": "Karoq", "onayli": false, "kasalar": [
+      {"kasa": "Karoq", "baslangic": 2018, "bitis": 2026, "makyaj": 2022}]},
+    {"marka": "Skoda", "model": "Kodiaq", "onayli": false, "kasalar": [
+      {"kasa": "Kodiaq I", "baslangic": 2017, "bitis": 2023, "makyaj": 2021},
+      {"kasa": "Kodiaq II", "baslangic": 2024, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Skoda", "model": "Kamiq", "onayli": false, "kasalar": [
+      {"kasa": "Kamiq", "baslangic": 2020, "bitis": 2026, "makyaj": 2024}]},
+    {"marka": "Seat", "model": "Leon", "onayli": false, "kasalar": [
+      {"kasa": "Leon III (5F)", "baslangic": 2013, "bitis": 2020, "makyaj": 2017},
+      {"kasa": "Leon IV (KL)", "baslangic": 2020, "bitis": 2026, "makyaj": 2024}]},
+    {"marka": "Seat", "model": "Ibiza", "onayli": false, "kasalar": [
+      {"kasa": "Ibiza IV (6J)", "baslangic": 2008, "bitis": 2017, "makyaj": 2012},
+      {"kasa": "Ibiza V (KJ)", "baslangic": 2017, "bitis": 2026, "makyaj": 2021}]},
+    {"marka": "Seat", "model": "Arona", "onayli": false, "kasalar": [
+      {"kasa": "Arona", "baslangic": 2018, "bitis": 2026, "makyaj": 2021}]},
+    {"marka": "Seat", "model": "Ateca", "onayli": false, "kasalar": [
+      {"kasa": "Ateca", "baslangic": 2016, "bitis": 2026, "makyaj": 2020}]},
+    {"marka": "Kia", "model": "Sportage", "onayli": false, "kasalar": [
+      {"kasa": "QL (4. nesil)", "baslangic": 2016, "bitis": 2021, "makyaj": 2019},
+      {"kasa": "NQ5 (5. nesil)", "baslangic": 2022, "bitis": 2026, "makyaj": 2025}]},
+    {"marka": "Kia", "model": "Ceed", "onayli": false, "kasalar": [
+      {"kasa": "JD", "baslangic": 2012, "bitis": 2018, "makyaj": 2015},
+      {"kasa": "CD", "baslangic": 2018, "bitis": 2026, "makyaj": 2022}]},
+    {"marka": "Kia", "model": "Rio", "onayli": false, "kasalar": [
+      {"kasa": "UB", "baslangic": 2011, "bitis": 2016, "makyaj": 2015},
+      {"kasa": "YB", "baslangic": 2017, "bitis": 2023, "makyaj": 2020}]},
+    {"marka": "Kia", "model": "Stonic", "onayli": false, "kasalar": [
+      {"kasa": "Stonic", "baslangic": 2018, "bitis": 2026, "makyaj": 2021}]},
+    {"marka": "BMW", "model": "3 Serisi", "onayli": false, "kasalar": [
+      {"kasa": "F30", "baslangic": 2012, "bitis": 2018, "makyaj": 2015},
+      {"kasa": "G20", "baslangic": 2019, "bitis": 2026, "makyaj": 2022}]},
+    {"marka": "BMW", "model": "5 Serisi", "onayli": false, "kasalar": [
+      {"kasa": "F10", "baslangic": 2010, "bitis": 2016, "makyaj": 2013},
+      {"kasa": "G30", "baslangic": 2017, "bitis": 2023, "makyaj": 2020},
+      {"kasa": "G60", "baslangic": 2024, "bitis": 2026, "makyaj": null}]},
+    {"marka": "BMW", "model": "X1", "onayli": false, "kasalar": [
+      {"kasa": "F48", "baslangic": 2015, "bitis": 2022, "makyaj": 2019},
+      {"kasa": "U11", "baslangic": 2023, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Mercedes-Benz", "model": "C Serisi", "onayli": false, "kasalar": [
+      {"kasa": "W205", "baslangic": 2014, "bitis": 2021, "makyaj": 2018},
+      {"kasa": "W206", "baslangic": 2021, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Mercedes-Benz", "model": "E Serisi", "onayli": false, "kasalar": [
+      {"kasa": "W212", "baslangic": 2009, "bitis": 2016, "makyaj": 2013},
+      {"kasa": "W213", "baslangic": 2016, "bitis": 2023, "makyaj": 2020},
+      {"kasa": "W214", "baslangic": 2024, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Mercedes-Benz", "model": "A Serisi", "onayli": false, "kasalar": [
+      {"kasa": "W176", "baslangic": 2012, "bitis": 2018, "makyaj": 2015},
+      {"kasa": "W177", "baslangic": 2018, "bitis": 2026, "makyaj": 2023}]},
+    {"marka": "Mercedes-Benz", "model": "CLA", "onayli": false, "kasalar": [
+      {"kasa": "C117", "baslangic": 2013, "bitis": 2019, "makyaj": 2016},
+      {"kasa": "C118", "baslangic": 2019, "bitis": 2026, "makyaj": 2023}]},
+    {"marka": "Audi", "model": "A3", "onayli": false, "kasalar": [
+      {"kasa": "8V", "baslangic": 2012, "bitis": 2020, "makyaj": 2016},
+      {"kasa": "8Y", "baslangic": 2020, "bitis": 2026, "makyaj": 2024}]},
+    {"marka": "Audi", "model": "A4", "onayli": false, "kasalar": [
+      {"kasa": "B8", "baslangic": 2008, "bitis": 2015, "makyaj": 2012},
+      {"kasa": "B9", "baslangic": 2016, "bitis": 2024, "makyaj": 2019}]},
+    {"marka": "Audi", "model": "A6", "onayli": false, "kasalar": [
+      {"kasa": "C7", "baslangic": 2011, "bitis": 2018, "makyaj": 2015},
+      {"kasa": "C8", "baslangic": 2018, "bitis": 2026, "makyaj": 2023, "not": "makyaj yılı kontrol edilmeli"}]},
+    {"marka": "Audi", "model": "Q3", "onayli": false, "kasalar": [
+      {"kasa": "8U", "baslangic": 2011, "bitis": 2018, "makyaj": 2015},
+      {"kasa": "F3", "baslangic": 2019, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Nissan", "model": "Qashqai", "onayli": false, "kasalar": [
+      {"kasa": "J11", "baslangic": 2014, "bitis": 2021, "makyaj": 2017},
+      {"kasa": "J12", "baslangic": 2021, "bitis": 2026, "makyaj": 2024}]},
+    {"marka": "Nissan", "model": "Juke", "onayli": false, "kasalar": [
+      {"kasa": "F15", "baslangic": 2010, "bitis": 2019, "makyaj": 2014},
+      {"kasa": "F16", "baslangic": 2020, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Togg", "model": "T10X", "onayli": false, "kasalar": [
+      {"kasa": "T10X", "baslangic": 2023, "bitis": 2026, "makyaj": null}]},
+    {"marka": "MG", "model": "ZS", "onayli": false, "kasalar": [
+      {"kasa": "ZS I", "baslangic": 2021, "bitis": 2024, "makyaj": null, "not": "MG'nin Türkiye'ye dönüş yılı ve ZS makyajı kontrol edilmeli"},
+      {"kasa": "ZS II", "baslangic": 2025, "bitis": 2026, "makyaj": null, "not": "yeni ZS'nin Türkiye model yılı kontrol edilmeli"}]},
+    {"marka": "MG", "model": "HS", "onayli": false, "kasalar": [
+      {"kasa": "AS23 (HS I)", "baslangic": 2021, "bitis": 2024, "makyaj": null, "not": "Türkiye başlangıç yılı kontrol edilmeli"},
+      {"kasa": "AS33 (Yeni HS)", "baslangic": 2024, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Chery", "model": "Tiggo 7", "onayli": false, "kasalar": [
+      {"kasa": "Tiggo 7 Pro", "baslangic": 2023, "bitis": 2026, "makyaj": null}]},
+    {"marka": "Chery", "model": "Tiggo 8", "onayli": false, "kasalar": [
+      {"kasa": "Tiggo 8 Pro", "baslangic": 2023, "bitis": 2026, "makyaj": null}]},
+    {"marka": "BYD", "model": "Atto 3", "onayli": false, "kasalar": [
+      {"kasa": "Atto 3", "baslangic": 2023, "bitis": 2026, "makyaj": null}]},
+    {"marka": "BYD", "model": "Seal U", "onayli": false, "kasalar": [
+      {"kasa": "Seal U / Seal U DM-i", "baslangic": 2024, "bitis": 2026, "makyaj": null}]}
+  ]
+}
