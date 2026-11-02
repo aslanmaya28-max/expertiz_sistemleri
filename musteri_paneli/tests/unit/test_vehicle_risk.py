@@ -473,7 +473,8 @@ def test_deepseek_cagrilarinda_dusunme_kapali_ve_cikti_sinirli(monkeypatch):
             return Resp()
 
     vr._search("Seat Arona", Client())
-    assert bodies[0]["reasoning"] == {"enabled": False} and bodies[0]["max_tokens"] == 4000
+    # Risk listesi uzun Türkçe metin: emsal aramasının 4000 sınırında yarıda kesiliyordu (Cupra Formentor denemesi).
+    assert bodies[0]["reasoning"] == {"enabled": False} and bodies[0]["max_tokens"] == 7000
     monkeypatch.setenv("WEB_REASONING", "on")
     vr._search("Seat Arona", Client())
     assert "reasoning" not in bodies[1]

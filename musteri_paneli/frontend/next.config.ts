@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  // Değerleme isteği 20–60 sn sürer; vekilin varsayılan 30 sn sınırı bağlantıyı erken kesiyordu.
+  experimental: {
+    proxyTimeout: 180_000,
+  },
   images: {
     // Ilan fotograflari zaten kaynak sitelerin CDN'inden gelir. Vercel gorsel
     // optimizasyonu kapali: binlerce ilan gorselinde kota/ucret asimi olmaz,

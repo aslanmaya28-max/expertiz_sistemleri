@@ -148,12 +148,53 @@ def _cache_key(vehicle):
     return "vehicle-risk:v5:" + hashlib.sha256(json.dumps(values).encode()).hexdigest()
 
 
+_LISTS = ("riskler", "kullaniciSikayetleri")
+
+
+def _lenient_json(content):
+    """Model yanıtındaki JSON'u okur. Yanıt çıktı sınırında yarıda kesilmiş ya da bir yerde
+    virgülü eksikse bütün raporu kaybetmek yerine listelerdeki sağlam maddeler kurtarılır."""
+    content = content or ""
+    match = re.search(r"\{.*\}", content, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group())
+        except json.JSONDecodeError:
+            pass
+    decoder = json.JSONDecoder()
+    salvaged = {}
+    for key in _LISTS:
+        start = re.search(r'"' + key + r'"\s*:\s*\[', content)
+        if not start:
+            continue
+        items, pos = [], start.end()
+        while True:
+            while pos < len(content) and content[pos] in " \t\r\n,":
+                pos += 1
+            if pos >= len(content) or content[pos] != "{":
+                break
+            try:
+                item, pos = decoder.raw_decode(content, pos)
+            except json.JSONDecodeError:
+                break
+            if isinstance(item, dict):
+                items.append(item)
+        salvaged[key] = items
+    if not salvaged:
+        raise ValueError("Arama yanıtında JSON yok")
+    logger.warning("[MODEL RISK] Bozuk JSON yanıtından kurtarılan madde: %s",
+                   {k: len(v) for k, v in salvaged.items()})
+    return salvaged
+
+
 def _search(query, client):
     """Emsal aramasıyla aynı OpenRouter web eklentisi ve sağlayıcı ayarları."""
     body = {"model": wmr.model_name(), "temperature": 0,
             "plugins": [{"id": "web", "max_results": 10}],
             "messages": [{"role": "user", "content": _PROMPT.format(vehicle=query)}],
             "usage": {"include": True}, **wmr._llm_limits()}
+    # Risk ve şikâyet listesi Türkçe ve uzun: emsal aramasının 4000 sınırında yanıt yarıda kesilebiliyordu.
+    body["max_tokens"] = max(body.get("max_tokens") or 0, int(os.getenv("WEB_RISK_MAX_TOKENS") or 7000))
     provider = (os.getenv("WEB_PRICE_PROVIDER") or "").strip()
     if provider:
         body["provider"] = {"only": [provider], "allow_fallbacks": False}
@@ -166,10 +207,7 @@ def _search(query, client):
         citation = annotation.get("url_citation") or {}
         if citation.get("url"):
             sources[citation["url"].rstrip("/")] = citation.get("content") or ""
-    match = re.search(r"\{.*\}", message.get("content") or "", re.DOTALL)
-    if not match:
-        raise ValueError("Arama yanıtında JSON yok")
-    parsed = json.loads(match.group())
+    parsed = _lenient_json(message.get("content"))
     if not isinstance(parsed, dict) or not isinstance(parsed.get("riskler"), list):
         raise ValueError("Arama yanıtında risk listesi yok")
     complaints = parsed.get("kullaniciSikayetleri")
@@ -370,10 +408,7 @@ def _search_complaints(query, client):
         citation = annotation.get("url_citation") or {}
         if citation.get("url"):
             cited[citation["url"].rstrip("/")] = str(citation.get("title") or "")
-    match = re.search(r"\{.*\}", message.get("content") or "", re.DOTALL)
-    if not match:
-        raise ValueError("Şikâyet aramasında JSON yok")
-    parsed = json.loads(match.group())
+    parsed = _lenient_json(message.get("content"))
     complaints = parsed.get("kullaniciSikayetleri") if isinstance(parsed, dict) else None
     return {"complaints": complaints if isinstance(complaints, list) else [], "cited": cited,
             "cost": (data.get("usage") or {}).get("cost") or 0}

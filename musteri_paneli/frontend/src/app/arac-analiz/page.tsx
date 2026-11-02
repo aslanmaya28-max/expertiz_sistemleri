@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { tekrarliIstek } from "@/lib/tekrarliIstek";
 import DegerlemeSonucu from "@/bilesenler/DegerlemeSonucu";
 import { AnalizBekleme } from "@/bilesenler/AkilliAliciBolumleri";
 import { AracSemasi, AramaliSecim, SayiAlani } from "@/bilesenler/AracFormAlanlari";
@@ -202,7 +203,8 @@ export default function AracAnalizSayfasi() {
         window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
-      const res = await analyzeValuation({
+      // Aynı istek numarasıyla yeniden sormak raporu yeniden üretmez, krediyi ikinci kez düşmez.
+      const istek = {
         request_id: crypto.randomUUID(),
         listing_url: form.link.trim() || undefined,
         brand: form.brand || undefined,
@@ -217,7 +219,8 @@ export default function AracAnalizSayfasi() {
         parts,
         tramer_amount: form.tramer ? Number(form.tramer) : 0,
         kasa: kasaBilgisi?.gecisYili && kasa ? kasa : undefined,
-      });
+      };
+      const res = await tekrarliIstek(() => analyzeValuation(istek));
       setSonuc(res);
       setBakiye(res.kredi.kalan);
       notifyCreditsChanged();
