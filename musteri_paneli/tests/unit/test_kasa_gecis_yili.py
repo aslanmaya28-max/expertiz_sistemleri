@@ -59,16 +59,19 @@ def test_get_reference_gecis_yilinda_iki_havuz_arar(monkeypatch):
     monkeypatch.setattr(g, "get_generation", lambda v, timeout=25.0: {**g.combine(SONAR, SONAR_PRO, 2021), "cost_usd": 0.015})
     asked = []
 
-    def ilan(n, fiyat, yil):
+    def ilan(n, fiyat, yil, paket="1.6 CRDI Elite Plus"):
         return {"url": f"https://galeri{n}.com/tucson/{n}", "fiyat_tl": fiyat, "km": 66000, "yil": yil,
-                "paket": "1.6 CRDI Elite Plus", "kondisyon": "temiz"}
+                "paket": paket, "kondisyon": "temiz"}
+
+    belirsiz = ilan(99, 1_990_000, 2021)                  # kasası yazmıyor: iki havuza da girmez
+    nx4_2021 = ilan(98, 2_060_000, 2021, "NX4 1.6 CRDI Elite Plus")
 
     def fake(query, client, **kw):
         asked.append(query)
-        if "2021-2023" in query:   # NX4 havuzu
-            items = [ilan(n, 2_050_000 + n * 5_000, 2021) for n in range(1, 7)]
-        else:                      # TL havuzu (2018-2021)
-            items = [ilan(n + 50, 1_900_000 + n * 5_000, 2021) for n in range(1, 7)]
+        if "2021-2023" in query:   # NX4 havuzu: sonraki yıllar + kasası yazan 2021
+            items = [ilan(n, 2_150_000 + n * 5_000, 2022) for n in range(1, 4)] +                     [ilan(n, 2_250_000 + n * 5_000, 2023) for n in range(4, 7)] + [nx4_2021, belirsiz]
+        else:                      # TL havuzu (2018-2021): önceki yıllar
+            items = [ilan(n + 50, 1_700_000 + n * 5_000, 2019) for n in range(1, 4)] +                     [ilan(n + 50, 1_800_000 + n * 5_000, 2020) for n in range(4, 7)] + [belirsiz]
         return {"listings": items, "sources": {i["url"]: f"{i['fiyat_tl']:,} TL".replace(",", ".") for i in items}, "cost": 0.01}
 
     monkeypatch.setattr(wmr, "_search", fake)
@@ -79,6 +82,9 @@ def test_get_reference_gecis_yilinda_iki_havuz_arar(monkeypatch):
     assert gecis["yeni"]["kasa"] == "NX4" and gecis["eski"]["kasa"] == "TL"
     assert gecis["yeni"]["orta_fiyat"] > gecis["eski"]["orta_fiyat"]
     assert gecis["secilen"] == "yeni" and gecis["neden"] == "ilan_fiyati"   # 2,2 milyon NX4'e daha yakın
+    assert belirsiz["url"] not in {x["url"] for x in ref["samples"]}
+    assert nx4_2021["url"] in {x["url"] for x in ref["samples"]}
+    assert ref["scope"]["rejected"]["geçiş yılı belirsiz"] >= 1
     assert ref["scope"]["cost_usd"] == pytest.approx(0.075)                 # 6 arama + kasa listesi
 
 
@@ -101,3 +107,27 @@ def test_pdf_gecis_yili_bolumu():
     assert "2021 bu model için kasa geçiş yılı" in text
     assert "TL (2015–2021): 1.900.000 TL" in text and "NX4 (2021–): 2.050.000 TL" in text
     assert "fark yaklaşık 150.000 TL" in text and "NX4 kasasına göre yapıldı" in text
+
+
+
+def test_sikayet_bos_kalirsa_bir_kez_daha_aranir(monkeypatch):
+    from yerimebak_ai_v5.services import vehicle_risk as vr
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("WEB_RISK_CACHE_DAYS", "0")
+    monkeypatch.setattr(vr, "_search", lambda q, c: {"risks": [], "complaints": [], "sources": {}, "cost": .01})
+    sv, dh = "https://www.sikayetvar.com/hyundai/tucson/titreme", "https://forum.donanimhaber.com/tucson-dct-titreme"
+    asked = []
+
+    def complaints(query, client):
+        asked.append(query)
+        if len(asked) == 1:
+            return {"complaints": [], "cited": {}, "cost": .006}
+        return {"complaints": [{"baslik": "DCT şanzıman titremesi", "kaynaklar": [sv, dh]}],
+                "cited": {sv: "Tucson", dh: "Tucson"}, "cost": .006}
+
+    monkeypatch.setattr(vr, "_search_complaints", complaints)
+    result = vr.get_model_risks({"brand": "Hyundai", "model": "Tucson", "year": 2021, "fuel": "Dizel",
+                                 "engine": "1.6 CRDI", "transmission": "Otomatik"})
+    assert len(asked) == 2 and "kullanıcı yorumları" in asked[1]
+    assert [c["baslik"] for c in result["kullaniciSikayetleri"]] == ["DCT şanzıman titremesi"]
+    assert result["scope"]["searches"] == 3 and result["scope"]["cost_usd"] == pytest.approx(.022)

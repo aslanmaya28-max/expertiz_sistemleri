@@ -546,6 +546,22 @@ def get_model_risks(vehicle) -> dict:
             _verified_complaints(found.get("complaints") or [], found.get("sources") or {}, vehicle),
             _verified_cited_complaints(extra.get("complaints") or [], extra.get("cited") or {}, vehicle))
         result["bulunamadi"] = not bool(result["riskler"])
+        if complaints_ok and not result["kullaniciSikayetleri"]:
+            # Sonar her seferinde aynı sayfaları getirmiyor (ölçüm: aynı araçta 0-5 şikâyet).
+            # Boş kalırsa farklı sorgu cümlesiyle bir kez daha denenir (~0,006 $).
+            retry_query = complaint_query.replace(" kronik sorun şikayet", "") + " kullanıcı yorumları sorunlar arıza forum"
+            try:
+                with httpx.Client(timeout=min(30.0, _search_seconds())) as retry_client:
+                    again = _search_complaints(retry_query, retry_client)
+                extra = {"complaints": (extra.get("complaints") or []) + (again.get("complaints") or []),
+                         "cited": {**(extra.get("cited") or {}), **(again.get("cited") or {})},
+                         "cost": float(extra.get("cost") or 0) + float(again.get("cost") or 0)}
+                result["scope"].update(searches=3, cost_usd=float(found.get("cost") or 0) + extra["cost"])
+                result["kullaniciSikayetleri"] = _merge_complaints(
+                    _verified_complaints(found.get("complaints") or [], found.get("sources") or {}, vehicle),
+                    _verified_cited_complaints(extra["complaints"], extra["cited"], vehicle))
+            except errors as exc:
+                logger.warning("[MODEL RISK] Şikâyet tekrar araması başarısız: %s", str(exc)[:200])
     except errors as exc:
         logger.warning("[MODEL RISK] Sonuç işlenemedi: %s", str(exc)[:200])
         return result

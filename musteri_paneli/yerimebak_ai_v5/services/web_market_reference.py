@@ -320,8 +320,18 @@ def _search(query: str, client: httpx.Client, *, prompt: Optional[str] = None, w
 # ---------------------------------------------------------------------------
 # Dogrulama ve hesap (ag olmadan test edilebilir)
 # ---------------------------------------------------------------------------
+def kasa_terms(generation: Optional[Dict[str, Any]], newer: bool, vehicle: Optional[Dict[str, Any]] = None) -> tuple:
+    """Geçiş yılındaki ilanın kasasını ilan metninden tanımak için terimler (ör. "nx4", "yeni kasa").
+    Kısa kodlar (ör. "TL") fiyat yazısıyla karışacağı için kullanılmaz."""
+    terms = [t for t in re.findall(r"[a-z0-9]+", fold((generation or {}).get("kasa"))) if len(t) >= 3 and not t.isdigit()]
+    names = set(re.findall(r"[a-z0-9]+", fold(f"{(vehicle or {}).get('brand') or ''} {(vehicle or {}).get('model') or ''}")))
+    terms = [t for t in terms if t not in names and t not in ("nesil", "kasa", "facelift", "makyaj")][:2]
+    return tuple(terms) + (("yeni kasa", "yeni nesil") if newer else ("eski kasa", "onceki kasa"))
+
+
 def verify(listing: Dict[str, Any], sources: Dict[str, str], v: Dict[str, Any], *, year_window: int = 1,
-           km_band_scale: int = 1, year_range: Optional[tuple] = None) -> Optional[str]:
+           km_band_scale: int = 1, year_range: Optional[tuple] = None, ambiguous_year: Optional[int] = None,
+           terms: tuple = ()) -> Optional[str]:
     """Ilan kullanilabilirse None, degilse red nedeni."""
     url = str(listing.get("url") or "").rstrip("/")
     price = _int(listing.get("fiyat_tl")) or 0
@@ -339,6 +349,11 @@ def verify(listing: Dict[str, Any], sources: Dict[str, str], v: Dict[str, Any], 
     year, l_year = _int(v.get("year")), _int(listing.get("yil"))
     if year and not l_year:
         return "yıl bilinmiyor"  # yıl olmadan bu araca göre düzeltilemez
+    if ambiguous_year and l_year == ambiguous_year:
+        # Geçiş yılı ilanı iki kasadan biri olabilir: yalnız kasası metinde açıkça yazıyorsa alınır.
+        blob = fold(f"{listing.get('paket') or ''} {listing.get('durum') or ''} {url}")
+        if not any(t in blob for t in terms):
+            return "geçiş yılı belirsiz"
     if year and l_year and year_range and not year_range[0] <= l_year <= year_range[1]:
         return "yıl uyumsuz"
     if year and l_year and not year_range and abs(l_year - year) > year_window:
@@ -409,7 +424,8 @@ def _adjusted(i: Dict[str, Any], v: Dict[str, Any], rate: float) -> int:
 
 
 def build_reference(results: List[Dict[str, Any]], v: Dict[str, Any], *, widened: bool = False,
-                    year_range: Optional[tuple] = None, generation: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                    year_range: Optional[tuple] = None, generation: Optional[Dict[str, Any]] = None,
+                    ambiguous_year: Optional[int] = None, terms: tuple = ()) -> Dict[str, Any]:
     """Arama sonuclarini dogrular, birlestirir ve degerleme motorunun okudugu bicime cevirir."""
     accepted: Dict[str, Dict[str, Any]] = {}
     site_stats: Dict[str, Dict[str, int]] = {}
@@ -419,7 +435,8 @@ def build_reference(results: List[Dict[str, Any]], v: Dict[str, Any], *, widened
         cost += float(res.get("cost") or 0)
         for item in res.get("listings") or []:
             reason = verify(item, res.get("sources") or {}, v, year_window=2 if widened else 1,
-                            km_band_scale=2 if widened else 1, year_range=year_range)
+                            km_band_scale=2 if widened else 1, year_range=year_range,
+                            ambiguous_year=ambiguous_year, terms=terms)
             if not reason and _condition(item) == "heavy":
                 reason = "ağır hasarlı"
             # Ölçüm doğrulama denemelerine aittir; tekrarlanan arama sonuçları da sayılır.
@@ -616,19 +633,22 @@ def get_reference(vehicle: Dict[str, Any], search: Optional[Callable[[str], Dict
             pool.shutdown(wait=False, cancel_futures=True)
         return results
 
-    def pool_reference(rng, gen):
+    def pool_reference(rng, gen, ambiguous=None, terms=()):
         found = run_round(rng)
-        reference = build_reference(found, vehicle, year_range=rng, generation=gen)
+        reference = build_reference(found, vehicle, year_range=rng, generation=gen, ambiguous_year=ambiguous, terms=terms)
         if reference.get("count", 0) < TARGET_SAMPLES:
             found.extend(run_round(rng, widened=True))
-            reference = build_reference(found, vehicle, widened=True, year_range=rng, generation=gen)
+            reference = build_reference(found, vehicle, widened=True, year_range=rng, generation=gen,
+                                        ambiguous_year=ambiguous, terms=terms)
         return found, reference
 
     if previous_range:
         # Geçiş yılı: iki kasa ayrı havuzlarda, aynı anda (kullanıcı kararı, 02.11.2026)
         with ThreadPoolExecutor(2) as pools:
-            new_future = pools.submit(pool_reference, year_range, generation)
-            old_future = pools.submit(pool_reference, previous_range, previous)
+            # Aynı yılın ilanları iki kasadan biri olabilir: kasası metinde yazmıyorsa iki havuza da
+            # girmez (ölçüm: TL havuzuna 2021 NX4 ilanları karışıp eski kasayı pahalı gösterdi).
+            new_future = pools.submit(pool_reference, year_range, generation, year, kasa_terms(generation, True, vehicle))
+            old_future = pools.submit(pool_reference, previous_range, previous, year, kasa_terms(previous, False, vehicle))
             results, ref = new_future.result()
             old_results, old_ref = old_future.result()
         ref, results = _transition(vehicle, ref, old_ref, generation, previous), results + old_results
