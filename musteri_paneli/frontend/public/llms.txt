@@ -34,6 +34,14 @@
 - Değerleme raporu ilan bilgisine, kullanıcı beyanına ve internetteki ilanlara dayanır; uzman incelemesinin yerine geçmez.
 - Raporlar inceleme anındaki bulguları gösterir. Aracın arızasız olduğunu garanti etmez.
 
+## Rehber
+
+- [İkinci el araç alım rehberi](https://www.yerimebak.com.tr/rehber): Araç alımında bilgi toplamak ve satıcı beyanlarını doğrulamak için dört konu rehberini bir araya getirir.
+- [İkinci el araç alırken kontrol listesi](https://www.yerimebak.com.tr/rehber/ikinci-el-arac-alirken-kontrol-listesi): İlan aşamasından araç başındaki kontrollere, ekspertizden satış hazırlığına kadar izlenecek adımları açıklar.
+- [Tramer kaydı nedir?](https://www.yerimebak.com.tr/rehber/tramer-kaydi-nedir): Hasar kaydının gösterdiği bilgileri, kayıtların sınırlarını ve sorgulamaya ilişkin genel yaklaşımı ele alır.
+- [Boyalı ve değişen parçanın fiyata etkisi](https://www.yerimebak.com.tr/rehber/boyali-degisen-parca-fiyat-etkisi): Boya ve parça değişimini değerlendirirken kritik bölgelerin ve yerinde doğrulamanın neden önemli olduğunu anlatır.
+- [İlan fiyatı doğru mu, nasıl anlaşılır?](https://www.yerimebak.com.tr/rehber/ilan-fiyati-dogru-mu-nasil-anlasilir): Benzer ilanlarda kasa, motor, yıl, kilometre ve hasar farklarını karşılaştırıp pazarlığa hazırlanmayı açıklar.
+
 ## Diğer sayfalar
 - [Fiyatlar](https://www.yerimebak.com.tr/fiyatlar)
 - [Hakkımızda](https://www.yerimebak.com.tr/hakkimizda)

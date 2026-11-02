@@ -113,6 +113,16 @@ export default function YerindeIncelemeSayfasi() {
             </p>
           ),
         },
+        {
+          id: "ilgili-rehberler", baslik: "İlgili rehberler",
+          icerik: (
+            <ul>
+              <li><Link href="/rehber/ikinci-el-arac-alirken-kontrol-listesi" className="text-birincil underline">İkinci el araç alırken kontrol listesi</Link></li>
+              <li><Link href="/rehber/boyali-degisen-parca-fiyat-etkisi" className="text-birincil underline">Boyalı ve değişen parçanın fiyata etkisi</Link></li>
+              <li><Link href="/rehber/tramer-kaydi-nedir" className="text-birincil underline">Tramer kaydı nedir?</Link></li>
+            </ul>
+          ),
+        },
       ]}
     />
   );

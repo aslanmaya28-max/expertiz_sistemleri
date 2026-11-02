@@ -107,6 +107,16 @@ export default function AracDegerlemeSayfasi() {
           id: "bolge", baslik: "Hangi bölgelerde?",
           icerik: <p>Değerleme raporu çevrim içi bir hizmettir; <strong>Türkiye&apos;nin her yerindeki</strong> araç için kullanılabilir.</p>,
         },
+        {
+          id: "ilgili-rehberler", baslik: "İlgili rehberler",
+          icerik: (
+            <ul>
+              <li><Link href="/rehber/ilan-fiyati-dogru-mu-nasil-anlasilir" className="text-birincil underline">İlan fiyatı doğru mu, nasıl anlaşılır?</Link></li>
+              <li><Link href="/rehber/boyali-degisen-parca-fiyat-etkisi" className="text-birincil underline">Boyalı ve değişen parçanın fiyata etkisi</Link></li>
+              <li><Link href="/rehber/tramer-kaydi-nedir" className="text-birincil underline">Tramer kaydı nedir?</Link></li>
+            </ul>
+          ),
+        },
       ]}
     />
   );
