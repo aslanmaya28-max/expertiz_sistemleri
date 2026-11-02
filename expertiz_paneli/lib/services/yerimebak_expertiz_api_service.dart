@@ -31,6 +31,21 @@ class YerimebakExpertizApiService {
   final String? _accessToken;
   final SupabaseClient? _supabase;
 
+  Future<Map<String, dynamic>> getMarketGaps({int limit = 50}) {
+    return _get('/admin/market/gaps', queryParams: {'limit': '$limit'});
+  }
+
+  Future<Map<String, dynamic>> previewMarketList(String text) {
+    return _post('/admin/market/manual/preview', body: {'text': text});
+  }
+
+  Future<Map<String, dynamic>> saveMarketList({
+    required String brand,
+    required List<Map<String, dynamic>> rows,
+  }) {
+    return _post('/admin/market/manual/save', body: {'brand': brand, 'satirlar': rows});
+  }
+
   /// Admin onayı: personel raporu + kurumsal rapor + AI değerlemesi müşteriye yayınlanır.
   /// [adminNote] müşteri raporunda "Admin notu" olarak görünür (opsiyonel).
   Future<Map<String, dynamic>> publishReport(String reportId, {String? adminNote}) {
