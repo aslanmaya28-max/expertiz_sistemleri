@@ -192,3 +192,26 @@ def test_both_endpoints_require_login():
     with TestClient(app) as client:
         assert client.get('/valuation/prefill', params={"url": URL}).status_code == 401
         assert client.post('/valuation/prefill-text', json={"text": TEXT}).status_code == 401
+
+
+MG_METIN = ("1.895.000 TL\nMarkaMG\nSeriHS\nModel1.5 T-GDI Luxury\nYıl2024\nYakıt / Motor TipiBenzin\n"
+            "VitesOtomatik\nKM33.100\nMotor Gücü170 hp\n")
+
+
+def test_sahibinden_etiket_satirlari_seri_model_paket():
+    """Sahibinden'de 'Seri' bizim modelimiz, 'Model' paketimizdir (MG HS örneği, 02.11.2026)."""
+    got = {k: v["deger"] for k, v in extract.labeled_fields(MG_METIN).items()}
+    assert got == {"brand": "MG", "model": "HS", "package": "1.5 T-GDI Luxury", "year": 2024, "km": 33100,
+                   "fuel": "Benzin", "transmission": "Otomatik"}
+    arabam = extract.labeled_fields("Marka: Renault\nSeri: Clio\nModel Yılı: 2020")
+    assert arabam["year"]["deger"] == 2020 and "package" not in arabam
+    assert extract.labeled_fields("Renault Clio 2019 model, 85.000 km") == {}   # etiket yoksa kural devreye girmez
+
+
+def test_etiket_satirlari_yapay_zekanin_yanlis_eslemesinden_once_gelir(monkeypatch):
+    wrong = {"brand": "MG", "model": "1.5 T-GDI Luxury", "year": 2024, "km": 33100, "price": 1895000}
+    monkeypatch.setattr(web, "_search", lambda *a, **k: {"data": wrong, "cost": .001})
+    result = extract.from_text(MG_METIN)
+    assert result["vehicle"]["model"] == "HS" and result["vehicle"]["package"] == "1.5 T-GDI Luxury"
+    assert result["vehicle"]["price"] == 1895000
+

@@ -164,13 +164,55 @@ def from_link(url):
         return response({}, url)
 
 
+# Sahibinden/arabam özellik satırları ("SeriHS", "Model1.5 T-GDI Luxury", "KM33.100").
+# Bu sitelerde "Seri" bizim modelimiz, "Model" bizim paketimizdir. Yapay zekâ bu eşlemeyi her
+# seferinde aynı yapmıyor (MG HS örneği: modele "1.5 T-GDI Luxury" yazdı); satırlar kesin kuralla okunur.
+_LABEL_LINES = (
+    ("brand", r"Marka"), ("model", r"Seri"), ("package", r"Model(?!\s*Yılı)"),
+    ("year", r"(?:Yıl|YIL|Model Yılı)"), ("km", r"(?:KM|Km|Kilometre)"),
+    ("fuel", r"(?:Yakıt\s*/\s*Motor Tipi|Yakıt Tipi|Yakıt)"), ("transmission", r"(?:Vites Tipi|Vites)"),
+)
+
+
+def labeled_fields(text):
+    """Etiket satırlarından alanlar; yalnız ilan "Marka" ve "Seri" satırlarını birlikte içeriyorsa."""
+    lines = [line.strip() for line in (text or "").splitlines() if line.strip()]
+    found = {}
+    for key, label in _LABEL_LINES:
+        for line in lines:
+            match = re.fullmatch(label + r"\s*:?\s*(.{1,80})", line)
+            if match and key not in found:
+                found[key] = match.group(1).strip()
+                break
+    if "brand" not in found or "model" not in found:
+        return {}
+    out = {}
+    for key, value in found.items():
+        if key in ("year", "km"):
+            digits = re.sub(r"\D", "", value)
+            if not digits:
+                continue
+            number = int(digits)
+            if key == "year" and not 1980 <= number <= 2100:
+                continue
+            out[key] = field(number, "ilan_metni")
+        elif not re.fullmatch(r"\d+", value):
+            out[key] = field(value, "ilan_metni")
+    return out
+
+
 def from_text(text):
     if not os.getenv("OPENROUTER_API_KEY"):
+        labeled = labeled_fields(text)
+        if labeled:  # anahtar yokken de sahibinden/arabam satırları okunur
+            return response(labeled)
         return {**response({}), "message": "İlan metninden çıkarım şu anda kullanılamıyor; bilgileri elle girin."}
     try:
         result = _extract(text, is_link=False)
         logger.info("[İLAN ÇIKARIM] metin cost_usd=%s", result.get("cost", 0))
-        return response(verify(result.get("data"), text, "ilan_metni"))
+        fields = verify(result.get("data"), text, "ilan_metni")
+        fields.update(labeled_fields(text))  # etiket satırları yapay zekânın eşlemesinden önce gelir
+        return response(fields)
     except Exception as exc:
         logger.warning("[İLAN ÇIKARIM] metin başarısız: %s", type(exc).__name__)
         return {**response({}), "message": "Metin okunamadı; tekrar deneyin veya bilgileri elle girin."}
