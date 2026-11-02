@@ -194,7 +194,7 @@ def decision_summary(
     # İlan benzer ilan ortalamasının altındaysa satıcı bir kusuru belirtmemiş olabilir (kullanıcı kararı):
     # ağır hasardan sonra en üste yazılır ki 4 maddelik özet kesilince kaybolmasın.
     from yerimebak_ai_v5.services.negotiation import dusuk_fiyat_uyarisi
-    dusuk_fiyat = dusuk_fiyat_uyarisi(price, reference)
+    dusuk_fiyat = dusuk_fiyat_uyarisi(price, reference, degerleme.get("toplamDegerKaybiTutar") or 0)
     if dusuk_fiyat:
         riskler.insert(1 if degerleme.get("agirHasar") else 0, dusuk_fiyat)
     riskler.append("Boya, değişen ve tramer bilgileri ilan/müşteri beyanına dayanıyor; uzman tarafından doğrulanmadı.")

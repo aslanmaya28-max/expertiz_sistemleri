@@ -30,24 +30,31 @@ def _tl(value: Optional[float]) -> str:
 DUSUK_FIYAT_SERT_YUZDE = 10.0
 
 
-def dusuk_fiyat_uyarisi(price: float, reference: Dict[str, Any]) -> Optional[str]:
-    """Ilan benzer ilanlarin ortalamasinin altindaysa: satici bir kusuru belirtmemis olabilir (kullanici karari)."""
+def dusuk_fiyat_uyarisi(price: float, reference: Dict[str, Any], deger_kaybi: float = 0.0) -> Optional[str]:
+    """Ilan benzer ilanlarin ortalamasinin altindaysa: satici bir kusuru belirtmemis olabilir (kullanici karari).
+
+    Karsilastirma, BILDIRILEN hasarin etkisi dusulmus ortalamayla yapilir. Chery Tiggo denemesinde (03.11.2026)
+    180.000 TL tramer + 2 degisen kapili ilan hasarsiz ortalamanin %10,9 altinda diye "gizli kusur" uyarisi aliyordu;
+    oysa hasar dusulunce ilan piyasanin %19,7 USTUNDEYDI. Dusuk fiyatin nedeni zaten beyan edilmisse uyari verilmez."""
     ortalama = reference.get("market_avg_price") or reference.get("market_median_price")
     try:
-        ortalama, price = float(ortalama or 0), float(price or 0)
+        ortalama, price, kayip = float(ortalama or 0), float(price or 0), max(0.0, float(deger_kaybi or 0))
     except (TypeError, ValueError):
         return None
-    if ortalama <= 0 or price <= 0 or price >= ortalama:
+    beklenen = ortalama - kayip
+    if ortalama <= 0 or beklenen <= 0 or price <= 0 or price >= beklenen:
         return None
-    yuzde = (1 - price / ortalama) * 100
+    yuzde = (1 - price / beklenen) * 100
     oran = f"%{yuzde:.1f}".replace(".", ",")
+    giris = (f"İlan fiyatı, bildirilen hasarın etkisi düşüldükten sonra bile benzer ilanların ortalamasının {oran} altında."
+             if kayip else f"İlan fiyatı benzer ilanların ortalamasının {oran} altında.")
     if yuzde >= DUSUK_FIYAT_SERT_YUZDE:
-        return (f"İlan fiyatı benzer ilanların ortalamasının {oran} altında. Bu kadar düşük fiyat; gizlenmiş bir hasara, "
-                "arızaya, ağır hasar kaydına ya da ilan dolandırıcılığına işaret edebilir. Satıcıyla konuşup fiyatın neden "
-                "düşük olduğunu öğrenin, aracı görmeden kesinlikle kapora göndermeyin ve satın almadan önce aracı yerinde inceletin.")
-    return (f"İlan fiyatı benzer ilanların ortalamasının {oran} altında. Bu bir fırsat olabilir, ama satıcı araçtaki bir "
-            "kusuru (hasar, arıza, yaklaşan bakım) belirtmemiş olabilir. Satıcıyla konuşup fiyatın neden düşük olduğunu "
-            "öğrenin ya da satın almadan önce aracı yerinde inceletin.")
+        return (f"{giris} Bu kadar düşük fiyat; gizlenmiş bir hasara, arızaya, ağır hasar kaydına ya da ilan "
+                "dolandırıcılığına işaret edebilir. Satıcıyla konuşup fiyatın neden düşük olduğunu öğrenin, aracı görmeden "
+                "kesinlikle kapora göndermeyin ve satın almadan önce aracı yerinde inceletin.")
+    return (f"{giris} Bu bir fırsat olabilir, ama satıcı araçtaki bir kusuru (hasar, arıza, yaklaşan bakım) "
+            "belirtmemiş olabilir. Satıcıyla konuşup fiyatın neden düşük olduğunu öğrenin ya da satın almadan önce "
+            "aracı yerinde inceletin.")
 
 
 def _evidence(reference: Dict[str, Any], price: float, year: Optional[int], limit: int = 3) -> List[Dict[str, Any]]:
@@ -78,7 +85,10 @@ def build_plan(
     car_km = reference.get("reference_median_km") or None
     # Ilan, hesaplanan degerin ya da benzer ilanlarin ortasinin altindaysa pazarlik payi kucuktur:
     # hedef yine de ilan fiyatinin altinda kalir (hedef = ilan fiyati, pazarlik degildir).
-    piyasa_alti = price <= recommended or (median is not None and price <= median)
+    # Benzer ilanların ortası hasarsız araçlardır: bildirilen hasarın etkisi düşülmeden karşılaştırılmaz
+    # (Chery: hasarlı ilan "ortanın altında" sanılıp hedef = üst sınır = adil aralık tavanı çıkıyordu).
+    kayip = sum(float(k.get("tutar") or 0) for k in kalemler)
+    piyasa_alti = price <= recommended or (median is not None and price <= median - kayip)
 
     if price <= lo:
         durum = "fiyat_uygun"
@@ -177,7 +187,7 @@ def build_plan(
         not_ = ("İlan fiyatı benzer ilanların belirgin şekilde üstünde. Fark yeni kasa, motor gücü, donanım veya "
                 "garantiden kaynaklanıyor olabilir; teklif vermeden önce satıcıdan nedenini isteyin.")
         uyari = f"{uyari} {not_}" if uyari else not_
-    dusuk = dusuk_fiyat_uyarisi(price, reference)
+    dusuk = dusuk_fiyat_uyarisi(price, reference, kayip)
     if dusuk:
         uyari = f"{dusuk} {uyari}" if uyari else dusuk
 

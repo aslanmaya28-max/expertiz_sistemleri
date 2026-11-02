@@ -73,3 +73,22 @@ def test_motor_yazilmis_aracta_paket_girilmemis_denmez():
     eski = {"kod": "paket_bilinmiyor", "mesaj": "Araç paketi girilmemiş; emsaller modelin tüm paketlerinden"}
     assert "girilmemiş" not in _uyari_metni(eski, "1.5 TSI")
     assert _uyari_metni(eski, None) == eski["mesaj"]
+
+
+def test_hasari_beyan_edilmis_ucuz_ilanda_gizli_kusur_uyarisi_yok_ve_plan_tutarli():
+    # Chery Tiggo 7 Pro Max denemesi (03.11.2026): 180.000 TL tramer + 2 değişen kapı. İlan hasarsız ortalamanın
+    # %10,9 altında ama hasar düşülünce hesaplanan değerin %19,7 üstünde. Eski rapor "gizli kusur" uyarısı veriyor,
+    # hedef = üst sınır = 1.530.000 çıkıyor ve tavsiye fiyatıyla (1.400.000) çelişiyordu.
+    from yerimebak_ai_v5.services.negotiation import build_plan, dusuk_fiyat_uyarisi
+    ref = {"count": 6, "market_avg_price": 1_941_952, "market_median_price": 1_928_809, "samples": []}
+    kalemler = [{"baslik": "Tramer (hasar kaydı)", "durum": "180.000 TL", "tutar": 270_000},
+                {"baslik": "Sol Ön Kapı", "durum": "Değişen", "tutar": 115_729},
+                {"baslik": "Sol Arka Kapı", "durum": "Değişen", "tutar": 98_402}]
+    assert dusuk_fiyat_uyarisi(1_730_000, ref, 484_131) is None
+    plan = build_plan(price=1_730_000, fair_min=1_360_000, fair_max=1_530_000, recommended=1_400_000,
+                      reference=ref, kalemler=kalemler, confidence_level="orta", vehicle_title="2025 Chery Tiggo 7 Pro Max")
+    assert plan["durum"] == "pazarlik_payi_var"
+    assert plan["hedefFiyat"] == 1_400_000 < plan["ustSinir"] == 1_530_000
+    assert plan["uyari"] is None
+    # Hasar düşüldükten sonra da ucuzsa uyarı verilir ve bunu açıkça söyler.
+    assert "bildirilen hasarın etkisi düşüldükten sonra" in dusuk_fiyat_uyarisi(1_300_000, ref, 484_131)

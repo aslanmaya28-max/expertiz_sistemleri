@@ -4,6 +4,11 @@ import Link from "next/link";
 import type { ValuationResult } from "@/lib/api";
 import { AkilliAliciBolumleri, GecisYiliKutusu, SonrakiAdim } from "./AkilliAliciBolumleri";
 
+/** Türkçe yüzde: %25,1 (eskiden "25.1%" ve "-%14.0" görünüyordu). */
+function yuzde(value?: number | null) {
+  return "%" + new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 1 }).format(value ?? 0);
+}
+
 function tl(value?: number | null) {
   if (value == null) return "-";
   return new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 0 }).format(value) + " ₺";
@@ -77,7 +82,7 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
       </div>
 
       <section className="bg-white rounded-xl border border-kenarlik-acik p-6">
-        <h2 className="text-lg font-semibold text-metin-birincil">Değer kaybı ({degerleme.toplamDegerKaybiYuzde}% • {tl(degerleme.toplamDegerKaybiTutar)})</h2>
+        <h2 className="text-lg font-semibold text-metin-birincil">Değer kaybı ({yuzde(degerleme.toplamDegerKaybiYuzde)} • {tl(degerleme.toplamDegerKaybiTutar)})</h2>
         {degerleme.kalemler.length === 0 ? (
           <p className="mt-2 text-sm text-metin-ikincil">Bildirilen boya, değişen veya hasar kaydı yok.</p>
         ) : (
@@ -87,7 +92,7 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
                 <tr key={`${k.kategori}-${k.anahtar}`} className="border-t border-kenarlik-acik">
                   <td className="py-2 text-metin-birincil">{k.baslik}</td>
                   <td className="py-2 text-metin-ikincil">{k.durum}</td>
-                  <td className="py-2 text-right text-metin-ikincil">-%{k.yuzde.toFixed(1)}</td>
+                  <td className="py-2 text-right text-metin-ikincil">-{yuzde(k.yuzde)}</td>
                   <td className="py-2 text-right font-semibold text-metin-birincil">-{tl(k.tutar)}</td>
                 </tr>
               ))}
