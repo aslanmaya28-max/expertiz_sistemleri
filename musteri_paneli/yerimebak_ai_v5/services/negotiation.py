@@ -105,6 +105,11 @@ def build_plan(
     uyari = None
     if confidence_level == "dusuk":
         uyari = "Piyasa verisi sınırlı: rakamları yön gösterici kullanın, kesin fiyat olarak sunmayın."
+    ref_median = reference.get("market_median_price")
+    if ref_median and price > ref_median * 1.12:
+        not_ = ("İlan fiyatı benzer ilanların belirgin şekilde üstünde. Fark yeni kasa, motor gücü, donanım veya "
+                "garantiden kaynaklanıyor olabilir; teklif vermeden önce satıcıdan nedenini isteyin.")
+        uyari = f"{uyari} {not_}" if uyari else not_
 
     return {
         "durum": durum,

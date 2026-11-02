@@ -84,3 +84,13 @@ def test_kalem_metni_ve_beyan_ozeti():
     assert _beyan_ozeti("Ekspertizde 1 boyalı parça tespit edildi; bulguların toplam değer kaybı %1,8.") ==         "Beyana göre araçta 1 boyalı parça var; bulguların toplam değer kaybı %1,8."
     assert _beyan_ozeti("Ekspertizde kaporta işlemi tespit edilmedi; x").startswith("Beyana göre araçta kaporta işlemi yok")
     assert _beyan_ozeti(None) is None
+
+
+def test_buyuk_fiyat_farkinda_once_neden_sorulur():
+    """MG HS 2024 örneği: yeni kasa ilanı eski kasa emsallerle %15 pahalı görünüyordu."""
+    s = _ozet(degerleme={**DEGERLEME, "fiyatYorumu": {"farkYuzde": 15.5}})
+    assert any("%16 yüksek" in r and "yeni kasa" in r for r in s["ozet"]["riskler"])
+    assert s["ozet"]["simdiNeYapmali"].startswith("Önce satıcıya farkın nedenini sorun")
+    normal = _ozet()   # %8,4: eski davranış
+    assert "farkın nedenini" not in normal["ozet"]["simdiNeYapmali"]
+    assert not any("yeni kasa" in r for r in normal["ozet"]["riskler"])

@@ -65,3 +65,15 @@ def test_kaynak_yoksa_bile_calisir():
     p = _plan(reference={}, kalemler=[])
     assert p["kanitIlanlar"] == [] and p["saticiMesaji"]
     assert p["acilisTeklifi"] <= p["hedefFiyat"] <= p["ustSinir"]
+
+
+def test_ilan_ortanin_cok_ustundeyse_plan_uyarir():
+    from yerimebak_ai_v5.services.negotiation import build_plan
+    plan = build_plan(price=1_895_000, fair_min=1_540_000, fair_max=1_740_000, recommended=1_590_000,
+                      reference={"count": 9, "market_median_price": 1_640_000, "samples": []}, kalemler=[],
+                      confidence_level="orta", vehicle_title="2024 MG HS")
+    assert "satıcıdan nedenini isteyin" in (plan["uyari"] or "")
+    normal = build_plan(price=1_700_000, fair_min=1_540_000, fair_max=1_740_000, recommended=1_590_000,
+                        reference={"count": 9, "market_median_price": 1_640_000, "samples": []}, kalemler=[],
+                        confidence_level="orta", vehicle_title="2024 MG HS")
+    assert normal["uyari"] is None

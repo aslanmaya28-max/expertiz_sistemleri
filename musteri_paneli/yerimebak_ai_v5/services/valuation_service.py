@@ -125,6 +125,12 @@ def confidence_level(score: int, flags: List[Dict[str, Any]]) -> str:
     return "yuksek" if score >= 70 else "orta"
 
 
+# İlan fiyatı benzer ilanlardan bu kadar yüksekse "pahalı" demeden önce farkın nedeni sorulur:
+# fark yeni kasa, motor gücü, donanım ya da garantiden gelebilir (MG HS 2024 örneği: yeni kasa
+# 170 hp ilan, eski kasa 162 hp emsallerle "%15 pahalı" görünmüştü).
+EXPLAIN_GAP_PCT = 12.0
+
+
 def decision_summary(
     *, price: float, degerleme: Dict[str, Any], recommended: float, verdict_key: str,
     karar: str, karar_aciklama: str, confidence: int, flags: List[Dict[str, Any]],
@@ -166,6 +172,11 @@ def decision_summary(
     for f in flags:
         if f.get("kod") in LOW_CONFIDENCE_FLAGS and f.get("mesaj"):
             riskler.append(f["mesaj"] + ".")
+    buyuk_fark = fark is not None and fark > EXPLAIN_GAP_PCT
+    if buyuk_fark:
+        riskler.append(f"İlan fiyatı benzer ilanlardan %{fark:.0f} yüksek. Fark yeni kasa, motor gücü, donanım "
+                       "veya garantiden kaynaklanıyor olabilir; benzer ilanlarla aynı araç olduğu doğrulanmalı."
+                       )
     riskler.append("Boya, değişen ve tramer bilgileri ilan/müşteri beyanına dayanıyor; uzman tarafından doğrulanmadı.")
 
     gerekceler: List[str] = []
@@ -187,6 +198,9 @@ def decision_summary(
                 + (f", {same} tanesi aynı model yılı" if same is not None else "") + "). "
                 + (f"Fiyatlar bu yüzden yaklaşık ±%{belirsizlik} belirsizlik taşır; " if belirsizlik else "")
                 + "satın almadan önce yerinde ekspertiz özellikle önemlidir.")
+    elif buyuk_fark:
+        adim = (f"Önce satıcıya farkın nedenini sorun (kasa/model yılı, motor gücü, donanım, garanti). "
+                f"Açıklanamıyorsa {_tl(recommended)} civarına pazarlık edin; her durumda aracı yerinde inceletin.")
     elif karar == "AL":
         adim = "Fiyat uygun görünüyor. Ödeme yapmadan önce aracı yerinde inceletin."
     elif karar == "PAZARLIK YAP":
