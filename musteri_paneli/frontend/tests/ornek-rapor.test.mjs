@@ -33,7 +33,7 @@ function load(relative) {
 
 test('örnek rapor gerçek alanları korur ve canlı rapor kimliği taşımaz', () => {
   for (const key of ['success', 'arac', 'piyasa', 'degerleme', 'karar', 'kredi', 'getiri']) assert.ok(key in result, key);
-  assert.equal(result.arac.marka, 'Hyundai');
+  assert.equal(result.arac.marka, 'Fiat');
   assert.equal(result.arac.ilanLinki, '');
   assert.deepEqual(result.kredi, { dusulen: 1, kalan: 0 });
   assert.equal(result.rapor.id, 'ornek');

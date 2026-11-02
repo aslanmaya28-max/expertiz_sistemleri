@@ -1,157 +1,164 @@
 {
  "arac": {
-  "marka": "Hyundai",
-  "model": "Tucson",
-  "paket": "1.6 CRDI Elite Plus",
-  "yil": 2021,
-  "km": 66000,
-  "yakit": "Dizel",
-  "vites": "Otomatik",
-  "ilanFiyati": 2200000,
+  "marka": "Fiat",
+  "model": "Egea",
+  "paket": "1.4 Fire Urban",
+  "yil": 2019,
+  "km": 90000,
+  "yakit": "Benzin",
+  "vites": "Manuel",
+  "ilanFiyati": 800000,
   "ilanLinki": "",
   "beyanEdilenParcalar": {
-   "solArkaCamurluk": "lokal_boyali"
+   "solOnKapi": "degisen",
+   "solOnCamurluk": "boyali"
   },
-  "tramerTutari": 20000
+  "tramerTutari": 35000
  },
  "piyasa": {
-  "ortalama": 2156750,
-  "medyan": 2220000,
-  "min": 1750000,
-  "max": 2485000,
-  "emsalSayisi": 8,
-  "hasarsizEmsalSayisi": 4,
-  "guvenSkoru": 35,
+  "ortalama": 744822,
+  "medyan": 773072,
+  "min": 643202,
+  "max": 825684,
+  "emsalSayisi": 5,
+  "hasarsizEmsalSayisi": 1,
+  "guvenSkoru": 55,
   "kaynak": "web_listings",
   "kaynaklar": [
    {
-    "site": "ulusmotors.com",
-    "url": "https://www.ulusmotors.com/hyundai-tucson-16-crdi-4x4-elite-plus-dct-2021-ikinci-el-araba-761",
-    "fiyat": 1750000,
-    "km": 11948,
-    "yil": 2021
-   },
-   {
-    "site": "satariz.com",
-    "url": "https://www.satariz.com/hyundai-tucson-16-crdi",
-    "fiyat": 1835000,
-    "km": 131000,
+    "site": "cetas.com.tr",
+    "url": "https://www.cetas.com.tr/fiat-egea-1-4-16v-fire-mirror-95hp-hatchback-41aed396-433-483a-b7ed-40d7a8e44d2e",
+    "fiyat": 660000,
+    "duzeltilmisFiyat": 643202,
+    "km": 58185,
     "yil": 2019
    },
    {
-    "site": "otosor.com.tr",
-    "url": "https://www.otosor.com.tr/araclar/suv-and-pick-up/hyundai-tucson?page=2",
-    "fiyat": 1945000,
-    "km": 148308,
-    "yil": 2022
+    "site": "arabailani.com.tr",
+    "url": "https://arabailani.com.tr/acil-2019-egea-34bin-km-3595",
+    "fiyat": 740000,
+    "duzeltilmisFiyat": 707144,
+    "km": 34500,
+    "yil": 2019
    },
    {
-    "site": "neziroglu.com.tr",
-    "url": "https://www.neziroglu.com.tr/site/arac_bilgi/25208",
-    "fiyat": 2150000,
-    "km": 24673,
-    "yil": 2022
+    "site": "arabailani.com.tr",
+    "url": "https://arabailani.com.tr/fiat-egea-2019-easy-degisensiz-tramersiz-hatasiz-lpg-sorunsuz-yakit-cimrisi-4379",
+    "fiyat": 760000,
+    "duzeltilmisFiyat": 773072,
+    "km": 111500,
+    "yil": 2019
+   },
+   {
+    "site": "otomobilinolsun.obuluyor.com.tr",
+    "url": "https://otomobilinolsun.obuluyor.com.tr/index.php?id=5120&page=detail",
+    "fiyat": 780000,
+    "duzeltilmisFiyat": 775008,
+    "km": 82000,
+    "yil": 2019
    },
    {
     "site": "arabam.com",
-    "url": "https://www.arabam.com/ilan/galeriden-satilik-hyundai-tucson-1-6-crdi-elite-plus/egehan-motors-dan-2023-tucson-1-6crdi-elit-plus-4x4-29-000-km/43969471",
-    "fiyat": 2290000,
-    "km": 29000,
-    "yil": 2023
-   },
-   {
-    "site": "otoplus.com",
-    "url": "https://www.otoplus.com/hyundai/tucson",
-    "fiyat": 2399000,
-    "km": 43807,
-    "yil": 2023
-   },
-   {
-    "site": "garageotomotiv.com",
-    "url": "https://www.garageotomotiv.com/otomotiv/2022-hyundai-tuscon-16-crdi-elite-plus_028932.html",
-    "fiyat": 2400000,
-    "km": 49223,
-    "yil": 2022
-   },
-   {
-    "site": "otonomi.com",
-    "url": "https://otonomi.com/ilan/2022-hyundai-tucson/f031e1da-90ae-40b5-bcab-2504486f6dfe",
-    "fiyat": 2485000,
-    "km": 34000,
-    "yil": 2022
+    "url": "https://www.arabam.com/ilan/sahibinden-satilik-fiat-egea-1-4-fire-easy/hatasiz-boyasiz-fiat-egea/40888745",
+    "fiyat": 830000,
+    "duzeltilmisFiyat": 825684,
+    "km": 83500,
+    "yil": 2019
    }
   ],
+  "takipIlanSayisi": 0,
+  "gecisYili": null,
+  "duzeltme": {
+   "aracYili": 2019,
+   "aracKm": 90000,
+   "yillikOran": 0.04,
+   "yilAraligi": [
+    2016,
+    2019
+   ],
+   "kasa": "Type 357 / Fiat Egea",
+   "ayniYilSayisi": 5
+  },
   "uyarilar": [
-   "Emsal fiyatları birbirinden çok farklı; piyasa değerini kontrol edin"
+   "Aynı paketten (1.4 Fire Urban) yeterli ilan yok; diğer paketler de kullanıldı"
   ],
   "guncelGun": null
  },
  "degerleme": {
-  "temizPiyasaDegeri": 1869563,
-  "toplamDegerKaybiYuzde": 2.92,
-  "toplamDegerKaybiTutar": 54591,
+  "temizPiyasaDegeri": 773072,
+  "toplamDegerKaybiYuzde": 13.8,
+  "toplamDegerKaybiTutar": 106684,
   "kalemler": [
    {
     "kategori": "tramer",
     "anahtar": "tramer",
     "baslik": "Tramer (hasar kaydı)",
-    "durum": "20.000 TL",
-    "yuzde": 2.0,
-    "hamYuzde": 1.86,
-    "tutar": 37391,
-    "aciklama": "Hasar tutarı araç değerinin %1,1'i · fiziksel izi kaporta kalemlerinde düşüldü, yalnızca kayıt etkisi eklendi · Tramerli araç algısı: en az %2 / tutarın 1,5 katı"
+    "durum": "35.000 TL",
+    "yuzde": 6.79,
+    "hamYuzde": 4.62,
+    "tutar": 52500,
+    "aciklama": "Hasar tutarı araç değerinin %4,5'i · fiziksel izi kaporta kalemlerinde düşüldü, yalnızca kayıt etkisi eklendi · Tramerli araç algısı: en az %2 / tutarın 1,5 katı"
    },
    {
     "kategori": "kaporta",
-    "anahtar": "solArkaCamurluk",
-    "baslik": "Sol Arka Çamurluk",
-    "durum": "Lokal Boyalı",
-    "yuzde": 0.92,
-    "hamYuzde": 1.0,
-    "tutar": 17219,
+    "anahtar": "solOnKapi",
+    "baslik": "Sol Ön Kapı",
+    "durum": "Değişen",
+    "yuzde": 4.95,
+    "hamYuzde": 6.0,
+    "tutar": 38267,
+    "aciklama": ""
+   },
+   {
+    "kategori": "kaporta",
+    "anahtar": "solOnCamurluk",
+    "baslik": "Sol Ön Çamurluk",
+    "durum": "Boyalı",
+    "yuzde": 2.06,
+    "hamYuzde": 2.5,
+    "tutar": 15945,
     "aciklama": ""
    }
   ],
-  "aiDegeri": 1815000,
+  "aiDegeri": 666000,
   "adilFiyatAraligi": {
-   "min": 1650000,
-   "max": 1980000
+   "min": 606000,
+   "max": 726000
   },
-  "tavsiyeFiyat": 1760000,
-  "hasarSeviyesi": "LIGHT",
+  "tavsiyeFiyat": 646000,
+  "hasarSeviyesi": "MEDIUM",
   "agirHasar": false,
-  "ozet": "Beyana göre araçta 1 boyalı parça var; bulguların toplam değer kaybı %2,9. Temiz piyasa değeri 1.869.563 TL üzerinden bulgular düşülerek aracın değeri 1.815.000 TL olarak belirlendi (adil aralık 1.650.000 TL – 1.980.000 TL). İlan fiyatı 2.200.000 TL (%+21,2): İlan fiyatı bulgulara göre yüksek."
+  "ozet": "Beyana göre araçta 1 değişen, 1 boyalı parça var; bulguların toplam değer kaybı %13,8. Temiz piyasa değeri 773.072 TL üzerinden bulgular düşülerek aracın değeri 666.000 TL olarak belirlendi (adil aralık 606.000 TL – 726.000 TL). İlan fiyatı 800.000 TL (%+20,1): İlan fiyatı bulgulara göre yüksek."
  },
  "karar": {
-  "ilanFarkiYuzde": 21.2,
-  "ilanFarkiTutar": 385028,
-  "sonuc": "EK DOĞRULAMA GEREKLİ",
-  "aciklama": "Bu araç için bulunan piyasa verisi kesin karar vermeye yetmiyor. Aşağıdaki fiyatları yön gösterici kabul edin; satın almadan önce ilanı ve aracı uzman incelemesiyle doğrulayın.",
-  "guvenSeviyesi": "dusuk",
-  "hesaplananEgilim": "ALMA"
+  "ilanFarkiYuzde": 20.1,
+  "ilanFarkiTutar": 133612,
+  "sonuc": "ALMA",
+  "aciklama": "Fiyat, aracın bulgulara göre değerinin belirgin üzerinde; bu fiyattan alınması önerilmez.",
+  "guvenSeviyesi": "orta",
+  "hesaplananEgilim": null
  },
  "getiri": null,
  "ozet": {
   "piyasaKonumu": {
    "durum": "ustunde",
-   "metin": "Piyasanın üstünde (ilan fiyatı hesaplanan değerin %21,2 üstünde)"
+   "metin": "Piyasanın üstünde (ilan fiyatı hesaplanan değerin %20,1 üstünde)"
   },
   "adilFiyat": {
-   "min": 1650000,
-   "max": 1980000
+   "min": 606000,
+   "max": 726000
   },
   "riskler": [
-   "Tramer (hasar kaydı) 20.000 TL: değeri yaklaşık 37.391 TL düşürüyor.",
-   "Sol Arka Çamurluk (lokal boyalı): değeri yaklaşık 17.219 TL düşürüyor.",
-   "Emsal fiyatları birbirinden çok farklı; piyasa değerini kontrol edin.",
+   "Tramer (hasar kaydı) 35.000 TL: değeri yaklaşık 52.500 TL düşürüyor.",
+   "Sol Ön Kapı (değişen): değeri yaklaşık 38.267 TL düşürüyor.",
    "Boya, değişen ve tramer bilgileri ilan/müşteri beyanına dayanıyor; uzman tarafından doğrulanmadı."
   ],
   "pazarlikGerekceleri": [
-   "İlan fiyatı adil aralığın üst sınırından 220.000 TL yüksek.",
-   "Benzer 8 ilanın orta fiyatı 2.220.000 TL.",
-   "Tramer (hasar kaydı) 20.000 TL: yaklaşık 37.391 TL değer kaybı."
+   "İlan fiyatı adil aralığın üst sınırından 74.000 TL yüksek.",
+   "Benzer 5 ilanın orta fiyatı (bu araca göre düzeltilmiş) 773.072 TL.",
+   "Tramer (hasar kaydı) 35.000 TL: yaklaşık 52.500 TL değer kaybı."
   ],
-  "simdiNeYapmali": "Veri sınırlı: kararınızı ilan bilgileri ve uzman incelemesiyle netleştirin."
+  "simdiNeYapmali": "Bu fiyattan almayın; fiyat 646.000 TL civarına inmezse başka ilanlara bakın."
  },
  "bilgiKaynaklari": [
   {
@@ -182,70 +189,80 @@
  ],
  "pazarlikPlani": {
   "durum": "pazarlik_payi_var",
-  "acilisTeklifi": 1705000,
-  "hedefFiyat": 1760000,
-  "ustSinir": 1980000,
-  "potansiyelKazanc": 440000,
+  "acilisTeklifi": 627000,
+  "hedefFiyat": 646000,
+  "ustSinir": 726000,
+  "potansiyelKazanc": 154000,
   "adimlar": [
-   "1.705.000 TL teklifiyle açın ve gerekçeleri gösterin.",
-   "Karşı teklif gelirse 1.760.000 TL hedefine doğru ilerleyin.",
-   "1.980.000 TL üst sınırınız; bunun üstüne çıkmayın.",
+   "627.000 TL teklifiyle açın ve gerekçeleri gösterin.",
+   "Karşı teklif gelirse 646.000 TL hedefine doğru ilerleyin.",
+   "726.000 TL üst sınırınız; bunun üstüne çıkmayın.",
    "Son fiyatı ekspertiz sonucuna bağlayın: incelemede beyan dışı hasar çıkarsa fiyat yeniden konuşulur."
   ],
   "gerekceler": [
-   "İlan fiyatı (2.200.000 TL) adil aralığın üst sınırından (1.980.000 TL) 220.000 TL yüksek.",
-   "Benzer 8 ilanın orta fiyatı 2.220.000 TL.",
-   "Tramer (hasar kaydı) 20.000 TL değeri yaklaşık 37.391 TL düşürüyor.",
-   "Sol Arka Çamurluk (lokal boyalı) değeri yaklaşık 17.219 TL düşürüyor."
+   "İlan fiyatı (800.000 TL) adil aralığın üst sınırından (726.000 TL) 74.000 TL yüksek.",
+   "Benzer 5 ilanın orta fiyatı (bu araca göre düzeltilmiş) 773.072 TL.",
+   "Tramer (hasar kaydı) 35.000 TL değeri yaklaşık 52.500 TL düşürüyor.",
+   "Sol Ön Kapı (değişen) değeri yaklaşık 38.267 TL düşürüyor."
   ],
   "kanitIlanlar": [
    {
-    "site": "ulusmotors.com",
-    "url": "https://www.ulusmotors.com/hyundai-tucson-16-crdi-4x4-elite-plus-dct-2021-ikinci-el-araba-761",
-    "fiyat": 1750000,
-    "km": 11948,
-    "yil": 2021
-   },
-   {
-    "site": "satariz.com",
-    "url": "https://www.satariz.com/hyundai-tucson-16-crdi",
-    "fiyat": 1835000,
-    "km": 131000,
+    "site": "cetas.com.tr",
+    "url": "https://www.cetas.com.tr/fiat-egea-1-4-16v-fire-mirror-95hp-hatchback-41aed396-433-483a-b7ed-40d7a8e44d2e",
+    "fiyat": 660000,
+    "km": 58185,
     "yil": 2019
    },
    {
-    "site": "otosor.com.tr",
-    "url": "https://www.otosor.com.tr/araclar/suv-and-pick-up/hyundai-tucson?page=2",
-    "fiyat": 1945000,
-    "km": 148308,
-    "yil": 2022
+    "site": "arabailani.com.tr",
+    "url": "https://arabailani.com.tr/acil-2019-egea-34bin-km-3595",
+    "fiyat": 740000,
+    "km": 34500,
+    "yil": 2019
+   },
+   {
+    "site": "arabailani.com.tr",
+    "url": "https://arabailani.com.tr/fiat-egea-2019-easy-degisensiz-tramersiz-hatasiz-lpg-sorunsuz-yakit-cimrisi-4379",
+    "fiyat": 760000,
+    "km": 111500,
+    "yil": 2019
    }
   ],
-  "saticiMesaji": "Merhaba, 2021 Hyundai Tucson ilanınızla ilgileniyorum. İlan fiyatı (2.200.000 TL) adil aralığın üst sınırından (1.980.000 TL) 220.000 TL yüksek. Benzer 8 ilanın orta fiyatı 2.220.000 TL. Bu nedenle 1.705.000 TL teklif etmek istiyorum. Aracı satın almadan önce bağımsız bir ekspertizde inceletmek istiyorum; uygun olursa randevu ayarlayabiliriz. Teşekkürler.",
-  "uyari": "Piyasa verisi sınırlı: rakamları yön gösterici kullanın, kesin fiyat olarak sunmayın."
+  "saticiMesaji": "Merhaba, 2019 Fiat Egea ilanınızla ilgileniyorum. İlan fiyatı (800.000 TL) adil aralığın üst sınırından (726.000 TL) 74.000 TL yüksek. Benzer 5 ilanın orta fiyatı (bu araca göre düzeltilmiş) 773.072 TL. Bu nedenle 627.000 TL teklif etmek istiyorum. Aracı satın almadan önce bağımsız bir ekspertizde inceletmek istiyorum; uygun olursa randevu ayarlayabiliriz. Teşekkürler.",
+  "uyari": null
  },
  "kullaniciSikayetleri": [
   {
-   "baslik": "Kalkışta titreme ve şanzıman vuruntusu",
-   "aciklama": "Kullanıcı beyanlarında dur-kalk trafikte, rampada ve ilk hareket anında titreme, vuruntulu vites geçişi, hareketlenmede zorlanma ve şanzıman uyarısı öne çıkıyor.",
+   "baslik": "Yağ eksiltme / yağ yakma",
+   "aciklama": "Kullanıcılar 1.4 Fire benzinli Egea’da motor yağ seviyesinin sık düşmesinden, servislerin yağ ekleyip göndermesinden ve sorunun tekrarlamasından şikâyet ediyor.",
    "kaynaklar": [
-    "https://www.sikayetvar.com/hyundai-motor/tucson/tucson-sanziman-sorunu",
-    "https://www.araclo.com/blog/hyundai-tucson-1.6-crdi-alinir-mi-sorunlar-ve-kullanici-yorumlari"
+    "https://www.sikayetvar.com/fiat/egea",
+    "https://forum.donanimhaber.com/egea-1-4-almayi-dusunuyorum--160889614"
    ],
    "kategori": "mekanik_motor",
    "onem": "yuksek",
    "kaynakSayisi": 2
   },
   {
-   "baslik": "Kısa mesafe/şehir içi kullanımda tekrar eden partikül uyarıları",
-   "aciklama": "Bazı kullanıcılar kısa mesafe kullanım, şehir içi kullanım veya düzenli uzun yol yapmalarına rağmen partikül uyarısının yeniden geldiğini ve sorunun tekrarladığını bildiriyor.",
+   "baslik": "Far / elektrik aksamı kaynaklı arızalar",
+   "aciklama": "Bazı kullanıcı beyanlarında farların çalışmaması gibi elektriksel sorunlar ve bununla birlikte farklı elektrik arızaları yer alıyor.",
    "kaynaklar": [
-    "https://www.sikayetvar.com/hyundai-motor/tucson/tucson-4x4",
-    "https://www.sikayetvar.com/hyundai-motor/tucson/tucson-partikul-filtresi-sorunu",
-    "https://www.araclo.com/blog/hyundai-tucson-1.6-crdi-alinir-mi-sorunlar-ve-kullanici-yorumlari"
+    "https://forum.donanimhaber.com/fiat-egea-1-4-fire-95-alinirmi-yardim--137513055",
+    "https://www.sikayetvar.com/fiat/egea/kronik"
    ],
-   "kategori": "mekanik_motor",
+   "kategori": "elektronik",
    "onem": "orta",
+   "kaynakSayisi": 2
+  },
+  {
+   "baslik": "İç trim ve plastik aksamda ses / fitil / küçük kalite sorunları",
+   "aciklama": "Kullanıcılar fitillerden gelen gıcırtı, iç trim sesleri ve küçük kalite sorunlarını özellikle şehir içi kullanımda dile getiriyor.",
+   "kaynaklar": [
+    "https://www.sikayetvar.com/fiat/egea/urban",
+    "https://forum.donanimhaber.com/fiat-egea-1-4-fire-motor-urban-plus-donanim-inceleme--145485400"
+   ],
+   "kategori": "trim_kasa",
+   "onem": "dusuk",
    "kaynakSayisi": 2
   }
  ],
@@ -257,32 +274,27 @@
  "bakim": [
   {
    "baslik": "Fren ve lastik kontrolü",
-   "aciklama": "Fren ve lastik kontrolü: 66.000 km ve 5 yaşındaki araçta son yapıldığı tarih ve kilometreyi doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.",
+   "aciklama": "Fren ve lastik kontrolü: 90.000 km ve 7 yaşındaki araçta son yapıldığı tarih ve kilometreyi doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.",
    "kontrol": "Tarih, kilometre ve servis faturalarını karşılaştırın."
   },
   {
    "baslik": "Periyodik bakım kayıtları",
-   "aciklama": "Periyodik bakım kayıtları: 66.000 km ve 5 yaşındaki araçta son yapıldığı tarih ve kilometreyi doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.",
+   "aciklama": "Periyodik bakım kayıtları: 90.000 km ve 7 yaşındaki araçta son yapıldığı tarih ve kilometreyi doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.",
    "kontrol": "Tarih, kilometre ve servis faturalarını karşılaştırın."
   },
   {
    "baslik": "Akü kontrolü",
-   "aciklama": "Akü kontrolü: 66.000 km ve 5 yaşındaki araçta son yapıldığı tarih ve kilometreyi doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.",
+   "aciklama": "Akü kontrolü: 90.000 km ve 7 yaşındaki araçta son yapıldığı tarih ve kilometreyi doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.",
    "kontrol": "Tarih, kilometre ve servis faturalarını karşılaştırın."
   },
   {
    "baslik": "Triger / zincir bakım geçmişi",
-   "aciklama": "Triger / zincir bakım geçmişi: 66.000 km ve 5 yaşındaki araçta son yapıldığı tarih ve kilometreyi doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.",
+   "aciklama": "Triger / zincir bakım geçmişi: 90.000 km ve 7 yaşındaki araçta son yapıldığı tarih ve kilometreyi doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.",
    "kontrol": "Tarih, kilometre ve servis faturalarını karşılaştırın."
   },
   {
    "baslik": "Şanzıman yağı ve filtre geçmişi",
-   "aciklama": "Şanzıman yağı ve filtre geçmişi: 66.000 km ve 5 yaşındaki araçta son yapıldığı tarih ve kilometreyi doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.",
-   "kontrol": "Tarih, kilometre ve servis faturalarını karşılaştırın."
-  },
-  {
-   "baslik": "DPF / EGR kontrolü",
-   "aciklama": "DPF / EGR kontrolü: 66.000 km ve 5 yaşındaki araçta son yapıldığı tarih ve kilometreyi doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.",
+   "aciklama": "Şanzıman yağı ve filtre geçmişi: 90.000 km ve 7 yaşındaki araçta son yapıldığı tarih ve kilometreyi doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.",
    "kontrol": "Tarih, kilometre ve servis faturalarını karşılaştırın."
   }
  ],
@@ -291,7 +303,7 @@
   "Servis ve bakım faturalarını tarih ve kilometreleriyle paylaşır mısınız?",
   "Şasi numarasıyla açık geri çağırma ve servis kampanyası kontrolü yapabilir miyiz?",
   "Tramer kaydının detay dökümünü ve onarım faturalarını paylaşır mısınız?",
-  "Beyan edilen Sol Arka Çamurluk (lokal boyalı) için hasarın nedeni ve onarım belgeleri var mı?",
+  "Beyan edilen Sol Ön Kapı (değişen) için hasarın nedeni ve onarım belgeleri var mı?",
   "Fren ve lastik kontrolü için son kontrol/bakım hangi tarih ve kilometrede yapıldı? Faturası var mı?",
   "Periyodik bakım kayıtları için son kontrol/bakım hangi tarih ve kilometrede yapıldı? Faturası var mı?",
   "Akü kontrolü için son kontrol/bakım hangi tarih ve kilometrede yapıldı? Faturası var mı?",
@@ -302,7 +314,7 @@
   "id": "ornek",
   "report_no": "ÖRNEK",
   "verification_code": "YD-ORNEK-0000",
-  "created_at": "2026-11-02T13:23:23.721463+00:00",
+  "created_at": "2026-11-02T17:34:24.027458+00:00",
   "engine_version": "ekspertiz-degerleme-2026.11.02",
   "verification_url": ""
  },
