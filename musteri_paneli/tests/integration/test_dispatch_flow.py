@@ -59,6 +59,8 @@ def client():
     account_service._schema_ready = False
     market_ingest._schema_ready = False
     web_market_reference._schema_ready = False
+    from yerimebak_ai_v5.services import manual_market
+    manual_market._schema_ready = False
 
     with TestClient(app, base_url="http://localhost") as test_client:
         yield test_client

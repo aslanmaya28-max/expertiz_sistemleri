@@ -124,7 +124,7 @@ def verify(data, text, source):
 
 
 def response(fields, url=None):
-    vehicle = {k: v["deger"] for k, v in fields.items() if k in TEXT_FIELDS + NUMBER_FIELDS}
+    vehicle = {k: v["deger"] for k, v in fields.items() if k in TEXT_FIELDS + NUMBER_FIELDS + ("hp",)}
     parts = {k[6:]: v["deger"] for k, v in fields.items() if k.startswith("parts.")}
     count = sum(bool(v["dogrulandi"]) for v in fields.values())
     missing = [LABELS[k] for k in TEXT_FIELDS + NUMBER_FIELDS if k not in fields or not fields[k]["dogrulandi"]]
@@ -171,6 +171,7 @@ _LABEL_LINES = (
     ("brand", r"Marka"), ("model", r"Seri"), ("package", r"Model(?!\s*Yılı)"),
     ("year", r"(?:Yıl|YIL|Model Yılı)"), ("km", r"(?:KM|Km|Kilometre)"),
     ("fuel", r"(?:Yakıt\s*/\s*Motor Tipi|Yakıt Tipi|Yakıt)"), ("transmission", r"(?:Vites Tipi|Vites)"),
+    ("hp", r"Motor Gücü"),
 )
 
 
@@ -188,12 +189,14 @@ def labeled_fields(text):
         return {}
     out = {}
     for key, value in found.items():
-        if key in ("year", "km"):
+        if key in ("year", "km", "hp"):
             digits = re.sub(r"\D", "", value)
             if not digits:
                 continue
             number = int(digits)
             if key == "year" and not 1980 <= number <= 2100:
+                continue
+            if key == "hp" and not 40 <= number <= 800:
                 continue
             out[key] = field(number, "ilan_metni")
         elif not re.fullmatch(r"\d+", value):

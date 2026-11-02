@@ -202,7 +202,7 @@ def test_sahibinden_etiket_satirlari_seri_model_paket():
     """Sahibinden'de 'Seri' bizim modelimiz, 'Model' paketimizdir (MG HS örneği, 02.11.2026)."""
     got = {k: v["deger"] for k, v in extract.labeled_fields(MG_METIN).items()}
     assert got == {"brand": "MG", "model": "HS", "package": "1.5 T-GDI Luxury", "year": 2024, "km": 33100,
-                   "fuel": "Benzin", "transmission": "Otomatik"}
+                   "fuel": "Benzin", "transmission": "Otomatik", "hp": 170}
     arabam = extract.labeled_fields("Marka: Renault\nSeri: Clio\nModel Yılı: 2020")
     assert arabam["year"]["deger"] == 2020 and "package" not in arabam
     assert extract.labeled_fields("Renault Clio 2019 model, 85.000 km") == {}   # etiket yoksa kural devreye girmez

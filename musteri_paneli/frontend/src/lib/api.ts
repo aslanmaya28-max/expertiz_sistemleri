@@ -419,7 +419,7 @@ export interface ValuationPrefill {
   /** Kisa link (shbd.io) cozulduyse asil ilan adresi */
   url?: string;
   source?: "arabam" | "sahibinden" | null;
-  vehicle: VehicleInput & { title?: string; image_url?: string; location?: string; package?: string; tramer_amount?: number; painted_count?: number; changed_count?: number };
+  vehicle: VehicleInput & { title?: string; image_url?: string; location?: string; package?: string; tramer_amount?: number; painted_count?: number; changed_count?: number; hp?: number };
   parts: Record<string, PartStatus>;
   message: string;
   /** Sahibinden: link okunamaz, musteri ilan metnini yapistirmali */
@@ -442,6 +442,8 @@ export interface ValuationRequestPayload {
   tramer_count?: number;
   /** Kasa geçiş yılında müşterinin seçimi */
   kasa?: "yeni" | "eski";
+  /** Motor gücü (hp) */
+  hp?: number;
 }
 
 export interface KasaSecenegi { kod: "yeni" | "eski"; kasa?: string | null; baslangic?: number | null; bitis?: number | null }
@@ -520,6 +522,8 @@ export interface ValuationResult {
     kaynak: "web_listings" | "listings";
     kaynaklar: { site?: string | null; url?: string | null; fiyat?: number | null; duzeltilmisFiyat?: number | null; km?: number | null; yil?: number | null }[];
     /** İlan fiyatlarının bu araca (yıl/km) göre düzeltilmesi; eski raporlarda yok */
+    /** Admin'in piyasa takibinden kullanılan ilan sayısı */
+    takipIlanSayisi?: number;
     /** Kasa geçiş yılı: iki kasanın bu araca göre orta fiyatı; eski raporlarda yok */
     gecisYili?: GecisYili | null;
     duzeltme?: { aracYili?: number; aracKm?: number; yillikOran?: number | null; yilAraligi?: [number, number] | null;

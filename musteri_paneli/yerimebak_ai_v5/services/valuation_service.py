@@ -559,10 +559,15 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
     risk_vehicle = _risk_vehicle(brand, model, year, km, package, fuel, transmission)
     risk_future = _RISK_POOL.submit(vehicle_risk.get_model_risks, risk_vehicle)
     kasa = payload.get("kasa") if payload.get("kasa") in ("yeni", "eski") else None
+    hp = payload.get("hp") if isinstance(payload.get("hp"), int) and 40 <= payload["hp"] <= 800 else None
     reference = web_market_reference.get_reference({
         "brand": brand, "model": model, "year": year, "km": km, "fuel": fuel,
-        "transmission": transmission, "package": package, "listed_price": price, "kasa": kasa,
+        "transmission": transmission, "package": package, "listed_price": price, "kasa": kasa, "hp": hp,
     })
+    if int((reference or {}).get("count") or 0) < web_market_reference.TARGET_SAMPLES:
+        # Admin'in "verisi az olan modeller" listesi (piyasa takibi için)
+        from yerimebak_ai_v5.services import manual_market
+        manual_market.log_gap(brand, model, year, int((reference or {}).get("count") or 0))
     gecis = (reference or {}).get("gecis") or {}
     if gecis.get("neden") == "secilen_bulunamadi":
         secilen = (gecis.get(gecis.get("secilen")) or {}).get("kasa") or "seçtiğiniz kasa"
@@ -623,6 +628,8 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
                            "duzeltilmisFiyat": s.get("adjusted_price"),
                            "km": s.get("km"), "yil": s.get("year")} for s in (reference.get("samples") or [])[:10]],
             # İlan fiyatları bu aracın yılına/km'sine çevrildi; müşteriye nasıl yapıldığı gösterilir.
+            # Admin'in piyasa takibinden kullanılan ilan sayısı (tek tek gösterilmez)
+            "takipIlanSayisi": int(reference.get("manual_count") or 0),
             # Kasa geçiş yılı: iki kasanın bu araca göre orta fiyatı ve hangisine göre değerlendiği
             "gecisYili": _transition_view(reference.get("gecis")),
             "duzeltme": ({

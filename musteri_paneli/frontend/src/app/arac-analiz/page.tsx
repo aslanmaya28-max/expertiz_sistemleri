@@ -35,9 +35,10 @@ interface Form {
   tramer: string;
   package: string;
   location: string;
+  hp: string;
 }
 
-const BOS_FORM: Form = { link: "", brand: "", model: "", year: "", km: "", price: "", fuel: "", gear: "", tramer: "", package: "", location: "" };
+const BOS_FORM: Form = { link: "", brand: "", model: "", year: "", km: "", price: "", fuel: "", gear: "", tramer: "", package: "", location: "", hp: "" };
 
 export default function AracAnalizSayfasi() {
   const { user, loading: authLoading } = useAuth();
@@ -150,7 +151,7 @@ export default function AracAnalizSayfasi() {
       year: v.year != null ? String(v.year) : "", km: v.km != null ? String(v.km) : "",
       price: v.price != null ? String(v.price) : "", fuel: v.fuel ?? "", gear: v.transmission ?? "",
       tramer: v.tramer_amount != null ? String(v.tramer_amount) : "",
-      package: v.package ?? "", location: v.location ?? "",
+      package: v.package ?? "", location: v.location ?? "", hp: v.hp != null ? String(v.hp) : "",
     }));
     setParts(res.parts || {});
     setOrigins(res.fields || {});
@@ -207,6 +208,7 @@ export default function AracAnalizSayfasi() {
         brand: form.brand || undefined,
         model: form.model || undefined,
         package: form.package || undefined,
+        hp: form.hp ? Number(form.hp) : undefined,
         year: form.year ? Number(form.year) : undefined,
         km: form.km ? Number(form.km) : undefined,
         listed_price: form.price ? Number(form.price) : undefined,
@@ -312,6 +314,7 @@ export default function AracAnalizSayfasi() {
             <h2 className="text-lg font-semibold text-metin-birincil">2. Araç bilgileri</h2>
             <div className="mt-4 grid grid-cols-2 gap-4">
               <div><label className={label}>Paket / motor{badge("package")}</label><input value={form.package} onChange={set("package")} className={input} /></div>
+              <div><label className={label}>Motor gücü (hp, isteğe bağlı){badge("hp")}</label><SayiAlani ariaLabel="Motor gücü" binlik={false} enFazlaHane={3} value={form.hp} onChange={setValue("hp")} className={input} placeholder="ör. 170" /></div>
               <div><label className={label}>Şehir{badge("location")}</label><input value={form.location} onChange={set("location")} className={input} /></div>
               <div><label className={label}>Marka{badge("brand")}</label><AramaliSecim required ariaLabel="Marka" value={form.brand} onChange={setValue("brand")} secenekler={MARKALAR} className={input} placeholder="Marka yazın veya seçin" /></div>
               <div><label className={label}>Model{badge("model")}</label><AramaliSecim required ariaLabel="Model" value={form.model} onChange={setValue("model")} secenekler={modelleri(form.brand)} className={input} placeholder={form.brand ? "Model yazın veya seçin" : "Önce marka"} /></div>

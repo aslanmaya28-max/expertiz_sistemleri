@@ -440,3 +440,23 @@ def test_yili_belli_olmayan_ilan_elenir():
     yilsiz = {**_tucson(9, 2_050_000, 2021), "yil": None}
     ref = wmr.build_reference([_arama(ilanlar + [yilsiz])], TUCSON, year_range=(2021, 2023))
     assert ref["scope"]["rejected"]["yıl bilinmiyor"] == 1
+
+
+def test_beygir_farkli_ilan_elenir_ve_piyasa_takibi_tek_tek_gosterilmez():
+    v = {"brand": "MG", "model": "HS", "year": 2024, "km": 33100, "hp": 170}
+    web = [_ilan(f"https://galeri{n}.com/mg-hs-yeni-170-hp/{n}", 1_900_000 + n * 10_000, 30_000, "1.5 T-GDI 170 HP") for n in (1, 2)]
+    eski = _ilan("https://galeri9.com/mg-hs-162hp/9", 1_650_000, 30_000, "1.5 T-GDI 162HP")
+    manual = [{"url": f"manuel://{n:016x}", "fiyat_tl": 1_880_000 + n * 10_000, "km": 30_000, "yil": 2024, "paket": "",
+               "beygir": 170, "kondisyon": "bilinmiyor", "_manual": True} for n in range(3)]
+    ref = wmr.build_reference([_arama(web + [eski]), {"listings": manual, "sources": {}, "cost": 0}], v)
+    assert ref["scope"]["rejected"]["beygir farklı"] == 1
+    assert ref["count"] == 5 and ref["manual_count"] == 3
+    assert all(not s["url"].startswith("manuel://") for s in ref["samples"]) and len(ref["samples"]) == 2
+    assert "YerimeBak piyasa takibi" in ref["scope"]["site_stats"]
+
+
+def test_manuel_kayit_kaynak_dogrulamasindan_muaf_ama_baska_ilan_degil():
+    v = {"brand": "MG", "model": "HS", "year": 2024, "km": 33100}
+    sahte = {"url": "manuel://abc", "fiyat_tl": 1_800_000, "km": 30_000, "yil": 2024}   # _manual işareti yok
+    assert wmr.verify(sahte, {}, v) == "kaynaklarda yok"
+    assert wmr.verify({**sahte, "_manual": True}, {}, v) is None

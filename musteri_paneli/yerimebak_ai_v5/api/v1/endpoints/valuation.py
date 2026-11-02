@@ -33,6 +33,8 @@ class ValuationRequest(BaseModel):
     tramer_count: Optional[int] = None
     # Geçiş yılında müşterinin seçtiği kasa: "yeni" | "eski" (bilinmiyorsa boş)
     kasa: Optional[str] = Field(default=None, pattern="^(yeni|eski)$")
+    # Motor gücü (hp): kasa değişiminde güç de değişir; farklı güçteki ilanlar emsal sayılmaz
+    hp: Optional[int] = Field(default=None, ge=40, le=800)
 
 
 def _raise_if_error(result: Dict[str, Any]) -> Dict[str, Any]:

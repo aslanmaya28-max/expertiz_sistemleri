@@ -156,7 +156,7 @@ def _cache_hours() -> float:
 
 def _cache_key(vehicle: Dict[str, Any]) -> str:
     values = [" ".join(fold(vehicle.get(k)).split())
-              for k in ("brand", "model", "year", "package", "fuel", "transmission", "kasa")]
+              for k in ("brand", "model", "year", "package", "fuel", "transmission", "kasa", "hp")]
     values.extend([(_int(vehicle.get("km")) or 0) // 20_000, CACHE_VERSION, _search_count()])
     return hashlib.sha256(json.dumps(values, ensure_ascii=False).encode("utf-8")).hexdigest()
 
@@ -320,6 +320,22 @@ def _search(query: str, client: httpx.Client, *, prompt: Optional[str] = None, w
 # ---------------------------------------------------------------------------
 # Dogrulama ve hesap (ag olmadan test edilebilir)
 # ---------------------------------------------------------------------------
+_HP = re.compile(r"(?<!\d)(\d{2,3})\s*(?:hp|ps|bg|beygir)\b")
+HP_TOLERANCE = 5   # aynı motorun yazım farkları (ör. 130/131 bg)
+MANUAL_URL = "manuel://"
+MANUAL_LABEL = "YerimeBak piyasa takibi"
+
+
+def horsepower(text: Any) -> Optional[int]:
+    """Başlık/paket metnindeki beygir ("170 HP", "162HP", "130 bg"). Kasa değişiminde güç de
+    çoğu zaman değişir (MG HS: eski 162 hp, yeni 170 hp); ayırt etmek için kullanılır."""
+    match = _HP.search(fold(text))
+    if not match:
+        return None
+    value = int(match.group(1))
+    return value if 40 <= value <= 800 else None
+
+
 def kasa_terms(generation: Optional[Dict[str, Any]], newer: bool, vehicle: Optional[Dict[str, Any]] = None) -> tuple:
     """Geçiş yılındaki ilanın kasasını ilan metninden tanımak için terimler (ör. "nx4", "yeni kasa").
     Kısa kodlar (ör. "TL") fiyat yazısıyla karışacağı için kullanılmaz."""
@@ -337,7 +353,8 @@ def verify(listing: Dict[str, Any], sources: Dict[str, str], v: Dict[str, Any], 
     """Ilan kullanilabilirse None, degilse red nedeni."""
     url = str(listing.get("url") or "").rstrip("/")
     price = _int(listing.get("fiyat_tl")) or 0
-    if url not in sources:
+    manual = url.startswith(MANUAL_URL) and listing.get("_manual")
+    if url not in sources and not manual:
         return "kaynaklarda yok"
     parts = urlsplit(url)
     if any(site in (parts.netloc + parts.path).lower() for site in AUCTION_SITES):
@@ -346,7 +363,7 @@ def verify(listing: Dict[str, Any], sources: Dict[str, str], v: Dict[str, Any], 
         return "tahmin sitesi"
     if not MIN_PRICE <= price <= MAX_PRICE:
         return "fiyat geçersiz"
-    if not price_in_text(price, sources[url]):
+    if not manual and not price_in_text(price, sources[url]):
         return "fiyat sayfada yok"
     year, l_year = _int(v.get("year")), _int(listing.get("yil"))
     if year and not l_year:
@@ -369,6 +386,10 @@ def verify(listing: Dict[str, Any], sources: Dict[str, str], v: Dict[str, Any], 
     found = _displacements(f"{listing.get('paket') or ''} {url}")
     if target and found and not (target & found):
         return "motor uyumsuz"
+    target_hp = _int(v.get("hp"))
+    listing_hp = _int(listing.get("beygir")) or horsepower(f"{listing.get('paket') or ''} {url}")
+    if target_hp and listing_hp and abs(target_hp - listing_hp) > HP_TOLERANCE:
+        return "beygir farklı"
     return None
 
 
@@ -443,7 +464,8 @@ def build_reference(results: List[Dict[str, Any]], v: Dict[str, Any], *, widened
             if not reason and _condition(item) == "heavy":
                 reason = "ağır hasarlı"
             # Ölçüm doğrulama denemelerine aittir; tekrarlanan arama sonuçları da sayılır.
-            domain = (urlsplit(str(item.get("url") or "")).hostname or "bilinmiyor").removeprefix("www.")
+            domain = (MANUAL_LABEL if str(item.get("url") or "").startswith(MANUAL_URL)
+                      else (urlsplit(str(item.get("url") or "")).hostname or "bilinmiyor").removeprefix("www."))
             stats = site_stats.setdefault(domain, {"kabul": 0, "red": 0})
             stats["red" if reason else "kabul"] += 1
             if reason:
@@ -533,6 +555,7 @@ def build_reference(results: List[Dict[str, Any]], v: Dict[str, Any], *, widened
         "kontrol": flags,
         "uyari": "; ".join(f["mesaj"] for f in flags) or None,
         "scope": scope,
+        "manual_count": sum(1 for i in kept if str(i.get("url") or "").startswith(MANUAL_URL)),
         "samples": [
             {
                 "price": i["fiyat_tl"], "adjusted_price": i["_adj"], "km": _int(i.get("km")), "year": _int(i.get("yil")),
@@ -541,7 +564,7 @@ def build_reference(results: List[Dict[str, Any]], v: Dict[str, Any], *, widened
                 "condition": i["_condition"], "declared": (str(i.get("durum") or "")[:80] or None),
                 "listing_date": (str(i.get("ilan_tarihi") or "")[:20] or None),
             }
-            for i in kept
+            for i in kept if not str(i.get("url") or "").startswith(MANUAL_URL)
         ],
         "searched_at": datetime.now().isoformat(timespec="seconds"),
     }
@@ -647,6 +670,14 @@ def get_reference(vehicle: Dict[str, Any], search: Optional[Callable[[str], Dict
             found.extend(run_round(rng, widened=True))
             reference = build_reference(found, vehicle, widened=True, year_range=rng, generation=gen,
                                         ambiguous_year=ambiguous, terms=terms)
+        if reference.get("count", 0) < TARGET_SAMPLES and search is None:
+            # Verisi az olan modeller: admin'in girdiği piyasa takibi kayıtları (kullanıcı kararı)
+            from yerimebak_ai_v5.services import manual_market
+            manual = manual_market.find(vehicle)
+            if manual:
+                found = found + [{"listings": manual, "sources": {}, "cost": 0}]
+                reference = build_reference(found, vehicle, widened=True, year_range=rng, generation=gen,
+                                            ambiguous_year=ambiguous, terms=terms)
         return found, reference
 
     if previous_range:

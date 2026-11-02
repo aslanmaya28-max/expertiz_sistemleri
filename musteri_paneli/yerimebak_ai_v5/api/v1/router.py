@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from yerimebak_ai_v5.api.v1.endpoints import analysis, auth, payments, credits, expertiz, personnel, valuation
+from yerimebak_ai_v5.api.v1.endpoints import analysis, auth, payments, credits, expertiz, personnel, valuation, market_admin
 
 api_router = APIRouter()
 api_router.include_router(analysis.router, tags=["analysis"])
@@ -9,3 +9,4 @@ api_router.include_router(credits.router, prefix="/credits", tags=["credits"])
 api_router.include_router(expertiz.router, prefix="/expertiz", tags=["expertiz"])
 api_router.include_router(personnel.router, prefix="/personnel", tags=["personnel"])
 api_router.include_router(valuation.router, prefix="/valuation", tags=["valuation"])
+api_router.include_router(market_admin.router, prefix="/admin/market", tags=["admin-market"])

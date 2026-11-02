@@ -408,6 +408,9 @@ def build_pdf(report, ornek=False):
     fix = market.get('duzeltme') or {}
     label = ' (bu araca göre)' if fix else ''
     text(f'{market.get("emsalSayisi", 0)} emsal • Ortalama{label}: {_money(market.get("ortalama"))} • Orta fiyat{label}: {_money(market.get("medyan"))}')
+    if market.get('takipIlanSayisi'):
+        text(f"Bu değerlendirmede YerimeBak piyasa takibinden {market['takipIlanSayisi']} ilan da kullanıldı.",
+             size=9, color=MUTED)
     if fix:
         rate = fix.get('yillikOran')
         note = (f"İlan fiyatları yılda {_pct(rate * 100 if isinstance(rate, (int, float)) else None)} değer kaybı ve "

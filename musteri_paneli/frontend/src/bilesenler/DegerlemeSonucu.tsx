@@ -105,6 +105,9 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
           {piyasa.emsalSayisi} güncel emsal ilan ({piyasa.hasarsizEmsalSayisi ?? 0} hasarsız). Ortalama{piyasa.duzeltme ? " (bu araca göre)" : ""} {tl(piyasa.ortalama)}, orta fiyat {tl(piyasa.medyan)},
           aralık {tl(piyasa.min)} – {tl(piyasa.max)}. Güven skoru: %{piyasa.guvenSkoru}.
         </p>
+        {(piyasa.takipIlanSayisi ?? 0) > 0 && (
+          <p className="mt-2 text-xs text-metin-ikincil">Bu değerlendirmede YerimeBak piyasa takibinden {piyasa.takipIlanSayisi} ilan da kullanıldı.</p>
+        )}
         {piyasa.duzeltme && (
           <p className="mt-2 text-xs text-metin-ikincil">
             İlan fiyatları yılda %{((piyasa.duzeltme.yillikOran ?? 0) * 100).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} değer kaybı ve km farkıyla bu araca
