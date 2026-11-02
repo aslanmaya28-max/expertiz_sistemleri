@@ -1,19 +1,24 @@
 import Image from "next/image";
+import Link from "next/link";
 import Ikon from "./Ikon";
-import IncelemeBaglantisi, { HesapBaglantisi, UyelikNotu } from "./IncelemeBaglantisi";
+import IncelemeBaglantisi, { UyelikNotu } from "./IncelemeBaglantisi";
 
 export default function HeroBolumu() {
   return (
     <section className="yb-hero" data-sc-act="flow" aria-labelledby="ana-baslik">
       <div className="yb-wrap yb-hero-grid">
         <div className="yb-hero-copy">
-          <span className="yb-pilot"><span /> İstanbul’da pilot hizmet</span>
-          <h1 id="ana-baslik">Siz gitmeden,<br />biz <em>yerinize</em><br />bakalım.</h1>
-          <p className="yb-hero-description">Aklınızdaki araca, alanında uzman personelimizle yakından bakalım. Yerinde inceleme, kurumsal ekspertiz ve dört kapsamlı raporla kararınızı bilgiyle verin.</p>
+          <span className="yb-pilot"><span /> Siz gitmeden, biz yerinize bakalım.</span>
+          <h1 id="ana-baslik">Araç almadan önce<br /><em>doğru bilgiye</em><br />ulaşın.</h1>
+          <p className="yb-hero-description">İki yolu var: almayı düşündüğünüz aracı uzman personelimiz yerinde incelesin ya da ilan fiyatının doğru olup olmadığını telefonunuzdan, aracı görmeden öğrenin.</p>
           <div className="yb-actions">
-            <IncelemeBaglantisi className="yb-button yb-button-dark">İnceleme talebi oluştur <Ikon ad="capraz-ok" /></IncelemeBaglantisi>
-            <HesapBaglantisi className="yb-button yb-button-outline"><Ikon ad="ok" /></HesapBaglantisi>
+            <IncelemeBaglantisi className="yb-button yb-button-dark">Aracı yerinde incelet <Ikon ad="capraz-ok" /></IncelemeBaglantisi>
+            <Link href="/arac-analiz" className="yb-button yb-button-outline">Araç değerleme raporu al <Ikon ad="ok" /></Link>
           </div>
+          <p className="yb-hero-choice">
+            <Link href="/yerinde-inceleme">Yerinde inceleme</Link>: İstanbul, Avrupa ve Anadolu yakası ·{" "}
+            <Link href="/arac-degerleme">Araç değerleme</Link>: Türkiye geneli, rapor başı 100 TL
+          </p>
           <UyelikNotu />
           <div className="yb-hero-assurance"><Ikon ad="kalkan" /><span>Uzman incelemesi. Belgeli süreç. Bilinçli karar.</span></div>
         </div>

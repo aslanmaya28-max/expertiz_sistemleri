@@ -328,6 +328,19 @@ button:disabled {
   color: var(--yb-muted);
 }
 
+.yb-hero-choice {
+  margin-top: 14px;
+  max-width: 470px;
+  font-size: 13px;
+  color: var(--yb-muted);
+}
+.yb-hero-choice a {
+  font-weight: 600;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .yb-actions {
   display: flex;
   gap: 27px;

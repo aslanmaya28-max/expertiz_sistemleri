@@ -8,8 +8,8 @@ import Marka from "./Marka";
 import Ikon from "./Ikon";
 
 const links = [
-  ["/#hizmetimiz", "Hizmetimiz"], ["/#nasil-calisir", "Nasıl çalışır?"],
-  ["/#raporlar", "Raporlarımız"], ["/#hakkimizda", "Hakkımızda"],
+  ["/yerinde-inceleme", "Yerinde inceleme"], ["/arac-degerleme", "Araç değerleme"],
+  ["/ornek-rapor", "Örnek rapor"], ["/fiyatlar", "Fiyatlar"], ["/#nasil-calisir", "Nasıl çalışır?"],
 ];
 
 export default function UstCubuk() {

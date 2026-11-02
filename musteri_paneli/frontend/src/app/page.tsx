@@ -5,6 +5,7 @@ import HeroBolumu from "@/bilesenler/HeroBolumu";
 import Ikon, { type IkonAdi } from "@/bilesenler/Ikon";
 import ScrollSahnesi from "@/bilesenler/ScrollSahnesi";
 import RaporDosyasi from "@/bilesenler/RaporDosyasi";
+import { ORTAK_SORULAR, sssJsonLd } from "@/lib/hizmetBilgisi";
 
 const raporlar: { no: string; ikon: IkonAdi; baslik: string; metin: string; kapsam: string }[] = [
   { no: "01", ikon: "arac", baslik: "İç ekspertiz raporu", metin: "İç kozmetik, döşemeler, kokpit ve iç donanımlara ilişkin kontroller. Gözlemler ve fotoğraflarla aracın içini yakından tanıyın.", kapsam: "İÇ KOZMETİK · DONANIM · FOTOĞRAFLAR" },
@@ -23,12 +24,13 @@ const sorular = [
   ["YerimeBak benim için ne yapar?", "Satın almayı düşündüğünüz aracın bulunduğu yerde inceleme sürecini yürütür. Alanında uzman personel, iç ve dış kozmetik ile boya/kaporta durumunu inceler ve belgeler. Talebiniz doğrultusunda kurumsal ekspertiz kontrolleri de sürece dahil edilir."],
   ["Kurumsal ekspertiz firmasını seçebilir miyim?", "Evet. Tercih ettiğiniz kurumsal ekspertiz firmasını ve inceleme taleplerinizi bize iletebilirsiniz. Firma, konum, randevu ve paket kapsamı talebiniz değerlendirilirken netleştirilir."],
   ["Raporlarıma nereden ulaşırım?", "Yönetim kontrolü tamamlanıp onaylanan iç ekspertiz, dış ekspertiz, yapay zekâ değerleme ve kurumsal ekspertiz raporları ilgili araç talebiniz altında müşteri panelinizde sunulur."],
-  ["Hangi illerde hizmet veriyorsunuz?", "Pilot hizmet bölgemiz İstanbul. Hizmet ağımızı aşamalı olarak Türkiye’nin 81 iline taşımayı hedefliyoruz. Diğer iller henüz aktif hizmet kapsamı olarak sunulmamaktadır."],
-  ["İnceleme, aracın sorunsuz olduğunu garanti eder mi?", "İnceleme ve raporlar, kontrolün kapsamı ile inceleme anındaki bulguları ortaya koyar. Her türlü arızanın tespitini veya aracın gelecekteki durumunu garanti etmez; satın alma kararınızı daha kapsamlı bilgiyle vermenize yardımcı olur."],
+  ["Hangi illerde hizmet veriyorsunuz?", "Yerinde inceleme İstanbul'un tamamında, Avrupa ve Anadolu yakasında sunulur. Çevrim içi araç değerleme raporu ise Türkiye'nin her yerindeki araç için kullanılabilir. Yerinde inceleme ağımızı aşamalı olarak diğer illere taşımayı hedefliyoruz; diğer iller henüz yerinde inceleme kapsamında değildir."],
+  ...ORTAK_SORULAR.map((s) => [s.soru, s.yanit]),
 ];
 export default function AnaSayfa() {
   return (
     <ScrollSahnesi>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(sssJsonLd(sorular.map(([soru, yanit]) => ({ soru, yanit })))) }} />
       <HeroBolumu />
       <section className="yb-section yb-wrap" id="hizmetimiz" data-sc-in aria-labelledby="hizmet-baslik">
         <div className="yb-section-intro"><span className="yb-eyebrow">MESAFE SİZDEN, İNCELEME BİZDEN</span><h2 id="hizmet-baslik">Bir araç için yola çıkmadan,<br /><em>önce gerçeğine yaklaşın.</em></h2><p>Bir ilan, her detayı anlatmaz. YerimeBak, sizin adınıza sahaya gider; aracın durumunu anlamanızı sağlayan bilgileri kayıt altına alır.</p></div>

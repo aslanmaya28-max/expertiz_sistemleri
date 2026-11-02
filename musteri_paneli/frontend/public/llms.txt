@@ -1,13 +1,41 @@
 # YerimeBak
 
-> YerimeBak, ikinci el araç alacaklar için yerinde araç inceleme (ekspertiz) hizmetidir: "Siz gitmeden, biz yerinize bakalım." Alanında uzman personel aracı bulunduğu yerde inceler; iç ekspertiz, dış ekspertiz, kurumsal ekspertiz ve yapay zekâ destekli araç değerleme raporları müşteri panelinde sunulur. Hizmet şu anda İstanbul'da pilot olarak verilmektedir.
+> YerimeBak, ikinci el araç alacaklar için iki hizmet sunar: (1) İstanbul'da uzman personelle yerinde araç inceleme ve ekspertiz, (2) Türkiye genelinde çevrim içi araç değerleme raporu. Ana mesaj: "Araç almadan önce doğru bilgiye ulaşın." Slogan: "Siz gitmeden, biz yerinize bakalım."
 
 ## Hizmetler
-- [Yerinde araç inceleme talebi](https://www.yerimebak.com.tr/ekspertiz-talebi): Araç bilgisi ve ilan linkiyle talep oluşturulur; uzman personel aracı yerinde inceler.
-- [Araç değerleme](https://www.yerimebak.com.tr/arac-analiz): İlan bilgilerine ve internetteki benzer ilanlara dayanan değerleme ve pazarlık rehberi.
-- [Fiyatlar](https://www.yerimebak.com.tr/fiyatlar)
 
-## Kurumsal
+### Yerinde araç inceleme ve ekspertiz
+- Sayfa: https://www.yerimebak.com.tr/yerinde-inceleme
+- Talep: https://www.yerimebak.com.tr/ekspertiz-talebi
+- Bölge: İstanbul'un tamamı (Avrupa ve Anadolu yakası). İstanbul dışında henüz yerinde inceleme yapılmaz.
+- Uzman personel aracı bulunduğu yerde inceler; alıcının gitmesi gerekmez.
+- Kapsam: iç ekspertiz, dış ekspertiz (boya, kaporta, değişen parçalar), seçilen kurumsal ekspertiz firmasının raporu, değerleme.
+- Satıcının beyanı ile yerinde bulunan durum yan yana gösterilir.
+- Raporlar müşteri panelinde teslim edilir. Onaylı raporların gerçekliği https://www.yerimebak.com.tr/dogrula adresinden doğrulama koduyla kontrol edilebilir.
+- Ücret: YerimeBak hizmet bedeli ile seçilen kurumsal ekspertiz paketinin ücretinden oluşur. KDV dahil toplam tutar ödemeden önce gösterilir.
+
+### Araç değerleme raporu (ilan fiyatı doğru mu?)
+- Sayfa: https://www.yerimebak.com.tr/arac-degerleme
+- Rapor al: https://www.yerimebak.com.tr/arac-analiz
+- Örnek rapor: https://www.yerimebak.com.tr/ornek-rapor
+- Bölge: Türkiye geneli, çevrim içi. Araç yerinde görülmez.
+- İçerik:
+  - Aynı model ve kasadan, fiyatı kaynak sayfada doğrulanan benzer ilanlar; her biri hedef aracın yılına ve kilometresine göre düzeltilir.
+  - Bildirilen boya, değişen parça ve tramer kaydının fiyat etkisi.
+  - Adil fiyat aralığı ve tavsiye alım fiyatı.
+  - Pazarlık planı.
+  - Modelin bilinen sorunları ve en az iki kaynaktan kullanıcı şikâyetleri.
+  - Bakım kontrolleri ve satıcıya sorulacak sorular.
+  - Kasa geçiş yılı uyarısı.
+- Yeterli benzer ilan bulunamazsa rapor üretilmez ve ücret alınmaz.
+- Fiyat: 1 rapor (1 kredi) 100 TL. 5 kredi 400 TL, 10 kredi 750 TL.
+
+## Sınırlar
+- Değerleme raporu ilan bilgisine, kullanıcı beyanına ve internetteki ilanlara dayanır; uzman incelemesinin yerine geçmez.
+- Raporlar inceleme anındaki bulguları gösterir. Aracın arızasız olduğunu garanti etmez.
+
+## Diğer sayfalar
+- [Fiyatlar](https://www.yerimebak.com.tr/fiyatlar)
 - [Hakkımızda](https://www.yerimebak.com.tr/hakkimizda)
 - [İletişim](https://www.yerimebak.com.tr/iletisim)
 - [KVKK Aydınlatma Metni](https://www.yerimebak.com.tr/kvkk)

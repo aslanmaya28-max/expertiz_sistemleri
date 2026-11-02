@@ -4,6 +4,7 @@ import "./kurumsal.css";
 import "./scroll-deneyimi.css";
 import UstCubuk from "@/bilesenler/UstCubuk";
 import AltBilgi from "@/bilesenler/AltBilgi";
+import { ISLETME, SITE_URL } from "@/lib/hizmetBilgisi";
 
 export const viewport: Viewport = {
   themeColor: "#102c36",
@@ -15,10 +16,10 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.yerimebak.com.tr"),
   title: {
-    default: "YerimeBak — Siz Gitmeden, Biz Yerinize Bakalım",
+    default: "YerimeBak — Araç almadan önce doğru bilgiye ulaşın",
     template: "%s | YerimeBak",
   },
-  description: "Alanında uzman personelle yerinde araç incelemesi. İç ve dış ekspertiz, yapay zekâ değerleme ve kurumsal ekspertiz raporları müşteri panelinizde. İstanbul’da pilot hizmet.",
+  description: "İkinci el araç almadan önce: İstanbul'da uzman personelle yerinde araç inceleme ve ekspertiz; Türkiye genelinde ilan fiyatının doğru olup olmadığını gösteren çevrim içi araç değerleme raporu (rapor başı 100 TL).",
   keywords: ["araç ekspertiz", "yerinde araç inceleme", "ikinci el araç ekspertiz İstanbul", "araç değerleme raporu", "2. el araç fiyatı", "oto ekspertiz"],
   authors: [{ name: "YerimeBak" }],
   manifest: "/manifest.json",
@@ -26,13 +27,13 @@ export const metadata: Metadata = {
     type: "website",
     locale: "tr_TR",
     siteName: "YerimeBak",
-    title: "YerimeBak — Siz Gitmeden, Biz Yerinize Bakalım",
-    description: "Yerinde araç incelemesi, uzman personel ve dört rapor. Tüm süreç müşteri panelinizde.",
+    title: "YerimeBak — Araç almadan önce doğru bilgiye ulaşın",
+    description: "Yerinde araç inceleme ve ekspertiz (İstanbul) ile çevrim içi araç değerleme raporu (Türkiye geneli). Siz gitmeden, biz yerinize bakalım.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "YerimeBak — Siz Gitmeden, Biz Yerinize Bakalım",
-    description: "Yerinde inceleme. Belgeli süreç. Bilinçli karar.",
+    title: "YerimeBak — Araç almadan önce doğru bilgiye ulaşın",
+    description: "Yerinde araç inceleme ve çevrim içi araç değerleme. Siz gitmeden, biz yerinize bakalım.",
   },
   robots: { index: true, follow: true },
 };
@@ -49,12 +50,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               "@context": "https://schema.org",
-              "@type": "WebApplication",
-              name: "YerimeBak",
-              url: "https://www.yerimebak.com.tr",
-              description: "Yerinde araç incelemesi, kurumsal ekspertiz ve müşteri panelinde rapor takibi",
-              applicationCategory: "BusinessApplication",
-              operatingSystem: "Web",
+              "@graph": [
+                ISLETME,
+                { "@type": "WebSite", "@id": `${SITE_URL}/#site`, url: SITE_URL, name: "YerimeBak", inLanguage: "tr-TR", publisher: { "@id": ISLETME["@id"] } },
+              ],
             }),
           }}
         />
