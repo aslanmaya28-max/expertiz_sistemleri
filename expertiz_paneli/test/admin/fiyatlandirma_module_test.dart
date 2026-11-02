@@ -91,7 +91,7 @@ void main() {
     await tester.tap(find.text('Paket ekle'));
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, 'Paket adı'), 'Full Paket');
-    await tester.enterText(find.widgetWithText(TextField, 'Fiyat (TL)'), '13000');
+    await tester.enterText(find.widgetWithText(TextField, 'Fiyat (TL, KDV dahil)'), '13000');
     await tester.enterText(find.widgetWithText(TextField, 'Kapsam (virgülle ayırın)'), 'Motor, Kaporta');
     await tester.tap(find.widgetWithText(FilledButton, 'Kaydet').last);
     await tester.pumpAndSettle();

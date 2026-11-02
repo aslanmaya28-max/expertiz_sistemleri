@@ -108,7 +108,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   // Getters
   double get _paketFiyati => _secilenPaket?.price ?? 0.0;
   double get _altToplam => _hizmetBedeli + _paketFiyati;
-  double get _kdv => _altToplam * _kdvOrani;
+  // KDV yalnız hizmet bedeline eklenir; firma paketi KDV dahil fiyatıyla aktarılır.
+  double get _kdv => _hizmetBedeli * _kdvOrani;
   double get _toplamTutar => _altToplam + _kdv;
 
   bool get _adim1Valid =>
@@ -891,7 +892,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
           ),
           const SizedBox(height: 8),
           _buildPriceItem(
-            'Paket Ücreti',
+            'Paket Ücreti (KDV dahil)',
             '${_paketFiyati.toStringAsFixed(0)} TL',
             false,
           ),
@@ -903,7 +904,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
           ),
           const SizedBox(height: 12),
           _buildPriceItem(
-            'KDV (%20)',
+            'Hizmet bedeli KDV (%20)',
             '${_kdv.toStringAsFixed(0)} TL',
             false,
           ),

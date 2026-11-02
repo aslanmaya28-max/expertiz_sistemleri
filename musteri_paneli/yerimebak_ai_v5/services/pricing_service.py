@@ -20,6 +20,21 @@ DEFAULT_SERVICE_FEE_TL = float(os.getenv("YERIMEBAK_SERVICE_FEE_TL", "5000.0"))
 VAT_RATE = float(os.getenv("VAT_RATE", "0.20"))
 
 SETTING_SERVICE_FEE = "service_fee_tl"
+
+
+def expertiz_totals(service_fee: float, package_price: float) -> Dict[str, float]:
+    """Ekspertiz talebi tutarı. KDV yalnız YerimeBak hizmet bedeline eklenir: hizmet bedeli KDV hariç
+    ilan edilir, kurumsal firma paketleri ise firmanın kendi sitesindeki KDV dahil fiyatla aktarılır
+    (pakete yeniden KDV eklemek müşteriden iki kez KDV almak olur)."""
+    fee = float(service_fee)
+    package = float(package_price)
+    vat = round(fee * VAT_RATE, 2)
+    return {
+        "service_fee_tl": fee,
+        "package_price_tl": package,
+        "vat_tl": vat,
+        "total_tl": round(fee + vat + package, 2),
+    }
 SETTING_INFLATION = "vehicle_inflation"
 
 _schema_lock = threading.Lock()

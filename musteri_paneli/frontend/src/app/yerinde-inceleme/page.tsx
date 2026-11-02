@@ -109,8 +109,8 @@ export default function YerindeIncelemeSayfasi() {
               <p className="!mb-0 text-2xl font-bold">YerimeBak hizmet bedeli: {tl(HIZMET_BEDELI_TL)}</p>
               <p className="text-xs text-metin-ikincil">KDV hariç · KDV dahil {tl(HIZMET_BEDELI_TL * (1 + KDV_ORANI))}</p>
               <p>
-                Buna seçtiğiniz kurumsal ekspertiz firmasının paket ücreti eklenir. KDV ödeme adımında ayrı satır olarak
-                hesaplanır; KDV dahil toplam tutar ödemeden önce açıkça gösterilir. Ayrıntılar{" "}
+                Hizmet bedelinin KDV&apos;si ödeme adımında ayrı satır olarak eklenir. Seçtiğiniz kurumsal ekspertiz firmasının
+                paket ücreti, firmanın KDV dahil fiyatıyla eklenir. KDV dahil toplam tutar ödemeden önce açıkça gösterilir. Ayrıntılar{" "}
                 <Link href="/fiyatlar" className="text-birincil underline">fiyatlar sayfasında</Link>.
               </p>
             </>

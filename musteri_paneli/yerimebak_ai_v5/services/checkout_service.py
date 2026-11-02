@@ -191,14 +191,7 @@ def quote_expertiz(firm_id: str, package_id: str) -> Dict[str, Any]:
         return _error("Gecersiz veya artik sunulmayan ekspertiz firma/paket secimi")
     fee = pricing_service.get_service_fee_tl()
     package_price = float(selected["package"]["price"])
-    subtotal = fee + package_price
-    vat = round(subtotal * pricing_service.VAT_RATE, 2)
-    totals = {
-        "service_fee_tl": fee,
-        "package_price_tl": package_price,
-        "vat_tl": vat,
-        "total_tl": round(subtotal + vat, 2),
-    }
+    totals = pricing_service.expertiz_totals(fee, package_price)
     return {"success": True, "selected": selected, "totals": totals}
 
 

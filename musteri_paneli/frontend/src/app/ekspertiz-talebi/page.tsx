@@ -107,9 +107,9 @@ function EkspertizTalebiIcerigi() {
     () => selectedFirm?.packages.find((p) => p.id === packageId) || null,
     [selectedFirm, packageId],
   );
-  const subtotal = serviceFee + (selectedPackage?.price || 0);
-  const vat = Math.round(subtotal * vatRate * 100) / 100;
-  const total = subtotal + vat;
+  // KDV yalnız hizmet bedeline eklenir; firma paketi KDV dahil fiyatıyla aktarılır (arka uçla aynı hesap).
+  const vat = Math.round(serviceFee * vatRate * 100) / 100;
+  const total = serviceFee + vat + (selectedPackage?.price || 0);
 
   const set = (key: keyof Arac) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setArac((a) => ({ ...a, [key]: e.target.value }));
@@ -370,10 +370,10 @@ function EkspertizTalebiIcerigi() {
           <div className="mt-4 space-y-3 text-sm">
             <div className="flex justify-between"><span>YerimeBak hizmet bedeli <span className="text-xs text-metin-ikincil">(KDV hariç)</span></span><strong>{tl(serviceFee)}</strong></div>
             <div className="flex justify-between gap-2">
-              <span>{selectedPackage ? `${selectedFirm?.name} — ${selectedPackage.name}` : "Kurumsal ekspertiz paketi"}</span>
+              <span>{selectedPackage ? `${selectedFirm?.name} — ${selectedPackage.name}` : "Kurumsal ekspertiz paketi"} <span className="text-xs text-metin-ikincil">(KDV dahil)</span></span>
               <strong className="whitespace-nowrap">{tl(selectedPackage?.price || 0)}</strong>
             </div>
-            <div className="flex justify-between"><span>KDV (%{Math.round(vatRate * 100)})</span><strong>{tl(vat)}</strong></div>
+            <div className="flex justify-between"><span>KDV (%{Math.round(vatRate * 100)}, hizmet bedeli)</span><strong>{tl(vat)}</strong></div>
             <div className="pt-3 border-t border-kenarlik-acik flex justify-between text-base"><span>Toplam <span className="text-xs font-normal text-metin-ikincil">(KDV dahil)</span></span><strong>{tl(total)}</strong></div>
           </div>
         </aside>

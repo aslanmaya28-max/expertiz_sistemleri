@@ -8,7 +8,7 @@ const tl = (n: number) => new Intl.NumberFormat("tr-TR").format(n) + " TL";
 export const metadata: Metadata = {
   title: "Fiyatlar — araç değerleme raporu ve yerinde inceleme",
   description:
-    "Araç değerleme raporu 1 kredi = 100 TL; 5 kredi 400 TL, 10 kredi 750 TL. Yerinde araç inceleme hizmet bedeli 5.000 TL + KDV; seçtiğiniz kurumsal ekspertiz paketi ayrıca eklenir, KDV dahil toplam ödemeden önce gösterilir.",
+    "Araç değerleme raporu 1 kredi = 100 TL; 5 kredi 400 TL, 10 kredi 750 TL. Yerinde araç inceleme hizmet bedeli 5.000 TL + KDV; seçtiğiniz kurumsal ekspertiz paketi KDV dahil fiyatıyla eklenir, toplam ödemeden önce gösterilir.",
   alternates: { canonical: `${SITE_URL}/fiyatlar` },
 };
 
@@ -29,9 +29,9 @@ export default function FiyatlarSayfasi() {
           <p className="text-3xl font-bold">{tl(HIZMET_BEDELI_TL)}</p>
           <p className="mb-4 text-xs text-metin-ikincil">KDV hariç · KDV dahil {tl(HIZMET_BEDELI_TL * (1 + KDV_ORANI))}</p>
           <p className="mb-3">
-            Yerinde inceleme kredi ile değil, talep başına ücretlendirilir. YerimeBak hizmet bedeline seçtiğiniz kurumsal
-            ekspertiz firmasının paket ücreti eklenir. KDV ödeme adımında ayrı satır olarak hesaplanır; KDV dahil toplam
-            tutar, talebinizi oluştururken ödeme adımından önce açıkça gösterilir.
+            Yerinde inceleme kredi ile değil, talep başına ücretlendirilir. YerimeBak hizmet bedelinin KDV&apos;si ödeme
+            adımında ayrı satır olarak eklenir. Seçtiğiniz kurumsal ekspertiz firmasının paket ücreti, firmanın KDV dahil
+            fiyatıyla eklenir; pakete ayrıca KDV eklenmez. KDV dahil toplam tutar ödeme adımından önce açıkça gösterilir.
           </p>
           <p className="mb-4 text-metin-ikincil">Hizmet bölgesi: {BOLGE_YERINDE}.</p>
           <div className="flex flex-wrap gap-3">

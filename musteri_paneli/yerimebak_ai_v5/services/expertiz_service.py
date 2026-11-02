@@ -33,15 +33,7 @@ def find_package(firm_id: str, package_id: str) -> Optional[Dict[str, Any]]:
 
 
 def calculate_total(package_price: float) -> Dict[str, float]:
-    fee = pricing_service.get_service_fee_tl()
-    subtotal = fee + package_price
-    vat = subtotal * VAT_RATE
-    return {
-        "service_fee_tl": fee,
-        "package_price_tl": package_price,
-        "vat_tl": vat,
-        "total_tl": subtotal + vat,
-    }
+    return pricing_service.expertiz_totals(pricing_service.get_service_fee_tl(), package_price)
 
 
 def _expertiz_profile_id(user: Dict[str, Any]) -> str:

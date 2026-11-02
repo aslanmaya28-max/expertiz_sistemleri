@@ -187,7 +187,7 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
   Future<void> _packageDialog(Map<String, dynamic> firm, [Map<String, dynamic>? pkg]) async {
     final values = await _formDialog(pkg == null ? '${firm['name']} — paket ekle' : 'Paketi düzenle', [
       ('name', 'Paket adı', pkg?['name']?.toString() ?? ''),
-      ('price', 'Fiyat (TL)', pkg == null ? '' : _plain(pkg['price'] as num)),
+      ('price', 'Fiyat (TL, KDV dahil)', pkg == null ? '' : _plain(pkg['price'] as num)),
       ('features', 'Kapsam (virgülle ayırın)', ((pkg?['features'] as List?) ?? const []).join(', ')),
     ]);
     if (values == null) return;
@@ -260,7 +260,7 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
                 children: [
                   Text('YerimeBak hizmet bedeli', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
                   const SizedBox(height: 4),
-                  Text('Her ekspertiz talebinde paket fiyatına eklenir (KDV %${(_vatRate * 100).round()} ayrıca hesaplanır).',
+                  Text('KDV hariç tutardır; KDV %${(_vatRate * 100).round()} yalnız hizmet bedeline eklenir. Firma paket fiyatlarını KDV dahil girin.',
                       style: TextStyle(fontSize: 12, color: subColor)),
                   const SizedBox(height: 12),
                   Row(
