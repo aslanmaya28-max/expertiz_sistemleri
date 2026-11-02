@@ -44,7 +44,7 @@ def test_yeterli_veride_karar_ve_bes_cevap():
     assert o["riskler"][0].startswith("Sol ön kapı") and "38.000 TL" in o["riskler"][0]
     assert "uzman tarafından doğrulanmadı" in o["riskler"][-1]
     assert o["pazarlikGerekceleri"][0] == "İlan fiyatı adil aralığın üst sınırından 40.000 TL yüksek."
-    assert "Benzer 7 ilanın orta fiyatı 960.000 TL." in o["pazarlikGerekceleri"]
+    assert "Benzer 7 ilanın orta fiyatı (bu araca göre düzeltilmiş) 960.000 TL." in o["pazarlikGerekceleri"]
     assert "930.000 TL" in o["simdiNeYapmali"]
 
 
@@ -53,7 +53,7 @@ def test_dusuk_guvende_kesin_karar_verilmez():
     assert s["karar"]["sonuc"] == LOW_CONFIDENCE_VERDICT
     assert s["karar"]["hesaplananEgilim"] == "PAZARLIK YAP"
     assert s["karar"]["guvenSeviyesi"] == "dusuk"
-    assert "uzman incelemesiyle" in s["ozet"]["simdiNeYapmali"]
+    assert "7 ilan" in s["ozet"]["simdiNeYapmali"] and "yerinde ekspertiz" in s["ozet"]["simdiNeYapmali"]
     assert any("3 doğrulanmış emsal" in r for r in s["ozet"]["riskler"])
 
 

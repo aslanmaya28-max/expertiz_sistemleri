@@ -30,6 +30,7 @@ import hashlib
 import logging
 import os
 import re
+import math
 import statistics
 import threading
 import unicodedata
@@ -50,8 +51,12 @@ DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash-1017"
 MIN_PRICE, MAX_PRICE = 50_000, 100_000_000
 MIN_SAMPLES = 3          # bunun altinda referans uretilmez
 TARGET_SAMPLES = 5       # bunun altında ikinci tur arama yapılır
-CACHE_VERSION = "two-rounds-listing-sites-v2"
+CACHE_VERSION = "generation-normalized-v3"
 OUTLIER_BAND = 0.25      # medyan +-%25 disi atilir
+DEFAULT_YEARLY_RATE = 0.04   # ilanlardan hesaplanamazsa yıllık değer kaybı
+YEARLY_RATE_LIMITS = (0.02, 0.12)
+KM_RATE_PER_10K = 0.008      # 10.000 km farkı başına (en fazla ±%10)
+SUSPICIOUS_CHEAP = 0.85      # düzeltilmiş ortanın %15'ten fazla altındaki hasarsız görünen ilan
 WIDE_SPREAD_RATIO = 1.35 # max/min bundan buyukse "kontrol gerekli"
 _schema_ready = False
 _schema_lock = threading.Lock()
@@ -256,14 +261,18 @@ def _vehicle_text(v: Dict[str, Any]) -> str:
     return text
 
 
-def queries(v: Dict[str, Any], *, widened: bool = False) -> List[str]:
+def queries(v: Dict[str, Any], *, widened: bool = False, year_range: Optional[tuple] = None) -> List[str]:
     base = _vehicle_text(v)
     year = _int(v.get("year"))
     window = 2 if widened else 1
-    years = f"{year - window}-{year + window} model " if year else ""
+    lo, hi = year_range or ((year - window, year + window) if year else (None, None))
+    years = f"{lo}-{hi} model " if year else ""
     km = _int(v.get("km")) or 0
     band = (km * 0.5 + 20_000) * (2 if widened else 1)
-    expansion = f", yıl ±2, {years}{max(0, int(km - band))}-{int(km + band)} km" if widened else ""
+    expansion = (f", {'aynı kasa' if year_range else 'yıl ±2'}, {years}{max(0, int(km - band))}-{int(km + band)} km"
+                 if widened else "")
+    if year_range and not widened:
+        expansion = f", {years}aynı kasa"
     no_year = " ".join(str(p) for p in (v.get("brand"), v.get("model"), v.get("package")) if p)
     return [
         base + expansion,
@@ -311,7 +320,8 @@ def _search(query: str, client: httpx.Client, *, prompt: Optional[str] = None, w
 # ---------------------------------------------------------------------------
 # Dogrulama ve hesap (ag olmadan test edilebilir)
 # ---------------------------------------------------------------------------
-def verify(listing: Dict[str, Any], sources: Dict[str, str], v: Dict[str, Any], *, year_window: int = 1, km_band_scale: int = 1) -> Optional[str]:
+def verify(listing: Dict[str, Any], sources: Dict[str, str], v: Dict[str, Any], *, year_window: int = 1,
+           km_band_scale: int = 1, year_range: Optional[tuple] = None) -> Optional[str]:
     """Ilan kullanilabilirse None, degilse red nedeni."""
     url = str(listing.get("url") or "").rstrip("/")
     price = _int(listing.get("fiyat_tl")) or 0
@@ -327,7 +337,9 @@ def verify(listing: Dict[str, Any], sources: Dict[str, str], v: Dict[str, Any], 
     if not price_in_text(price, sources[url]):
         return "fiyat sayfada yok"
     year, l_year = _int(v.get("year")), _int(listing.get("yil"))
-    if year and l_year and abs(l_year - year) > year_window:
+    if year and l_year and year_range and not year_range[0] <= l_year <= year_range[1]:
+        return "yıl uyumsuz"
+    if year and l_year and not year_range and abs(l_year - year) > year_window:
         return "yıl uyumsuz"
     km, l_km = _int(v.get("km")), _int(listing.get("km"))
     band = (km * 0.5 + 20_000) * km_band_scale if km is not None else 0
@@ -358,7 +370,44 @@ def _package_match(listing: Dict[str, Any], tokens: List[str]) -> bool:
     return all(t in blob for t in tokens)
 
 
-def build_reference(results: List[Dict[str, Any]], v: Dict[str, Any], *, widened: bool = False) -> Dict[str, Any]:
+def _yearly_rate(items: List[Dict[str, Any]], target_km: Optional[int]) -> tuple:
+    """İlanlardan yıllık değer kaybı: km düzeltilmiş log(fiyat) ~ yıl eğimi. En az 5 ilan ve
+    2 farklı yıl gerekir; aksi halde varsayılan. Sonuç %2-12 ile sınırlanır."""
+    points = []
+    for i in items:
+        year, price = _int(i.get("yil")), _int(i.get("fiyat_tl"))
+        if year and price:
+            points.append((year, math.log(price * _km_factor(_int(i.get("km")), target_km))))
+    if len(points) < 5 or len({y for y, _ in points}) < 2:
+        return DEFAULT_YEARLY_RATE, False
+    mean_y = sum(y for y, _ in points) / len(points)
+    mean_p = sum(p for _, p in points) / len(points)
+    var = sum((y - mean_y) ** 2 for y, _ in points)
+    slope = sum((y - mean_y) * (p - mean_p) for y, p in points) / var
+    if slope <= 0:
+        return DEFAULT_YEARLY_RATE, False
+    rate = 1 - math.exp(-slope)
+    return min(max(rate, YEARLY_RATE_LIMITS[0]), YEARLY_RATE_LIMITS[1]), True
+
+
+def _km_factor(listing_km: Optional[int], target_km: Optional[int]) -> float:
+    """Fazla km'li ilanın fiyatı bu araca göre yukarı, az km'li ilanınki aşağı düzeltilir."""
+    if listing_km is None or target_km is None:
+        return 1.0
+    return 1 + max(-0.10, min(0.10, (listing_km - target_km) / 10_000 * KM_RATE_PER_10K))
+
+
+def _adjusted(i: Dict[str, Any], v: Dict[str, Any], rate: float) -> int:
+    """İlan fiyatını bu aracın yılına ve km'sine çevirir (aynı kasa/motor varsayımıyla)."""
+    price = float(i["fiyat_tl"])
+    year, l_year = _int(v.get("year")), _int(i.get("yil"))
+    if year and l_year:
+        price *= (1 - rate) ** (l_year - year)
+    return int(round(price * _km_factor(_int(i.get("km")), _int(v.get("km")))))
+
+
+def build_reference(results: List[Dict[str, Any]], v: Dict[str, Any], *, widened: bool = False,
+                    year_range: Optional[tuple] = None, generation: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Arama sonuclarini dogrular, birlestirir ve degerleme motorunun okudugu bicime cevirir."""
     accepted: Dict[str, Dict[str, Any]] = {}
     site_stats: Dict[str, Dict[str, int]] = {}
@@ -367,8 +416,8 @@ def build_reference(results: List[Dict[str, Any]], v: Dict[str, Any], *, widened
     for res in results:
         cost += float(res.get("cost") or 0)
         for item in res.get("listings") or []:
-            reason = verify(item, res.get("sources") or {}, v,
-                            year_window=2 if widened else 1, km_band_scale=2 if widened else 1)
+            reason = verify(item, res.get("sources") or {}, v, year_window=2 if widened else 1,
+                            km_band_scale=2 if widened else 1, year_range=year_range)
             if not reason and _condition(item) == "heavy":
                 reason = "ağır hasarlı"
             # Ölçüm doğrulama denemelerine aittir; tekrarlanan arama sonuçları da sayılır.
@@ -393,22 +442,35 @@ def build_reference(results: List[Dict[str, Any]], v: Dict[str, Any], *, widened
     scope = {
         "method": "web_search", "model": model_name(), "searches": len(results),
         "year_window": 2 if widened else 1, "widened": widened,
+        "year_range": list(year_range) if year_range else None,
+        "generation": ({k: generation.get(k) for k in ("kasa", "baslangic", "bitis", "makyaj", "kaynaklar")}
+                       if generation and generation.get("bulundu") else None),
         "cost_usd": round(cost, 4), "rejected": rejected, "site_stats": site_stats,
         "listed_price": _int(v.get("listed_price")),
     }
-    med = statistics.median(i["fiyat_tl"] for i in items) if items else 0
-    kept = [i for i in items if (1 - OUTLIER_BAND) * med <= i["fiyat_tl"] <= (1 + OUTLIER_BAND) * med]
+    # Her ilan önce bu aracın yılına/km'sine çevrilir; ayıklama ve orta fiyat düzeltilmiş
+    # fiyatlarla yapılır (önceden ham fiyatların ortası alınıp sonra tek sayı düzeltiliyordu).
+    rate, rate_measured = _yearly_rate(items, _int(v.get("km")))
+    for i in items:
+        i["_adj"] = _adjusted(i, v, rate)
+        i["_condition"] = _condition(i)
+    scope.update(yearly_rate=round(rate, 4), yearly_rate_measured=rate_measured, normalized=True)
+    med = statistics.median(i["_adj"] for i in items) if items else 0
+    suspicious = [i for i in items if i["_adj"] < SUSPICIOUS_CHEAP * med and i["_condition"] != "damaged"]
+    for i in suspicious:
+        rejected["şüpheli ucuz"] = rejected.get("şüpheli ucuz", 0) + 1
+    items = [i for i in items if i not in suspicious]
+    med = statistics.median(i["_adj"] for i in items) if items else 0
+    kept = [i for i in items if (1 - OUTLIER_BAND) * med <= i["_adj"] <= (1 + OUTLIER_BAND) * med]
     if len(kept) < MIN_SAMPLES:
         return {
             "found": False, "source": SOURCE, "reason": "not_enough_web_listings",
             "count": len(kept), "scope": scope, "package": v.get("package"), "samples": [],
         }
-    kept.sort(key=lambda i: i["fiyat_tl"])
-    prices = [i["fiyat_tl"] for i in kept]
+    kept.sort(key=lambda i: i["_adj"])
+    prices = [i["_adj"] for i in kept]
     median_price = int(statistics.median(prices))
-    for i in kept:
-        i["_condition"] = _condition(i)
-    clean = [i["fiyat_tl"] for i in kept if i["_condition"] == "clean"]
+    clean = [i["_adj"] for i in kept if i["_condition"] == "clean"]
     kms = [k for k in (_int(i.get("km")) for i in kept) if k]
     years = [y for y in (_int(i.get("yil")) for i in kept) if y]
 
@@ -436,8 +498,12 @@ def build_reference(results: List[Dict[str, Any]], v: Dict[str, Any], *, widened
         "market_max_price": prices[-1],
         "clean_median_price": int(statistics.median(clean)) if clean else None,
         "clean_count": len(clean),
-        "reference_median_km": int(statistics.median(kms)) if kms else 0,
-        "reference_median_year": int(statistics.median(years)) if years else 0,
+        # Fiyatlar zaten bu araca çevrildi; değerleme motoru ikinci kez yıl/km düzeltmesi yapmasın.
+        "reference_median_km": _int(v.get("km")) or (int(statistics.median(kms)) if kms else 0),
+        "reference_median_year": _int(v.get("year")) or (int(statistics.median(years)) if years else 0),
+        "listing_median_km": int(statistics.median(kms)) if kms else 0,
+        "listing_median_year": int(statistics.median(years)) if years else 0,
+        "same_year_count": sum(1 for y in years if y == _int(v.get("year"))),
         "stale": False,
         "confidence": int(confidence),
         "package": v.get("package"),
@@ -447,7 +513,7 @@ def build_reference(results: List[Dict[str, Any]], v: Dict[str, Any], *, widened
         "scope": scope,
         "samples": [
             {
-                "price": i["fiyat_tl"], "km": _int(i.get("km")), "year": _int(i.get("yil")),
+                "price": i["fiyat_tl"], "adjusted_price": i["_adj"], "km": _int(i.get("km")), "year": _int(i.get("yil")),
                 "title": " ".join(str(x) for x in (v.get("brand"), v.get("model"), i.get("paket")) if x),
                 "url": i["url"], "site": urlsplit(i["url"]).netloc.replace("www.", ""),
                 "condition": i["_condition"], "declared": (str(i.get("durum") or "")[:80] or None),
@@ -477,8 +543,15 @@ def get_reference(vehicle: Dict[str, Any], search: Optional[Callable[[str], Dict
             # İlan fiyatı önbellek anahtarına dahil değildir; güncel isteğe aittir.
             cached["scope"]["listed_price"] = _int(vehicle.get("listed_price"))
             return cached
+    generation: Dict[str, Any] = {"bulundu": False}
+    year_range = None
+    if search is None:
+        from yerimebak_ai_v5.services import vehicle_generation
+        generation = vehicle_generation.get_generation(vehicle)
+        year_range = vehicle_generation.year_range(generation, _int(vehicle.get("year")) or 0)
+
     def run_round(widened: bool = False) -> List[Dict[str, Any]]:
-        qs = queries(vehicle, widened=widened)
+        qs = queries(vehicle, widened=widened, year_range=year_range)
         if search is not None:
             return [search(q) for q in qs]
         results = []
@@ -503,10 +576,11 @@ def get_reference(vehicle: Dict[str, Any], search: Optional[Callable[[str], Dict
         return results
 
     results = run_round()
-    ref = build_reference(results, vehicle)
+    ref = build_reference(results, vehicle, year_range=year_range, generation=generation)
     if ref.get("count", 0) < TARGET_SAMPLES:
         results.extend(run_round(widened=True))
-        ref = build_reference(results, vehicle, widened=True)
+        ref = build_reference(results, vehicle, widened=True, year_range=year_range, generation=generation)
+    ref["scope"]["cost_usd"] = round(ref["scope"]["cost_usd"] + float(generation.get("cost_usd") or 0), 4)
     if not results:
         return None
     if hours and ref.get("found"):

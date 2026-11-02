@@ -378,14 +378,30 @@ def build_pdf(report, ornek=False):
     heading('Benzer ilanlar')
     if market.get('emsalSayisi') in (3, 4):
         text(f"{market['emsalSayisi']} benzer ilan bulundu; 5'ten az olduğu için fiyatlar yön göstericidir.")
-    text(f'{market.get("emsalSayisi", 0)} emsal • Ortalama: {_money(market.get("ortalama"))} • Medyan: {_money(market.get("medyan"))}')
+    fix = market.get('duzeltme') or {}
+    label = ' (bu araca göre)' if fix else ''
+    text(f'{market.get("emsalSayisi", 0)} emsal • Ortalama{label}: {_money(market.get("ortalama"))} • Orta fiyat{label}: {_money(market.get("medyan"))}')
+    if fix:
+        rate = fix.get('yillikOran')
+        note = (f"İlan fiyatları yılda {_pct(rate * 100 if isinstance(rate, (int, float)) else None)} değer kaybı ve "
+                f"km farkıyla bu araca ({fix.get('aracYili')}, {_num(fix.get('aracKm'))} km) göre düzeltildi.")
+        years = fix.get('yilAraligi')
+        if fix.get('kasa') and years:
+            note += f" Yalnız aynı kasa ({fix['kasa']}, {years[0]}–{years[1]} model) ilanları kullanıldı."
+        text(note, size=9, color=MUTED)
     samples = list(market.get('kaynaklar') or [])
     for sample in (plan or {}).get('kanitIlanlar') or []:
         if sample not in samples and not (sample.get('url') and any(s.get('url') == sample['url'] for s in samples)):
             samples.append(sample)
-    table(('Site', 'Yıl', 'Km', 'Fiyat'), [(sample.get('site') or 'Kaynak', str(sample.get('yil') or '—'),
-          _num(sample.get('km')), _money(sample.get('fiyat'))) for sample in samples],
-          (4, 1.4, 1.8, 2.8), ('LEFT', 'CENTER', 'RIGHT', 'RIGHT'))
+    if any(s.get('duzeltilmisFiyat') for s in samples):
+        table(('Site', 'Yıl', 'Km', 'İlan fiyatı', 'Bu araca göre'), [
+              (sample.get('site') or 'Kaynak', str(sample.get('yil') or '—'), _num(sample.get('km')),
+               _money(sample.get('fiyat')), _money(sample.get('duzeltilmisFiyat'))) for sample in samples],
+              (3.4, 1.1, 1.6, 2.2, 2.2), ('LEFT', 'CENTER', 'RIGHT', 'RIGHT', 'RIGHT'))
+    else:
+        table(('Site', 'Yıl', 'Km', 'Fiyat'), [(sample.get('site') or 'Kaynak', str(sample.get('yil') or '—'),
+              _num(sample.get('km')), _money(sample.get('fiyat'))) for sample in samples],
+              (4, 1.4, 1.8, 2.8), ('LEFT', 'CENTER', 'RIGHT', 'RIGHT'))
     for sample in samples:
         if sample.get('url'):
             text(sample.get('site') or 'Kaynak', True, 8, MUTED, line_height=4)

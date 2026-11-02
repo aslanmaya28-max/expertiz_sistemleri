@@ -1241,7 +1241,8 @@ def test_web_emsal_kaynakli_degerleme_kontrol_isareti_ve_musteri_kaynaklari(clie
     # Paket talep formundan geldi; üç emsal için ikinci turla toplam altı sorgu.
     assert len(sorgular) == 6 and all("1.3 Multijet Urban" in q for q in sorgular[:2])
     assert d["piyasaKaynagi"] == "web_listings"
-    assert d["piyasaDegeri"] == 925_000
+    # Emsaller ilan bazında bu aracın km/yılına çevrilir (önceden ham orta fiyat 925.000 TL idi)
+    assert d["piyasaDegeri"] == 921_300
     assert [k["price"] for k in d["piyasaKaynaklari"]] == [905_000, 925_000, 940_000]
     assert {k["kod"] for k in d["kontrolGerekli"]} == {"az_emsal"}
     # Satici beyani talep formundan: personel boyali parca buldu, degisen beyan edilmedigi icin karsilastirilmadi
@@ -1262,13 +1263,13 @@ def test_web_emsal_kaynakli_degerleme_kontrol_isareti_ve_musteri_kaynaklari(clie
     assert len(sorgular) == 6
     d2 = fixed.json()["report"]["ai_analiz_detay"]["ekspertizDegerleme"]
     assert d2["piyasaKaynagi"] == "admin_manual" and d2["piyasaDegeri"] == 950_000
-    assert d2["adminDuzeltmesi"]["ai_value"] == 925_000 and d2["adminDuzeltmesi"]["diff_pct"] == 2.7
+    assert d2["adminDuzeltmesi"]["ai_value"] == 921_300 and d2["adminDuzeltmesi"]["diff_pct"] == 3.1
     assert len(d2["piyasaKaynaklari"]) == 3 and not d2.get("kontrolGerekli")
     assert "yapay zekânın bulduğu" in d2["piyasaYontemi"]
     # Ikinci duzeltmede yapay zekanin ilk degeri korunur
     again = client.post(f"/api/v1/expertiz/admin/reports/{report_id}/market-value", headers=_auth(admin_token),
                         json={"value": 940_000})
-    assert again.json()["report"]["ai_analiz_detay"]["ekspertizDegerleme"]["adminDuzeltmesi"]["ai_value"] == 925_000
+    assert again.json()["report"]["ai_analiz_detay"]["ekspertizDegerleme"]["adminDuzeltmesi"]["ai_value"] == 921_300
     from yerimebak_ai_v5.core.database_config import DatabaseConfig
     conn = DatabaseConfig.get_connection()
     try:
@@ -1278,7 +1279,7 @@ def test_web_emsal_kaynakli_degerleme_kontrol_isareti_ve_musteri_kaynaklari(clie
         logs = [dict(r)["metadata"] for r in cur.fetchall()]
     finally:
         DatabaseConfig.return_connection(conn)
-    assert sorted((m["ai_value"], m["admin_value"]) for m in logs) == [(925_000, 940_000), (925_000, 950_000)]
+    assert sorted((m["ai_value"], m["admin_value"]) for m in logs) == [(921_300, 940_000), (921_300, 950_000)]
 
     published = client.post(f"/api/v1/expertiz/admin/reports/{report_id}/publish", headers=_auth(admin_token))
     assert published.status_code == 200, published.text

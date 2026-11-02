@@ -64,11 +64,12 @@ def build_plan(
     gerekceler: List[str] = []
     median_limited = median is not None and median == ust
     if median_limited:
-        gerekceler.append(f"Üst sınır {_tl(ust)}: benzer ilanların orta fiyatı bu tutardır.")
+        gerekceler.append(f"Üst sınır {_tl(ust)}: benzer ilanların orta fiyatı (bu araca göre düzeltilmiş) bu tutardır.")
     if price > hi:
         gerekceler.append(f"İlan fiyatı ({_tl(price)}) adil aralığın üst sınırından ({_tl(hi)}) {_tl(price - hi)} yüksek.")
     if reference.get("count") and reference.get("market_median_price"):
-        gerekceler.append(f"Benzer {reference['count']} ilanın orta fiyatı {_tl(reference['market_median_price'])}.")
+        gerekceler.append(f"Benzer {reference['count']} ilanın orta fiyatı (bu araca göre düzeltilmiş) "
+                          f"{_tl(reference['market_median_price'])}.")
     for k in sorted(kalemler, key=lambda k: k.get("tutar") or 0, reverse=True)[:3]:
         if (k.get("tutar") or 0) > 0:
             kalem_durumu = str(k.get('durum') or '')

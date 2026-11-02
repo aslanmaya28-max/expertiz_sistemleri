@@ -145,13 +145,21 @@ def decision_summary(
     if aralik.get("max") and price > aralik["max"]:
         gerekceler.append(f"İlan fiyatı adil aralığın üst sınırından {_tl(price - aralik['max'])} yüksek.")
     if reference.get("count") and reference.get("market_median_price"):
-        gerekceler.append(f"Benzer {reference['count']} ilanın orta fiyatı {_tl(reference['market_median_price'])}.")
+        gerekceler.append(f"Benzer {reference['count']} ilanın orta fiyatı (bu araca göre düzeltilmiş) "
+                          f"{_tl(reference['market_median_price'])}.")
     for k in kalemler[:2]:
         if (k.get("tutar") or 0) > 0:
             gerekceler.append(f"{_kalem_metni(k)}: yaklaşık {_tl(k.get('tutar'))} değer kaybı.")
 
     if sonuc == LOW_CONFIDENCE_VERDICT:
-        adim = "Veri sınırlı: kararınızı ilan bilgileri ve uzman incelemesiyle netleştirin."
+        # Az/dağınık veride müşteriye somut bilgi: kaç ilan, kaçı aynı yıl, ne kadar belirsizlik.
+        count, same = reference.get("count") or 0, reference.get("same_year_count")
+        low, high = aralik.get("min"), aralik.get("max")
+        belirsizlik = round((high - low) / (high + low) * 100) if low and high else None
+        adim = (f"Bu araç için piyasada az sayıda ve birbirinden farklı ilan var ({count} ilan"
+                + (f", {same} tanesi aynı model yılı" if same is not None else "") + "). "
+                + (f"Fiyatlar bu yüzden yaklaşık ±%{belirsizlik} belirsizlik taşır; " if belirsizlik else "")
+                + "satın almadan önce yerinde ekspertiz özellikle önemlidir.")
     elif karar == "AL":
         adim = "Fiyat uygun görünüyor. Ödeme yapmadan önce aracı yerinde inceletin."
     elif karar == "PAZARLIK YAP":
@@ -576,7 +584,16 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
             "guvenSkoru": confidence,
             "kaynak": reference.get("source"),
             "kaynaklar": [{"site": s.get("site"), "url": s.get("url"), "fiyat": s.get("price"),
+                           "duzeltilmisFiyat": s.get("adjusted_price"),
                            "km": s.get("km"), "yil": s.get("year")} for s in (reference.get("samples") or [])[:10]],
+            # İlan fiyatları bu aracın yılına/km'sine çevrildi; müşteriye nasıl yapıldığı gösterilir.
+            "duzeltme": ({
+                "aracYili": year, "aracKm": km,
+                "yillikOran": (reference.get("scope") or {}).get("yearly_rate"),
+                "yilAraligi": (reference.get("scope") or {}).get("year_range"),
+                "kasa": ((reference.get("scope") or {}).get("generation") or {}).get("kasa"),
+                "ayniYilSayisi": reference.get("same_year_count"),
+            } if (reference.get("scope") or {}).get("normalized") else None),
             "uyarilar": [f["mesaj"] for f in flags if f.get("mesaj") and f.get("kod") != "az_emsal"],
             "guncelGun": reference.get("recent_days"),
         },

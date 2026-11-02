@@ -69,7 +69,8 @@ def test_ayni_paket_yeterliyse_yalnizca_o_paket_kullanilir():
     assert ref["found"] and ref["source"] == "web_listings"
     assert ref["package_match"] is True
     assert ref["count"] == 3
-    assert ref["market_median_price"] == 1_550_000
+    # İlanlar bu aracın km'sine (22.000) çevrilir: 1.550.000 TL'lik 30-32 bin km ilan ~%0,8 yukarı
+    assert ref["market_median_price"] == 1_563_020
     assert {s["site"] for s in ref["samples"]} == {"batidan2.com", "otoshops.com", "arabam.com"}
     assert ref["clean_count"] == 3  # "hatasız" beyanı
     kodlar = {f["kod"] for f in ref["kontrol"]}
@@ -127,8 +128,9 @@ def test_degerleme_motoru_web_emsalini_gercek_emsal_sayar():
     assert sonuc["degerlemeYapildi"] is True
     assert sonuc["piyasaKaynagi"] == "web_listings"
     assert "web aramasıyla" in sonuc["piyasaYontemi"]
-    # Emsallerden daha az km: yukari duzeltme
-    assert any(a["baslik"] == "Kilometre farkı" and a["yuzde"] > 0 for a in sonuc["piyasaDuzeltmeleri"])
+    # Emsallerden daha az km: her ilan bu araca göre yukarı düzeltilir; motor ikinci kez düzeltmez
+    assert all(s["adjusted_price"] > s["price"] for s in ref["samples"])
+    assert not sonuc["piyasaDuzeltmeleri"]
     # Veritabani emsalleri gibi guven tavanina (25) takilmaz
     assert sonuc["guvenSkoru"] > 25
 
@@ -172,7 +174,7 @@ def test_onbellek_db_hatasinda_arama_surer(monkeypatch):
 
     monkeypatch.setattr(DatabaseConfig, "get_connection", broken)
     ref = wmr.get_reference(ARONA, search=lambda q: _arama(STYLE))
-    assert ref["found"] and ref["market_median_price"] == 1_550_000
+    assert ref["found"] and ref["market_median_price"] == 1_563_020
 
 
 @pytest.mark.parametrize("age_hours, expected_searches", [(1, 0), (25, 6)])
@@ -196,7 +198,7 @@ def test_onbellekten_donus_ve_sure_dolunca_yeniden_arama(monkeypatch, age_hours,
         return _arama(STYLE)
 
     ref = wmr.get_reference({**ARONA, "listed_price": 1600000}, search=search)
-    assert ref["market_median_price"] == 1550000
+    assert ref["market_median_price"] == 1_563_020
     assert len(calls) == expected_searches
     if expected_searches == 0:
         assert ref["scope"]["cached"] and ref["scope"]["cost_usd"] == 0
@@ -340,3 +342,89 @@ def test_takilan_arama_tur_suresinde_kesilir(monkeypatch):
     start = _time.monotonic()
     w.get_reference({"brand": "Seat", "model": "Arona", "year": 2024, "km": 20000, "listed_price": 1_500_000})
     assert _time.monotonic() - start < 2.9  # iki tur da ~1 sn'de kapanır, 3 sn beklenmez
+
+
+# --- Kasa havuzu ve ilan bazında düzeltme (kullanıcı önerisi, 02.11.2026) -----------------
+TUCSON = {"brand": "Hyundai", "model": "Tucson", "year": 2021, "km": 66000,
+          "package": "1.6 CRDI Elite Plus", "fuel": "Dizel", "transmission": "Otomatik"}
+
+
+def _tucson(n, fiyat, yil, km=66000, kondisyon="temiz"):
+    return _ilan(f"https://galeri{n}.com/tucson/{n}", fiyat, km, "1.6 CRDI Elite Plus", yil=yil, kondisyon=kondisyon)
+
+
+def test_farkli_yillardaki_ilanlar_bu_araca_cevrilir_ve_oran_ilanlardan_hesaplanir():
+    # Aynı kasa: 2021 aracı 2.000.000; yılda %6 değer kaybıyla 2022 ve 2023 ilanları daha pahalı
+    ilanlar = [_tucson(1, 2_000_000, 2021), _tucson(2, 2_020_000, 2021),
+               _tucson(3, 2_127_660, 2022), _tucson(4, 2_150_000, 2022), _tucson(5, 2_263_470, 2023)]
+    ref = wmr.build_reference([_arama(ilanlar)], TUCSON, year_range=(2021, 2023))
+    assert ref["found"] and ref["count"] == 5
+    assert ref["scope"]["yearly_rate_measured"] and 0.05 <= ref["scope"]["yearly_rate"] <= 0.07
+    adjusted = [s["adjusted_price"] for s in ref["samples"]]
+    assert max(adjusted) / min(adjusted) < 1.06  # ham fiyat farkı %13'tü
+    assert 1_990_000 <= ref["market_median_price"] <= 2_040_000
+    assert ref["reference_median_year"] == 2021 and ref["reference_median_km"] == 66000
+    assert ref["same_year_count"] == 2 and ref["listing_median_year"] == 2022
+    assert not any(f["kod"] == "genis_aralik" for f in ref["kontrol"])
+
+
+def test_veri_yetmezse_varsayilan_yillik_oran():
+    ilanlar = [_tucson(1, 2_000_000, 2021), _tucson(2, 2_080_000, 2022), _tucson(3, 2_100_000, 2022)]
+    ref = wmr.build_reference([_arama(ilanlar)], TUCSON, year_range=(2021, 2023))
+    assert ref["scope"]["yearly_rate"] == wmr.DEFAULT_YEARLY_RATE and not ref["scope"]["yearly_rate_measured"]
+
+
+def test_supheli_ucuz_ilan_elenir_hasarli_ilan_elenmez():
+    ilanlar = [_tucson(n, f, 2021) for n, f in enumerate((2_000_000, 2_020_000, 2_050_000, 1_990_000), 1)]
+    ucuz = _tucson(9, 1_600_000, 2021)                               # hasarsız görünüyor, %20 ucuz
+    hasarli = _tucson(8, 1_750_000, 2021, kondisyon="hasarli")        # ucuzluğu açıklanmış
+    ref = wmr.build_reference([_arama(ilanlar + [ucuz, hasarli])], TUCSON, year_range=(2021, 2023))
+    urls = {s["url"] for s in ref["samples"]}
+    assert ucuz["url"] not in urls and ref["scope"]["rejected"]["şüpheli ucuz"] == 1
+    assert hasarli["url"] in urls
+
+
+def test_kasa_disindaki_yil_reddedilir():
+    eski_kasa = _tucson(7, 1_700_000, 2020)    # 2015-2020 TL kasa
+    ilanlar = [_tucson(n, 2_000_000 + n * 10_000, 2021) for n in range(1, 4)] + [eski_kasa]
+    ref = wmr.build_reference([_arama(ilanlar)], TUCSON, year_range=(2021, 2023))
+    assert eski_kasa["url"] not in {s["url"] for s in ref["samples"]}
+    assert ref["scope"]["rejected"]["yıl uyumsuz"] == 1
+
+
+def test_get_reference_kasa_araligini_sorgulara_ve_kapsama_yazar(monkeypatch):
+    from yerimebak_ai_v5.services import vehicle_generation
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-fake")
+    monkeypatch.setenv("WEB_PRICE_CACHE_HOURS", "0")
+    monkeypatch.setattr(vehicle_generation, "get_generation", lambda v, timeout=25.0: {
+        "bulundu": True, "kasa": "NX4", "baslangic": 2021, "bitis": 2026, "makyaj": 2024,
+        "kaynaklar": ["https://kaynak.test/nx4"], "cost_usd": 0.005})
+    asked = []
+    ilanlar = [_tucson(n, 2_000_000 + n * 10_000, 2021 + n % 3) for n in range(1, 7)]
+
+    def fake(query, client, **kw):
+        asked.append(query)
+        return _arama(ilanlar, maliyet=0.01)
+
+    monkeypatch.setattr(wmr, "_search", fake)
+    ref = wmr.get_reference({**TUCSON, "listed_price": 2_200_000})
+    assert all("2021-2023" in q for q in asked)
+    assert ref["scope"]["year_range"] == [2021, 2023] and ref["scope"]["generation"]["kasa"] == "NX4"
+    assert ref["scope"]["cost_usd"] == pytest.approx(0.035)  # 3 arama + kasa sorgusu
+
+
+def test_kasa_bilgisi_dogrulama_ve_makyaj_siniri():
+    from yerimebak_ai_v5.services import vehicle_generation as g
+    cited = {"https://kaynak.test/a": "Tucson NX4"}
+    data = {"kasa": "NX4", "kasa_baslangic": 2021, "kasa_bitis": 2026, "motor_sanziman_baslangic": 2021,
+            "motor_sanziman_bitis": 2021, "makyaj_yili": 2024, "kaynaklar": ["https://kaynak.test/a"]}
+    gen = g.parse(data, cited, TUCSON)
+    # Motor/şanzıman yılı (güvenilmez "2021") değil kasa yılları kullanılır
+    assert gen["bulundu"] and (gen["baslangic"], gen["bitis"], gen["makyaj"]) == (2021, 2026, 2024)
+    assert g.year_range(gen, 2021) == (2021, 2023)          # makyaj öncesi
+    assert g.year_range(gen, 2025) == (2024, 2026)          # makyaj sonrası
+    egea = {"bulundu": True, "baslangic": 2016, "bitis": 2026, "makyaj": 2021}
+    assert g.year_range(egea, 2019) == (2016, 2020)
+    assert g.year_range({"bulundu": False}, 2021) is None
+    assert not g.parse({**data, "kaynaklar": ["https://uydurma.test/x"]}, cited, TUCSON)["bulundu"]
+    assert not g.parse({**data, "kasa_baslangic": 2022}, cited, TUCSON)["bulundu"]   # aracın yılını kapsamıyor

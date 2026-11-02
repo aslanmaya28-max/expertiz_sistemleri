@@ -504,7 +504,10 @@ export interface ValuationResult {
     ortalama: number; medyan: number; min: number; max: number; emsalSayisi: number;
     hasarsizEmsalSayisi?: number; guvenSkoru: number; guncelGun?: number;
     kaynak: "web_listings" | "listings";
-    kaynaklar: { site?: string | null; url?: string | null; fiyat?: number | null; km?: number | null; yil?: number | null }[];
+    kaynaklar: { site?: string | null; url?: string | null; fiyat?: number | null; duzeltilmisFiyat?: number | null; km?: number | null; yil?: number | null }[];
+    /** İlan fiyatlarının bu araca (yıl/km) göre düzeltilmesi; eski raporlarda yok */
+    duzeltme?: { aracYili?: number; aracKm?: number; yillikOran?: number | null; yilAraligi?: [number, number] | null;
+                 kasa?: string | null; ayniYilSayisi?: number | null } | null;
     uyarilar: string[];
   };
   degerleme: {

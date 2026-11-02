@@ -100,9 +100,16 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
           <p className="mt-2 text-sm text-metin-ikincil">{piyasa.emsalSayisi} benzer ilan bulundu; 5&apos;ten az olduğu için fiyatlar yön göstericidir.</p>
         )}
         <p className="mt-2 text-sm text-metin-ikincil">
-          {piyasa.emsalSayisi} güncel emsal ilan ({piyasa.hasarsizEmsalSayisi ?? 0} hasarsız). Ortalama {tl(piyasa.ortalama)}, medyan {tl(piyasa.medyan)},
+          {piyasa.emsalSayisi} güncel emsal ilan ({piyasa.hasarsizEmsalSayisi ?? 0} hasarsız). Ortalama{piyasa.duzeltme ? " (bu araca göre)" : ""} {tl(piyasa.ortalama)}, orta fiyat {tl(piyasa.medyan)},
           aralık {tl(piyasa.min)} – {tl(piyasa.max)}. Güven skoru: %{piyasa.guvenSkoru}.
         </p>
+        {piyasa.duzeltme && (
+          <p className="mt-2 text-xs text-metin-ikincil">
+            İlan fiyatları yılda %{((piyasa.duzeltme.yillikOran ?? 0) * 100).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} değer kaybı ve km farkıyla bu araca
+            ({piyasa.duzeltme.aracYili}, {new Intl.NumberFormat("tr-TR").format(piyasa.duzeltme.aracKm ?? 0)} km) göre düzeltildi.
+            {piyasa.duzeltme.kasa && piyasa.duzeltme.yilAraligi && ` Yalnız aynı kasa (${piyasa.duzeltme.kasa}, ${piyasa.duzeltme.yilAraligi[0]}–${piyasa.duzeltme.yilAraligi[1]} model) ilanları kullanıldı.`}
+          </p>
+        )}
         {piyasaUyarilari.length > 0 && (
           <div className="mt-3 rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-900">
             <ul className="list-disc space-y-1 pl-5">
@@ -116,6 +123,7 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
               <li key={`${k.url}-${i}`}>
                 <a href={k.url!} target="_blank" rel="noopener noreferrer nofollow" className="text-birincil underline">
                   {k.site || "Kaynak ilan"} • {k.yil ?? "Yıl belirtilmemiş"} • {k.km == null ? "Km belirtilmemiş" : `${new Intl.NumberFormat("tr-TR").format(k.km)} km`} • {tl(k.fiyat)}
+                  {k.duzeltilmisFiyat != null && k.duzeltilmisFiyat !== k.fiyat && ` → bu araca göre ${tl(k.duzeltilmisFiyat)}`}
                 </a>
               </li>
             ))}
