@@ -6,6 +6,8 @@
 export const SITE_URL = "https://www.yerimebak.com.tr";
 export const ANA_MESAJ = "Araç almadan önce doğru bilgiye ulaşın.";
 export const SLOGAN = "Siz gitmeden, biz yerinize bakalım.";
+export const HIZMET_YERINDE = "Yerinde araç inceleme ve ekspertiz";
+export const HIZMET_DEGERLEME = "Araç değerleme raporu";
 
 export const BOLGE_YERINDE = "İstanbul'un tamamı (Avrupa ve Anadolu yakası)";
 export const BOLGE_DEGERLEME = "Türkiye geneli (çevrim içi)";
