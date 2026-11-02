@@ -147,3 +147,24 @@ def test_kaynak_varyantlarinda_ayni_sonuc(first, second):
     assert "TL" in r["onceki"]["kasa"] or "III" in r["onceki"]["kasa"]
     for year in (2022, 2023):
         assert not g.combine(first, second, year)["gecis_yili"]
+
+
+def test_musteri_secimi_bulunamazsa_diger_kasaya_gecilmez():
+    ref = wmr._transition({"year": 2024, "kasa": "yeni", "listed_price": 1_895_000}, {"found": False, "scope": {}},
+                          _ref(1_740_000), G("AS33", 2024, 2026), G("AS23", 2022, 2024))
+    assert ref["gecis"]["secilen"] == "yeni" and ref["gecis"]["neden"] == "secilen_bulunamadi"
+    assert not ref.get("found")
+
+
+@pytest.mark.parametrize("ilan,beklenen", [
+    ({"paket": "Yeni Luxury", "url": "https://x.test/mg-hs/1"}, None),
+    ({"paket": "1.5 T-GDI Luxury", "url": "https://x.test/mg-hs-yeni-luxury-2024/2"}, None),
+    ({"paket": "1.5 T-GDI Luxury", "url": "https://x.test/mg-hs-luxury/3", "durum": "yeni lastik takıldı"}, "geçiş yılı belirsiz"),
+    ({"paket": "1.5 T-GDI Luxury", "url": "https://x.test/mg-hs-yenilenmis/4"}, "geçiş yılı belirsiz"),
+])
+def test_yeni_kelimesi_yalniz_baslik_ve_adreste_sayilir(ilan, beklenen):
+    full = {"fiyat_tl": 1_900_000, "km": 30000, "yil": 2024, **ilan}
+    sources = {ilan["url"]: "1.900.000 TL"}
+    v = {"brand": "MG", "model": "HS", "year": 2024, "km": 33100}
+    terms = wmr.kasa_terms({"kasa": "AS33"}, True, v)
+    assert wmr.verify(full, sources, v, year_range=(2024, 2026), ambiguous_year=2024, terms=terms) == beklenen

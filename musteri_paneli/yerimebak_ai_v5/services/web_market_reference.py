@@ -326,7 +326,9 @@ def kasa_terms(generation: Optional[Dict[str, Any]], newer: bool, vehicle: Optio
     terms = [t for t in re.findall(r"[a-z0-9]+", fold((generation or {}).get("kasa"))) if len(t) >= 3 and not t.isdigit()]
     names = set(re.findall(r"[a-z0-9]+", fold(f"{(vehicle or {}).get('brand') or ''} {(vehicle or {}).get('model') or ''}")))
     terms = [t for t in terms if t not in names and t not in ("nesil", "kasa", "facelift", "makyaj")][:2]
-    return tuple(terms) + (("yeni kasa", "yeni nesil") if newer else ("eski kasa", "onceki kasa"))
+    # Türkiye ilanlarında yeni kasa çoğunlukla "Yeni <model>" diye yazılır (ör. "mg-hs-yeni-luxury").
+    # "yeni" tek kelime olarak yalnız paket adında/adreste aranır (açıklamadaki "yeni lastik" sayılmaz).
+    return tuple(terms) + (("yeni kasa", "yeni nesil", "kelime:yeni") if newer else ("eski kasa", "onceki kasa"))
 
 
 def verify(listing: Dict[str, Any], sources: Dict[str, str], v: Dict[str, Any], *, year_window: int = 1,
@@ -352,7 +354,8 @@ def verify(listing: Dict[str, Any], sources: Dict[str, str], v: Dict[str, Any], 
     if ambiguous_year and l_year == ambiguous_year:
         # Geçiş yılı ilanı iki kasadan biri olabilir: yalnız kasası metinde açıkça yazıyorsa alınır.
         blob = fold(f"{listing.get('paket') or ''} {listing.get('durum') or ''} {url}")
-        if not any(t in blob for t in terms):
+        title_words = set(re.findall(r"[a-z0-9]+", fold(f"{listing.get('paket') or ''} {url}")))
+        if not any((t[len("kelime:"):] in title_words) if t.startswith("kelime:") else (t in blob) for t in terms):
             return "geçiş yılı belirsiz"
     if year and l_year and year_range and not year_range[0] <= l_year <= year_range[1]:
         return "yıl uyumsuz"
@@ -557,7 +560,11 @@ def _transition(vehicle: Dict[str, Any], new_ref: Dict[str, Any], old_ref: Dict[
     choice = fold(vehicle.get("kasa")).strip()
     candidates = {"yeni": new_ref, "eski": old_ref}
     found = {k: r for k, r in candidates.items() if r.get("found")}
-    if choice in found:
+    if choice in candidates and choice not in found:
+        # Müşteri kasayı seçti ama o kasa için yeterli ilan yok: diğer kasaya göre değerlendirilmez
+        # (MG HS 2024 örneği: yeni kasa seçildi, eski kasa ilanlarıyla düşük değer çıkmıştı).
+        selected, reason = choice, "secilen_bulunamadi"
+    elif choice in found:
         selected, reason = choice, "musteri"
     elif len(found) == 2 and _int(vehicle.get("listed_price")):
         price = _int(vehicle.get("listed_price"))

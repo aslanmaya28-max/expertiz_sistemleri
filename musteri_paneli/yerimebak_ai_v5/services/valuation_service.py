@@ -563,6 +563,14 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
         "brand": brand, "model": model, "year": year, "km": km, "fuel": fuel,
         "transmission": transmission, "package": package, "listed_price": price, "kasa": kasa,
     })
+    gecis = (reference or {}).get("gecis") or {}
+    if gecis.get("neden") == "secilen_bulunamadi":
+        secilen = (gecis.get(gecis.get("secilen")) or {}).get("kasa") or "seçtiğiniz kasa"
+        return _error(
+            f"Seçtiğiniz kasa ({secilen}) için yeterli benzer ilan bulunamadı; diğer kasanın fiyatıyla "
+            "değerlendirme yapmıyoruz çünkü yanıltıcı olur. Kredi düşülmedi.",
+            422, "insufficient_market_data",
+        )
     if not reference or not reference.get("found"):
         reference = get_market_reference_service().get_reference(
             brand=brand, model=model, year=year, km=km, fuel=fuel, transmission=transmission,
