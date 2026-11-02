@@ -74,3 +74,14 @@ class AdminFinanceSummaryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FirmaPaketiAyrimiTests(unittest.TestCase):
+    def test_firma_paketi_net_gelirden_ayrilir(self):
+        satir = _req(10900, 1000, "pending_admin", fee=5000)
+        satir["package_price_tl"] = 4900
+        ekspertiz = summarize([satir], [])["ekspertiz"]
+        self.assertEqual(ekspertiz["ciro_tl"], 10900)
+        self.assertEqual(ekspertiz["kdv_tl"], 1000)
+        self.assertEqual(ekspertiz["net_tl"], 5000)
+        self.assertEqual(ekspertiz["firma_paketi_tl"], 4900)

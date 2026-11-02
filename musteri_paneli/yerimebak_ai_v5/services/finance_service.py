@@ -47,7 +47,7 @@ def _as_dict(value: Any) -> Dict[str, Any]:
 
 def summarize(requests: List[Dict[str, Any]], payment_orders: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Ham satirlardan finans ozetini hesaplar (veritabanindan bagimsiz)."""
-    ciro = kdv = net = 0.0
+    ciro = kdv = net = firma_paketi = 0.0
     adet = simulasyon_adet = 0
     durumlar: Dict[str, int] = {}
     personel: Dict[str, Dict[str, Any]] = {}
@@ -64,12 +64,15 @@ def summarize(requests: List[Dict[str, Any]], payment_orders: List[Dict[str, Any
             continue
         toplam = _num(row.get("total_tl"))
         vergi = _num(row.get("vat_tl"))
-        kdv_haric = toplam - vergi
+        # Firma paketi KDV dahil tahsil edilip firmaya aktarılır; YerimeBak geliri değildir.
+        paket = _num(row.get("package_price_tl"))
+        kdv_haric = toplam - vergi - paket
 
         adet += 1
         ciro += toplam
         kdv += vergi
         net += kdv_haric
+        firma_paketi += paket
         if row.get("payment_status") == "paid_simulation":
             simulasyon_adet += 1
 
@@ -113,6 +116,7 @@ def summarize(requests: List[Dict[str, Any]], payment_orders: List[Dict[str, Any
             "ciro_tl": round(ciro, 2),
             "kdv_tl": round(kdv, 2),
             "net_tl": round(net, 2),
+            "firma_paketi_tl": round(firma_paketi, 2),
             "simulated_payment_count": simulasyon_adet,
             "report_status_counts": durumlar,
         },

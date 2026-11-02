@@ -172,6 +172,7 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
     final ciro = _num(_ekspertiz, 'ciro_tl');
     final kdv = _num(_ekspertiz, 'kdv_tl');
     final net = _num(_ekspertiz, 'net_tl');
+    final firmaPaketi = _num(_ekspertiz, 'firma_paketi_tl');
     final hakedis = _num(_personel, 'hakedis_tl');
     final krediOnayli = _num(_kredi, 'approved_tl');
     final krediBekleyen = _num(_kredi, 'pending_tl');
@@ -251,7 +252,7 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
                       [
                         _buildFinansSatir('Ekspertiz talebi', '$talepAdedi adet', Icons.assignment),
                         _buildFinansSatir('Ekspertiz cirosu (KDV dahil)', _tl(ciro), Icons.attach_money),
-                        _buildFinansSatir('KDV hariç tutar', _tl(net), Icons.calculate),
+                        _buildFinansSatir('YerimeBak hizmet geliri (KDV hariç)', _tl(net), Icons.calculate),
                         _buildFinansSatir('Onaylı kredi satışı (${_kredi['approved_count'] ?? 0})',
                             _tl(krediOnayli), Icons.credit_card),
                         _buildFinansSatir('Ödemesi bekleyen kredi (${_kredi['pending_count'] ?? 0})',
@@ -271,6 +272,7 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
                       'Giderler',
                       [
                         _buildFinansSatir('Ödenecek KDV', _tl(kdv), Icons.receipt_long),
+                        _buildFinansSatir('Firmalara aktarılacak paket ücreti (KDV dahil)', _tl(firmaPaketi), Icons.business),
                         _buildFinansSatir('Personel hakedişi (yayınlanan raporlar)', _tl(hakedis), Icons.people),
                       ],
                       Icons.arrow_upward,

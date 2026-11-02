@@ -17,8 +17,10 @@ from yerimebak_ai_v5.core.database_config import DatabaseConfig
 COLUMNS = [
     "tarih", "islem", "siparis_no", "aciklama", "musteri_adi", "e_posta", "telefon",
     "firma_unvani", "vergi_tckn_no", "vergi_dairesi", "fatura_adresi", "il",
-    "kdv_haric_tl", "kdv_tl", "toplam_tl",
+    "kdv_haric_tl", "kdv_tl", "firma_paketi_tl", "toplam_tl",
 ]
+# firma_paketi_tl: kurumsal ekspertiz firmasının KDV dahil paket ücreti. Müşteriden tahsil edilip firmaya
+# aktarılır; YerimeBak'ın KDV'li hizmet gelirine (kdv_haric_tl + kdv_tl) dahil değildir.
 
 
 def _parse_day(value: Optional[str], default: date) -> date:
@@ -72,15 +74,19 @@ def collect_rows(start: Optional[str] = None, end: Optional[str] = None) -> List
             u = q.get("u") or {}
             total = float(q.get("total_tl") or 0)
             vat = float(q.get("vat_tl") or 0)
+            package = float(q.get("package_price_tl") or 0)
+            net = total - vat - package
             base = {
                 "tarih": str(q.get("paid_at") or q.get("created_at") or "")[:19],
                 "siparis_no": q.get("paytr_oid") or q.get("id"),
                 "aciklama": f"Ekspertiz hizmeti: {q.get('firm_name') or ''} - {q.get('package_name') or ''} ({q.get('plate') or ''})",
                 **_billing(u),
             }
-            rows.append({**base, "islem": "satis", "kdv_haric_tl": _money(total - vat), "kdv_tl": _money(vat), "toplam_tl": _money(total)})
+            rows.append({**base, "islem": "satis", "kdv_haric_tl": _money(net), "kdv_tl": _money(vat),
+                         "firma_paketi_tl": _money(package), "toplam_tl": _money(total)})
             if q.get("payment_status") == "refunded":
-                rows.append({**base, "islem": "iade", "kdv_haric_tl": _money(-(total - vat)), "kdv_tl": _money(-vat), "toplam_tl": _money(-total)})
+                rows.append({**base, "islem": "iade", "kdv_haric_tl": _money(-net), "kdv_tl": _money(-vat),
+                             "firma_paketi_tl": _money(-package), "toplam_tl": _money(-total)})
 
         cursor.execute("SELECT to_regclass('public.payment_orders') IS NOT NULL AS found")
         if dict(cursor.fetchone()).get("found"):
