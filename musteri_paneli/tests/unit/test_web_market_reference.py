@@ -413,18 +413,30 @@ def test_get_reference_kasa_araligini_sorgulara_ve_kapsama_yazar(monkeypatch):
     assert ref["scope"]["cost_usd"] == pytest.approx(0.035)  # 3 arama + kasa sorgusu
 
 
-def test_kasa_bilgisi_dogrulama_ve_makyaj_siniri():
+def test_kasa_listesi_secim_gecis_yili_ve_makyaj_siniri():
+    """Kullanıcının örneği: Tucson JM 2004-2009, LM 2009-2015, TL 2015-2021 (2018 makyaj), NX4 2021- (2024)."""
     from yerimebak_ai_v5.services import vehicle_generation as g
-    cited = {"https://kaynak.test/a": "Tucson NX4"}
-    data = {"kasa": "NX4", "kasa_baslangic": 2021, "kasa_bitis": 2026, "motor_sanziman_baslangic": 2021,
-            "motor_sanziman_bitis": 2021, "makyaj_yili": 2024, "kaynaklar": ["https://kaynak.test/a"]}
-    gen = g.parse(data, cited, TUCSON)
-    # Motor/şanzıman yılı (güvenilmez "2021") değil kasa yılları kullanılır
-    assert gen["bulundu"] and (gen["baslangic"], gen["bitis"], gen["makyaj"]) == (2021, 2026, 2024)
-    assert g.year_range(gen, 2021) == (2021, 2023)          # makyaj öncesi
-    assert g.year_range(gen, 2025) == (2024, 2026)          # makyaj sonrası
-    egea = {"bulundu": True, "baslangic": 2016, "bitis": 2026, "makyaj": 2021}
-    assert g.year_range(egea, 2019) == (2016, 2020)
-    assert g.year_range({"bulundu": False}, 2021) is None
-    assert not g.parse({**data, "kaynaklar": ["https://uydurma.test/x"]}, cited, TUCSON)["bulundu"]
-    assert not g.parse({**data, "kasa_baslangic": 2022}, cited, TUCSON)["bulundu"]   # aracın yılını kapsamıyor
+    cited = {"https://kaynak.test/tucson": "Hyundai Tucson nesilleri"}
+    data = {"nesiller": [
+        {"kasa": "JM", "baslangic": 2004, "bitis": 2009},
+        {"kasa": "LM / ix35", "baslangic": 2009, "bitis": 2015},
+        {"kasa": "TL", "baslangic": 2015, "bitis": 2021, "makyaj": 2018},
+        {"kasa": "NX4", "baslangic": 2021, "bitis": 2026, "makyaj": 2024},
+        {"kasa": "bozuk", "baslangic": 2030, "bitis": 2020},
+    ], "kaynaklar": ["https://kaynak.test/tucson"]}
+    gens = g.parse_list(data, cited)
+    assert [x["kasa"] for x in gens] == ["JM", "LM / ix35", "TL", "NX4"]
+    sel = g.select(gens, 2021)                  # geçiş yılı: yeni kasa
+    assert sel["kasa"] == "NX4" and sel["gecis_yili"] and g.year_range(sel, 2021) == (2021, 2023)
+    assert g.year_range(g.select(gens, 2025), 2025) == (2024, 2026)    # makyaj sonrası
+    assert g.year_range(g.select(gens, 2017), 2017) == (2015, 2017)    # TL makyaj öncesi
+    assert g.year_range(g.select(gens, 2019), 2019) == (2018, 2021)    # TL makyaj sonrası
+    assert not g.select(gens, 2003)["bulundu"]
+    assert g.parse_list({**data, "kaynaklar": ["https://uydurma.test/x"]}, cited) == []
+
+
+def test_yili_belli_olmayan_ilan_elenir():
+    ilanlar = [_tucson(n, 2_000_000 + n * 10_000, 2021) for n in range(1, 4)]
+    yilsiz = {**_tucson(9, 2_050_000, 2021), "yil": None}
+    ref = wmr.build_reference([_arama(ilanlar + [yilsiz])], TUCSON, year_range=(2021, 2023))
+    assert ref["scope"]["rejected"]["yıl bilinmiyor"] == 1

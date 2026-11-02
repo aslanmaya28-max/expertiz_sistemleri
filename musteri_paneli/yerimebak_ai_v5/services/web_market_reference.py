@@ -337,6 +337,8 @@ def verify(listing: Dict[str, Any], sources: Dict[str, str], v: Dict[str, Any], 
     if not price_in_text(price, sources[url]):
         return "fiyat sayfada yok"
     year, l_year = _int(v.get("year")), _int(listing.get("yil"))
+    if year and not l_year:
+        return "yıl bilinmiyor"  # yıl olmadan bu araca göre düzeltilemez
     if year and l_year and year_range and not year_range[0] <= l_year <= year_range[1]:
         return "yıl uyumsuz"
     if year and l_year and not year_range and abs(l_year - year) > year_window:
