@@ -66,8 +66,11 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
 
       <AkilliAliciBolumleri sonuc={sonuc} />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Kutu baslik="İlan fiyatı" deger={tl(arac.ilanFiyati)} />
+        {piyasa.ortalama > 0 && (
+          <Kutu baslik={`Benzer ${piyasa.emsalSayisi} ilanın ortalaması${piyasa.duzeltme ? " (bu araca göre)" : ""}`} deger={tl(piyasa.ortalama)} />
+        )}
         <Kutu baslik="Tavsiye alım fiyatı" deger={tl(degerleme.tavsiyeFiyat)} vurgu />
         <Kutu baslik="Adil fiyat aralığı" deger={`${tl(degerleme.adilFiyatAraligi?.min)} – ${tl(degerleme.adilFiyatAraligi?.max)}`} />
         <Kutu baslik="Hasarsız piyasa değeri" deger={tl(degerleme.temizPiyasaDegeri)} />

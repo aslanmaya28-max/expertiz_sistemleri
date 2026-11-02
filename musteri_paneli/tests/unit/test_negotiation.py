@@ -77,3 +77,33 @@ def test_ilan_ortanin_cok_ustundeyse_plan_uyarir():
                         reference={"count": 9, "market_median_price": 1_640_000, "samples": []}, kalemler=[],
                         confidence_level="orta", vehicle_title="2024 MG HS")
     assert normal["uyari"] is None
+
+
+def test_ilan_piyasanin_altindaysa_hedef_ilan_fiyatina_esit_olmaz_ve_satici_lehine_gerekce_yok():
+    # Cupra Formentor denemesi (02.11.2026): ilan 2.265.000, düzeltilmiş orta fiyat 2.338.115.
+    # Eski plan hedef = üst sınır = ilan fiyatı veriyor, satıcıya "orta fiyat daha yüksek" diyordu.
+    ref = {"count": 4, "market_median_price": 2_338_115, "reference_median_year": 2023, "reference_median_km": 87_000,
+           "samples": [
+               {"site": "a.com", "url": "https://a.com/1", "price": 2_229_500, "km": 76_735, "year": 2023},
+               {"site": "b.com", "url": "https://b.com/2", "price": 2_175_000, "km": 72_000, "year": 2021},
+               {"site": "c.com", "url": "https://c.com/3", "price": 2_495_000, "km": 33_000, "year": 2023},
+               {"site": "d.com", "url": "https://d.com/4", "price": 2_378_500, "km": 68_695, "year": 2023}]}
+    p = build_plan(price=2_265_000, fair_min=2_205_000, fair_max=2_485_000, recommended=2_275_000,
+                   reference=ref, kalemler=[], confidence_level="yuksek", vehicle_title="2023 Cupra Formentor")
+    assert p["durum"] == "kucuk_pay"
+    assert p["acilisTeklifi"] < p["hedefFiyat"] < p["ustSinir"] == 2_265_000
+    assert not any("orta fiyat" in g for g in p["gerekceler"])
+    assert "orta fiyat" not in p["saticiMesaji"]
+    # Satıcıya yalnız ilandan ucuz ve en az aynı yıldaki ilan gösterilir (2021 ilanı kanıt olmaz).
+    assert [k["fiyat"] for k in p["kanitIlanlar"]] == [2_229_500]
+    assert any("kilometresi" in g for g in p["gerekceler"])
+    assert "sınırlı" in p["adimlar"][0]
+
+
+def test_gerekce_yoksa_mesaj_uydurma_gerekce_yazmaz():
+    p = build_plan(price=1_000_000, fair_min=950_000, fair_max=1_100_000, recommended=1_020_000,
+                   reference={"count": 5, "market_median_price": 1_050_000, "samples": []}, kalemler=[],
+                   confidence_level="yuksek", vehicle_title="2022 Fiat Egea")
+    assert p["gerekceler"] == []
+    assert "Ekspertiz sonucu" in p["saticiMesaji"] and "1.050.000" not in p["saticiMesaji"]
+    assert p["hedefFiyat"] < 1_000_000

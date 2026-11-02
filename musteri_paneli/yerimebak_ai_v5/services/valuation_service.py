@@ -696,6 +696,9 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
         reference=reference, kalemler=degerleme.get("kalemler") or [],
         confidence_level=summary["karar"]["guvenSeviyesi"], vehicle_title=f"{year} {brand} {model}",
     )
+    # Özet ile pazarlık planı aynı gerekçeleri gösterir. İlan piyasanın altındayken "benzer ilanların
+    # ortası daha yüksek" bilgisi satıcının işine yarar; plan bunu gerekçe saymaz (Cupra Formentor denemesi).
+    result["ozet"]["pazarlikGerekceleri"] = result["pazarlikPlani"]["gerekceler"][:3]
     risks = _model_risks_safe(risk_future)
     result["kullaniciSikayetleri"] = risks.get("kullaniciSikayetleri") or []
     risk_cost = float((risks.get("scope") or {}).get("cost_usd") or 0)
