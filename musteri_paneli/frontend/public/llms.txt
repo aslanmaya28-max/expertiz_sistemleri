@@ -1,0 +1,14 @@
+# YerimeBak
+
+> YerimeBak, ikinci el araç alacaklar için yerinde araç inceleme (ekspertiz) hizmetidir: "Siz gitmeden, biz yerinize bakalım." Alanında uzman personel aracı bulunduğu yerde inceler; iç ekspertiz, dış ekspertiz, kurumsal ekspertiz ve yapay zekâ destekli araç değerleme raporları müşteri panelinde sunulur. Hizmet şu anda İstanbul'da pilot olarak verilmektedir.
+
+## Hizmetler
+- [Yerinde araç inceleme talebi](https://www.yerimebak.com.tr/ekspertiz-talebi): Araç bilgisi ve ilan linkiyle talep oluşturulur; uzman personel aracı yerinde inceler.
+- [Araç değerleme](https://www.yerimebak.com.tr/arac-analiz): İlan bilgilerine ve internetteki benzer ilanlara dayanan değerleme ve pazarlık rehberi.
+- [Fiyatlar](https://www.yerimebak.com.tr/fiyatlar)
+
+## Kurumsal
+- [Hakkımızda](https://www.yerimebak.com.tr/hakkimizda)
+- [İletişim](https://www.yerimebak.com.tr/iletisim)
+- [KVKK Aydınlatma Metni](https://www.yerimebak.com.tr/kvkk)
+- [Kullanım Koşulları](https://www.yerimebak.com.tr/kullanim-kosullari)
