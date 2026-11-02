@@ -37,12 +37,16 @@ def dusuk_fiyat_uyarisi(price: float, reference: Dict[str, Any], deger_kaybi: fl
     180.000 TL tramer + 2 degisen kapili ilan hasarsiz ortalamanin %10,9 altinda diye "gizli kusur" uyarisi aliyordu;
     oysa hasar dusulunce ilan piyasanin %19,7 USTUNDEYDI. Dusuk fiyatin nedeni zaten beyan edilmisse uyari verilmez."""
     ortalama = reference.get("market_avg_price") or reference.get("market_median_price")
+    orta = reference.get("market_median_price") or ortalama
     try:
-        ortalama, price, kayip = float(ortalama or 0), float(price or 0), max(0.0, float(deger_kaybi or 0))
+        ortalama, orta = float(ortalama or 0), float(orta or 0)
+        price, kayip = float(price or 0), max(0.0, float(deger_kaybi or 0))
     except (TypeError, ValueError):
         return None
     beklenen = ortalama - kayip
-    if ortalama <= 0 or beklenen <= 0 or price <= 0 or price >= beklenen:
+    # Ortalama ve orta fiyatın İKİSİNİN de altında olmalı: tek bir çok pahalı ilan ortalamayı şişirdiğinde
+    # (orta fiyata göre "piyasanın üstünde" olan) ilana "ortalamanın altında" denmesin (018 değişmez testi).
+    if ortalama <= 0 or beklenen <= 0 or price <= 0 or price >= min(beklenen, orta - kayip):
         return None
     yuzde = (1 - price / beklenen) * 100
     oran = f"%{yuzde:.1f}".replace(".", ",")
@@ -73,7 +77,7 @@ def _evidence(reference: Dict[str, Any], price: float, year: Optional[int], limi
 def build_plan(
     *, price: float, fair_min: Optional[float], fair_max: Optional[float], recommended: float,
     reference: Dict[str, Any], kalemler: List[Dict[str, Any]], confidence_level: str,
-    vehicle_title: str,
+    vehicle_title: str, vehicle_year: Optional[int] = None, vehicle_km: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Pazarlik plani. Fiyat zaten adil araligin altindaysa pazarlik payi kucuk tutulur."""
     price = float(price)
@@ -81,8 +85,10 @@ def build_plan(
     hi = float(fair_max or recommended)
     median = reference.get("market_median_price")
     median = float(median) if median and float(median) > 0 else None
-    year = reference.get("reference_median_year") or None
-    car_km = reference.get("reference_median_km") or None
+    # Kaynak (manuel piyasa, yapay zekâ tahmini) referans yılı olarak emsallerin medyan yılını taşıyabilir;
+    # satıcıya eski yıllı ilan "kanıt" diye gösterilmesin diye aracın kendi yılı esas alınır.
+    year = vehicle_year or reference.get("reference_median_year") or None
+    car_km = vehicle_km or reference.get("reference_median_km") or None
     # Ilan, hesaplanan degerin ya da benzer ilanlarin ortasinin altindaysa pazarlik payi kucuktur:
     # hedef yine de ilan fiyatinin altinda kalir (hedef = ilan fiyati, pazarlik degildir).
     # Benzer ilanların ortası hasarsız araçlardır: bildirilen hasarın etkisi düşülmeden karşılaştırılmaz
@@ -107,6 +113,10 @@ def build_plan(
     hedef = min(hedef, ust)
     if hedef >= price:
         hedef = min(ust, _round_price(price * 0.975))
+    # Üst sınır ilan fiyatının altındaysa (pazarlık payı var) hedef üst sınıra eşit olmaz: az emsalde benzer ilan
+    # ortası tavsiye fiyatının altına düşünce hedef = üst sınır = 825.000 çıkıyordu (018 değişmez testi).
+    if price > ust and hedef >= ust:
+        hedef = _round_price(ust * 0.98)
     acilis = min(acilis, hedef)
     if acilis >= hedef and hedef > 0:
         acilis = min(acilis, _round_price(hedef * 0.975))

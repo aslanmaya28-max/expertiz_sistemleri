@@ -717,6 +717,7 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
         fair_max=(degerleme.get("adilFiyatAraligi") or {}).get("max"), recommended=recommended,
         reference=reference, kalemler=degerleme.get("kalemler") or [],
         confidence_level=summary["karar"]["guvenSeviyesi"], vehicle_title=f"{year} {brand} {model}",
+        vehicle_year=year, vehicle_km=km,
     )
     # Tavsiye alım fiyatı = pazarlık hedefi. Eskiden ilan piyasanın altındayken tavsiye ilan fiyatının
     # üstünde kalıyordu (Cupra: ilan 2.265.000, tavsiye 2.275.000); özet metinleri de aynı rakamla yeniden yazılır.
