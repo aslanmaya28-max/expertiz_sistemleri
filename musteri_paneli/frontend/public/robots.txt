@@ -1,0 +1,13 @@
+# YerimeBak — arama motorları ve yapay zekâ tarayıcıları için açık; hesap ve ödeme sayfaları dizine girmez.
+User-agent: *
+Allow: /
+Disallow: /panel
+Disallow: /profil
+Disallow: /odeme
+Disallow: /kredi-yukle
+Disallow: /sifre-sifirla
+Disallow: /sifremi-unuttum
+Disallow: /eposta-dogrula
+Disallow: /vitrin
+
+Sitemap: https://www.yerimebak.com.tr/sitemap.xml

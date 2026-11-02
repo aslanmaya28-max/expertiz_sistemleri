@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     template: "%s | YerimeBak",
   },
   description: "Alanında uzman personelle yerinde araç incelemesi. İç ve dış ekspertiz, yapay zekâ değerleme ve kurumsal ekspertiz raporları müşteri panelinizde. İstanbul’da pilot hizmet.",
-  keywords: ["araç değerleme", "otomobil analiz", "AI araç fiyat", "galerici araç değerleme", "2. el araç fiyat", "risk analizi"],
+  keywords: ["araç ekspertiz", "yerinde araç inceleme", "ikinci el araç ekspertiz İstanbul", "araç değerleme raporu", "2. el araç fiyatı", "oto ekspertiz"],
   authors: [{ name: "YerimeBak" }],
   manifest: "/manifest.json",
   openGraph: {
