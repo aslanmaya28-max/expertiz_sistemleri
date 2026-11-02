@@ -49,18 +49,22 @@ def build_plan(
         durum = "fiyat_uygun"
         hedef = _round_price(price * 0.985)
         acilis = _round_price(price * 0.97)
-        ust = _round_price(price)
     else:
         durum = "pazarlik_payi_var" if price > hi else "kucuk_pay"
         hedef = _round_price(min(recommended, price))
         acilis = _round_price(max(lo * OPENING_FLOOR_RATIO,
                                   min(recommended * 0.97, price * (1 - OPENING_MAX_DISCOUNT))))
-        ust = _round_price(min(price, hi))
+    median = reference.get("market_median_price")
+    median = float(median) if median and float(median) > 0 else None
+    ust = min(price, hi, median if median is not None else float("inf"))
+    hedef = min(hedef, ust)
     acilis = min(acilis, hedef)
-    ust = max(ust, hedef)
     potansiyel = max(0, int(round(price - hedef)))
 
     gerekceler: List[str] = []
+    median_limited = median is not None and median == ust
+    if median_limited:
+        gerekceler.append(f"Üst sınır {_tl(ust)}: benzer ilanların orta fiyatı bu tutardır.")
     if price > hi:
         gerekceler.append(f"İlan fiyatı ({_tl(price)}) adil aralığın üst sınırından ({_tl(hi)}) {_tl(price - hi)} yüksek.")
     if reference.get("count") and reference.get("market_median_price"):
@@ -88,6 +92,8 @@ def build_plan(
             "Son fiyatı ekspertiz sonucuna bağlayın: incelemede beyan dışı hasar çıkarsa fiyat yeniden konuşulur.",
         ]
 
+    if median_limited:
+        adimlar.append(f"Üst sınırı benzer ilanların orta fiyatı olan {_tl(ust)} belirliyor.")
     gerekce_metni = " ".join(gerekceler[:2]) if gerekceler else "Piyasadaki benzer ilanlara baktım."
     mesaj = (
         f"Merhaba, {vehicle_title} ilanınızla ilgileniyorum. {gerekce_metni} "

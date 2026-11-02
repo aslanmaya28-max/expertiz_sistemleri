@@ -11,8 +11,9 @@ Akis:
    - model yili +-1, km yakin, motor hacmi ayni olmali.
 3. Ayni paketten (or. Style) en az 3 ilan varsa yalnizca onlar kullanilir.
 4. Aykiri fiyatlar atilir; medyan, km/yil ve hasarsiz emsal medyani hesaplanir.
-5. Az emsal, genis fiyat araligi, paket eslesmemesi "kontrol gerekli" olarak isaretlenir;
-   kredili değerlemede bu uyarılar müşteriye de gösterilir.
+   Hedef 5 emsal bulunmazsa yıl ±2 ve iki kat km bandıyla ikinci tur yapılır.
+5. Az emsal, genis fiyat araligi, paket eslesmemesi kontrol bayraklarında korunur;
+   müşteri raporunda az emsal için yalnız kısa yön gösterici fiyat notu gösterilir.
 
 Ayarlar (.env):
   OPENROUTER_API_KEY     zorunlu (yoksa bu kaynak kapali)
@@ -48,7 +49,8 @@ _URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash-1017"
 MIN_PRICE, MAX_PRICE = 50_000, 100_000_000
 MIN_SAMPLES = 3          # bunun altinda referans uretilmez
-TARGET_SAMPLES = 5       # bunun altinda "kontrol gerekli"
+TARGET_SAMPLES = 5       # bunun altında ikinci tur arama yapılır
+CACHE_VERSION = "two-rounds-listing-sites-v2"
 OUTLIER_BAND = 0.25      # medyan +-%25 disi atilir
 WIDE_SPREAD_RATIO = 1.35 # max/min bundan buyukse "kontrol gerekli"
 _schema_ready = False
@@ -56,6 +58,15 @@ _schema_lock = threading.Lock()
 
 # Ilan degil, fiyat tahmini / kasko / liste fiyati veren siteler
 ESTIMATE_SITES = ("kacasatar", "arabamkacpara", "kasko", "sbm.org", "fiyatlari", "fiyat-listesi", "fiyatlistesi")
+
+AUCTION_SITES = ("ikinciyeni", "acik-artirma", "ihale")
+LISTING_SITES = {
+    "arabam.com": "Arabam", "otosahibi.com": "Otosahibi", "otonomi.com": "Otonomi",
+    "tr.vava.cars": "VavaCars", "otokocikinciel.com": "Otokoç 2. El",
+    "dogusoto.com.tr": "Doğuş Oto / DOD", "borusannext.com": "Borusan Next",
+    "otoplus.com": "Otoplus", "letgo.com": "Otoplus/letgo", "carvak.com": "Carvak",
+    "satariz.com": "Satarız", "otoshops.com": "Otoshops",
+}
 
 # Paket adinda motor/sanziman/yakit bilgisi; paket eslesmesinde dikkate alinmaz
 _NON_TRIM = {
@@ -68,7 +79,9 @@ _NON_TRIM = {
 
 _PROMPT = (
     "Türkiye'de şu anda satılık ikinci el ilanlar arasında şu araca en çok benzeyenleri bul: {arac}. "
-    "Aynı model ve mümkünse aynı paket, model yılı ±1, kilometresi yakın olsun. "
+    "Aynı model ve mümkünse aynı paket, sorgudaki yıl/km aralığında olsun (belirtilmediyse model yılı ±1). "
+    "sahibinden.com ilanlarını verme (sayfası okunamıyor); arabam.com, otosahibi, otonomi, VavaCars, "
+    "Otokoç 2. El, Doğuş Oto, Borusan Next, Otoplus, Carvak, Satarız ve galeri sitelerindeki ilanları tercih et. "
     "Yalnızca tek tek araç ilanlarını ver; fiyat listesi, kasko değeri, tahmin sitesi verme. "
     "Her ilan için sadece sayfada gerçekten yazan bilgileri yaz, bilmediğini boş bırak, uydurma. "
     "durum alanına ilanda boya/değişen/hasar/tramer hakkında yazanı kısaca yaz (ör. 'hatasız', '2 parça boyalı'). "
@@ -121,7 +134,7 @@ def _cache_hours() -> float:
 def _cache_key(vehicle: Dict[str, Any]) -> str:
     values = [" ".join(fold(vehicle.get(k)).split())
               for k in ("brand", "model", "year", "package", "fuel", "transmission")]
-    values.append((_int(vehicle.get("km")) or 0) // 20_000)
+    values.extend([(_int(vehicle.get("km")) or 0) // 20_000, CACHE_VERSION, _search_count()])
     return hashlib.sha256(json.dumps(values, ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
@@ -208,7 +221,7 @@ def price_in_text(price: int, text: str) -> bool:
 def is_estimate_site(url: str) -> bool:
     parts = urlsplit(url)
     blob = (parts.netloc + parts.path).lower()
-    return any(s in blob for s in ESTIMATE_SITES)
+    return any(s in blob for s in ESTIMATE_SITES + AUCTION_SITES)
 
 
 # ---------------------------------------------------------------------------
@@ -225,15 +238,19 @@ def _vehicle_text(v: Dict[str, Any]) -> str:
     return text
 
 
-def queries(v: Dict[str, Any]) -> List[str]:
+def queries(v: Dict[str, Any], *, widened: bool = False) -> List[str]:
     base = _vehicle_text(v)
     year = _int(v.get("year"))
-    years = f"{year - 1}-{year + 1} model " if year else ""
+    window = 2 if widened else 1
+    years = f"{year - window}-{year + window} model " if year else ""
+    km = _int(v.get("km")) or 0
+    band = (km * 0.5 + 20_000) * (2 if widened else 1)
+    expansion = f", yıl ±2, {years}{max(0, int(km - band))}-{int(km + band)} km" if widened else ""
     no_year = " ".join(str(p) for p in (v.get("brand"), v.get("model"), v.get("package")) if p)
     return [
-        base,
-        f"{base}, arabam.com ve sahibinden ilanları",
-        f"satılık ikinci el {no_year} {years}".strip(),
+        base + expansion,
+        f"{base} satılık ilan arabam.com otosahibi otonomi vavacars satariz" + expansion,
+        f"satılık ikinci el {no_year} {years}galeri ilanı borusannext otokoç doğuş oto otoplus carvak" + expansion,
     ][: _search_count()]
 
 
@@ -275,12 +292,15 @@ def _search(query: str, client: httpx.Client, *, prompt: Optional[str] = None, w
 # ---------------------------------------------------------------------------
 # Dogrulama ve hesap (ag olmadan test edilebilir)
 # ---------------------------------------------------------------------------
-def verify(listing: Dict[str, Any], sources: Dict[str, str], v: Dict[str, Any]) -> Optional[str]:
+def verify(listing: Dict[str, Any], sources: Dict[str, str], v: Dict[str, Any], *, year_window: int = 1, km_band_scale: int = 1) -> Optional[str]:
     """Ilan kullanilabilirse None, degilse red nedeni."""
     url = str(listing.get("url") or "").rstrip("/")
     price = _int(listing.get("fiyat_tl")) or 0
     if url not in sources:
         return "kaynaklarda yok"
+    parts = urlsplit(url)
+    if any(site in (parts.netloc + parts.path).lower() for site in AUCTION_SITES):
+        return "açık artırma"
     if is_estimate_site(url):
         return "tahmin sitesi"
     if not MIN_PRICE <= price <= MAX_PRICE:
@@ -288,10 +308,11 @@ def verify(listing: Dict[str, Any], sources: Dict[str, str], v: Dict[str, Any]) 
     if not price_in_text(price, sources[url]):
         return "fiyat sayfada yok"
     year, l_year = _int(v.get("year")), _int(listing.get("yil"))
-    if year and l_year and abs(l_year - year) > 1:
+    if year and l_year and abs(l_year - year) > year_window:
         return "yıl uyumsuz"
     km, l_km = _int(v.get("km")), _int(listing.get("km"))
-    if km is not None and l_km is not None and not (km * 0.5 - 20_000 <= l_km <= km * 1.5 + 20_000):
+    band = (km * 0.5 + 20_000) * km_band_scale if km is not None else 0
+    if km is not None and l_km is not None and not (km - band <= l_km <= km + band):
         return "km uzak"
     target = _displacements(f"{v.get('package') or ''} {v.get('model') or ''}")
     found = _displacements(f"{listing.get('paket') or ''} {url}")
@@ -318,24 +339,28 @@ def _package_match(listing: Dict[str, Any], tokens: List[str]) -> bool:
     return all(t in blob for t in tokens)
 
 
-def build_reference(results: List[Dict[str, Any]], v: Dict[str, Any]) -> Dict[str, Any]:
+def build_reference(results: List[Dict[str, Any]], v: Dict[str, Any], *, widened: bool = False) -> Dict[str, Any]:
     """Arama sonuclarini dogrular, birlestirir ve degerleme motorunun okudugu bicime cevirir."""
-    accepted: Dict[tuple, Dict[str, Any]] = {}
+    accepted: Dict[str, Dict[str, Any]] = {}
+    site_stats: Dict[str, Dict[str, int]] = {}
     rejected: Dict[str, int] = {}
     cost = 0.0
     for res in results:
         cost += float(res.get("cost") or 0)
         for item in res.get("listings") or []:
-            reason = verify(item, res.get("sources") or {}, v)
+            reason = verify(item, res.get("sources") or {}, v,
+                            year_window=2 if widened else 1, km_band_scale=2 if widened else 1)
+            if not reason and _condition(item) == "heavy":
+                reason = "ağır hasarlı"
+            # Ölçüm doğrulama denemelerine aittir; tekrarlanan arama sonuçları da sayılır.
+            domain = (urlsplit(str(item.get("url") or "")).hostname or "bilinmiyor").removeprefix("www.")
+            stats = site_stats.setdefault(domain, {"kabul": 0, "red": 0})
+            stats["red" if reason else "kabul"] += 1
             if reason:
                 rejected[reason] = rejected.get(reason, 0) + 1
                 continue
-            if _condition(item) == "heavy":
-                rejected["ağır hasarlı"] = rejected.get("ağır hasarlı", 0) + 1
-                continue
             url = str(item["url"]).rstrip("/")
-            key = (url, _int(item.get("fiyat_tl")), _int(item.get("km")))
-            accepted[key] = {**item, "url": url, "fiyat_tl": _int(item.get("fiyat_tl"))}
+            accepted[url] = {**item, "url": url, "fiyat_tl": _int(item.get("fiyat_tl"))}
 
     items = list(accepted.values())
     tokens = trim_tokens(v.get("package"))
@@ -348,20 +373,17 @@ def build_reference(results: List[Dict[str, Any]], v: Dict[str, Any]) -> Dict[st
     flags: List[Dict[str, str]] = []
     scope = {
         "method": "web_search", "model": model_name(), "searches": len(results),
-        "year_window": 1, "cost_usd": round(cost, 4), "rejected": rejected,
+        "year_window": 2 if widened else 1, "widened": widened,
+        "cost_usd": round(cost, 4), "rejected": rejected, "site_stats": site_stats,
         "listed_price": _int(v.get("listed_price")),
     }
-    if len(items) < MIN_SAMPLES:
-        return {
-            "found": False, "source": SOURCE, "reason": "not_enough_web_listings",
-            "count": len(items), "scope": scope, "package": v.get("package"), "samples": [],
-        }
-
-    prices = sorted(i["fiyat_tl"] for i in items)
-    med = statistics.median(prices)
+    med = statistics.median(i["fiyat_tl"] for i in items) if items else 0
     kept = [i for i in items if (1 - OUTLIER_BAND) * med <= i["fiyat_tl"] <= (1 + OUTLIER_BAND) * med]
     if len(kept) < MIN_SAMPLES:
-        kept = items
+        return {
+            "found": False, "source": SOURCE, "reason": "not_enough_web_listings",
+            "count": len(kept), "scope": scope, "package": v.get("package"), "samples": [],
+        }
     kept.sort(key=lambda i: i["fiyat_tl"])
     prices = [i["fiyat_tl"] for i in kept]
     median_price = int(statistics.median(prices))
@@ -436,9 +458,11 @@ def get_reference(vehicle: Dict[str, Any], search: Optional[Callable[[str], Dict
             # İlan fiyatı önbellek anahtarına dahil değildir; güncel isteğe aittir.
             cached["scope"]["listed_price"] = _int(vehicle.get("listed_price"))
             return cached
-    qs = queries(vehicle)
-    results: List[Dict[str, Any]] = []
-    if search is None:
+    def run_round(widened: bool = False) -> List[Dict[str, Any]]:
+        qs = queries(vehicle, widened=widened)
+        if search is not None:
+            return [search(q) for q in qs]
+        results = []
         with httpx.Client(timeout=90.0) as client:
             with ThreadPoolExecutor(len(qs)) as pool:
                 futures = [pool.submit(_search, q, client) for q in qs]
@@ -447,11 +471,15 @@ def get_reference(vehicle: Dict[str, Any], search: Optional[Callable[[str], Dict
                         results.append(fut.result())
                     except Exception as exc:
                         logger.warning("[WEB FIYAT] Arama basarisiz: %s", str(exc)[:200])
-    else:
-        results = [search(q) for q in qs]
+        return results
+
+    results = run_round()
+    ref = build_reference(results, vehicle)
+    if ref.get("count", 0) < TARGET_SAMPLES:
+        results.extend(run_round(widened=True))
+        ref = build_reference(results, vehicle, widened=True)
     if not results:
         return None
-    ref = build_reference(results, vehicle)
     if hours and ref.get("found"):
         _cache_write(key, ref)
     logger.info("[WEB FIYAT] %s %s %s: %s emsal, medyan %s, maliyet $%s, red %s",

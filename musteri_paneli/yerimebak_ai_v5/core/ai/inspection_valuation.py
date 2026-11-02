@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-MODEL_VERSION = "ekspertiz-degerleme-2026.10"
+MODEL_VERSION = "ekspertiz-degerleme-2026.11.02"
 
 # Toplam değer kaybı tavanı (pert / ağır hasar seviyesi)
 MAX_TOTAL_LOSS_PCT = 50.0
@@ -74,13 +74,13 @@ _PART_CLASS = {
 
 #                  lokal_boyali  boyali  degisen  sokulup_takilmis  hasarli
 _PART_LOSS: Dict[str, Dict[str, float]] = {
-    "tampon":        {"lokal_boyali": 0.15, "boyali": 0.4, "degisen": 0.6, "sokulup_takilmis": 0.1, "hasarli": 0.8},
-    "kapi":          {"lokal_boyali": 0.6, "boyali": 1.5, "degisen": 5.0, "sokulup_takilmis": 0.4, "hasarli": 1.8},
-    "on_camurluk":   {"lokal_boyali": 0.6, "boyali": 1.5, "degisen": 4.0, "sokulup_takilmis": 0.4, "hasarli": 1.8},
-    "arka_camurluk": {"lokal_boyali": 0.7, "boyali": 1.8, "degisen": 8.0, "sokulup_takilmis": 0.6, "hasarli": 2.2},
-    "kaput":         {"lokal_boyali": 0.8, "boyali": 2.5, "degisen": 8.0, "sokulup_takilmis": 0.5, "hasarli": 2.5},
-    "bagaj":         {"lokal_boyali": 0.6, "boyali": 1.5, "degisen": 5.0, "sokulup_takilmis": 0.4, "hasarli": 1.8},
-    "tavan":         {"lokal_boyali": 3.0, "boyali": 8.0, "degisen": 18.0, "sokulup_takilmis": 2.0, "hasarli": 5.0},
+    "tampon":        {"lokal_boyali": 0.25, "boyali": 0.6, "degisen": 1.0, "sokulup_takilmis": 0.15, "hasarli": 1.2},
+    "kapi":          {"lokal_boyali": 1.0, "boyali": 2.5, "degisen": 6.0, "sokulup_takilmis": 0.6, "hasarli": 2.7},
+    "on_camurluk":   {"lokal_boyali": 1.0, "boyali": 2.5, "degisen": 5.0, "sokulup_takilmis": 0.6, "hasarli": 2.7},
+    "arka_camurluk": {"lokal_boyali": 1.0, "boyali": 2.7, "degisen": 12.0, "sokulup_takilmis": 0.9, "hasarli": 3.3},
+    "kaput":         {"lokal_boyali": 1.2, "boyali": 3.5, "degisen": 10.0, "sokulup_takilmis": 0.75, "hasarli": 3.75},
+    "bagaj":         {"lokal_boyali": 1.0, "boyali": 2.5, "degisen": 6.0, "sokulup_takilmis": 0.6, "hasarli": 2.7},
+    "tavan":         {"lokal_boyali": 4.5, "boyali": 12.0, "degisen": 25.0, "sokulup_takilmis": 3.0, "hasarli": 7.5},
 }
 
 PART_STATUS_LABELS = {
@@ -353,10 +353,10 @@ def age_factor(age_years: Optional[int]) -> float:
     if age_years <= 3:
         return 1.0
     if age_years <= 6:
-        return 0.9
+        return 0.95
     if age_years <= 10:
-        return 0.8
-    return 0.65
+        return 0.85
+    return 0.75
 
 
 def km_factor(km: Optional[float]) -> float:
@@ -364,10 +364,10 @@ def km_factor(km: Optional[float]) -> float:
     if not km or km <= 60_000:
         return 1.0
     if km <= 120_000:
-        return 0.95
+        return 0.97
     if km <= 200_000:
-        return 0.85
-    return 0.75
+        return 0.9
+    return 0.8
 
 
 def tramer_loss_pct(amount: float, base_value: float) -> float:
@@ -655,29 +655,36 @@ def compute_losses(f: InspectionFindings, base_value: float = 0.0, now: Optional
     # 7) Tramer (sigorta hasar kaydı). Aynı hasarın fiziksel izi kaporta kalemlerinde
     #    düşüldüyse kaydın yalnızca "tramerli araç" algısı kadarı eklenir.
     bodywork_pct = sum(i.yuzde for i in items if i.kategori in ("kaporta", "yapisal"))
+    tramer_floor = 0.0
     if f.tramer_amount > 0 and base_value > 0:
         tier = tramer_loss_pct(f.tramer_amount, base_value)
         pct = max(tier - 0.5 * bodywork_pct, tier * 0.35)
         ratio = f.tramer_amount / base_value * 100
+        tramer_floor = min(MAX_TOTAL_LOSS_PCT, max(2.0, 150 * f.tramer_amount / base_value))
         items.append(LossItem(
             "tramer", "tramer", "Tramer (hasar kaydı)", _fmt_tl(f.tramer_amount),
-            pct * cosmetic_factor, tier,
+            min(MAX_TOTAL_LOSS_PCT, max(pct * cosmetic_factor, tramer_floor)), tier,
             f"Hasar tutarı araç değerinin {_fmt_pct(ratio)}'i"
-            + (" · fiziksel izi kaporta kalemlerinde düşüldü, yalnızca kayıt etkisi eklendi" if bodywork_pct > 0 and pct < tier else ""),
+            + (" · fiziksel izi kaporta kalemlerinde düşüldü, yalnızca kayıt etkisi eklendi" if bodywork_pct > 0 and pct < tier else "")
+            + " · Tramerli araç algısı: en az %2 / tutarın 1,5 katı",
         ))
     elif f.tramer_amount > 0 or f.tramer_count > 0:
+        tramer_floor = 2.0
         pct = min(4.0, 1.5 * max(1, f.tramer_count))
         pct = max(pct - 0.5 * bodywork_pct, pct * 0.35)
         desc = _fmt_tl(f.tramer_amount) if f.tramer_amount else f"{f.tramer_count} kayıt"
-        items.append(LossItem("tramer", "tramer", "Tramer (hasar kaydı)", desc, pct * cosmetic_factor, pct,
-                              "Piyasa değeri bilinmediğinden kayıt sayısına göre tahmini etki"))
+        items.append(LossItem("tramer", "tramer", "Tramer (hasar kaydı)", desc, max(2.0, pct * cosmetic_factor), pct,
+                              "Kayıt sayısına göre tahmini etki · Tramerli araç algısı: en az %2; tutar ve piyasa değeri bilindiğinde tutarın 1,5 katı"))
 
     total = sum(i.yuzde for i in items)
     capped = total > MAX_TOTAL_LOSS_PCT
     if capped:
-        scale = MAX_TOTAL_LOSS_PCT / total
+        # Tramer tabanı toplam tavanında yeniden küçültülmez; kalan bütçeyi
+        # diğer etkiler ve tramerin taban üstündeki kısmı paylaşır.
+        scale = (MAX_TOTAL_LOSS_PCT - tramer_floor) / (total - tramer_floor)
         for i in items:
-            i.yuzde *= scale
+            floor = tramer_floor if i.kategori == "tramer" else 0.0
+            i.yuzde = floor + (i.yuzde - floor) * scale
         total = MAX_TOTAL_LOSS_PCT
 
     by_cat: Dict[str, float] = {}

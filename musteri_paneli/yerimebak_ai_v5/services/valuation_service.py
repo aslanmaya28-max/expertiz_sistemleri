@@ -532,10 +532,9 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
             brand=brand, model=model, year=year, km=km, fuel=fuel, transmission=transmission,
             exclude_id=listing.get("id") if listing else None, listed_price=price,
         )
-    if not reference.get("count") or str(reference.get("source", "")).startswith("last_resort"):
+    if int(reference.get("count") or 0) < 3 or str(reference.get("source", "")).startswith("last_resort"):
         return _error(
-            f"{brand} {model} {year} için yeterli güncel piyasa verisi yok. Kredi düşülmedi; "
-            "veri toplandıkça tekrar deneyebilirsiniz.",
+            "Bu araç için yeterli benzer ilan bulunamadı. Kredi düşülmedi.",
             422, "insufficient_market_data",
         )
 
@@ -578,7 +577,7 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
             "kaynak": reference.get("source"),
             "kaynaklar": [{"site": s.get("site"), "url": s.get("url"), "fiyat": s.get("price"),
                            "km": s.get("km"), "yil": s.get("year")} for s in (reference.get("samples") or [])[:10]],
-            "uyarilar": [f["mesaj"] for f in flags if f.get("mesaj")],
+            "uyarilar": [f["mesaj"] for f in flags if f.get("mesaj") and f.get("kod") != "az_emsal"],
             "guncelGun": reference.get("recent_days"),
         },
         "degerleme": {
@@ -618,6 +617,7 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
         confidence_level=summary["karar"]["guvenSeviyesi"], vehicle_title=f"{year} {brand} {model}",
     )
     risks = _model_risks_safe(risk_future)
+    result["kullaniciSikayetleri"] = risks.get("kullaniciSikayetleri") or []
     risk_cost = float((risks.get("scope") or {}).get("cost_usd") or 0)
     # Musteriye yalniz kaynagi dogrulanmis (yuksek/orta) maddeler gider; forum vb. dusuk guven atilir
     risks = {**risks, "riskler": [r for r in (risks.get("riskler") or []) if r.get("guven") in DISPLAYED_RISK_CONFIDENCE]}
@@ -646,6 +646,7 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
                         "ai_degeri": degerleme.get("aiDegeri"), "piyasa_ortalama": reference.get("market_avg_price"),
                         "getiri": projection, "piyasa_kaynagi": reference.get("source"),
                         "web_maliyet_usd": web_cost, "risk_maliyet_usd": risk_cost,
+                        "web_site_stats": (reference.get("scope") or {}).get("site_stats") or {},
                         "toplam_maliyet_usd": round(web_cost + risk_cost, 6)},
     )
     if not deduction.get("success"):

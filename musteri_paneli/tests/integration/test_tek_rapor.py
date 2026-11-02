@@ -22,6 +22,8 @@ REFERENCE = {
                  'year': 2020, 'km': 61000}],
 }
 RISKS = {
+    'kullaniciSikayetleri': [{'baslik':'Şanzıman titreşimi', 'aciklama':'Düşük hızda titreşim beyanları.',
+                             'kaynakSayisi':2, 'kaynaklar':['https://forum.example/clio','https://yorum.example/clio']}],
     'riskler': [{'baslik': 'Triger kayışı değişim periyodu', 'aciklama': '1.0 TCe motorda periyodik değişim.',
                  'etkiledigi': '1.0 TCe', 'belirtiler': ['Ses'], 'kontrol': 'Servis kaydı',
                  'tahminiMaliyet': {'min': 8000, 'max': 12000},
@@ -72,7 +74,8 @@ def test_tek_rapor_tum_bolumler_kayitta_ve_kredi_bir(client, musteri, monkeypatc
     assert asked[0]['engine'] == '1.0 TCe Touch' and asked[0]['km'] == 60000
     assert body['kredi']['dusulen'] == 1 and _krediler(uid) == 2
     stored = sql('SELECT report_json, valuation_json FROM analysis_history WHERE id=%s', (body['rapor']['id'],), True)[0]
-    for key in ('pazarlikPlani', 'modelRiskleri', 'bakim', 'saticiSorulari'):
+    assert body['kullaniciSikayetleri'] == RISKS['kullaniciSikayetleri']
+    for key in ('pazarlikPlani', 'modelRiskleri', 'bakim', 'saticiSorulari', 'kullaniciSikayetleri'):
         assert stored['report_json'][key] == body[key]
     import json
     maliyet = json.loads(stored['valuation_json'])
@@ -80,6 +83,30 @@ def test_tek_rapor_tum_bolumler_kayitta_ve_kredi_bir(client, musteri, monkeypatc
     assert maliyet['toplam_maliyet_usd'] == 0.042
     pdf = client.get(f"/api/v1/valuation/reports/{body['rapor']['id']}/pdf", headers=headers)
     assert pdf.status_code == 200 and pdf.content.startswith(b'%PDF')
+
+
+@pytest.mark.parametrize('count', [2, 3, 4])
+def test_minimum_three_comparables_and_credit_boundary(client, musteri, monkeypatch, count):
+    uid, headers = musteri
+    monkeypatch.setattr(valuation_service.web_market_reference, 'get_reference',
+                        lambda v: {**REFERENCE, 'count':count,
+                                   'kontrol':[{'kod':'az_emsal', 'mesaj':'Yalnızca birkaç emsal; eski uyarı'}]})
+    monkeypatch.setattr(vehicle_risk, 'get_model_risks', lambda v: dict(RISKS))
+    response = client.post('/api/v1/valuation/analyze', headers=headers, json=_payload())
+    if count < 3:
+        assert response.status_code == 422, response.text
+        assert response.json()['detail']['message'] == 'Bu araç için yeterli benzer ilan bulunamadı. Kredi düşülmedi.'
+        assert _krediler(uid) == 3
+    else:
+        assert response.status_code == 200, response.text
+        assert response.json()['piyasa']['uyarilar'] == []
+        assert response.json()['kredi']['dusulen'] == 1 and _krediler(uid) == 2
+        import io
+        import pdfplumber
+        pdf = client.get(f"/api/v1/valuation/reports/{response.json()['rapor']['id']}/pdf", headers=headers)
+        with pdfplumber.open(io.BytesIO(pdf.content)) as document:
+            text = ' '.join(' '.join((p.extract_text() or '').split()) for p in document.pages)
+        assert f"{count} benzer ilan bulundu; 5'ten az olduğu için fiyatlar yön göstericidir." in text
 
 
 def test_risk_servisi_coksede_rapor_ve_kredi_dogru(client, musteri, monkeypatch):

@@ -112,7 +112,7 @@ def test_get_reference_uc_sorgu_birlestirir(monkeypatch):
         return _arama(STYLE + FR)
 
     ref = wmr.get_reference(ARONA, search=sahte)
-    assert len(sorgular) == 3 and "Style" in sorgular[0]
+    assert len(sorgular) == 6 and "Style" in sorgular[0]
     assert ref["count"] == 3 and ref["package_match"]
 
 
@@ -175,7 +175,7 @@ def test_onbellek_db_hatasinda_arama_surer(monkeypatch):
     assert ref["found"] and ref["market_median_price"] == 1_550_000
 
 
-@pytest.mark.parametrize("age_hours, expected_searches", [(1, 0), (25, 3)])
+@pytest.mark.parametrize("age_hours, expected_searches", [(1, 0), (25, 6)])
 def test_onbellekten_donus_ve_sure_dolunca_yeniden_arama(monkeypatch, age_hours, expected_searches):
     from datetime import datetime, timedelta, timezone
     from unittest.mock import MagicMock
@@ -201,7 +201,7 @@ def test_onbellekten_donus_ve_sure_dolunca_yeniden_arama(monkeypatch, age_hours,
     if expected_searches == 0:
         assert ref["scope"]["cached"] and ref["scope"]["cost_usd"] == 0
     else:
-        assert ref["scope"]["cost_usd"] == 0.027
+        assert ref["scope"]["cost_usd"] == 0.054
     assert ref["scope"]["listed_price"] == 1600000
 
 
@@ -212,3 +212,109 @@ def test_onbellek_kapaliyken_okuma_yazma_yapilmaz(monkeypatch):
     monkeypatch.setattr(wmr, "_cache_read", forbidden)
     monkeypatch.setattr(wmr, "_cache_write", forbidden)
     assert wmr.get_reference(ARONA, search=lambda q: _arama(STYLE))["found"]
+
+
+def test_ikinci_tur_yil_km_bandi_birlesim_maliyet_ve_url_tekillestirme():
+    calls = []
+    expanded = [
+        _ilan("https://galerim.com/arona/4", 1_540_000, 60_000, "1.0 Style", yil=2022),
+        _ilan("https://galerim.com/arona/5", 1_560_000, 70_000, "1.0 Style", yil=2026),
+    ]
+    duplicate = {**STYLE[0], "fiyat_tl": 1_475_000}
+
+    def search(query):
+        calls.append(query)
+        return _arama(STYLE if len(calls) <= 3 else expanded + [duplicate])
+
+    ref = wmr.get_reference(ARONA, search=search)
+    assert len(calls) == 6
+    assert ref["found"] and ref["count"] == 5
+    assert len({s["url"] for s in ref["samples"]}) == 5
+    assert ref["scope"]["widened"] and ref["scope"]["year_window"] == 2
+    assert ref["scope"]["cost_usd"] == 0.054
+    assert any("2022-2026" in q for q in calls[3:])
+    assert all("±2" in q for q in calls[3:])
+
+
+def test_hedef_bes_ise_ikinci_tur_yok():
+    calls = []
+    listings = STYLE + [_ilan(f"https://galerim.com/{n}", 1_550_000, 25_000, "1.0 Style") for n in (4, 5)]
+    ref = wmr.get_reference(ARONA, search=lambda q: calls.append(q) or _arama(listings))
+    assert len(calls) == 3 and ref["count"] == 5
+    assert ref["scope"]["widened"] is False and ref["scope"]["year_window"] == 1
+
+
+@pytest.mark.parametrize("count, found", [(2, False), (3, True), (4, True)])
+def test_iki_tur_sonunda_alt_sinir_ve_hedef_farki(count, found):
+    calls = []
+    listings = STYLE + [_ilan("https://galerim.com/4", 1_550_000, 25_000, "1.0 Style")]
+    ref = wmr.get_reference(ARONA, search=lambda q: calls.append(q) or _arama(listings[:count]))
+    assert len(calls) == 6 and ref["count"] == count
+    assert ref["found"] is found
+
+
+def test_aykiri_atilinca_uc_altina_duserse_referans_yok():
+    listings = [*STYLE[:2], _ilan("https://galerim.com/cheap", 100_000, 25_000, "1.0 Style")]
+    ref = wmr.build_reference([_arama(listings)], ARONA)
+    assert ref["found"] is False and ref["count"] == 2
+
+
+def test_site_yonlendirmesi_ihale_reddi_ve_site_olcumleri():
+    qs = wmr.queries(ARONA)
+    assert len(qs) == 3 and all("sahibinden" not in q for q in qs)
+    assert "otosahibi" in qs[1] and "borusannext" in qs[2]
+    assert set(wmr.LISTING_SITES) == {"arabam.com", "otosahibi.com", "otonomi.com", "tr.vava.cars", "otokocikinciel.com", "dogusoto.com.tr", "borusannext.com", "otoplus.com", "letgo.com", "carvak.com", "satariz.com", "otoshops.com"}
+    auctions = [_ilan(f"https://{domain}/arona", 1_500_000, 25_000, "1.0 Style") for domain in ("ikinciyeni.com", "galerim.com/acik-artirma", "galerim.com/ihale")]
+    result = _arama(STYLE + auctions)
+    for listing in auctions:
+        assert wmr.verify(listing, result["sources"], ARONA) == "açık artırma"
+    ref = wmr.build_reference([result], ARONA)
+    assert ref["scope"]["site_stats"] == {"batidan2.com": {"kabul": 1, "red": 0}, "otoshops.com": {"kabul": 1, "red": 0}, "arabam.com": {"kabul": 1, "red": 0}, "ikinciyeni.com": {"kabul": 0, "red": 1}, "galerim.com": {"kabul": 0, "red": 2}}
+
+
+def test_ikinci_tur_sonucu_onbellekte_tutulur(monkeypatch):
+    cached = {}
+    monkeypatch.setenv("WEB_PRICE_CACHE_HOURS", "24")
+    monkeypatch.setattr(wmr, "_cache_read", lambda key, hours: cached.get(key))
+    monkeypatch.setattr(wmr, "_cache_write", lambda key, ref: cached.update({key: ref}))
+    calls = []
+    search = lambda q: calls.append(q) or _arama(STYLE)
+    first = wmr.get_reference(ARONA, search=search)
+    second = wmr.get_reference(ARONA, search=search)
+    assert len(calls) == 6
+    assert first["scope"]["widened"] and second["count"] == 3
+
+
+def test_ikinci_tur_da_motor_fiyat_yil_ve_km_kurallarini_korur():
+    distant_year = _ilan("https://galerim.com/year", 1_500_000, 25_000, "1.0 Style", yil=2021)
+    distant_km = _ilan("https://galerim.com/km", 1_500_000, 85_000, "1.0 Style")
+    wrong_engine = _ilan("https://galerim.com/engine", 1_500_000, 25_000, "1.5 Style")
+    fake_price = _ilan("https://galerim.com/price", 1_500_000, 25_000, "1.0 Style")
+    result = _arama(STYLE + [distant_year, distant_km, wrong_engine, fake_price],
+                    sayfalar={fake_price["url"]: "Fiyat belirtilmedi"})
+    ref = wmr.build_reference([result], ARONA, widened=True)
+    assert ref["count"] == 3
+    assert ref["scope"]["rejected"] == {"yıl uyumsuz": 1, "km uzak": 1, "motor uyumsuz": 1, "fiyat sayfada yok": 1}
+
+
+def test_aykiri_fiyat_atildiktan_sonra_bes_hedefi_kontrol_edilir():
+    calls = []
+    outliers = [_ilan(f"https://galerim.com/{n}", price, 25_000, "1.0 Style")
+                for n, price in enumerate((100_000, 4_000_000))]
+    ref = wmr.get_reference(ARONA, search=lambda q: calls.append(q) or _arama(STYLE + outliers))
+    assert len(calls) == 6 and ref["count"] == 3
+
+
+def test_onbellek_anahtari_arama_politikasi_surumu_icerir(monkeypatch):
+    previous = wmr._cache_key(ARONA)
+    monkeypatch.setattr(wmr, "CACHE_VERSION", "different-policy")
+    assert wmr._cache_key(ARONA) != previous
+
+
+@pytest.mark.parametrize("searches", [1, 2, 3])
+def test_her_tur_yapilandirilmis_sorgu_sayisini_korur(monkeypatch, searches):
+    monkeypatch.setenv("WEB_PRICE_SEARCHES", str(searches))
+    calls = []
+    ref = wmr.get_reference(ARONA, search=lambda q: calls.append(q) or _arama(STYLE))
+    assert len(calls) == searches * 2 and ref["count"] == 3
+    assert "sahibinden.com ilanlarını verme" in wmr._PROMPT

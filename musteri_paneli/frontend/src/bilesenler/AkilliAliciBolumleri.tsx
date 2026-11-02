@@ -53,7 +53,7 @@ function Kaynaklar({ urller }: { urller?: string[] }) {
 
 /** Pazarlık planı, model riskleri, bakım ve satıcı soruları (eski raporlarda bu alanlar olmayabilir). */
 export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
-  const { pazarlikPlani: plan, modelRiskleri, bakim, saticiSorulari } = sonuc;
+  const { pazarlikPlani: plan, modelRiskleri, kullaniciSikayetleri, bakim, saticiSorulari } = sonuc;
   const riskler = (modelRiskleri?.riskler || []).filter((r) => GOSTERILEN_GUVEN.has(r.guven));
   return (
     <>
@@ -139,6 +139,27 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
                   </li>
                 );
               })}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {kullaniciSikayetleri !== undefined && (
+        <section className="bg-white rounded-xl border border-kenarlik-acik p-6" aria-label="Kullanıcıların en sık şikâyet ettiği konular">
+          <h2 className="text-lg font-semibold text-metin-birincil">Kullanıcıların en sık şikâyet ettiği konular</h2>
+          <p className="mt-1 text-xs text-metin-ikincil">Forum ve kullanıcı yorumlarından derlenmiştir; kullanıcı beyanıdır, arıza teşhisi değildir.</p>
+          {kullaniciSikayetleri.length === 0 ? (
+            <p className="mt-3 text-sm text-metin-ikincil">Birden fazla kaynakta tekrarlanan kullanıcı şikâyeti bulunamadı.</p>
+          ) : (
+            <ul className="mt-3 space-y-4">
+              {kullaniciSikayetleri.map((s) => (
+                <li key={s.baslik} className="rounded-lg border border-kenarlik-acik p-4 text-sm">
+                  <h3 className="font-semibold text-metin-birincil">{s.baslik}</h3>
+                  <p className="mt-1 text-metin-ikincil">{s.aciklama}</p>
+                  <p className="mt-2 text-xs text-metin-ikincil">{s.kaynakSayisi} farklı kaynakta geçiyor</p>
+                  <Kaynaklar urller={s.kaynaklar} />
+                </li>
+              ))}
             </ul>
           )}
         </section>
