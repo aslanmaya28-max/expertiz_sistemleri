@@ -172,9 +172,13 @@ def decision_summary(
     for f in flags:
         if f.get("kod") in LOW_CONFIDENCE_FLAGS and f.get("mesaj"):
             riskler.append(f["mesaj"] + ".")
-    buyuk_fark = fark is not None and fark > EXPLAIN_GAP_PCT
+    # Karşılaştırma hasarsız emsal orta fiyatıyla yapılır: hasar düşülmüş değere göre fark zaten
+    # hasardan gelir (Egea örneği: değişen kapı + tramer, ilan %23 "üstünde" görünmüştü).
+    median = reference.get("market_median_price")
+    emsal_farki = (price / median - 1) * 100 if median else None
+    buyuk_fark = emsal_farki is not None and emsal_farki > EXPLAIN_GAP_PCT
     if buyuk_fark:
-        riskler.append(f"İlan fiyatı benzer ilanlardan %{fark:.0f} yüksek. Fark yeni kasa, motor gücü, donanım "
+        riskler.append(f"İlan fiyatı benzer ilanlardan %{emsal_farki:.0f} yüksek. Fark yeni kasa, motor gücü, donanım "
                        "veya garantiden kaynaklanıyor olabilir; benzer ilanlarla aynı araç olduğu doğrulanmalı."
                        )
     riskler.append("Boya, değişen ve tramer bilgileri ilan/müşteri beyanına dayanıyor; uzman tarafından doğrulanmadı.")

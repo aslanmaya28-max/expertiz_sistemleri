@@ -22,3 +22,12 @@ def _kasa_sorgusu_kapali(monkeypatch):
 
     kapali.gercek = gercek  # davranışı sınayan testler gerçek fonksiyonu buradan alır
     monkeypatch.setattr(vehicle_generation, "get_generation", kapali)
+
+
+@pytest.fixture(autouse=True)
+def _piyasa_takibi_bos(request, monkeypatch):
+    # Birim testleri veritabanına bağlanmaya çalışmasın; piyasa takibini sınayan entegrasyon testi gerçeğini kullanır.
+    if "test_piyasa_takibi" in request.node.nodeid:
+        return
+    from yerimebak_ai_v5.services import manual_market
+    monkeypatch.setattr(manual_market, "find", lambda vehicle, **kw: [])

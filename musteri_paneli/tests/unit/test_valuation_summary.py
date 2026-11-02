@@ -88,9 +88,18 @@ def test_kalem_metni_ve_beyan_ozeti():
 
 def test_buyuk_fiyat_farkinda_once_neden_sorulur():
     """MG HS 2024 örneği: yeni kasa ilanı eski kasa emsallerle %15 pahalı görünüyordu."""
-    s = _ozet(degerleme={**DEGERLEME, "fiyatYorumu": {"farkYuzde": 15.5}})
+    s = _ozet(price=1_895_000, reference={**REF, "market_median_price": 1_640_000})
     assert any("%16 yüksek" in r and "yeni kasa" in r for r in s["ozet"]["riskler"])
     assert s["ozet"]["simdiNeYapmali"].startswith("Önce satıcıya farkın nedenini sorun")
     normal = _ozet()   # %8,4: eski davranış
     assert "farkın nedenini" not in normal["ozet"]["simdiNeYapmali"]
     assert not any("yeni kasa" in r for r in normal["ozet"]["riskler"])
+
+
+
+def test_hasardan_gelen_farkta_neden_sorusu_cikmaz():
+    """Egea örneği: hasar düşülünce değer düşük; ilan emsallerin hasarsız ortasına yakınsa kasa sorusu yok."""
+    s = _ozet(price=800_000, degerleme={**DEGERLEME, "fiyatYorumu": {"farkYuzde": 23.0}},
+              reference={**REF, "market_median_price": 756_000})
+    assert "farkın nedenini" not in s["ozet"]["simdiNeYapmali"]
+    assert not any("yeni kasa" in r for r in s["ozet"]["riskler"])
