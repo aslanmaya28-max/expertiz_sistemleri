@@ -12,7 +12,7 @@ export default async function IptalIadeSayfasi() {
       <ul>
         <li>Hiç kullanılmamış kredi paketleri için, satın alma tarihinden itibaren <strong>14 gün</strong> içinde iade talep edebilirsiniz; ödemenin tamamı iade edilir.</li>
         <li>Paketteki kredilerden kullanılanlar elektronik ortamda anında ifa edilmiş sayılır ve iade edilmez. Kısmen kullanılmış paketler iade kapsamında değildir.</li>
-        <li>E-posta doğrulamasıyla verilen ücretsiz hoş geldin kredileri nakde çevrilemez.</li>
+        <li>Kampanya kapsamında verilen krediler nakde çevrilemez.</li>
       </ul>
 
       <h2>2. Ekspertiz hizmeti</h2>

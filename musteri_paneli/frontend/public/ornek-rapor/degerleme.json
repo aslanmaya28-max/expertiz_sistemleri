@@ -1,0 +1,314 @@
+{
+ "arac": {
+  "marka": "Hyundai",
+  "model": "Tucson",
+  "paket": "1.6 CRDI Elite Plus",
+  "yil": 2021,
+  "km": 66000,
+  "yakit": "Dizel",
+  "vites": "Otomatik",
+  "ilanFiyati": 2200000,
+  "ilanLinki": "",
+  "beyanEdilenParcalar": {
+   "solArkaCamurluk": "lokal_boyali"
+  },
+  "tramerTutari": 20000
+ },
+ "piyasa": {
+  "ortalama": 2156750,
+  "medyan": 2220000,
+  "min": 1750000,
+  "max": 2485000,
+  "emsalSayisi": 8,
+  "hasarsizEmsalSayisi": 4,
+  "guvenSkoru": 35,
+  "kaynak": "web_listings",
+  "kaynaklar": [
+   {
+    "site": "ulusmotors.com",
+    "url": "https://www.ulusmotors.com/hyundai-tucson-16-crdi-4x4-elite-plus-dct-2021-ikinci-el-araba-761",
+    "fiyat": 1750000,
+    "km": 11948,
+    "yil": 2021
+   },
+   {
+    "site": "satariz.com",
+    "url": "https://www.satariz.com/hyundai-tucson-16-crdi",
+    "fiyat": 1835000,
+    "km": 131000,
+    "yil": 2019
+   },
+   {
+    "site": "otosor.com.tr",
+    "url": "https://www.otosor.com.tr/araclar/suv-and-pick-up/hyundai-tucson?page=2",
+    "fiyat": 1945000,
+    "km": 148308,
+    "yil": 2022
+   },
+   {
+    "site": "neziroglu.com.tr",
+    "url": "https://www.neziroglu.com.tr/site/arac_bilgi/25208",
+    "fiyat": 2150000,
+    "km": 24673,
+    "yil": 2022
+   },
+   {
+    "site": "arabam.com",
+    "url": "https://www.arabam.com/ilan/galeriden-satilik-hyundai-tucson-1-6-crdi-elite-plus/egehan-motors-dan-2023-tucson-1-6crdi-elit-plus-4x4-29-000-km/43969471",
+    "fiyat": 2290000,
+    "km": 29000,
+    "yil": 2023
+   },
+   {
+    "site": "otoplus.com",
+    "url": "https://www.otoplus.com/hyundai/tucson",
+    "fiyat": 2399000,
+    "km": 43807,
+    "yil": 2023
+   },
+   {
+    "site": "garageotomotiv.com",
+    "url": "https://www.garageotomotiv.com/otomotiv/2022-hyundai-tuscon-16-crdi-elite-plus_028932.html",
+    "fiyat": 2400000,
+    "km": 49223,
+    "yil": 2022
+   },
+   {
+    "site": "otonomi.com",
+    "url": "https://otonomi.com/ilan/2022-hyundai-tucson/f031e1da-90ae-40b5-bcab-2504486f6dfe",
+    "fiyat": 2485000,
+    "km": 34000,
+    "yil": 2022
+   }
+  ],
+  "uyarilar": [
+   "Emsal fiyatları birbirinden çok farklı; piyasa değerini kontrol edin"
+  ],
+  "guncelGun": null
+ },
+ "degerleme": {
+  "temizPiyasaDegeri": 1869563,
+  "toplamDegerKaybiYuzde": 2.92,
+  "toplamDegerKaybiTutar": 54591,
+  "kalemler": [
+   {
+    "kategori": "tramer",
+    "anahtar": "tramer",
+    "baslik": "Tramer (hasar kaydı)",
+    "durum": "20.000 TL",
+    "yuzde": 2.0,
+    "hamYuzde": 1.86,
+    "tutar": 37391,
+    "aciklama": "Hasar tutarı araç değerinin %1,1'i · fiziksel izi kaporta kalemlerinde düşüldü, yalnızca kayıt etkisi eklendi · Tramerli araç algısı: en az %2 / tutarın 1,5 katı"
+   },
+   {
+    "kategori": "kaporta",
+    "anahtar": "solArkaCamurluk",
+    "baslik": "Sol Arka Çamurluk",
+    "durum": "Lokal Boyalı",
+    "yuzde": 0.92,
+    "hamYuzde": 1.0,
+    "tutar": 17219,
+    "aciklama": ""
+   }
+  ],
+  "aiDegeri": 1815000,
+  "adilFiyatAraligi": {
+   "min": 1650000,
+   "max": 1980000
+  },
+  "tavsiyeFiyat": 1760000,
+  "hasarSeviyesi": "LIGHT",
+  "agirHasar": false,
+  "ozet": "Beyana göre araçta 1 boyalı parça var; bulguların toplam değer kaybı %2,9. Temiz piyasa değeri 1.869.563 TL üzerinden bulgular düşülerek aracın değeri 1.815.000 TL olarak belirlendi (adil aralık 1.650.000 TL – 1.980.000 TL). İlan fiyatı 2.200.000 TL (%+21,2): İlan fiyatı bulgulara göre yüksek."
+ },
+ "karar": {
+  "ilanFarkiYuzde": 21.2,
+  "ilanFarkiTutar": 385028,
+  "sonuc": "EK DOĞRULAMA GEREKLİ",
+  "aciklama": "Bu araç için bulunan piyasa verisi kesin karar vermeye yetmiyor. Aşağıdaki fiyatları yön gösterici kabul edin; satın almadan önce ilanı ve aracı uzman incelemesiyle doğrulayın.",
+  "guvenSeviyesi": "dusuk",
+  "hesaplananEgilim": "ALMA"
+ },
+ "getiri": null,
+ "ozet": {
+  "piyasaKonumu": {
+   "durum": "ustunde",
+   "metin": "Piyasanın üstünde (ilan fiyatı hesaplanan değerin %21,2 üstünde)"
+  },
+  "adilFiyat": {
+   "min": 1650000,
+   "max": 1980000
+  },
+  "riskler": [
+   "Tramer (hasar kaydı) 20.000 TL: değeri yaklaşık 37.391 TL düşürüyor.",
+   "Sol Arka Çamurluk (lokal boyalı): değeri yaklaşık 17.219 TL düşürüyor.",
+   "Emsal fiyatları birbirinden çok farklı; piyasa değerini kontrol edin.",
+   "Boya, değişen ve tramer bilgileri ilan/müşteri beyanına dayanıyor; uzman tarafından doğrulanmadı."
+  ],
+  "pazarlikGerekceleri": [
+   "İlan fiyatı adil aralığın üst sınırından 220.000 TL yüksek.",
+   "Benzer 8 ilanın orta fiyatı 2.220.000 TL.",
+   "Tramer (hasar kaydı) 20.000 TL: yaklaşık 37.391 TL değer kaybı."
+  ],
+  "simdiNeYapmali": "Veri sınırlı: kararınızı ilan bilgileri ve uzman incelemesiyle netleştirin."
+ },
+ "bilgiKaynaklari": [
+  {
+   "alan": "Araç bilgileri (marka, model, yıl, km, fiyat)",
+   "kaynak": "musteri_beyani",
+   "aciklama": "Sizin girdiğiniz bilgiler"
+  },
+  {
+   "alan": "Boya, değişen ve tramer",
+   "kaynak": "musteri_beyani",
+   "aciklama": "İlan/müşteri beyanı; uzman tarafından doğrulanmadı"
+  },
+  {
+   "alan": "Piyasa değeri",
+   "kaynak": "internet_ilanlari",
+   "aciklama": "Fiyatı kaynak sayfada doğrulanan benzer ilanlar"
+  },
+  {
+   "alan": "Değer kaybı, adil fiyat ve tavsiye fiyat",
+   "kaynak": "hesaplama",
+   "aciklama": "Bulguların piyasa değerine etkisiyle hesaplandı"
+  },
+  {
+   "alan": "Gelecek değer",
+   "kaynak": "tahmin",
+   "aciklama": "Araç enflasyonu varsayımına dayanan tahmin; kesin değildir"
+  }
+ ],
+ "pazarlikPlani": {
+  "durum": "pazarlik_payi_var",
+  "acilisTeklifi": 1705000,
+  "hedefFiyat": 1760000,
+  "ustSinir": 1980000,
+  "potansiyelKazanc": 440000,
+  "adimlar": [
+   "1.705.000 TL teklifiyle açın ve gerekçeleri gösterin.",
+   "Karşı teklif gelirse 1.760.000 TL hedefine doğru ilerleyin.",
+   "1.980.000 TL üst sınırınız; bunun üstüne çıkmayın.",
+   "Son fiyatı ekspertiz sonucuna bağlayın: incelemede beyan dışı hasar çıkarsa fiyat yeniden konuşulur."
+  ],
+  "gerekceler": [
+   "İlan fiyatı (2.200.000 TL) adil aralığın üst sınırından (1.980.000 TL) 220.000 TL yüksek.",
+   "Benzer 8 ilanın orta fiyatı 2.220.000 TL.",
+   "Tramer (hasar kaydı) 20.000 TL değeri yaklaşık 37.391 TL düşürüyor.",
+   "Sol Arka Çamurluk (lokal boyalı) değeri yaklaşık 17.219 TL düşürüyor."
+  ],
+  "kanitIlanlar": [
+   {
+    "site": "ulusmotors.com",
+    "url": "https://www.ulusmotors.com/hyundai-tucson-16-crdi-4x4-elite-plus-dct-2021-ikinci-el-araba-761",
+    "fiyat": 1750000,
+    "km": 11948,
+    "yil": 2021
+   },
+   {
+    "site": "satariz.com",
+    "url": "https://www.satariz.com/hyundai-tucson-16-crdi",
+    "fiyat": 1835000,
+    "km": 131000,
+    "yil": 2019
+   },
+   {
+    "site": "otosor.com.tr",
+    "url": "https://www.otosor.com.tr/araclar/suv-and-pick-up/hyundai-tucson?page=2",
+    "fiyat": 1945000,
+    "km": 148308,
+    "yil": 2022
+   }
+  ],
+  "saticiMesaji": "Merhaba, 2021 Hyundai Tucson ilanınızla ilgileniyorum. İlan fiyatı (2.200.000 TL) adil aralığın üst sınırından (1.980.000 TL) 220.000 TL yüksek. Benzer 8 ilanın orta fiyatı 2.220.000 TL. Bu nedenle 1.705.000 TL teklif etmek istiyorum. Aracı satın almadan önce bağımsız bir ekspertizde inceletmek istiyorum; uygun olursa randevu ayarlayabiliriz. Teşekkürler.",
+  "uyari": "Piyasa verisi sınırlı: rakamları yön gösterici kullanın, kesin fiyat olarak sunmayın."
+ },
+ "kullaniciSikayetleri": [
+  {
+   "baslik": "Kalkışta titreme ve şanzıman vuruntusu",
+   "aciklama": "Kullanıcı beyanlarında dur-kalk trafikte, rampada ve ilk hareket anında titreme, vuruntulu vites geçişi, hareketlenmede zorlanma ve şanzıman uyarısı öne çıkıyor.",
+   "kaynaklar": [
+    "https://www.sikayetvar.com/hyundai-motor/tucson/tucson-sanziman-sorunu",
+    "https://www.araclo.com/blog/hyundai-tucson-1.6-crdi-alinir-mi-sorunlar-ve-kullanici-yorumlari"
+   ],
+   "kategori": "mekanik_motor",
+   "onem": "yuksek",
+   "kaynakSayisi": 2
+  },
+  {
+   "baslik": "Kısa mesafe/şehir içi kullanımda tekrar eden partikül uyarıları",
+   "aciklama": "Bazı kullanıcılar kısa mesafe kullanım, şehir içi kullanım veya düzenli uzun yol yapmalarına rağmen partikül uyarısının yeniden geldiğini ve sorunun tekrarladığını bildiriyor.",
+   "kaynaklar": [
+    "https://www.sikayetvar.com/hyundai-motor/tucson/tucson-4x4",
+    "https://www.sikayetvar.com/hyundai-motor/tucson/tucson-partikul-filtresi-sorunu",
+    "https://www.araclo.com/blog/hyundai-tucson-1.6-crdi-alinir-mi-sorunlar-ve-kullanici-yorumlari"
+   ],
+   "kategori": "mekanik_motor",
+   "onem": "orta",
+   "kaynakSayisi": 2
+  }
+ ],
+ "modelRiskleri": {
+  "riskler": [],
+  "bulunamadi": true,
+  "mesaj": "Bu model/motor için kaynağı doğrulanmış bilinen sorun bulunamadı."
+ },
+ "bakim": [
+  {
+   "baslik": "Fren ve lastik kontrolü",
+   "aciklama": "Fren ve lastik kontrolü: 66.000 km ve 5 yaşındaki araçta son yapıldığı tarih ve kilometreyi doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.",
+   "kontrol": "Tarih, kilometre ve servis faturalarını karşılaştırın."
+  },
+  {
+   "baslik": "Periyodik bakım kayıtları",
+   "aciklama": "Periyodik bakım kayıtları: 66.000 km ve 5 yaşındaki araçta son yapıldığı tarih ve kilometreyi doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.",
+   "kontrol": "Tarih, kilometre ve servis faturalarını karşılaştırın."
+  },
+  {
+   "baslik": "Akü kontrolü",
+   "aciklama": "Akü kontrolü: 66.000 km ve 5 yaşındaki araçta son yapıldığı tarih ve kilometreyi doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.",
+   "kontrol": "Tarih, kilometre ve servis faturalarını karşılaştırın."
+  },
+  {
+   "baslik": "Triger / zincir bakım geçmişi",
+   "aciklama": "Triger / zincir bakım geçmişi: 66.000 km ve 5 yaşındaki araçta son yapıldığı tarih ve kilometreyi doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.",
+   "kontrol": "Tarih, kilometre ve servis faturalarını karşılaştırın."
+  },
+  {
+   "baslik": "Şanzıman yağı ve filtre geçmişi",
+   "aciklama": "Şanzıman yağı ve filtre geçmişi: 66.000 km ve 5 yaşındaki araçta son yapıldığı tarih ve kilometreyi doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.",
+   "kontrol": "Tarih, kilometre ve servis faturalarını karşılaştırın."
+  },
+  {
+   "baslik": "DPF / EGR kontrolü",
+   "aciklama": "DPF / EGR kontrolü: 66.000 km ve 5 yaşındaki araçta son yapıldığı tarih ve kilometreyi doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.",
+   "kontrol": "Tarih, kilometre ve servis faturalarını karşılaştırın."
+  }
+ ],
+ "saticiSorulari": [
+  "Ekspertize izin veriyor musunuz?",
+  "Servis ve bakım faturalarını tarih ve kilometreleriyle paylaşır mısınız?",
+  "Şasi numarasıyla açık geri çağırma ve servis kampanyası kontrolü yapabilir miyiz?",
+  "Tramer kaydının detay dökümünü ve onarım faturalarını paylaşır mısınız?",
+  "Beyan edilen Sol Arka Çamurluk (lokal boyalı) için hasarın nedeni ve onarım belgeleri var mı?",
+  "Fren ve lastik kontrolü için son kontrol/bakım hangi tarih ve kilometrede yapıldı? Faturası var mı?",
+  "Periyodik bakım kayıtları için son kontrol/bakım hangi tarih ve kilometrede yapıldı? Faturası var mı?",
+  "Akü kontrolü için son kontrol/bakım hangi tarih ve kilometrede yapıldı? Faturası var mı?",
+  "Triger seti veya zincir en son kaç km'de kontrol edildi/değişti? Faturası var mı?",
+  "Aracı soğuk motorla çalıştırıp test sürüşü yapabilir miyiz?"
+ ],
+ "rapor": {
+  "id": "ornek",
+  "report_no": "ÖRNEK",
+  "verification_code": "YD-ORNEK-0000",
+  "created_at": "2026-11-02T13:23:23.721463+00:00",
+  "engine_version": "ekspertiz-degerleme-2026.11.02",
+  "verification_url": ""
+ },
+ "kredi": {
+  "dusulen": 1,
+  "kalan": 0
+ },
+ "success": true
+}

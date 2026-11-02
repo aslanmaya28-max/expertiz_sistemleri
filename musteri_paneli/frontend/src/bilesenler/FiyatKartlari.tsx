@@ -41,9 +41,9 @@ export default function FiyatKartlari() {
           <p className="mt-3 text-metin-ikincil">Her analiz 1 kredi. Tüm kullanıcılar için aynı kredi paketleri, KDV dahil fiyatlarla sunulur. Ödeme onaylanınca krediler hemen hesabınıza yüklenir.</p>
         </div>
         <div className="text-center mb-12">
-          <span className="inline-flex items-center gap-2 px-4 py-2 bg-birincil/10 text-birincil rounded-full text-sm font-medium">
-            Kayıt olana <strong>1 analiz ücretsiz</strong>
-          </span>
+          <Link href="/ornek-rapor" className="inline-flex items-center gap-2 px-4 py-2 bg-birincil/10 text-birincil rounded-full text-sm font-medium">
+            Satın almadan önce örnek raporu inceleyin
+          </Link>
         </div>
 
         {hata && <p className="text-center text-sm text-tehlike">{hata}</p>}

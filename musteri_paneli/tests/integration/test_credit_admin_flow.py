@@ -63,6 +63,8 @@ def test_admin_credit_flow(client, admin_token, customer_token):
 def test_analysis_timestamp_is_utc_even_with_local_database_timezone(client, monkeypatch):
     service = PaymentService()
     uid = service.get_or_create_user('timezone@test.com')['id']
+    # Bu test kredi kampanyasını değil, zaman dilimini sınar.
+    sql('UPDATE users SET credits=1 WHERE id=%s', (uid,))
     get_connection = DatabaseConfig.get_connection
 
     def local_connection():
