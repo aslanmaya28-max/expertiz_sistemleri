@@ -1,4 +1,4 @@
-"""Arşivdeki anlık görüntüden Türkçe kredili değerleme PDF'i."""
+"""Arşivdeki anlık görüntüden Türkçe araç değerleme PDF'i (ilan/beyan + internet ilanları)."""
 import io
 from pathlib import Path
 from datetime import datetime
@@ -7,12 +7,28 @@ from zoneinfo import ZoneInfo
 from fpdf import FPDF
 
 from yerimebak_ai_v5.services.stamp_service import font_paths, seal_png
+from yerimebak_ai_v5.services.vehicle_risk import GENEL_BAKIM_KONTROLU
 
 DISCLAIMER = 'Bu rapor ilan/müşteri beyanına ve internetteki ilanlara dayanır; uzman incelemesi değildir.'
 
 
+TITLE = 'Araç değerleme raporu'
+GUVEN = {'yuksek': 'Yüksek', 'orta': 'Orta', 'dusuk': 'Düşük'}
+SEAL_TITLE = 'YERİMEBAK DEĞERLEME'
+
+
 def _money(value):
     return f'{value:,.0f} TL'.replace(',', '.') if isinstance(value, (float, int)) else '—'
+
+
+def _num(value):
+    """24000 -> '24.000' (Türkçe binlik)."""
+    return f'{value:,.0f}'.replace(',', '.') if isinstance(value, (float, int)) else '—'
+
+
+def _pct(value, digits=1):
+    """1.84 -> '%1,8' (Türkçe ondalık virgül)."""
+    return ('%' + f'{value:.{digits}f}'.replace('.', ',')) if isinstance(value, (float, int)) else '—'
 
 
 class ValuationPDF(FPDF):
@@ -20,7 +36,7 @@ class ValuationPDF(FPDF):
         self.set_y(-14)
         self.set_font('Report', size=8)
         self.set_text_color(85, 95, 105)
-        self.cell(0, 6, f'Kredili değerleme • {self.page_no()}/{{nb}}', align='C')
+        self.cell(0, 6, f'YerimeBak araç değerleme raporu • {self.page_no()}/{{nb}}', align='C')
 
 
 def build_pdf(report):
@@ -33,7 +49,7 @@ def build_pdf(report):
     pdf.set_margins(18, 18, 18)
     pdf.set_auto_page_break(True, margin=22)
     pdf.alias_nb_pages()
-    pdf.set_title('Kredili değerleme raporu')
+    pdf.set_title(TITLE)
     pdf.add_page()
 
     def text(value, bold=False, size=10):
@@ -73,14 +89,15 @@ def build_pdf(report):
     identity = report['rapor']
     date = datetime.fromisoformat(identity['created_at'].replace('Z', '+00:00')).astimezone(ZoneInfo('Europe/Istanbul')).strftime('%d.%m.%Y')
     text('YERİMEBAK', True, 20)
-    text('Kredili değerleme raporu', True, 17)
-    text(f'{vehicle["marka"]} {vehicle["model"]} {vehicle["yil"]}', True, 14)
-    text(f'{date} • {vehicle.get("km")} km • {vehicle.get("yakit") or "—"} • {vehicle.get("vites") or "—"}')
+    text(TITLE, True, 17)
+    text(f'{vehicle["marka"]} {vehicle["model"]} {vehicle["yil"]}' + (f' • {vehicle["paket"]}' if vehicle.get('paket') else ''), True, 14)
+    text(f'{date} • {_num(vehicle.get("km"))} km • {vehicle.get("yakit") or "—"} • {vehicle.get("vites") or "—"}'
+         + (f' • İlan fiyatı {_money(vehicle.get("ilanFiyati"))}' if vehicle.get('ilanFiyati') else ''))
     text('Uzman incelemesi içermez. İlan/müşteri beyanına dayalı hesaplama.')
     heading('Karar ve veri güveni')
     text(decision.get('sonuc'), True)
     text(decision.get('aciklama'))
-    text(f'Güven seviyesi: {decision.get("guvenSeviyesi", "—")} • Skor: %{market.get("guvenSkoru", 0)}')
+    text(f'Veri güveni: {GUVEN.get(decision.get("guvenSeviyesi"), "—")} • Skor: %{market.get("guvenSkoru", 0)}')
     if decision.get('hesaplananEgilim'):
         text('Hesaplanan eğilim (kesin karar değildir): '+decision['hesaplananEgilim'])
     heading('Özet — beş cevap')
@@ -89,8 +106,8 @@ def build_pdf(report):
     for label, value in (
         ('Piyasaya göre fiyatı', (summary.get('piyasaKonumu') or {}).get('metin')),
         ('Adil fiyat', f'{_money(fair.get("min"))} – {_money(fair.get("max"))}'),
-        ('En önemli riskler', '; '.join(summary.get('riskler') or []) or 'Belirtilmedi'),
-        ('Pazarlık gerekçeleri', '; '.join(summary.get('pazarlikGerekceleri') or []) or 'Belirtilmedi'),
+        ('En önemli riskler', '\n'.join('- '+r for r in summary.get('riskler') or []) or 'Belirtilmedi'),
+        ('Pazarlık gerekçeleri', '\n'.join('- '+g for g in summary.get('pazarlikGerekceleri') or []) or 'Belirtilmedi'),
         ('Şimdi ne yapmalı?', summary.get('simdiNeYapmali')),
     ):
         text(label, True)
@@ -111,7 +128,7 @@ def build_pdf(report):
             text('- '+reason)
         text('Kanıt ilanlar', True)
         for sample in plan.get('kanitIlanlar') or []:
-            text(f'{sample.get("site") or "Kaynak"} - {_money(sample.get("fiyat"))} - {sample.get("yil") or "—"} - {sample.get("km") or "—"} km')
+            text(f'{sample.get("site") or "Kaynak"} • {sample.get("yil") or "—"} • {_num(sample.get("km"))} km • {_money(sample.get("fiyat"))}')
             if sample.get('url'):
                 text(sample['url'], size=9)
         if plan.get('saticiMesaji'):
@@ -129,11 +146,12 @@ def build_pdf(report):
             text(risks.get('mesaj') or 'Bu model/motor için kaynağı doğrulanmış bilinen sorun bulunamadı.')
     if 'bakim' in report:
         heading('Bu kilometrede doğrulanacak bakımlar')
+        # Açıklama her maddede aynı: bir kez yazılır, maddeler kısa liste olur.
+        text(f'{_num(vehicle.get("km"))} km ve {vehicle.get("yil")} model araç için aşağıdaki işlemlerin son yapıldığı '
+             'tarih ve kilometreyi servis faturalarından kontrol edin; üreticinin araç sürümüne özel bakım planını esas alın.')
         for item in report.get('bakim') or []:
-            text(item.get('baslik'), True)
-            text(item.get('aciklama'))
-            if item.get('kontrol'):
-                text('Nasıl kontrol edilir: '+str(item['kontrol']))
+            specific = item.get('kontrol') and item['kontrol'] != GENEL_BAKIM_KONTROLU
+            text('- '+str(item.get('baslik'))+(f' (kontrol: {item["kontrol"]})' if specific else ''))
     if 'saticiSorulari' in report:
         heading('Satıcıya sorulacak sorular')
         for index, question in enumerate(report.get('saticiSorulari') or [], 1):
@@ -151,34 +169,32 @@ def build_pdf(report):
     pdf.set_font('Report', size=9)
     with pdf.table(col_widths=(3, 2, 1, 2), line_height=6, text_align=('LEFT', 'LEFT', 'RIGHT', 'RIGHT')) as table:
         for values in [('Kalem', 'Durum', 'Yüzde', 'Tutar')] + [
-            (str(k.get('baslik') or '—'), str(k.get('durum') or '—'), str(k.get('yuzde', 0)), _money(k.get('tutar')))
+            (str(k.get('baslik') or '—'), str(k.get('durum') or '—'), _pct(k.get('yuzde', 0), 2), _money(k.get('tutar')))
             for k in valuation.get('kalemler') or []]:
             row = table.row()
             for value in values:
                 row.cell(value)
-    text(f'Toplam kayıp: %{valuation.get("toplamDegerKaybiYuzde", 0)} • {_money(valuation.get("toplamDegerKaybiTutar"))}')
+    text(f'Toplam kayıp: {_pct(valuation.get("toplamDegerKaybiYuzde", 0), 2)} • {_money(valuation.get("toplamDegerKaybiTutar"))}')
     if valuation.get('ozet'):
         text(valuation['ozet'])
     heading('Benzer ilanlar')
     text(f'{market.get("emsalSayisi", 0)} emsal • Ortalama: {_money(market.get("ortalama"))} • Medyan: {_money(market.get("medyan"))}')
     for sample in market.get('kaynaklar') or []:
-        text(f'{sample.get("site") or "Kaynak"} • {sample.get("yil") or "—"} • {sample.get("km") or "—"} km • {_money(sample.get("fiyat"))}', True)
+        text(f'{sample.get("site") or "Kaynak"} • {sample.get("yil") or "—"} • {_num(sample.get("km"))} km • {_money(sample.get("fiyat"))}', True)
         text(sample.get('url'))
     for warning in market.get('uyarilar') or []:
         text(warning)
     heading('Bilgi kaynakları')
     for source in report.get('bilgiKaynaklari') or []:
-        text(f'{source.get("alan")}: {source.get("aciklama")} ({source.get("kaynak")})')
-    heading('Gelecek değer — tahmin')
+        text(f'{source.get("alan")}: {source.get("aciklama")}')
     projection = report.get('getiri')
-    if projection:
-        text(f'Aylık araç enflasyonu: %{projection.get("aylikEnflasyonYuzde")} • {projection.get("kaynak") or ""}')
+    if projection:  # oran girilmemişse bölüm hiç gösterilmez
+        heading('Gelecek değer — tahmin')
+        text(f'Aylık araç enflasyonu: {_pct(projection.get("aylikEnflasyonYuzde"))} • {projection.get("kaynak") or ""}')
         for key in ('altiAy', 'birYil'):
             horizon = projection.get(key) or {}
-            text(f'{horizon.get("ay")} ay: {_money(horizon.get("tahminiDeger"))} • Tahmini getiri: {_money(horizon.get("getiriTl"))} (%{horizon.get("getiriYuzde")})')
+            text(f'{horizon.get("ay")} ay: {_money(horizon.get("tahminiDeger"))} • Tahmini getiri: {_money(horizon.get("getiriTl"))} ({_pct(horizon.get("getiriYuzde"))})')
         text(projection.get('aciklama'))
-    else:
-        text('Güncel araç enflasyonu oranı henüz girilmedi.')
     if pdf.get_y() > pdf.h-132:
         pdf.add_page()
     heading('Dijital doğrulama')
@@ -187,7 +203,7 @@ def build_pdf(report):
     text('https://www.yerimebak.com.tr/dogrula/'+identity['verification_code'])
     if pdf.get_y() > pdf.h-98:
         pdf.add_page()
-    pdf.image(io.BytesIO(seal_png(identity['verification_code'], identity['report_no'], date)), x=18, y=pdf.get_y(), w=48)
+    pdf.image(io.BytesIO(seal_png(identity['verification_code'], identity['report_no'], date, SEAL_TITLE)), x=18, y=pdf.get_y(), w=48)
     pdf.ln(52)
     text(DISCLAIMER, size=9)
     return bytes(pdf.output())

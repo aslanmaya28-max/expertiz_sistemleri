@@ -41,13 +41,13 @@ def _arc(mask, text, center, radius, font, upper=True, spacing=1.12):
         angle += delta if upper else -delta
 
 
-def _seal(size, code, number, date):
+def _seal(size, code, number, date, title='YERİMEBAK EKSPERTİZ'):
     width, center = 1040, 520
     mask = Image.new('L', (width, width))
     draw = ImageDraw.Draw(mask)
     draw.ellipse((12, 12, width-12, width-12), outline=255, width=16)
     draw.ellipse((150, 150, width-150, width-150), outline=255, width=6)
-    _arc(mask, 'YERİMEBAK EKSPERTİZ', center, center-100, _font(66))
+    _arc(mask, title, center, center-100, _font(66))
     _arc(mask, 'DİJİTAL DOĞRULAMA', center, center-80, _font(66), False)
     for x in (92, width-92):
         points = [(x+48*(1 if n % 2 == 0 else .42)*math.cos(-math.pi/2+n*math.pi/5),
@@ -62,8 +62,8 @@ def _seal(size, code, number, date):
 
 
 @lru_cache(maxsize=128)
-def seal_png(kod, no, tarih):
-    mask = _seal(520, kod, no, tarih)
+def seal_png(kod, no, tarih, baslik='YERİMEBAK EKSPERTİZ'):
+    mask = _seal(520, kod, no, tarih, baslik)
     image = Image.new('RGBA', mask.size, '#0E4A78')
     image.putalpha(mask)
     output = io.BytesIO()

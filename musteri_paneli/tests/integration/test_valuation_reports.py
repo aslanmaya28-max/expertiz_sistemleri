@@ -62,10 +62,13 @@ def test_saved_snapshot_retry_ownership_pdf_and_verification(client, admin_token
     import pdfplumber
     with pdfplumber.open(io.BytesIO(pdf.content)) as document:
         pdf_text = '\n'.join(page.extract_text() for page in document.pages)
-    for required in ('Kredili değerleme raporu', 'Özet', 'Değer kaybı tablosu',
-                     'Bilgi kaynakları', 'Gelecek değer', identity['verification_code'],
+    for required in ('Araç değerleme raporu', 'Özet', 'Değer kaybı tablosu',
+                     'Bilgi kaynakları', identity['verification_code'],
                      'uzman incelemesi değildir.'):
         assert required in pdf_text
+    # Enflasyon oranı girilmemişse yönetici notu müşteriye gösterilmez; kaynak kodları görünmez
+    assert 'henüz girilmedi' not in pdf_text
+    assert 'Kredili' not in pdf_text and 'musteri_beyani' not in pdf_text and 'Ekspertizde' not in pdf_text
     public = client.get('/api/v1/expertiz/verify/'+identity['verification_code']).json()
     assert public['gecerli'] and public['tur'] == 'degerleme'
     assert set(public) == {'gecerli', 'tur', 'marka', 'model', 'yil', 'rapor_no', 'tarih', 'seal_url'}

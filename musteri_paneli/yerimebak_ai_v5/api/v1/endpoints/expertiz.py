@@ -707,5 +707,8 @@ def verified_report_seal(code: str, request: Request):
     result = _raise_if_error(report_archive.verify(code, client_ip(request.headers, request.client.host if request.client else None)))
     if not result["gecerli"]:
         raise HTTPException(status_code=404, detail="Rapor bulunamadı")
-    return Response(stamp_service.seal_png(code.upper().strip(), result["rapor_no"], result["tarih"]),
+    kod = code.upper().strip()
+    # YD-: ilan/beyana dayalı değerleme (uzman incelemesi değil) -> "DEĞERLEME" mührü
+    baslik = "YERİMEBAK DEĞERLEME" if kod.startswith("YD-") else "YERİMEBAK EKSPERTİZ"
+    return Response(stamp_service.seal_png(kod, result["rapor_no"], result["tarih"], baslik),
                     media_type="image/png", headers={"Cache-Control": "public, max-age=3600"})

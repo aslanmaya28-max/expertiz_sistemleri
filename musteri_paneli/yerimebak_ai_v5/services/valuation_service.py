@@ -66,6 +66,24 @@ LOW_CONFIDENCE_VERDICT = "EK DOĞRULAMA GEREKLİ"
 LOW_CONFIDENCE_FLAGS = ("az_emsal", "genis_aralik")
 
 
+def _kalem_metni(k: Dict[str, Any]) -> str:
+    """'Sol Arka Çamurluk (lokal boyalı)' / 'Tramer (hasar kaydı) 20.000 TL' (tutar küçük harfe çevrilmez)."""
+    baslik, durum = str(k.get("baslik") or ""), str(k.get("durum") or "")
+    if not durum:
+        return baslik
+    if any(ch.isdigit() for ch in durum):
+        return f"{baslik} {durum}"
+    return f"{baslik} ({durum.replace('I', 'ı').replace('İ', 'i').lower()})"
+
+
+def _beyan_ozeti(text: Optional[str]) -> Optional[str]:
+    """Motorun ekspertiz cümlesi kredili değerlemede beyana göre yazılır (ortada ekspertiz yok)."""
+    if not text:
+        return text
+    text = text.replace("Ekspertizde kaporta işlemi tespit edilmedi", "Beyana göre araçta kaporta işlemi yok", 1)
+    return re.sub(r"^Ekspertizde (.+?) tespit edildi", r"Beyana göre araçta \1 var", text)
+
+
 def _tl(value: Any) -> str:
     try:
         return f"{int(round(float(value))):,} TL".replace(",", ".")
@@ -108,7 +126,8 @@ def decision_summary(
         konum = "ustunde"
     konum_metni = {"altinda": "Piyasanın altında", "uyumlu": "Piyasayla uyumlu", "ustunde": "Piyasanın üstünde"}[konum]
     if fark is not None:
-        konum_metni += f" (ilan fiyatı hesaplanan değerin %{abs(fark):.1f} {'altında' if fark < 0 else 'üstünde'})"
+        yuzde = f"{abs(fark):.1f}".replace(".", ",")
+        konum_metni += f" (ilan fiyatı hesaplanan değerin %{yuzde} {'altında' if fark < 0 else 'üstünde'})"
 
     kalemler = sorted(degerleme.get("kalemler") or [], key=lambda k: k.get("tutar") or 0, reverse=True)
     riskler: List[str] = []
@@ -116,7 +135,7 @@ def decision_summary(
         riskler.append("Ağır hasar sınıfında bulgu bildirildi; aracın yapısal durumu mutlaka uzmanca incelenmeli.")
     for k in kalemler[:2]:
         if (k.get("tutar") or 0) > 0:
-            riskler.append(f"{k.get('baslik')} ({str(k.get('durum') or '').lower()}): değeri yaklaşık {_tl(k.get('tutar'))} düşürüyor.")
+            riskler.append(f"{_kalem_metni(k)}: değeri yaklaşık {_tl(k.get('tutar'))} düşürüyor.")
     for f in flags:
         if f.get("kod") in LOW_CONFIDENCE_FLAGS and f.get("mesaj"):
             riskler.append(f["mesaj"] + ".")
@@ -129,7 +148,7 @@ def decision_summary(
         gerekceler.append(f"Benzer {reference['count']} ilanın orta fiyatı {_tl(reference['market_median_price'])}.")
     for k in kalemler[:2]:
         if (k.get("tutar") or 0) > 0:
-            gerekceler.append(f"{k.get('baslik')} {str(k.get('durum') or '').lower()}: yaklaşık {_tl(k.get('tutar'))} değer kaybı.")
+            gerekceler.append(f"{_kalem_metni(k)}: yaklaşık {_tl(k.get('tutar'))} değer kaybı.")
 
     if sonuc == LOW_CONFIDENCE_VERDICT:
         adim = "Veri sınırlı: kararınızı ilan bilgileri ve uzman incelemesiyle netleştirin."
@@ -572,7 +591,7 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
             "tavsiyeFiyat": int(recommended),
             "hasarSeviyesi": degerleme.get("hasarSeviyesi"),
             "agirHasar": degerleme.get("agirHasar"),
-            "ozet": degerleme.get("ozet"),
+            "ozet": _beyan_ozeti(degerleme.get("ozet")),
         },
         "karar": {
             "ilanFarkiYuzde": (degerleme.get("fiyatYorumu") or {}).get("farkYuzde"),

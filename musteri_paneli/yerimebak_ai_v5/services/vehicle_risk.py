@@ -275,6 +275,9 @@ def _risk_items(risks):
     return [r for r in (items or []) if isinstance(r, dict)]
 
 
+GENEL_BAKIM_KONTROLU = "Tarih, kilometre ve servis faturalarını karşılaştırın."
+
+
 def upcoming_maintenance(vehicle, risks) -> list:
     """Genel kontrol eşikleri üretici değişim periyodu değildir; geçmişi sorgular."""
     km = wmr._int(vehicle.get("km")) or 0
@@ -308,8 +311,8 @@ def upcoming_maintenance(vehicle, risks) -> list:
             continue
         seen.update(keys)
         output.append({**entry, "baslik": title,
-                       "aciklama": f"Bu kilometrede ({km:,} km) ve yaşta ({age} yıl) {title.lower()} geçmişini doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.",
-                       "kontrol": entry.get("kontrol") or "Tarih, kilometre ve servis faturalarını karşılaştırın."})
+                       "aciklama": f"{title}: {km:,} km ve {age} yaşındaki araçta son yapıldığı tarih ve kilometreyi doğrulayın; üreticinin araç sürümüne özel bakım planını esas alın.".replace(",", "."),
+                       "kontrol": entry.get("kontrol") or GENEL_BAKIM_KONTROLU})
     return output
 
 

@@ -5,6 +5,9 @@ import { useEffect, useState } from "react";
 import type { ValuationResult } from "@/lib/api";
 import { ekspertizTalepAdresi, guvenliWebAdresi } from "@/lib/ekspertizOnDoldurma";
 
+/** Sunucudaki vehicle_risk.GENEL_BAKIM_KONTROLU ile aynı: genel kontrol notu her maddede tekrarlanmaz */
+const GENEL_BAKIM_KONTROLU = "Tarih, kilometre ve servis faturalarını karşılaştırın.";
+
 function tl(value?: number | null) {
   if (value == null) return "-";
   return new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 0 }).format(value) + " ₺";
@@ -144,11 +147,16 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
       {bakim && bakim.length > 0 && (
         <section className="bg-white rounded-xl border border-kenarlik-acik p-6" aria-label="Bakım">
           <h2 className="text-lg font-semibold text-metin-birincil">Bu kilometrede doğrulanacak bakımlar</h2>
-          <ul className="mt-3 space-y-2 text-sm">
+          {/* Açıklama her maddede aynı: bir kez yazılır, maddeler kısa liste olur */}
+          <p className="mt-2 text-sm text-metin-ikincil">
+            {new Intl.NumberFormat("tr-TR").format(sonuc.arac.km)} km ve {sonuc.arac.yil} model araç için aşağıdaki işlemlerin son
+            yapıldığı tarih ve kilometreyi servis faturalarından kontrol edin; üreticinin araç sürümüne özel bakım planını esas alın.
+          </p>
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-metin-birincil">
             {bakim.map((b) => (
               <li key={b.baslik}>
-                <span className="font-medium text-metin-birincil">{b.baslik}:</span>{" "}
-                <span className="text-metin-ikincil">{b.aciklama}</span>
+                {b.baslik}
+                {b.kontrol && b.kontrol !== GENEL_BAKIM_KONTROLU && <span className="text-metin-ikincil"> (kontrol: {b.kontrol})</span>}
               </li>
             ))}
           </ul>

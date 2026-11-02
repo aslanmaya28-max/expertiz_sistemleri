@@ -38,7 +38,7 @@ def test_yeterli_veride_karar_ve_bes_cevap():
     assert s["karar"]["sonuc"] == "PAZARLIK YAP" and s["karar"]["guvenSeviyesi"] == "yuksek"
     assert s["karar"]["hesaplananEgilim"] is None
     o = s["ozet"]
-    assert o["piyasaKonumu"]["durum"] == "ustunde" and "%8.4 üstünde" in o["piyasaKonumu"]["metin"]
+    assert o["piyasaKonumu"]["durum"] == "ustunde" and "%8,4 üstünde" in o["piyasaKonumu"]["metin"]
     assert o["adilFiyat"] == {"min": 900_000, "max": 980_000}
     # En buyuk iki kayip once, beyan uyarisi her zaman sonda
     assert o["riskler"][0].startswith("Sol ön kapı") and "38.000 TL" in o["riskler"][0]
@@ -73,3 +73,14 @@ def test_alma_ve_al_adimlari():
     assert al["ozet"]["piyasaKonumu"]["durum"] == "uyumlu"
     assert "yerinde inceletin" in al["ozet"]["simdiNeYapmali"]
     assert not any("adil aralığın" in g for g in al["ozet"]["pazarlikGerekceleri"])
+
+
+
+def test_kalem_metni_ve_beyan_ozeti():
+    from yerimebak_ai_v5.services.valuation_service import _beyan_ozeti, _kalem_metni
+    assert _kalem_metni({"baslik": "Tramer (hasar kaydı)", "durum": "20.000 TL"}) == "Tramer (hasar kaydı) 20.000 TL"
+    assert _kalem_metni({"baslik": "Sol Arka Çamurluk", "durum": "Lokal Boyalı"}) == "Sol Arka Çamurluk (lokal boyalı)"
+    assert _kalem_metni({"baslik": "Kaput", "durum": "DEĞİŞEN"}) == "Kaput (değişen)"
+    assert _beyan_ozeti("Ekspertizde 1 boyalı parça tespit edildi; bulguların toplam değer kaybı %1,8.") ==         "Beyana göre araçta 1 boyalı parça var; bulguların toplam değer kaybı %1,8."
+    assert _beyan_ozeti("Ekspertizde kaporta işlemi tespit edilmedi; x").startswith("Beyana göre araçta kaporta işlemi yok")
+    assert _beyan_ozeti(None) is None

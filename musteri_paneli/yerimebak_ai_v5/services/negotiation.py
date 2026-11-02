@@ -67,7 +67,10 @@ def build_plan(
         gerekceler.append(f"Benzer {reference['count']} ilanın orta fiyatı {_tl(reference['market_median_price'])}.")
     for k in sorted(kalemler, key=lambda k: k.get("tutar") or 0, reverse=True)[:3]:
         if (k.get("tutar") or 0) > 0:
-            gerekceler.append(f"{k.get('baslik')} ({str(k.get('durum') or '').lower()}) değeri yaklaşık {_tl(k.get('tutar'))} düşürüyor.")
+            kalem_durumu = str(k.get('durum') or '')
+            kalem = (f"{k.get('baslik')} {kalem_durumu}" if any(c.isdigit() for c in kalem_durumu)
+                     else f"{k.get('baslik')} ({kalem_durumu.replace('I', 'ı').replace('İ', 'i').lower()})")
+            gerekceler.append(f"{kalem} değeri yaklaşık {_tl(k.get('tutar'))} düşürüyor.")
 
     kanitlar = _evidence(reference)
 
