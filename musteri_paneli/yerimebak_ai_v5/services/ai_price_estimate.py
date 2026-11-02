@@ -15,7 +15,6 @@ Ayarlar (.env):
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
 import re
@@ -23,6 +22,8 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 import httpx
+
+from yerimebak_ai_v5.services.llm_json import oku
 
 logger = logging.getLogger(__name__)
 
@@ -69,11 +70,8 @@ def _int(value: Any) -> Optional[int]:
 
 def parse_answer(text: str) -> Optional[Dict[str, Any]]:
     """Model cevabindaki JSON'u okur ve dogrular; gecersizse None."""
-    match = re.search(r"\{.*\}", text or "", re.DOTALL)
-    if not match:
-        return None
     try:
-        data = json.loads(match.group(0))
+        data = oku(text)
     except ValueError:
         return None
     median = _int(data.get("medyan"))
@@ -119,7 +117,7 @@ def estimate(vehicle: Dict[str, Any], timeout_s: float = 40.0,
     if result:
         result["model"] = _model()
     else:
-        logger.warning("[AI FIYAT] Gecersiz cevap: %s", (text or "")[:200])
+        logger.warning("[AI FIYAT] Geçersiz JSON veya fiyat verisi; yanıt içeriği günlüğe yazılmadı")
     return result
 
 

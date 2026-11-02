@@ -21,6 +21,7 @@ from urllib.parse import unquote, urlsplit
 import httpx
 
 from yerimebak_ai_v5.services import web_market_reference as wmr
+from yerimebak_ai_v5.services.llm_json import oku
 from yerimebak_ai_v5.services.web_market_reference import fold, _displacements
 
 
@@ -152,39 +153,8 @@ _LISTS = ("riskler", "kullaniciSikayetleri")
 
 
 def _lenient_json(content):
-    """Model yanıtındaki JSON'u okur. Yanıt çıktı sınırında yarıda kesilmiş ya da bir yerde
-    virgülü eksikse bütün raporu kaybetmek yerine listelerdeki sağlam maddeler kurtarılır."""
-    content = content or ""
-    match = re.search(r"\{.*\}", content, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group())
-        except json.JSONDecodeError:
-            pass
-    decoder = json.JSONDecoder()
-    salvaged = {}
-    for key in _LISTS:
-        start = re.search(r'"' + key + r'"\s*:\s*\[', content)
-        if not start:
-            continue
-        items, pos = [], start.end()
-        while True:
-            while pos < len(content) and content[pos] in " \t\r\n,":
-                pos += 1
-            if pos >= len(content) or content[pos] != "{":
-                break
-            try:
-                item, pos = decoder.raw_decode(content, pos)
-            except json.JSONDecodeError:
-                break
-            if isinstance(item, dict):
-                items.append(item)
-        salvaged[key] = items
-    if not salvaged:
-        raise ValueError("Arama yanıtında JSON yok")
-    logger.warning("[MODEL RISK] Bozuk JSON yanıtından kurtarılan madde: %s",
-                   {k: len(v) for k, v in salvaged.items()})
-    return salvaged
+    """Eski çağrılar için ortak okuyucuya uyumluluk sarmalayıcısı."""
+    return oku(content, listeler=_LISTS)
 
 
 def _search(query, client):

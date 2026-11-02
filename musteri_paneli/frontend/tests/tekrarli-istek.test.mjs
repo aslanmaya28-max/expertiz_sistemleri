@@ -1,9 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { tekrarliIstek, yenidenDenenebilir, BAGLANTI_KOPTU_MESAJI } from '../src/lib/tekrarliIstek.ts';
 
 const hata = (status, code) => Object.assign(new Error('x'), { status, code });
 const hemen = { bekle: async () => {} };
+
+test('araç analiz sayfası yeniden denemelerde callback dışında üretilen aynı istek numarasını kullanır', () => {
+  const kaynak = readFileSync(new URL('../src/app/arac-analiz/page.tsx', import.meta.url), 'utf8');
+  assert.match(kaynak, /import\s*\{\s*tekrarliIstek\s*\}\s*from\s*["']@\/lib\/tekrarliIstek["']/);
+  const istek = kaynak.match(/const istek = \{([\s\S]*?)\n\s*\};\s*const res = await tekrarliIstek\(\(\) => analyzeValuation\(istek\)\);/);
+  assert.ok(istek, 'Yeniden deneme callback’i önceden oluşturulmuş istek nesnesini göndermeli');
+  assert.match(istek[1], /request_id:\s*crypto\.randomUUID\(\)/);
+  assert.equal((istek[1].match(/randomUUID\(/g) || []).length, 1);
+});
 
 test('vekil zaman aşımından sonra aynı istek yeniden sorulur ve hazır rapor döner', async () => {
   let n = 0;

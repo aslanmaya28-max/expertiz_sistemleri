@@ -42,6 +42,7 @@ from urllib.parse import urlsplit
 import httpx
 from psycopg2.extras import Json
 from yerimebak_ai_v5.core.database_config import DatabaseConfig
+from yerimebak_ai_v5.services.llm_json import oku
 
 logger = logging.getLogger(__name__)
 
@@ -304,15 +305,11 @@ def _search(query: str, client: httpx.Client, *, prompt: Optional[str] = None, w
         cit = ann.get("url_citation") or {}
         if cit.get("url"):
             sources[cit["url"].rstrip("/")] = cit.get("content") or ""
-    listings: List[Dict[str, Any]] = []
-    match = re.search(r"\{.*\}", message.get("content") or "", re.DOTALL)
-    parsed = {}
-    if match:
-        try:
-            parsed = json.loads(match.group(0))
-            listings = [x for x in parsed.get("ilanlar") or [] if isinstance(x, dict)]
-        except ValueError:
-            pass
+    try:
+        parsed = oku(message.get("content"), listeler=("ilanlar",))
+    except ValueError:
+        parsed = {}
+    listings = [x for x in parsed.get("ilanlar") or [] if isinstance(x, dict)]
     return {"listings": listings, "sources": sources, "data": parsed,
             "cost": (data.get("usage") or {}).get("cost") or 0}
 
