@@ -10,6 +10,14 @@ export const SLOGAN = "Siz gitmeden, biz yerinize bakalım.";
 export const BOLGE_YERINDE = "İstanbul'un tamamı (Avrupa ve Anadolu yakası)";
 export const BOLGE_DEGERLEME = "Türkiye geneli (çevrim içi)";
 
+/**
+ * Yerinde inceleme hizmet bedeli, KDV hariç. Asıl değer admin panelindeki Fiyatlandırma ekranından gelir
+ * (ödeme ekranı oradan okur); bu sabit yalnız tanıtım sayfaları ve yapılandırılmış veri içindir.
+ * Admin panelinde değişirse burayı da güncelleyin.
+ */
+export const HIZMET_BEDELI_TL = 5000;
+export const KDV_ORANI = 0.2;
+
 /** Kredi paketleri: herkes için aynı (kullanıcı kararı). 1 değerleme raporu = 1 kredi. */
 export const KREDI_PAKETLERI = [
   { kredi: 1, fiyat: 100 },

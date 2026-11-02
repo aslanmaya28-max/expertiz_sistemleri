@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import HizmetSayfasi from "@/bilesenler/HizmetSayfasi";
-import { BOLGE_YERINDE, ISLETME, ORTAK_SORULAR, SITE_URL, type SSS } from "@/lib/hizmetBilgisi";
+import { BOLGE_YERINDE, HIZMET_BEDELI_TL, ISLETME, KDV_ORANI, ORTAK_SORULAR, SITE_URL, type SSS } from "@/lib/hizmetBilgisi";
+
+const tl = (n: number) => new Intl.NumberFormat("tr-TR").format(n) + " TL";
 
 export const metadata: Metadata = {
   title: "Yerinde araç inceleme ve ekspertiz — İstanbul",
@@ -44,6 +46,13 @@ export default function YerindeIncelemeSayfasi() {
         areaServed: { "@type": "City", name: "İstanbul" },
         url: `${SITE_URL}/yerinde-inceleme`,
         description: "Uzman personelin aracı bulunduğu yerde incelemesi; iç ekspertiz, dış ekspertiz (boya-kaporta), kurumsal ekspertiz ve değerleme raporlarının müşteri panelinde teslimi.",
+        offers: {
+          "@type": "Offer",
+          priceSpecification: {
+            "@type": "UnitPriceSpecification", price: String(HIZMET_BEDELI_TL), priceCurrency: "TRY", valueAddedTaxIncluded: false,
+          },
+          description: "YerimeBak hizmet bedeli (KDV hariç); kurumsal ekspertiz paket ücreti ayrıca eklenir.",
+        },
       }}
       bolumler={[
         {
@@ -96,11 +105,15 @@ export default function YerindeIncelemeSayfasi() {
         {
           id: "ucret", baslik: "Ücret",
           icerik: (
-            <p>
-              Ücret; YerimeBak hizmet bedeli ile seçtiğiniz kurumsal ekspertiz firmasının paket ücretinden oluşur, KDV dahil
-              toplam tutar talebinizi oluştururken ödeme adımından önce açıkça gösterilir. Güncel bilgi için{" "}
-              <Link href="/fiyatlar" className="text-birincil underline">fiyatlar sayfasına</Link> bakabilirsiniz.
-            </p>
+            <>
+              <p className="!mb-0 text-2xl font-bold">YerimeBak hizmet bedeli: {tl(HIZMET_BEDELI_TL)}</p>
+              <p className="text-xs text-metin-ikincil">KDV hariç · KDV dahil {tl(HIZMET_BEDELI_TL * (1 + KDV_ORANI))}</p>
+              <p>
+                Buna seçtiğiniz kurumsal ekspertiz firmasının paket ücreti eklenir. KDV ödeme adımında ayrı satır olarak
+                hesaplanır; KDV dahil toplam tutar ödemeden önce açıkça gösterilir. Ayrıntılar{" "}
+                <Link href="/fiyatlar" className="text-birincil underline">fiyatlar sayfasında</Link>.
+              </p>
+            </>
           ),
         },
         {

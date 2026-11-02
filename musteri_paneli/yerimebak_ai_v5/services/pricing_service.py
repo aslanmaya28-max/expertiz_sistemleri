@@ -16,7 +16,7 @@ from psycopg2.extras import Json
 
 from yerimebak_ai_v5.core.database_config import DatabaseConfig
 
-DEFAULT_SERVICE_FEE_TL = float(os.getenv("YERIMEBAK_SERVICE_FEE_TL", "6000.0"))
+DEFAULT_SERVICE_FEE_TL = float(os.getenv("YERIMEBAK_SERVICE_FEE_TL", "5000.0"))
 VAT_RATE = float(os.getenv("VAT_RATE", "0.20"))
 
 SETTING_SERVICE_FEE = "service_fee_tl"

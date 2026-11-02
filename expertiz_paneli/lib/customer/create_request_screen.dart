@@ -885,8 +885,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
           
           // Fiyatlandırma
           _buildPriceItem(
-            'Hizmet Bedeli',
-            '$_hizmetBedeli TL',
+            'Hizmet Bedeli (KDV hariç)',
+            '${_hizmetBedeli.toStringAsFixed(0)} TL',
             false,
           ),
           const SizedBox(height: 8),

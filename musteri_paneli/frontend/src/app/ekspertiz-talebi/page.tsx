@@ -287,7 +287,8 @@ function EkspertizTalebiIcerigi() {
           {adim === 1 && (
             <section className="bg-white border border-kenarlik-acik rounded-lg p-5">
               <h2 className="text-lg font-semibold text-metin-birincil">YerimeBak hizmet bedeli</h2>
-              <div className="mt-3 text-3xl font-bold text-metin-birincil">{tl(serviceFee)} <span className="text-sm font-normal text-metin-ikincil">+ KDV</span></div>
+              <div className="mt-3 text-3xl font-bold text-metin-birincil">{tl(serviceFee)}</div>
+              <p className="mt-1 text-xs text-metin-ikincil">KDV hariç · KDV dahil {tl(serviceFee * (1 + vatRate))}</p>
               <ul className="mt-4 space-y-2 text-sm text-metin-ikincil">
                 <li>• Aracınıza bölgenizdeki YerimeBak ekspertiz personelinin atanması</li>
                 <li>• Kurumsal ekspertiz firmasında randevu ve süreç takibi</li>
@@ -367,13 +368,13 @@ function EkspertizTalebiIcerigi() {
         <aside className="bg-white border border-kenarlik-acik rounded-lg p-5 h-fit lg:sticky lg:top-6">
           <h2 className="text-lg font-semibold text-metin-birincil">Hizmet bedeli özeti</h2>
           <div className="mt-4 space-y-3 text-sm">
-            <div className="flex justify-between"><span>YerimeBak hizmet bedeli</span><strong>{tl(serviceFee)}</strong></div>
+            <div className="flex justify-between"><span>YerimeBak hizmet bedeli <span className="text-xs text-metin-ikincil">(KDV hariç)</span></span><strong>{tl(serviceFee)}</strong></div>
             <div className="flex justify-between gap-2">
               <span>{selectedPackage ? `${selectedFirm?.name} — ${selectedPackage.name}` : "Kurumsal ekspertiz paketi"}</span>
               <strong className="whitespace-nowrap">{tl(selectedPackage?.price || 0)}</strong>
             </div>
             <div className="flex justify-between"><span>KDV (%{Math.round(vatRate * 100)})</span><strong>{tl(vat)}</strong></div>
-            <div className="pt-3 border-t border-kenarlik-acik flex justify-between text-base"><span>Toplam</span><strong>{tl(total)}</strong></div>
+            <div className="pt-3 border-t border-kenarlik-acik flex justify-between text-base"><span>Toplam <span className="text-xs font-normal text-metin-ikincil">(KDV dahil)</span></span><strong>{tl(total)}</strong></div>
           </div>
         </aside>
       </div>

@@ -12,7 +12,7 @@
 - Kapsam: iç ekspertiz, dış ekspertiz (boya, kaporta, değişen parçalar), seçilen kurumsal ekspertiz firmasının raporu, değerleme.
 - Satıcının beyanı ile yerinde bulunan durum yan yana gösterilir.
 - Raporlar müşteri panelinde teslim edilir. Onaylı raporların gerçekliği https://www.yerimebak.com.tr/dogrula adresinden doğrulama koduyla kontrol edilebilir.
-- Ücret: YerimeBak hizmet bedeli ile seçilen kurumsal ekspertiz paketinin ücretinden oluşur. KDV dahil toplam tutar ödemeden önce gösterilir.
+- Ücret: YerimeBak hizmet bedeli 5.000 TL + KDV (KDV dahil 6.000 TL). Seçilen kurumsal ekspertiz paketinin ücreti ayrıca eklenir. KDV dahil toplam tutar ödemeden önce gösterilir.
 
 ### Araç değerleme raporu (ilan fiyatı doğru mu?)
 - Sayfa: https://www.yerimebak.com.tr/arac-degerleme

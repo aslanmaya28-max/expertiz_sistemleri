@@ -38,7 +38,7 @@ export default async function MesafeliSatisSayfasi() {
       <h2>4. Ödeme</h2>
       <p>
         Ödeme, PayTR Ödeme ve Elektronik Para Kuruluşu A.Ş. altyapısıyla kredi kartı veya banka kartı ile tek çekim olarak alınır.
-        Kart bilgileri satıcıya iletilmez. Fiyatlara KDV dahildir; sipariş sırasında gösterilen tutar dışında ek ücret talep edilmez.
+        Kart bilgileri satıcıya iletilmez. Ödeme adımında gösterilen toplam tutara KDV dahildir; bu tutar dışında ek ücret talep edilmez.
       </p>
 
       <h2>5. İfa (hizmetin sunulması)</h2>
