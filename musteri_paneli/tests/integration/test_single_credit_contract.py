@@ -74,7 +74,7 @@ def test_auth_and_customer_responses_do_not_expose_legacy_fields(client, admin_t
     assert_public(customers.json())
 
 
-def test_registration_login_and_verification_keep_one_credit_gift(client):
+def test_registration_login_and_verification_without_credit_gift(client):
     from yerimebak_ai_v5.services import email_service
     from .test_dispatch_flow import _link_token
 
@@ -84,19 +84,29 @@ def test_registration_login_and_verification_keep_one_credit_gift(client):
         response = client.post("/api/v1/auth/register", json={
             "email": email, "password": "Musteri123!", "terms_accepted": True})
         assert response.status_code == 200, response.text
+        assert response.json()["user"]["credits"] == 0
+        assert "ucretsiz" not in response.json()["message"].lower()
+        for part in outbox[-1].walk():
+            if part.get_content_type() in ("text/plain", "text/html"):
+                assert "ücretsiz" not in part.get_content().lower()
         assert_public(response.json())
         assert_public_token(response.json()["token"])
         verification = client.post("/api/v1/auth/verify-email", json={
             "token": _link_token(outbox[-1], "/eposta-dogrula")})
         assert verification.status_code == 200, verification.text
-        assert verification.json()["credits_granted"] == 1
+        assert verification.json()["credits_granted"] == 0
         assert_public(verification.json())
         login = client.post("/api/v1/auth/login", json={"email": email, "password": "Musteri123!"})
         assert login.status_code == 200, login.text
         assert_public(login.json())
         assert_public_token(login.json()["token"])
         balance = client.get("/api/v1/credits/balance", headers=_auth(login.json()["token"]))
-        assert balance.json()["credits"] == 1
+        assert balance.json()["credits"] == 0
+        refused = client.post("/api/v1/valuation/analyze", headers=_auth(login.json()["token"]),
+                              json={"brand": "Seat", "model": "Ibiza", "year": 2024,
+                                    "km": 30000, "listed_price": 960000})
+        assert refused.status_code == 402, refused.text
+        assert refused.json()["detail"]["code"] == "insufficient_credits"
     finally:
         email_service.stop_capture()
 
@@ -117,3 +127,57 @@ def test_legacy_package_refund_uses_recorded_credit_amount(client, admin_token):
     assert response.json()["refunded_tl"] == 100
     assert service.get_credit_balance(uid)["credits"] == 4
     assert sql("SELECT status FROM payment_orders WHERE id=%s", (oid,), True)[0]["status"] == "refunded"
+
+
+@pytest.mark.parametrize("campaign, balance, already_granted, expected_grant", [
+    (0, 0, False, 0), (0, 7, False, 0), (0, 7, True, 0),
+    (1, 0, False, 1), (1, 7, False, 1), (1, 7, True, 0),
+])
+def test_verification_preserves_existing_balance_and_campaign_is_once(
+        client, monkeypatch, campaign, balance, already_granted, expected_grant):
+    from yerimebak_ai_v5.services import account_service, email_service, payment_service
+    from .test_dispatch_flow import _link_token
+
+    monkeypatch.setattr(payment_service, "FREE_CREDITS_ON_REGISTER", campaign)
+    email = f"campaign-{uuid.uuid4().hex}@test.com"
+    outbox = email_service.capture_for_tests()
+    try:
+        registration = client.post("/api/v1/auth/register", json={
+            "email": email, "password": "Musteri123!", "terms_accepted": True})
+        assert registration.status_code == 200, registration.text
+        user = registration.json()["user"]
+        assert user["credits"] == 0
+        content = " ".join(part.get_content() for part in outbox[-1].walk()
+                           if part.get_content_type() in ("text/plain", "text/html"))
+        assert ("ücretsiz" in content.lower()) is bool(campaign)
+        assert ("ucretsiz" in registration.json()["message"].lower()) is bool(campaign)
+        sql("UPDATE users SET credits=%s, welcome_credits_granted=%s WHERE id=%s",
+            (balance, already_granted, user["id"]))
+        vtoken = _link_token(outbox[-1], "/eposta-dogrula")
+        verified = client.post("/api/v1/auth/verify-email", json={"token": vtoken})
+        assert verified.status_code == 200, verified.text
+        assert verified.json()["credits_granted"] == expected_grant
+        expected_balance = balance + expected_grant
+        service = PaymentService()
+        assert service.get_credit_balance(user["id"])["credits"] == expected_balance
+        assert client.post("/api/v1/auth/verify-email", json={"token": vtoken}).status_code == 400
+        # Yeni token da tamamlanan doğrulama için tekrar kredi vermez.
+        account_service.send_verification(user["id"], email)
+        repeated = client.post("/api/v1/auth/verify-email", json={
+            "token": _link_token(outbox[-1], "/eposta-dogrula")})
+        assert repeated.json()["credits_granted"] == 0
+        assert service.get_or_create_user(email)["credits"] == expected_balance
+        logs = sql("SELECT credits_used FROM credit_usage_logs WHERE user_id=%s AND action='welcome_bonus'",
+                   (user["id"],), True)
+        assert [row["credits_used"] for row in logs] == ([1] if expected_grant else [])
+    finally:
+        email_service.stop_capture()
+
+
+def test_direct_user_creation_without_campaign_preserves_existing_balance(client):
+    service = PaymentService()
+    email = f"existing-{uuid.uuid4().hex}@test.com"
+    user = service.get_or_create_user(email)
+    assert user["credits"] == 0
+    sql("UPDATE users SET credits=7 WHERE id=%s", (user["id"],))
+    assert service.get_or_create_user(email)["credits"] == 7

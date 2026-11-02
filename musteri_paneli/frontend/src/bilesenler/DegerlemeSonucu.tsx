@@ -18,7 +18,7 @@ const KAYNAK_ROZET: Record<string, string> = {
   tahmin: "Tahmin",
 };
 
-export default function DegerlemeSonucu({ sonuc, onYeni }: { sonuc: ValuationResult; onYeni?: () => void }) {
+export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonuc: ValuationResult; onYeni?: () => void; ornek?: boolean }) {
   const { arac, piyasa, degerleme, getiri, ozet, bilgiKaynaklari } = sonuc;
   const eskiEmsalMesaji = `Yalnızca ${piyasa.emsalSayisi} doğrulanmış emsal ilan bulundu (hedef 5)`;
   const eskiEmsalUyarisi = (uyari: string) => (
@@ -28,7 +28,7 @@ export default function DegerlemeSonucu({ sonuc, onYeni }: { sonuc: ValuationRes
   const piyasaUyarilari = (piyasa.uyarilar || []).filter((uyari) => !eskiEmsalUyarisi(uyari));
   return (
     <div className="mt-8 space-y-6">
-      {sonuc.rapor && <div className="rounded-lg border border-kenarlik-acik bg-white p-4 text-sm">
+      {!ornek && sonuc.rapor && <div className="rounded-lg border border-kenarlik-acik bg-white p-4 text-sm">
         <Link href={`/panel/degerlemeler/${encodeURIComponent(sonuc.rapor.id)}`} className="font-semibold text-birincil underline">Rapor kaydedildi — Raporlarım&apos;da</Link>
         <p className="mt-2">{sonuc.rapor.report_no} • {new Date(sonuc.rapor.created_at).toLocaleString("tr-TR")}</p>
         <Link href={`/dogrula/${sonuc.rapor.verification_code}`} className="text-birincil underline">Doğrulama kodu: {sonuc.rapor.verification_code}</Link>
@@ -166,12 +166,12 @@ export default function DegerlemeSonucu({ sonuc, onYeni }: { sonuc: ValuationRes
 
       <SonrakiAdim sonuc={sonuc} />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {!ornek && <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-sm text-metin-ikincil">{sonuc.kredi.dusulen} kredi kullanıldı • Kalan: {sonuc.kredi.kalan}</span>
         <div className="flex gap-2">
           {onYeni && <button type="button" onClick={onYeni} className="rounded-lg bg-birincil px-4 py-2 text-sm font-semibold text-white">Yeni analiz</button>}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

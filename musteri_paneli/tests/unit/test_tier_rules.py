@@ -20,11 +20,21 @@ def test_insufficient_credit_refusal_is_payment_required():
     assert message
 
 
-def test_package_environment_override_and_registration_gift():
+@pytest.mark.parametrize("campaign", [1, 3])
+def test_package_environment_override_and_registration_gift(campaign):
     packages = {"ozel": {"credits": 20, "price": 1500, "name": "Özel", "popular": False}}
-    env = {**os.environ, "CREDIT_PACKAGES": json.dumps(packages), "FREE_CREDITS_ON_REGISTER": "3"}
+    env = {**os.environ, "CREDIT_PACKAGES": json.dumps(packages), "FREE_CREDITS_ON_REGISTER": str(campaign)}
     result = subprocess.run([sys.executable, "-c",
         "import json; from yerimebak_ai_v5.services.payment_service import CREDIT_PACKAGES, FREE_CREDITS_ON_REGISTER; "
         "print(json.dumps([CREDIT_PACKAGES, FREE_CREDITS_ON_REGISTER]))"],
         env=env, capture_output=True, text=True, check=True)
-    assert json.loads(result.stdout) == [packages, 3]
+    assert json.loads(result.stdout) == [packages, campaign]
+
+
+def test_registration_has_no_campaign_by_default():
+    env = dict(os.environ)
+    env.pop("FREE_CREDITS_ON_REGISTER", None)
+    result = subprocess.run([sys.executable, "-c",
+        "from yerimebak_ai_v5.services.account_service import welcome_credits; print(welcome_credits())"],
+        env=env, capture_output=True, text=True, check=True)
+    assert int(result.stdout) == 0

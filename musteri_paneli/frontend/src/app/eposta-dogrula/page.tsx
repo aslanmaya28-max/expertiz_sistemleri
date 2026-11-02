@@ -24,7 +24,7 @@ function DogrulaIcerigi() {
         setDurum({
           ok: true,
           mesaj: res.credits_granted
-            ? `E-posta adresiniz doğrulandı. ${res.credits_granted} ücretsiz analiz krediniz hesabınıza yüklendi.`
+            ? `E-posta adresiniz doğrulandı. ${res.credits_granted} kampanya analiz krediniz hesabınıza yüklendi.`
             : "E-posta adresiniz doğrulandı.",
         });
       })

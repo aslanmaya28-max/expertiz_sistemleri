@@ -45,6 +45,7 @@ def _pct(value, digits=1):
 
 class ValuationPDF(FPDF):
     verification_code = ''
+    ornek = False
 
     def header(self):
         if self.page_no() > 1:
@@ -57,17 +58,27 @@ class ValuationPDF(FPDF):
             self.set_y(21)
 
     def footer(self):
+        if self.ornek:
+            # Altbilgi her sayfanın içeriğinden sonra çalışır: dolu kartların
+            # üzerinde de görünen, okumayı engellemeyen çapraz filigran.
+            with self.local_context(fill_opacity=0.15):
+                self.set_font('Report', 'B', size=68)
+                self.set_text_color(*BRAND)
+                with self.rotation(45, self.w/2, self.h/2):
+                    self.text((self.w-self.get_string_width('ÖRNEK'))/2, self.h/2, 'ÖRNEK')
         self.set_draw_color(*RULE)
         self.line(self.l_margin, self.h-17, self.w-self.r_margin, self.h-17)
         self.set_y(-14)
         self.set_font('Report', size=7.5)
         self.set_text_color(*MUTED)
-        self.cell(0, 6, f'YerimeBak araç değerleme raporu • sayfa {self.page_no()}/{{nb}} • {self.verification_code}', align='C')
+        identity = '' if self.ornek else ' • '+self.verification_code
+        self.cell(0, 6, f'YerimeBak araç değerleme raporu • sayfa {self.page_no()}/{{nb}}{identity}', align='C')
 
 
-def build_pdf(report):
+def build_pdf(report, ornek=False):
     pdf = ValuationPDF()
-    pdf.verification_code = report['rapor']['verification_code']
+    pdf.ornek = ornek
+    pdf.verification_code = '' if ornek else report['rapor']['verification_code']
     for style, bold in (('', False), ('B', True)):
         path = next((p for p in font_paths(bold) if Path(p).is_file()), None)
         if not path:
@@ -397,15 +408,20 @@ def build_pdf(report):
             horizon = projection.get(key) or {}
             text(f'{horizon.get("ay")} ay: {_money(horizon.get("tahminiDeger"))} • Tahmini getiri: {_money(horizon.get("getiriTl"))} ({_pct(horizon.get("getiriYuzde"))})')
         text(projection.get('aciklama'))
-    if pdf.get_y() > pdf.h-132:
-        pdf.add_page()
-    heading('Dijital doğrulama')
-    text(identity['report_no'], True)
-    text(identity['verification_code'])
-    text('https://www.yerimebak.com.tr/dogrula/'+identity['verification_code'])
-    if pdf.get_y() > pdf.h-98:
-        pdf.add_page()
-    pdf.image(io.BytesIO(seal_png(identity['verification_code'], identity['report_no'], date, SEAL_TITLE)), x=18, y=pdf.get_y(), w=48)
-    pdf.ln(52)
+    if ornek:
+        ensure(20)
+        pdf.ln(5)
+        text('Örnek rapordur, doğrulanamaz', True, color=BRAND)
+    else:
+        if pdf.get_y() > pdf.h-132:
+            pdf.add_page()
+        heading('Dijital doğrulama')
+        text(identity['report_no'], True)
+        text(identity['verification_code'])
+        text('https://www.yerimebak.com.tr/dogrula/'+identity['verification_code'])
+        if pdf.get_y() > pdf.h-98:
+            pdf.add_page()
+        pdf.image(io.BytesIO(seal_png(identity['verification_code'], identity['report_no'], date, SEAL_TITLE)), x=18, y=pdf.get_y(), w=48)
+        pdf.ln(52)
     text(DISCLAIMER, size=9)
     return bytes(pdf.output())

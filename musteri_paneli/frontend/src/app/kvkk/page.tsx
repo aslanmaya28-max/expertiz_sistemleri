@@ -33,7 +33,7 @@ export default async function KvkkSayfasi() {
         <li>Ödeme, iade ve fatura süreçlerinin yürütülmesi,</li>
         <li>Talep durumu (uzman atandı, yola çıktı, rapor hazır vb.) hakkında bilgilendirme,</li>
         <li>Hukuki yükümlülüklerin (vergi, tüketici mevzuatı) yerine getirilmesi, uyuşmazlıklarda delil olarak kullanılması,</li>
-        <li>Kötüye kullanımın (sahte hesap, ücretsiz kredi istismarı) önlenmesi.</li>
+        <li>Kötüye kullanımın (sahte hesap, kampanya kredisi istismarı) önlenmesi.</li>
       </ul>
 
       <h2>4. Hukuki sebepler</h2>

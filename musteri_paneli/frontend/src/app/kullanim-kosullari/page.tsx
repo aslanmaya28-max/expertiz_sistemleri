@@ -39,7 +39,7 @@ export default async function KullanimKosullariSayfasi() {
       <ul>
         <li>Üyelik için doğru ve güncel bilgi vermeniz ve e-posta adresinizi doğrulamanız gerekir.</li>
         <li>Şifrenizin gizliliğinden siz sorumlusunuz; yetkisiz kullanımı fark ederseniz derhal bize bildirin.</li>
-        <li>Hoş geldin kredisi kişi başına bir kez verilir; birden fazla hesap açarak ücretsiz kredi elde etmek yasaktır.</li>
+        <li>Kampanya kredileri kişi başına bir kez verilir; birden fazla hesap açarak kampanya kredisi elde etmek yasaktır.</li>
       </ul>
 
       <h2>4. Yasaklı kullanımlar</h2>

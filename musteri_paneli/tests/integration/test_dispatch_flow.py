@@ -80,7 +80,7 @@ def test_kredili_web_degerleme_onbellek(client, monkeypatch):
         token = reg.json()["token"]
         verified = client.post("/api/v1/auth/verify-email",
                                json={"token": _link_token(outbox[-1], "/eposta-dogrula")})
-        assert verified.json()["credits_granted"] == 1  # kayit hediyesi: 1 deneme kredisi
+        assert verified.json()["credits_granted"] == 0  # Varsayılan kayıt kampanyası kapalı.
     finally:
         email_service.stop_capture()
     # Senaryo 3 analiz yapar: bakiye satin alinmis gibi 3'e tamamlanir
@@ -873,7 +873,7 @@ def _link_token(message, path):
 
 
 def test_accounts_refunds_invoices_and_emails(client, admin_token):
-    """E-posta dogrulama + hos geldin kredisi, sifre sifirlama, iptal/iade, fatura dokumu, e-posta bildirimleri."""
+    """E-posta doğrulama, şifre sıfırlama, iptal/iade, fatura dökümü, e-posta bildirimleri."""
     from yerimebak_ai_v5.services import email_service
 
     outbox = email_service.capture_for_tests()
@@ -892,11 +892,11 @@ def test_accounts_refunds_invoices_and_emails(client, admin_token):
         assert client.get("/api/v1/auth/profile", headers=_auth(token)).json()["profile"]["email_verified"] is False
 
         ok = client.post("/api/v1/auth/verify-email", json={"token": vtoken})
-        assert ok.status_code == 200 and ok.json()["credits_granted"] == 1
+        assert ok.status_code == 200 and ok.json()["credits_granted"] == 0
         # Ayni baglanti ikinci kez kullanilamaz, kredi iki kez verilmez
         assert client.post("/api/v1/auth/verify-email", json={"token": vtoken}).status_code == 400
         profile = client.get("/api/v1/auth/profile", headers=_auth(token)).json()["profile"]
-        assert profile["email_verified"] is True and profile["credits"] == 1
+        assert profile["email_verified"] is True and profile["credits"] == 0
         assert client.post("/api/v1/auth/resend-verification", headers=_auth(token)).json()["already_verified"] is True
 
         # --- Sifremi unuttum: kayitli olmayan e-postada da ayni yanit
@@ -1329,6 +1329,13 @@ def test_basarisiz_kredi_dusumunde_sonuc_verilmez(client, monkeypatch):
         finally:
             DatabaseConfig.return_connection(conn)
 
+    # Eş zamanlı düşüm reddini sınamak için başlangıç kredisi açıkça verilir.
+    conn = DatabaseConfig.get_connection()
+    try:
+        conn.cursor().execute("UPDATE users SET credits=1 WHERE email='kredired@yerimebak.test'")
+        conn.commit()
+    finally:
+        DatabaseConfig.return_connection(conn)
     baslangic = kredi_ve_gecmis()
     assert baslangic == (1, 0)
 
