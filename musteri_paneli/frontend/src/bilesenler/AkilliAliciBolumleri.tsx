@@ -308,3 +308,40 @@ export function AnalizBekleme() {
     </div>
   );
 }
+
+/** Kasa geçiş yılı: iki kasanın bu araca göre orta fiyatı ve değerlemenin hangisine göre yapıldığı. */
+export function GecisYiliKutusu({ gecis }: { gecis: NonNullable<ValuationResult["piyasa"]["gecisYili"]> }) {
+  const ad = (h: { kasa?: string | null }, varsayilan: string) => h.kasa || varsayilan;
+  const yillar = (h: { baslangic?: number | null; bitis?: number | null }) =>
+    `${h.baslangic ?? "?"}–${h.bitis && h.bitis < new Date().getFullYear() ? h.bitis : ""}`;
+  const secilen = gecis.secilen === "eski" ? gecis.eski : gecis.yeni;
+  const diger = gecis.secilen === "eski" ? gecis.yeni : gecis.eski;
+  const secilenAd = ad(secilen, gecis.secilen === "eski" ? "önceki kasa" : "yeni kasa");
+  const digerAd = ad(diger, gecis.secilen === "eski" ? "yeni kasa" : "önceki kasa");
+  const fark = gecis.yeni.ortaFiyat && gecis.eski.ortaFiyat ? Math.abs(gecis.yeni.ortaFiyat - gecis.eski.ortaFiyat) : null;
+  const neden = {
+    musteri: `Değerleme sizin seçtiğiniz ${secilenAd} kasasına göre yapıldı.`,
+    ilan_fiyati: `Kasa seçilmediği için değerleme, ilan fiyatının daha yakın olduğu ${secilenAd} kasasına göre yapıldı. Aracınız ${digerAd} ise o kasanın ortalamasını esas alın.`,
+    tek_havuz: `${digerAd} kasası için yeterli ilan bulunamadı; değerleme ${secilenAd} kasasına göre yapıldı.`,
+    bulunamadi: "İki kasa için de yeterli ilan bulunamadı.",
+  }[gecis.neden];
+  return (
+    <section className="rounded-xl border-2 border-yellow-300 bg-yellow-50 p-6" aria-label="Kasa geçiş yılı">
+      <h2 className="text-lg font-semibold text-yellow-900">{gecis.yil} bu model için kasa geçiş yılı</h2>
+      <p className="mt-1 text-sm text-yellow-900">O yıl iki farklı kasa satıldı ve fiyatları farklıdır. Fiyatlar bu araca (yıl ve km) göre düzeltilmiştir.</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        {([["eski", gecis.eski, "Önceki kasa"], ["yeni", gecis.yeni, "Yeni kasa"]] as const).map(([kod, h, etiket]) => (
+          <div key={kod} className={`rounded-lg bg-white p-4 ${gecis.secilen === kod ? "ring-2 ring-birincil" : "border border-kenarlik-acik"}`}>
+            <div className="text-xs text-metin-ikincil">{etiket}{gecis.secilen === kod ? " • değerleme bu kasaya göre" : ""}</div>
+            <div className="mt-1 font-semibold text-metin-birincil">{ad(h, etiket)} ({yillar(h)})</div>
+            <div className="mt-1 text-2xl font-extrabold text-metin-birincil">{h.ortaFiyat ? tl(h.ortaFiyat) : "Yeterli ilan yok"}</div>
+            {h.ortaFiyat ? <div className="text-xs text-metin-ikincil">{h.emsal} ilanın orta fiyatı</div> : null}
+          </div>
+        ))}
+      </div>
+      {fark ? <p className="mt-3 text-sm font-medium text-yellow-900">İki kasa arasındaki fark yaklaşık {tl(fark)}. Satıcı önceki kasayı yeni kasa fiyatına satıyorsa fazla ödersiniz.</p> : null}
+      <p className="mt-2 text-sm text-yellow-900">{neden}</p>
+      <p className="mt-2 text-xs text-yellow-900">Nasıl anlarsınız: ilan fotoğraflarında ön ızgara, far ve stop tasarımına bakın; satıcıdan ruhsattaki ilk tescil tarihini ve aracın kasa kodunu isteyin. Yerinde ekspertizde uzmanımız kasayı da doğrular.</p>
+    </section>
+  );
+}

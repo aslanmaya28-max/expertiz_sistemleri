@@ -31,6 +31,8 @@ class ValuationRequest(BaseModel):
     parts: Optional[Dict[str, str]] = None
     tramer_amount: Optional[int] = None
     tramer_count: Optional[int] = None
+    # Geçiş yılında müşterinin seçtiği kasa: "yeni" | "eski" (bilinmiyorsa boş)
+    kasa: Optional[str] = Field(default=None, pattern="^(yeni|eski)$")
 
 
 def _raise_if_error(result: Dict[str, Any]) -> Dict[str, Any]:
@@ -82,6 +84,16 @@ async def parts() -> Dict[str, Any]:
         ],
         "cost_credits": valuation_service.ANALYSIS_COST,
     }
+
+
+@router.get("/generation")
+async def generation(brand: str = Query(..., max_length=60), model: str = Query(..., max_length=60),
+                     year: int = Query(..., ge=1980, le=2100),
+                     user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+    """Formda kasa sorusu: yıl bir kasa geçiş yılıysa iki seçenek döner (model başına 1 yıl saklanır)."""
+    await _consume_daily(user)  # ilk sorgu ücretli (~0,015 $); kötüye kullanıma karşı günlük sınır
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, valuation_service.generation_choices, brand, model, year)
 
 
 @router.post("/analyze")

@@ -17,6 +17,7 @@ import logging
 import os
 import re
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List
 
 import httpx
@@ -36,13 +37,15 @@ Hâlâ satılan kasanın bitiş yılı {yil_simdi} olsun. Sadece JSON:
 """
 
 
-def _model() -> str:
-    return (os.getenv("WEB_GENERATION_MODEL") or "perplexity/sonar").strip()
+def _models() -> List[str]:
+    """Kasa listesi iki kaynaktan sorulur; tek modelin cevabı ölçümde tutarsızdı."""
+    raw = os.getenv("WEB_GENERATION_MODELS") or "perplexity/sonar,perplexity/sonar-pro"
+    return [m.strip() for m in raw.split(",") if m.strip()][:2]
 
 
 def _cache_key(vehicle: Dict[str, Any]) -> str:
     values = [wmr.fold(vehicle.get(k)).strip() for k in ("brand", "model")]
-    return "vehicle-generations:v3:" + hashlib.sha256(json.dumps(values).encode()).hexdigest()
+    return "vehicle-generations:v5:" + hashlib.sha256(json.dumps(values).encode()).hexdigest()
 
 
 def _year(value: Any) -> int | None:
@@ -72,12 +75,52 @@ def parse_list(data: Dict[str, Any], cited: Dict[str, str]) -> List[Dict[str, An
 
 
 def select(generations: List[Dict[str, Any]], year: int) -> Dict[str, Any]:
-    """Aracın yılını kapsayan kasa; geçiş yılında (iki kasa) yeni kasa seçilir."""
-    matches = [g for g in generations if g["baslangic"] <= year <= g["bitis"]]
+    """Aracın yılını kapsayan kasa. Geçiş yılında (iki kasa) yeni kasa seçilir ve önceki kasa
+    da döndürülür: müşteriye iki kasanın ortalaması gösterilir (kullanıcı kararı, 02.11.2026)."""
+    matches = sorted((g for g in generations if g["baslangic"] <= year <= g["bitis"]), key=lambda g: g["baslangic"])
     if not matches:
         return {"bulundu": False}
-    chosen = max(matches, key=lambda g: g["baslangic"])
-    return {"bulundu": True, **chosen, "gecis_yili": len(matches) > 1}
+    result = {"bulundu": True, **matches[-1], "gecis_yili": len(matches) > 1}
+    if len(matches) > 1:
+        result["onceki"] = {"bulundu": True, **matches[-2]}
+    return result
+
+
+def _newest(generations: List[Dict[str, Any]], year: int):
+    matches = sorted((g for g in generations if g["baslangic"] <= year <= g["bitis"]), key=lambda g: g["baslangic"])
+    return matches[-1] if matches else None
+
+
+def _previous(generations: List[Dict[str, Any]], newest: Dict[str, Any], year: int):
+    """Geçiş yılı: yeni kasa bu yıl (±1) başlamış ve önceki kasa bu yıla (±1) kadar sürmüş."""
+    older = [g for g in generations if g["baslangic"] < newest["baslangic"]]
+    if not older or newest["baslangic"] < year - 1:
+        return None
+    prev = max(older, key=lambda g: g["baslangic"])
+    return prev if prev["bitis"] >= year - 1 else None
+
+
+def combine(first: List[Dict[str, Any]], second: List[Dict[str, Any]], year: int) -> Dict[str, Any]:
+    """İki kaynağın ortak sonucu. Aracın yılındaki en yeni kasa iki kaynakta da aynı olmalı
+    (başlangıç/bitiş ±1). Kaynaklardan biri yılı önceki kasada da gösteriyorsa geçiş yılıdır."""
+    a, b = _newest(first, year), _newest(second, year)
+    if not a or not b or abs(a["baslangic"] - b["baslangic"]) > 1 or abs(a["bitis"] - b["bitis"]) > 1:
+        return {"bulundu": False, "uyusmazlik": True}
+    faces = sorted(f for f in (a.get("makyaj"), b.get("makyaj")) if f)
+    result = {"bulundu": True, "kasa": b.get("kasa") or a.get("kasa"),
+              "baslangic": max(a["baslangic"], b["baslangic"]), "bitis": min(a["bitis"], b["bitis"]),
+              "makyaj": faces[0] if faces else None, "makyaj_son": faces[-1] if faces else None}
+    result["baslangic"] = min(result["baslangic"], year)
+    previous = [p for p in (_previous(first, a, year), _previous(second, b, year)) if p]
+    result["gecis_yili"] = bool(previous)
+    if previous:
+        prev = previous[-1]
+        pfaces = sorted(p["makyaj"] for p in previous if p.get("makyaj"))
+        result["onceki"] = {"bulundu": True, "kasa": prev.get("kasa"),
+                            "baslangic": min(p["baslangic"] for p in previous),
+                            "bitis": max(year, max(p["bitis"] for p in previous)),
+                            "makyaj": pfaces[0] if pfaces else None, "makyaj_son": pfaces[-1] if pfaces else None}
+    return result
 
 
 def year_range(generation: Dict[str, Any], year: int, limit: int = 3) -> tuple | None:
@@ -85,17 +128,20 @@ def year_range(generation: Dict[str, Any], year: int, limit: int = 3) -> tuple |
     if not generation.get("bulundu") or not year:
         return None
     lo, hi = max(generation["baslangic"], year - limit), min(generation["bitis"], year + limit)
-    facelift = generation.get("makyaj")
-    if facelift:
-        if year < facelift:
-            hi = min(hi, facelift - 1)
-        else:
-            lo = max(lo, facelift)
+    first_face = generation.get("makyaj")
+    last_face = generation.get("makyaj_son") or first_face
+    if first_face:
+        if year < first_face:
+            hi = min(hi, first_face - 1)
+        elif year >= last_face:
+            lo = max(lo, last_face)
+        else:  # kaynaklar makyaj yılında ayrışıyor ve araç arada: yalnız kendi yılı
+            lo = hi = year
     return (lo, hi) if lo <= year <= hi else None
 
 
-def _search(vehicle: Dict[str, Any], client: httpx.Client) -> Dict[str, Any]:
-    body = {"model": _model(), "temperature": 0, "max_tokens": 800, "usage": {"include": True},
+def _search(vehicle: Dict[str, Any], client: httpx.Client, model: str = "perplexity/sonar") -> Dict[str, Any]:
+    body = {"model": model, "temperature": 0, "max_tokens": 800, "usage": {"include": True},
             "messages": [{"role": "user", "content": _PROMPT.format(
                 marka=vehicle.get("brand"), model=vehicle.get("model"), yil_simdi=datetime.now().year)}]}
     response = client.post(wmr._URL, headers={"Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}"}, json=body)
@@ -120,19 +166,26 @@ def get_generation(vehicle: Dict[str, Any], timeout: float = 25.0) -> Dict[str, 
     key = _cache_key(vehicle)
     cached = wmr._cache_read(key, CACHE_HOURS)
     cost = 0.0
-    if cached and cached.get("nesiller"):
-        generations = cached["nesiller"]
+    if not (cached and cached.get("listeler")):
+        lists = []
+        with httpx.Client(timeout=timeout) as client, ThreadPoolExecutor(2) as pool:
+            futures = [pool.submit(_search, vehicle, client, model) for model in _models()]
+            for future in futures:
+                try:
+                    found = future.result()
+                except (httpx.HTTPError, ValueError, TypeError, KeyError) as exc:
+                    logger.warning("[KASA] Liste alınamadı: %s", str(exc)[:200])
+                    continue
+                cost += float(found.get("cost") or 0)
+                lists.append(parse_list(found["data"], found["cited"]))
+        if len(lists) < 2 or not lists[0] or not lists[1]:
+            return {"bulundu": False, "uyusmazlik": True, "cost_usd": cost}
+        wmr._cache_write(key, {"listeler": lists})  # yıl başına birleştirme her raporda yapılır
     else:
-        try:
-            with httpx.Client(timeout=timeout) as client:
-                found = _search(vehicle, client)
-        except (httpx.HTTPError, ValueError, TypeError, KeyError) as exc:
-            logger.warning("[KASA] Liste alınamadı: %s", str(exc)[:200])
-            return {"bulundu": False}
-        cost = float(found.get("cost") or 0)
-        generations = parse_list(found["data"], found["cited"])
-        if generations:  # yalnız bulunan liste saklanır; bulunamazsa sonraki raporda yeniden denenir
-            wmr._cache_write(key, {"nesiller": generations})
-    result = select(generations, year)
+        lists = cached["listeler"]
+    result = combine(lists[0], lists[1], year)
+    if not result.get("bulundu"):
+        # Kaynaklar uyuşmazsa kasa bilinmez: çağıran yalnız aracın kendi yılını kullanır.
+        logger.info("[KASA] %s %s %s: kaynaklar uyuşmadı", vehicle.get("brand"), vehicle.get("model"), year)
     result["cost_usd"] = cost
     return result

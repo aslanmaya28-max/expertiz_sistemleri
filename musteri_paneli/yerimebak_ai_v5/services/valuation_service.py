@@ -84,6 +84,33 @@ def _beyan_ozeti(text: Optional[str]) -> Optional[str]:
     return re.sub(r"^Ekspertizde (.+?) tespit edildi", r"Beyana göre araçta \1 var", text)
 
 
+def _transition_view(gecis: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not gecis:
+        return None
+
+    def pool(entry: Dict[str, Any]) -> Dict[str, Any]:
+        return {"kasa": entry.get("kasa"), "baslangic": entry.get("baslangic"), "bitis": entry.get("bitis"),
+                "ortaFiyat": entry.get("orta_fiyat") if entry.get("bulundu") else None, "emsal": entry.get("emsal")}
+
+    return {"yil": gecis.get("yil"), "secilen": gecis.get("secilen"), "neden": gecis.get("neden"),
+            "yeni": pool(gecis.get("yeni") or {}), "eski": pool(gecis.get("eski") or {})}
+
+
+def generation_choices(brand: str, model: str, year: int) -> Dict[str, Any]:
+    """Form için: yıl kasa geçiş yılıysa seçenekler (yeni/eski), değilse tek kasa bilgisi."""
+    from yerimebak_ai_v5.services import vehicle_generation
+
+    gen = vehicle_generation.get_generation({"brand": brand.strip()[:60], "model": model.strip()[:60], "year": year})
+    if not gen.get("bulundu"):
+        return {"gecisYili": False, "kasa": None, "secenekler": []}
+
+    def option(code: str, g: Dict[str, Any]) -> Dict[str, Any]:
+        return {"kod": code, "kasa": g.get("kasa"), "baslangic": g.get("baslangic"), "bitis": g.get("bitis")}
+
+    options = [option("yeni", gen)] + ([option("eski", gen["onceki"])] if gen.get("gecis_yili") and gen.get("onceki") else [])
+    return {"gecisYili": len(options) > 1, "kasa": gen.get("kasa"), "secenekler": options}
+
+
 def _tl(value: Any) -> str:
     try:
         return f"{int(round(float(value))):,} TL".replace(",", ".")
@@ -531,9 +558,10 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
     from yerimebak_ai_v5.services import vehicle_risk
     risk_vehicle = _risk_vehicle(brand, model, year, km, package, fuel, transmission)
     risk_future = _RISK_POOL.submit(vehicle_risk.get_model_risks, risk_vehicle)
+    kasa = payload.get("kasa") if payload.get("kasa") in ("yeni", "eski") else None
     reference = web_market_reference.get_reference({
         "brand": brand, "model": model, "year": year, "km": km, "fuel": fuel,
-        "transmission": transmission, "package": package, "listed_price": price,
+        "transmission": transmission, "package": package, "listed_price": price, "kasa": kasa,
     })
     if not reference or not reference.get("found"):
         reference = get_market_reference_service().get_reference(
@@ -587,6 +615,8 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
                            "duzeltilmisFiyat": s.get("adjusted_price"),
                            "km": s.get("km"), "yil": s.get("year")} for s in (reference.get("samples") or [])[:10]],
             # İlan fiyatları bu aracın yılına/km'sine çevrildi; müşteriye nasıl yapıldığı gösterilir.
+            # Kasa geçiş yılı: iki kasanın bu araca göre orta fiyatı ve hangisine göre değerlendiği
+            "gecisYili": _transition_view(reference.get("gecis")),
             "duzeltme": ({
                 "aracYili": year, "aracKm": km,
                 "yillikOran": (reference.get("scope") or {}).get("yearly_rate"),

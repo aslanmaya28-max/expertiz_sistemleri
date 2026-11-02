@@ -51,7 +51,7 @@ DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash-1017"
 MIN_PRICE, MAX_PRICE = 50_000, 100_000_000
 MIN_SAMPLES = 3          # bunun altinda referans uretilmez
 TARGET_SAMPLES = 5       # bunun altında ikinci tur arama yapılır
-CACHE_VERSION = "generation-normalized-v3"
+CACHE_VERSION = "generation-transition-v4"
 OUTLIER_BAND = 0.25      # medyan +-%25 disi atilir
 DEFAULT_YEARLY_RATE = 0.04   # ilanlardan hesaplanamazsa yıllık değer kaybı
 YEARLY_RATE_LIMITS = (0.02, 0.12)
@@ -156,7 +156,7 @@ def _cache_hours() -> float:
 
 def _cache_key(vehicle: Dict[str, Any]) -> str:
     values = [" ".join(fold(vehicle.get(k)).split())
-              for k in ("brand", "model", "year", "package", "fuel", "transmission")]
+              for k in ("brand", "model", "year", "package", "fuel", "transmission", "kasa")]
     values.extend([(_int(vehicle.get("km")) or 0) // 20_000, CACHE_VERSION, _search_count()])
     return hashlib.sha256(json.dumps(values, ensure_ascii=False).encode("utf-8")).hexdigest()
 
@@ -527,6 +527,37 @@ def build_reference(results: List[Dict[str, Any]], v: Dict[str, Any], *, widened
     }
 
 
+def _pool_summary(reference: Dict[str, Any], generation: Dict[str, Any]) -> Dict[str, Any]:
+    return {"kasa": generation.get("kasa"), "baslangic": generation.get("baslangic"), "bitis": generation.get("bitis"),
+            "bulundu": bool(reference.get("found")), "orta_fiyat": reference.get("market_median_price"),
+            "emsal": reference.get("count") or 0}
+
+
+def _transition(vehicle: Dict[str, Any], new_ref: Dict[str, Any], old_ref: Dict[str, Any],
+                new_gen: Dict[str, Any], old_gen: Dict[str, Any]) -> Dict[str, Any]:
+    """Geçiş yılında değerlemenin hangi kasaya göre yapılacağı ve iki kasanın özeti.
+    Müşteri kasayı seçtiyse o; seçmediyse ilan fiyatının daha yakın olduğu kasa (açıkça yazılır)."""
+    choice = fold(vehicle.get("kasa")).strip()
+    candidates = {"yeni": new_ref, "eski": old_ref}
+    found = {k: r for k, r in candidates.items() if r.get("found")}
+    if choice in found:
+        selected, reason = choice, "musteri"
+    elif len(found) == 2 and _int(vehicle.get("listed_price")):
+        price = _int(vehicle.get("listed_price"))
+        selected = min(found, key=lambda k: abs(found[k]["market_median_price"] - price))
+        reason = "ilan_fiyati"
+    elif found:
+        selected, reason = next(iter(found)), "tek_havuz"
+    else:
+        selected, reason = "yeni", "bulunamadi"
+    ref = candidates[selected]
+    cost = sum(float((r.get("scope") or {}).get("cost_usd") or 0) for r in candidates.values())
+    ref.setdefault("scope", {})["cost_usd"] = round(cost, 4)
+    ref["gecis"] = {"yil": _int(vehicle.get("year")), "secilen": selected, "neden": reason,
+                    "yeni": _pool_summary(new_ref, new_gen), "eski": _pool_summary(old_ref, old_gen)}
+    return ref
+
+
 def get_reference(vehicle: Dict[str, Any], search: Optional[Callable[[str], Dict[str, Any]]] = None) -> Optional[Dict[str, Any]]:
     """Web aramasiyla emsal referansi; kapaliysa veya marka/model/yil yoksa None.
 
@@ -546,14 +577,22 @@ def get_reference(vehicle: Dict[str, Any], search: Optional[Callable[[str], Dict
             cached["scope"]["listed_price"] = _int(vehicle.get("listed_price"))
             return cached
     generation: Dict[str, Any] = {"bulundu": False}
+    year = _int(vehicle.get("year")) or 0
     year_range = None
+    previous, previous_range = None, None
     if search is None:
         from yerimebak_ai_v5.services import vehicle_generation
         generation = vehicle_generation.get_generation(vehicle)
-        year_range = vehicle_generation.year_range(generation, _int(vehicle.get("year")) or 0)
+        if generation.get("uyusmazlik"):
+            year_range = (year, year)  # kaynaklar uyuşmadı: kasa bilinmez, yalnız aracın kendi yılı
+        else:
+            year_range = vehicle_generation.year_range(generation, year)
+        if generation.get("gecis_yili") and generation.get("onceki"):
+            previous = generation["onceki"]
+            previous_range = vehicle_generation.year_range(previous, year)
 
-    def run_round(widened: bool = False) -> List[Dict[str, Any]]:
-        qs = queries(vehicle, widened=widened, year_range=year_range)
+    def run_round(rng, widened: bool = False) -> List[Dict[str, Any]]:
+        qs = queries(vehicle, widened=widened, year_range=rng)
         if search is not None:
             return [search(q) for q in qs]
         results = []
@@ -577,11 +616,24 @@ def get_reference(vehicle: Dict[str, Any], search: Optional[Callable[[str], Dict
             pool.shutdown(wait=False, cancel_futures=True)
         return results
 
-    results = run_round()
-    ref = build_reference(results, vehicle, year_range=year_range, generation=generation)
-    if ref.get("count", 0) < TARGET_SAMPLES:
-        results.extend(run_round(widened=True))
-        ref = build_reference(results, vehicle, widened=True, year_range=year_range, generation=generation)
+    def pool_reference(rng, gen):
+        found = run_round(rng)
+        reference = build_reference(found, vehicle, year_range=rng, generation=gen)
+        if reference.get("count", 0) < TARGET_SAMPLES:
+            found.extend(run_round(rng, widened=True))
+            reference = build_reference(found, vehicle, widened=True, year_range=rng, generation=gen)
+        return found, reference
+
+    if previous_range:
+        # Geçiş yılı: iki kasa ayrı havuzlarda, aynı anda (kullanıcı kararı, 02.11.2026)
+        with ThreadPoolExecutor(2) as pools:
+            new_future = pools.submit(pool_reference, year_range, generation)
+            old_future = pools.submit(pool_reference, previous_range, previous)
+            results, ref = new_future.result()
+            old_results, old_ref = old_future.result()
+        ref, results = _transition(vehicle, ref, old_ref, generation, previous), results + old_results
+    else:
+        results, ref = pool_reference(year_range, generation)
     ref["scope"]["cost_usd"] = round(ref["scope"]["cost_usd"] + float(generation.get("cost_usd") or 0), 4)
     if not results:
         return None

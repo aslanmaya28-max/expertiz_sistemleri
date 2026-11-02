@@ -12,6 +12,8 @@ import {
   analyzeValuation,
   getCreditBalance,
   getValuationParts,
+  getKasaBilgisi,
+  type KasaBilgisi,
   prefillValuation,
   prefillValuationText,
   type PrefillField,
@@ -74,6 +76,23 @@ export default function AracAnalizSayfasi() {
   const [sonuc, setSonuc] = useState<ValuationResult | null>(null);
   const [hata, setHata] = useState<{ message: string; code?: string } | null>(null);
   const [busy, setBusy] = useState<"prefill" | "analyze" | null>(null);
+  // Kasa geçiş yılı: araç yılı iki kasaya denk geliyorsa müşteriye sorulur (ör. 2021 Tucson: TL / NX4)
+  const [kasaBilgisi, setKasaBilgisi] = useState<KasaBilgisi | null>(null);
+  const [kasa, setKasa] = useState<"" | "yeni" | "eski">("");
+  const kasaOnbellek = useRef(new Map<string, KasaBilgisi | null>());
+  useEffect(() => {
+    const brand = form.brand.trim(), model = form.model.trim();
+    const anahtar = `${brand}|${model}|${form.year}`.toLocaleLowerCase("tr");
+    setKasa("");
+    if (!user || !brand || !model || !/^\d{4}$/.test(form.year)) { setKasaBilgisi(null); return; }
+    if (kasaOnbellek.current.has(anahtar)) { setKasaBilgisi(kasaOnbellek.current.get(anahtar) ?? null); return; }
+    const t = window.setTimeout(() => {
+      getKasaBilgisi(brand, model, Number(form.year))
+        .then((b) => { kasaOnbellek.current.set(anahtar, b); setKasaBilgisi(b); })
+        .catch(() => setKasaBilgisi(null));
+    }, 800);
+    return () => window.clearTimeout(t);
+  }, [form.brand, form.model, form.year, user]);
 
   useEffect(() => {
     getValuationParts().then(setMeta).catch(() => undefined);
@@ -195,6 +214,7 @@ export default function AracAnalizSayfasi() {
         transmission: form.gear || undefined,
         parts,
         tramer_amount: form.tramer ? Number(form.tramer) : 0,
+        kasa: kasaBilgisi?.gecisYili && kasa ? kasa : undefined,
       });
       setSonuc(res);
       setBakiye(res.kredi.kalan);
@@ -297,6 +317,21 @@ export default function AracAnalizSayfasi() {
               <div><label className={label}>Model{badge("model")}</label><AramaliSecim required ariaLabel="Model" value={form.model} onChange={setValue("model")} secenekler={modelleri(form.brand)} className={input} placeholder={form.brand ? "Model yazın veya seçin" : "Önce marka"} /></div>
               <div><label className={label}>Model yılı{badge("year")}</label><SayiAlani required ariaLabel="Model yılı" binlik={false} enFazlaHane={4} value={form.year} onChange={setValue("year")} className={input} placeholder="2020" /></div>
               <div><label className={label}>Kilometre{badge("km")}</label><SayiAlani required ariaLabel="Kilometre" enFazlaHane={7} value={form.km} onChange={setValue("km")} className={input} placeholder="85.000" /></div>
+              {kasaBilgisi?.gecisYili && (
+                <div className="col-span-2 rounded-lg border border-yellow-300 bg-yellow-50 p-4" role="group" aria-label="Kasa seçimi">
+                  <p className="text-sm font-medium text-yellow-900">{form.year} yılı {form.model} için kasa geçiş yılıdır: o yıl iki farklı kasa satıldı. Aracınız hangi kasa?</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {[...kasaBilgisi.secenekler.map((s) => ({ kod: s.kod as "" | "yeni" | "eski", ad: `${s.kasa || (s.kod === "yeni" ? "Yeni kasa" : "Önceki kasa")} (${s.baslangic ?? "?"}–${s.bitis && s.bitis < new Date().getFullYear() ? s.bitis : ""})` })),
+                      { kod: "" as const, ad: "Bilmiyorum" }].map((o) => (
+                      <button key={o.kod || "bilmiyorum"} type="button" onClick={() => setKasa(o.kod)} aria-pressed={kasa === o.kod}
+                        className={`rounded-full border px-3 py-1.5 text-sm font-semibold ${kasa === o.kod ? "border-birincil bg-birincil text-white" : "border-kenarlik-acik bg-white text-metin-birincil"}`}>
+                        {o.ad}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-yellow-900">Bilmiyorsanız sorun değil: raporda iki kasanın fiyatını da ayrı ayrı gösteririz.</p>
+                </div>
+              )}
               <div>
                 <label className={label}>Yakıt{badge("fuel")}</label>
                 <select value={form.fuel} onChange={set("fuel")} className={input}>

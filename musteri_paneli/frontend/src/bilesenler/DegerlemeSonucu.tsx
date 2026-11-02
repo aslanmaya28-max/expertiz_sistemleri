@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ValuationResult } from "@/lib/api";
-import { AkilliAliciBolumleri, SonrakiAdim } from "./AkilliAliciBolumleri";
+import { AkilliAliciBolumleri, GecisYiliKutusu, SonrakiAdim } from "./AkilliAliciBolumleri";
 
 function tl(value?: number | null) {
   if (value == null) return "-";
@@ -93,6 +93,8 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
         )}
         {degerleme.ozet && <p className="mt-3 text-sm text-metin-ikincil">{degerleme.ozet}</p>}
       </section>
+
+      {piyasa.gecisYili && <GecisYiliKutusu gecis={piyasa.gecisYili} />}
 
       <section className="bg-white rounded-xl border border-kenarlik-acik p-6">
         <h2 className="text-lg font-semibold text-metin-birincil">Benzer ilanlar</h2>

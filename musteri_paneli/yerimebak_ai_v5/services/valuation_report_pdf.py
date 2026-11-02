@@ -375,6 +375,33 @@ def build_pdf(report, ornek=False):
     text(f'Toplam kayıp: {_pct(valuation.get("toplamDegerKaybiYuzde", 0), 2)} • {_money(valuation.get("toplamDegerKaybiTutar"))}')
     if valuation.get('ozet'):
         text(valuation['ozet'])
+    transition = market.get('gecisYili')
+    if transition:
+        heading(f"{transition.get('yil')} bu model için kasa geçiş yılı")
+        text('O yıl iki farklı kasa satıldı ve fiyatları farklıdır. Fiyatlar bu araca (yıl ve km) göre düzeltilmiştir.')
+        names = {'eski': 'Önceki kasa', 'yeni': 'Yeni kasa'}
+        for code in ('eski', 'yeni'):
+            pool = transition.get(code) or {}
+            end = pool.get('bitis')
+            years = f"{pool.get('baslangic') or '?'}–{end if end and end < datetime.now().year else ''}"
+            value = _money(pool.get('ortaFiyat')) + f" ({pool.get('emsal')} ilanın orta fiyatı)" if pool.get('ortaFiyat') else 'Yeterli ilan yok'
+            mark = ' • değerleme bu kasaya göre' if transition.get('secilen') == code else ''
+            text(f"{names[code]}: {pool.get('kasa') or names[code]} ({years}): {value}{mark}", True)
+        new, old = transition.get('yeni') or {}, transition.get('eski') or {}
+        if new.get('ortaFiyat') and old.get('ortaFiyat'):
+            text(f"İki kasa arasındaki fark yaklaşık {_money(abs(new['ortaFiyat'] - old['ortaFiyat']))}. "
+                 'Satıcı önceki kasayı yeni kasa fiyatına satıyorsa fazla ödersiniz.')
+        chosen = transition.get('secilen')
+        chosen_name = ((transition.get(chosen) or {}).get('kasa')) or names.get(chosen, '')
+        other = 'eski' if chosen == 'yeni' else 'yeni'
+        other_name = ((transition.get(other) or {}).get('kasa')) or names[other]
+        text({'musteri': f'Değerleme sizin seçtiğiniz {chosen_name} kasasına göre yapıldı.',
+              'ilan_fiyati': f'Kasa seçilmediği için değerleme, ilan fiyatının daha yakın olduğu {chosen_name} kasasına göre yapıldı. '
+                             f'Aracınız {other_name} ise o kasanın ortalamasını esas alın.',
+              'tek_havuz': f'{other_name} kasası için yeterli ilan bulunamadı; değerleme {chosen_name} kasasına göre yapıldı.',
+              'bulunamadi': 'İki kasa için de yeterli ilan bulunamadı.'}.get(transition.get('neden'), ''))
+        text('Nasıl anlarsınız: ilan fotoğraflarında ön ızgara, far ve stop tasarımına bakın; satıcıdan ruhsattaki ilk tescil '
+             'tarihini ve aracın kasa kodunu isteyin. Yerinde ekspertizde uzmanımız kasayı da doğrular.', size=9, color=MUTED)
     heading('Benzer ilanlar')
     if market.get('emsalSayisi') in (3, 4):
         text(f"{market['emsalSayisi']} benzer ilan bulundu; 5'ten az olduğu için fiyatlar yön göstericidir.")

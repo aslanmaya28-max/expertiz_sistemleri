@@ -440,6 +440,20 @@ export interface ValuationRequestPayload {
   parts?: Record<string, PartStatus>;
   tramer_amount?: number;
   tramer_count?: number;
+  /** Kasa geçiş yılında müşterinin seçimi */
+  kasa?: "yeni" | "eski";
+}
+
+export interface KasaSecenegi { kod: "yeni" | "eski"; kasa?: string | null; baslangic?: number | null; bitis?: number | null }
+export interface KasaBilgisi { gecisYili: boolean; kasa?: string | null; secenekler: KasaSecenegi[] }
+
+export interface GecisYiliHavuzu { kasa?: string | null; baslangic?: number | null; bitis?: number | null; ortaFiyat?: number | null; emsal?: number | null }
+export interface GecisYili {
+  yil?: number | null;
+  secilen: "yeni" | "eski";
+  neden: "musteri" | "ilan_fiyati" | "tek_havuz" | "bulunamadi";
+  yeni: GecisYiliHavuzu;
+  eski: GecisYiliHavuzu;
 }
 
 export interface ValuationHorizon {
@@ -506,6 +520,8 @@ export interface ValuationResult {
     kaynak: "web_listings" | "listings";
     kaynaklar: { site?: string | null; url?: string | null; fiyat?: number | null; duzeltilmisFiyat?: number | null; km?: number | null; yil?: number | null }[];
     /** İlan fiyatlarının bu araca (yıl/km) göre düzeltilmesi; eski raporlarda yok */
+    /** Kasa geçiş yılı: iki kasanın bu araca göre orta fiyatı; eski raporlarda yok */
+    gecisYili?: GecisYili | null;
     duzeltme?: { aracYili?: number; aracKm?: number; yillikOran?: number | null; yilAraligi?: [number, number] | null;
                  kasa?: string | null; ayniYilSayisi?: number | null } | null;
     uyarilar: string[];
@@ -672,6 +688,11 @@ export function prefillValuation(url: string): Promise<ValuationPrefill> {
 
 export function prefillValuationText(text: string): Promise<ValuationPrefill> {
   return fetchAPI<ValuationPrefill>("/valuation/prefill-text", { method: "POST", body: JSON.stringify({ text }) });
+}
+
+export function getKasaBilgisi(brand: string, model: string, year: number): Promise<KasaBilgisi> {
+  const q = new URLSearchParams({ brand, model, year: String(year) });
+  return fetchAPI<KasaBilgisi>(`/valuation/generation?${q.toString()}`);
 }
 
 export function analyzeValuation(payload: ValuationRequestPayload): Promise<ValuationResult> {
