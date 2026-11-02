@@ -208,7 +208,7 @@ def test_complaints_merge_topics_count_root_domains_and_omit_cost(monkeypatch):
         {"baslik": "Turbo", "kaynaklar": [urls[0]]},
     ], {url: "Seat Arona 1.0 TSI DSG triger sesi ve turbo yorumu." for url in urls})
     result = vr.get_model_risks(VEHICLE)
-    assert len(calls) == 1 and result["scope"]["searches"] == 1
+    assert len(calls) == 1 and result["scope"]["searches"] == 2  # risk + Türkçe şikâyet araması
     assert result["kullaniciSikayetleri"] == [{
         "baslik": "Triger sesi", "aciklama": "Kullanıcılar triger sesinden söz ediyor.",
         "kaynakSayisi": 2, "kaynaklar": urls, "kategori": "mekanik_motor", "onem": "yuksek"}]
@@ -379,3 +379,41 @@ def test_gasoline_filter_is_not_confused_with_diesel_filter(monkeypatch, title, 
     result = vr.get_model_risks(VEHICLE)
     assert bool(result['riskler']) is keep
     assert bool(result['kullaniciSikayetleri']) is keep
+
+
+
+def test_ayri_turkce_sikayet_aramasi_birlestirilir(monkeypatch):
+    """Risk araması forum getirmese de ayrı Türkçe arama şikâyetleri bulur (Tucson, 02.11.2026)."""
+    search(monkeypatch, [item()])
+    asked = []
+    forum = ["https://www.sikayetvar.com/seat/arona-dsg", "https://forum.donanimhaber.com/arona-dsg"]
+
+    def complaints(query, client):
+        asked.append(query)
+        return {"complaints": [{"baslik": "DSG şanzıman titremesi", "aciklama": "Kalkışta titreme bildiriliyor.",
+                                "kaynaklar": forum}],
+                "sources": {u: "Seat Arona 1.0 TSI DSG şanzıman titreme şikayeti" for u in forum}, "cost": .007}
+
+    monkeypatch.setattr(vr, "_search_complaints", complaints)
+    result = vr.get_model_risks(VEHICLE)
+    assert asked and "kronik sorun" in asked[0] and "Arona" in asked[0]
+    assert result["scope"]["searches"] == 2 and result["scope"]["cost_usd"] == pytest.approx(.016)
+    assert [c["baslik"] for c in result["kullaniciSikayetleri"]] == ["DSG şanzıman titremesi"]
+    assert result["kullaniciSikayetleri"][0]["kaynakSayisi"] == 2
+    assert result["riskler"]  # risk araması da yerinde
+
+
+def test_sikayet_aramasi_dusse_de_riskler_gelir_ve_onbellege_yazilmaz(monkeypatch):
+    monkeypatch.setenv("WEB_RISK_CACHE_DAYS", "30")
+    written = []
+    monkeypatch.setattr(vr.wmr, "_cache_read", lambda *a: None)
+    monkeypatch.setattr(vr.wmr, "_cache_write", lambda key, value: written.append(key))
+    search(monkeypatch, [item()])
+
+    def fail(query, client):
+        raise ValueError("Şikâyet aramasında JSON yok")
+
+    monkeypatch.setattr(vr, "_search_complaints", fail)
+    result = vr.get_model_risks(VEHICLE)
+    assert result["riskler"] and result["kullaniciSikayetleri"] == []
+    assert written == []  # 30 gün boyunca boş şikâyetle kalınmasın
