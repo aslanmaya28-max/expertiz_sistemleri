@@ -6,7 +6,7 @@
 /// 1. ROLE GUARD: Sadece admin kullanıcıları içeri alır
 /// 2. SINGLE ENTRY POINT: Admin paneline girişi kontrol eder
 /// 3. SIDEBAR/DRAWER: Navigation'ı yönetir
-/// 4. TAB ROUTING: 10 sekme için modül routing sağlar
+/// 4. TAB ROUTING: 9 sekme için modül routing sağlar
 /// 
 /// ❌ Business logic YOK - Her modül kendi işini halleder
 /// ✅ Sadece auth check ve navigation
@@ -30,6 +30,7 @@ import 'modules/rapor_inceleme_module.dart';
 import 'modules/fiyatlandirma_module.dart';
 import 'modules/finans_yonetimi.dart';
 import 'modules/ayarlar_module.dart';
+import 'modules/piyasa_takibi_module.dart';
 
 /// Admin Shell
 /// 
@@ -49,7 +50,7 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 8, vsync: this);
+    _tabController = TabController(length: 9, vsync: this);
   }
 
   @override
@@ -86,7 +87,7 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
             body: TabBarView(
               controller: _tabController,
               children: [
-                // 8 Modül - Her biri kendi işini halleder
+                // 9 Modül - Her biri kendi işini halleder
                 const DashboardModule(),
                 const AracOperasyonu(),
                 _buildPersonelModule(context),
@@ -95,6 +96,7 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
                 const FinansYonetimi(),
                 const FiyatlandirmaModule(),
                 const AyarlarModule(),
+                const PiyasaTakibiModule(),
               ],
             ),
           ),
@@ -285,6 +287,7 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
                 _buildDrawerItem(Icons.attach_money, 'Finans Yönetimi', 5, isDarkMode),
                 _buildDrawerItem(Icons.sell, 'Fiyatlandırma', 6, isDarkMode),
                 _buildDrawerItem(Icons.settings, 'Ayarlar', 7, isDarkMode),
+                _buildDrawerItem(Icons.query_stats, 'Piyasa takibi', 8, isDarkMode),
 
                 // DIVIDER
                 Divider(color: Colors.white.withAlpha(25), thickness: 1),
