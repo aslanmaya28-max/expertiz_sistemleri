@@ -22,6 +22,14 @@ Admin/personel paneli (`expertiz_paneli/`) ayrı kalır; müşteri uygulamasına
 | 023 | Ekspertiz talep ekranı, sunucu ayarıyla **kapalı** başlar | 020 |
 | 024 | Yayın hazırlığı: ikon, imza, mağaza metinleri, veri güvenliği formu notları | 021, 022 |
 
+| 025 | Ekspertiz raporu fotoğrafından kaporta ve bulguları okuma (sunucu + web; uygulamaya sonra) | — |
+| 026 | Kronik arızalarda kaynaklı masraf aralığı, kilometre ve kategori | 025'ten sonra (aynı dosya) |
+
+**Rakip ve fiyat kararı (4 Kasım 2026):** UstamVar (iOS + Android, 1 analiz 39,99 TL) inceledi. Kullanıcı kararı: **fiyatta taviz yok**
+(100 / 400 / 750 TL); raporumuz daha işlevsel. Rakibin iyi yanları entegre edilir: ekspertiz raporu fotoğrafı (025), kronik arıza
+masraf/km/kategori (026); sonra: iki aracı karşılaştırma ("Hangisini alayım?"), model bazlı arıza rehberi sayfaları (SEO), iOS.
+Mesaj: "Önce rapor, sonra gerçek ekspertiz" — rakip fiziksel ekspertizin yerini tutmadığını kendisi söylüyor.
+
 Kurallar:
 - Dijital ürün (analiz kredisi) uygulama içinde **yalnız Google Play Faturalandırma** ile satılır. Uygulama web ödeme sayfasına
   yönlendirmez, link vermez. Web'de alınan kredi uygulamada kullanılabilir (aynı hesap).
