@@ -21,6 +21,7 @@ Kullanıcıyla, commit mesajlarında ve raporlarda Türkçe yaz (Türkçe karakt
 - API: `musteri_paneli/yerimebak_ai_v5/` (FastAPI, PostgreSQL). Yapay zekâ değerlemesi: `workers/ai_analysis_worker.py`, `services/web_market_reference.py`, `core/ai/inspection_valuation.py`.
 - Müşteri sitesi: `musteri_paneli/frontend/` (Next.js; önce `frontend/AGENTS.md`).
 - Admin/personel paneli: `expertiz_paneli/` (Flutter web).
+- Android müşteri uygulaması: `musteri_uygulamasi/` (Flutter; API/oturum katmanı ekranlardan ayrı, tasarım tokenları `lib/tema/`).
 
 ## Testler (teslimden önce ilgili olanları çalıştır)
 ```sh
@@ -29,5 +30,6 @@ cd musteri_paneli && python -m pytest tests/unit -q
 TEST_DATABASE_URL=postgresql://postgres:test@localhost:55432/ybtest SECRET_KEY=test OPENROUTER_API_KEY= python -m pytest tests -q
 cd musteri_paneli/frontend && npx tsc --noEmit && node --test tests/*.test.mjs
 cd expertiz_paneli && flutter analyze --no-pub && flutter test --no-pub
+cd musteri_uygulamasi && flutter pub get && flutter analyze && flutter test
 ```
 Test veritabanı yoksa: `docker run -d --rm --name yb-test-db -e POSTGRES_PASSWORD=test -e POSTGRES_DB=ybtest -p 55432:5432 postgres:16-alpine`
