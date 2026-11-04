@@ -73,3 +73,24 @@ flutter test test/theme_golden_test.dart --update-goldens
 
 `PlatformServices`, `TokenStore`, HTTP istemcisi ve Riverpod sağlayıcıları testlerde değiştirilebilir.
 Tema seçimi bu altyapı sürümünde geçerli uygulama oturumu boyunca korunur; yeniden açılış varsayılan olarak sistem temasını izler.
+
+## İlan okuma, analiz ve Google Play (021–022)
+
+- **Akış:** link yapıştır ya da ilan uygulamasında *Paylaş → YerimeBak* → `/analiz/oku` (önce sunucu `GET /valuation/prefill`;
+  sahibinden.com'da ya da sunucu okuyamazsa ilan telefonda görünmeyen WebView'de açılır, ilan numarası/tarihi görülünce metin
+  `POST /valuation/prefill-text`'e gider) → dolu form → `POST /valuation/analyze` (tek `request_id`, 200 sn zaman aşımı, bağlantı
+  koparsa aynı numarayla 6 deneme) → rapor detayı. Sayfa çerez onayı/doğrulama isterse müşteriye gösterilir; okuma kendiliğinden sürer.
+- **Kredi:** Google Play tüketilebilir ürünleri `paket1/5/10`. Satın alma `autoConsume: false`; kredi yalnız sunucu
+  `POST /payments/google-play/verify` sonrası yüklenmiş sayılır, tüketmeyi sunucu yapar. Uygulama açılışında yarım kalan satın almalar
+  `restorePurchases` ile yeniden doğrulanır. Uygulama web ödemesine link vermez.
+- **Emülatörde uçtan uca deneme:**
+  ```sh
+  # Sunucu (ayrı veritabanı; 10.0.2.2 izni şart, yoksa "Invalid host header" 400)
+  cd musteri_paneli && EXTRA_ALLOWED_HOSTS=10.0.2.2 DATABASE_URL=postgresql://postgres:test@localhost:55432/ybapp \
+    PAYMENT_SIMULATION=true GOOGLE_PLAY_SIMULATION=true MEDIA_STORAGE=local python -m uvicorn yerimebak_ai_v5.main:app --host 0.0.0.0 --port 8001
+  # Uygulama (Google Play'siz deneme satın alması yalnız debug'da)
+  flutter build apk --debug --dart-define=API_BASE_URL=http://10.0.2.2:8001/api/v1 --dart-define=PLAY_SIMULASYON=true
+  # Paylaşım denemesi
+  adb shell "am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT '<ilan linki>' -n com.yerimebak.app/.MainActivity"
+  ```
+- **Marka/model kataloğu** web'den üretilir: `python tool/katalog_uret.py ../musteri_paneli/frontend/src/lib/aracFormu.ts lib/analiz/arac_katalogu.dart`.
