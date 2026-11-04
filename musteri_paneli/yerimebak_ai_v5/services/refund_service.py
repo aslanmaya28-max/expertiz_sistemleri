@@ -172,6 +172,9 @@ def refund_credit_order(order_id: str, admin: Dict[str, Any], reason: str) -> Di
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
+        # Hesap silme ve ödeme tamamlama ile aynı kilit sırası.
+        cursor.execute('''SELECT id FROM users WHERE id=(SELECT user_id FROM payment_orders
+            WHERE id=%s OR paytr_oid=%s LIMIT 1) FOR UPDATE''', (str(order_id), str(order_id)))
         cursor.execute(
             "SELECT * FROM payment_orders WHERE id = %s OR paytr_oid = %s FOR UPDATE",
             (str(order_id), str(order_id)),
@@ -180,6 +183,8 @@ def refund_credit_order(order_id: str, admin: Dict[str, Any], reason: str) -> Di
         if not order:
             return _error("Siparis bulunamadi", 404)
         order = dict(order)
+        if order.get('payment_method') == 'google_play':
+            return _error('Google Play iadelerini Play Console üzerinden yapın; ardından iade senkronunu çalıştırın.', 400)
         if order.get("status") == "refunded":
             return _error("Siparis zaten iade edilmis", 409)
         if order.get("status") != "approved":

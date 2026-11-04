@@ -134,9 +134,11 @@ def set_customer_active(customer_id: int, active: bool, reason: str, admin: Dict
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
-        customer = _get_customer(cursor, customer_id)
+        customer = _get_customer(cursor, customer_id, lock=True)
         if not customer:
             return _error("Musteri bulunamadi", 404)
+        if customer.get('deleted_at'):
+            return _error('Silinmiş hesap yeniden etkinleştirilemez.', 409)
         cursor.execute("UPDATE users SET is_active = %s WHERE id = %s", (1 if active else 0, customer_id))
         _write_audit(
             cursor,

@@ -10,6 +10,10 @@ export class ApiError extends Error {
   }
 }
 
+export function deleteAccount(password: string): Promise<{ success: boolean; message: string }> {
+  return fetchAPI('/auth/delete-account', { method: 'POST', body: JSON.stringify({ password }) });
+}
+
 async function fetchAPI<T>(endpoint: string, options?: RequestInit, responseType: "json" | "blob" = "json", authenticated = true): Promise<T> {
   const token = authenticated ? getToken() : null;
   const res = await fetch(`${API_BASE}${endpoint}`, {

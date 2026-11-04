@@ -86,7 +86,31 @@ def _record_contract(user: Dict[str, Any], oid: str, user_ip: str) -> None:
     account_service.record_consents(user["id"], ["preliminary_info", "distance_sales"], reference=oid, ip=user_ip)
 
 
+def _with_active_account(user, operation):
+    """Auth sonrası bekleyen ödeme başlangıcı, silmeden sonra PII yazamasın.
+
+    Kilit; onay, sipariş ve sağlayıcıya aktarım tamamlanana kadar tutulur.
+    Silme önce bittiyse işlem reddedilir; başlangıç önce bittiyse silme onun
+    yazdığı kopyaları da anonimleştirir. Ödeme sağlayıcı akışı aynı kalır.
+    """
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM users WHERE id=%s FOR NO KEY UPDATE', (user['id'],))
+        row = cursor.fetchone()
+        if not row or not row['is_active'] or row.get('deleted_at'):
+            return _error('Hesap etkin değil.', 401)
+        return operation(dict(row))
+    finally:
+        conn.rollback()  # Yalnız kullanıcı kilidi; yazımlar mevcut ödeme işlemlerinde commit edilir.
+        DatabaseConfig.return_connection(conn)
+
+
 def start_credit_purchase(user: Dict[str, Any], package_key: str, user_ip: str, contract_accepted: bool = False) -> Dict[str, Any]:
+    return _with_active_account(user, lambda current: _start_credit_purchase(current, package_key, user_ip, contract_accepted))
+
+
+def _start_credit_purchase(user: Dict[str, Any], package_key: str, user_ip: str, contract_accepted: bool = False) -> Dict[str, Any]:
     from yerimebak_ai_v5.services.payment_service import CREDIT_PACKAGES
 
     ensure_schema()
@@ -129,6 +153,9 @@ def start_credit_purchase(user: Dict[str, Any], package_key: str, user_ip: str, 
 
 
 def _fulfill_credit(cursor: Any, oid: str, total_kurus: Optional[int]) -> Dict[str, Any]:
+    # Silme/iade ile aynı sıra: önce kullanıcı, sonra sipariş kilidi.
+    cursor.execute('''SELECT id FROM users WHERE id=(
+        SELECT user_id FROM payment_orders WHERE paytr_oid=%s) FOR UPDATE''', (oid,))
     cursor.execute(
         """
         UPDATE payment_orders
@@ -143,13 +170,21 @@ def _fulfill_credit(cursor: Any, oid: str, total_kurus: Optional[int]) -> Dict[s
     if not row:
         return {"fulfilled": False}
     row = dict(row)
-    cursor.execute("UPDATE users SET credits = credits + %s WHERE id = %s RETURNING credits", (row["credits"], row["user_id"]))
-    balance = dict(cursor.fetchone())["credits"]
+    cursor.execute("""UPDATE users SET credits = CASE WHEN deleted_at IS NULL THEN credits + %s ELSE 0 END
+                      WHERE id = %s RETURNING credits, deleted_at""", (row["credits"], row["user_id"]))
+    account = dict(cursor.fetchone())
+    balance = account['credits']
+    deleted = bool(account.get('deleted_at'))
     cursor.execute(
         "INSERT INTO credit_usage_logs (user_id, action, credits_used, description) VALUES (%s, %s, %s, %s)",
         (row["user_id"], "credit_purchase", int(row["credits"]), f"PayTR {oid}: {row['credits']} kredi yuklendi"),
     )
-    return {"fulfilled": True, "credits_added": int(row["credits"]), "new_balance": int(balance),
+    if deleted:
+        cursor.execute('''INSERT INTO credit_usage_logs (user_id,action,credits_used,description)
+            VALUES (%s,'account_deleted',%s,%s)''',
+            (row['user_id'], -int(row['credits']), f"Hesap silindikten sonra tamamlanan {oid} ödemesinin kredileri sıfırlandı"))
+    return {"fulfilled": True, "credits_added": 0 if deleted else int(row["credits"]), "new_balance": int(balance),
+            "account_deleted": deleted,
             "kind": "credits", "email": row.get("user_email"), "amount_tl": float(row["amount_tl"] or 0),
             "title": f"{row.get('package_name') or 'Kredi paketi'} ({int(row['credits'])} analiz kredisi)"}
 
@@ -196,6 +231,10 @@ def quote_expertiz(firm_id: str, package_id: str) -> Dict[str, Any]:
 
 
 def start_expertiz_checkout(payload: Dict[str, Any], user: Dict[str, Any], user_ip: str) -> Dict[str, Any]:
+    return _with_active_account(user, lambda current: _start_expertiz_checkout(payload, current, user_ip))
+
+
+def _start_expertiz_checkout(payload: Dict[str, Any], user: Dict[str, Any], user_ip: str) -> Dict[str, Any]:
     from yerimebak_ai_v5.services.expertiz_service import _ensure_expertiz_requests_schema
 
     ensure_schema()
@@ -351,6 +390,8 @@ def _mark_failed(oid: str, reason: str) -> None:
 def _send_receipt(oid: str, result: Dict[str, Any]) -> None:
     """Odeme onayi e-postasi (makbuz). Fatura muhasebe tarafindan ayrica kesilir."""
     from yerimebak_ai_v5.services import email_service
+    if result.get('account_deleted'):
+        return  # Silinen hesaba makbuz e-postası gönderilmez; muhasebe kaydı korunur.
 
     amount = f"{result.get('amount_tl', 0):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     lines = [

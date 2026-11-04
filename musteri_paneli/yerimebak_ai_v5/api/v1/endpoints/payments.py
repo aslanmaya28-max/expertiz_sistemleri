@@ -6,13 +6,44 @@ import asyncio
 from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import PlainTextResponse
 from typing import Dict, Any, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from yerimebak_ai_v5.services.payment_service import get_payment_service
 from yerimebak_ai_v5.services import checkout_service, paytr_service
 from yerimebak_ai_v5.api.v1.endpoints.auth import get_current_user, get_admin_user
 
 router = APIRouter()
+
+
+class GooglePlayVerifyRequest(BaseModel):
+    product_id: str = Field(min_length=1, max_length=100)
+    purchase_token: str = Field(min_length=1, max_length=4096)
+
+
+def _google_call(function, *args):
+    from yerimebak_ai_v5.services.google_play_service import GooglePlayError
+    try:
+        return function(*args)
+    except GooglePlayError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from None
+
+
+@router.get('/google-play/products')
+def google_play_products(user: Dict[str, Any] = Depends(get_current_user)):
+    from yerimebak_ai_v5.services import google_play_service
+    return google_play_service.get_products(user)
+
+
+@router.post('/google-play/verify')
+def google_play_verify(payload: GooglePlayVerifyRequest, user: Dict[str, Any] = Depends(get_current_user)):
+    from yerimebak_ai_v5.services import google_play_service
+    return _google_call(google_play_service.verify_purchase, user, payload.product_id, payload.purchase_token)
+
+
+@router.post('/admin/google-play/sync-voided')
+def google_play_sync_voided(admin: Dict[str, Any] = Depends(get_admin_user)):
+    from yerimebak_ai_v5.services import google_play_service
+    return _google_call(google_play_service.sync_voided_purchases)
 
 
 # ──────────────────────────────────────────────
