@@ -33,6 +33,12 @@ Kurallar:
 - Uygulama gelirinin vergisi (GVK 20/B istisnası ya da şahıs şirketi) mali müşavirle netleşir.
 
 ## Aşama 3 — Ekspertiz (ikinci gelir kapısı)
+- **İş modeli (4 Kasım 2026):** saha incelemesi ve cihazlı ekspertizi faturalı, anlaşmalı **kurumsal ekspertiz firmaları** yapar (B2B);
+  kendi saha personeli yok ya da yalnız İstanbul pilotunda. Para akışı **toplu satış**: müşteri hizmet bedeli + firma paketini YerimeBak'a öder,
+  firma ekspertiz ücretini YerimeBak'a fatura eder. YerimeBak'ın farkı: uzaktaki müşteri için organizasyon (satıcıyla randevu, yapay zekâ
+  raporu, beyanla karşılaştırma, tek ödeme), sonra vekaletle alım (araç doğrudan müşteri adına) ve kurumsal çekiciyle ile sevk.
+  Personel paneli "firma kullanıcısı" olarak kullanılabilir. Açık sorular: toplu satışın KDV/fatura biçimi (mali müşavir), vekaletle alım için
+  yetki belgesi (avukat), firmalarla sözleşme ve sorumluluk maddesi.
 - Şahıs şirketi, mali müşavir, PayTR üye işyeri, e-Arşiv fatura, ETBİS kaydı.
 - Yasal sayfalarda şirket bilgileri (Vercel `COMPANY_*` değişkenleri).
 - Web ekspertiz akışının son testleri: ödeme, personel ataması, admin onayı. Talep formu hâlâ `/expertiz/requests/unpaid` kullanıyor; ödemeli akışa geçer.
