@@ -1,0 +1,98 @@
+import 'package:flutter/material.dart';
+
+/// TASARIM_SISTEMI.md b?l?m 3; koyu temada marka band? kullan?lmaz.
+class YbRenkler extends ThemeExtension<YbRenkler> {
+  final Map<String, Color> _values;
+  const YbRenkler._(this._values);
+  Color get zemin => _values['zemin']!;
+  Color get yuzey => _values['yuzey']!;
+  Color get yuzeyIkincil => _values['yuzeyIkincil']!;
+  Color get metin => _values['metin']!;
+  Color get metinIkincil => _values['metinIkincil']!;
+  Color get metinGovde => _values['metinGovde']!;
+  Color get ikonPasif => _values['ikonPasif']!;
+  Color get kenarlik => _values['kenarlik']!;
+  Color get ayirici => _values['ayirici']!;
+  Color get girdiKenarlik => _values['girdiKenarlik']!;
+  Color get birincil => _values['birincil']!;
+  Color get birincilUstu => _values['birincilUstu']!;
+  Color get birincilMetin => _values['birincilMetin']!;
+  Color get birincilYuzey => _values['birincilYuzey']!;
+  Color get birincilAcik => _values['birincilAcik']!;
+  Color get markaBandi => _values['markaBandi']!;
+  Color get markaBandiMetin => _values['markaBandiMetin']!;
+  Color get markaBandiVurgu => _values['markaBandiVurgu']!;
+  Color get uyari => _values['uyari']!;
+  Color get uyariYuzey => _values['uyariYuzey']!;
+  Color get uyariKenar => _values['uyariKenar']!;
+  Color get tehlike => _values['tehlike']!;
+  Color get tehlikeYuzey => _values['tehlikeYuzey']!;
+  Color get bilgi => _values['bilgi']!;
+  Color get bilgiYuzey => _values['bilgiYuzey']!;
+  static const acik = YbRenkler._({
+    'zemin': Color(0xFFF2F5F4),
+    'yuzey': Color(0xFFFFFFFF),
+    'yuzeyIkincil': Color(0xFFF2F5F4),
+    'metin': Color(0xFF0F1B1A),
+    'metinIkincil': Color(0xFF4B5B59),
+    'metinGovde': Color(0xFF4B5B59),
+    'ikonPasif': Color(0xFF5B6B69),
+    'kenarlik': Color(0xFFE3E8E7),
+    'ayirici': Color(0xFFE6ECEA),
+    'girdiKenarlik': Color(0xFFCFD8D6),
+    'birincil': Color(0xFF087C72),
+    'birincilUstu': Color(0xFFFFFFFF),
+    'birincilMetin': Color(0xFF075E56),
+    'birincilYuzey': Color(0xFFE3F3EF),
+    'birincilAcik': Color(0xFF9ED8CF),
+    'markaBandi': Color(0xFF0B4A45),
+    'markaBandiMetin': Color(0xFFB8D4D0),
+    'markaBandiVurgu': Color(0xFF8FE0D3),
+    'uyari': Color(0xFF8A4B00),
+    'uyariYuzey': Color(0xFFFDF1E2),
+    'uyariKenar': Color(0xFFF2C894),
+    'tehlike': Color(0xFF9A2A1C),
+    'tehlikeYuzey': Color(0xFFFCEDEA),
+    'bilgi': Color(0xFF1F4E8C),
+    'bilgiYuzey': Color(0xFFE8F0FB),
+  });
+  static const koyu = YbRenkler._({
+    'zemin': Color(0xFF0D1312),
+    'yuzey': Color(0xFF151D1C),
+    'yuzeyIkincil': Color(0xFF1C2625),
+    'metin': Color(0xFFEAF0EF),
+    'metinIkincil': Color(0xFF9DADAA),
+    'metinGovde': Color(0xFFB7C4C1),
+    'ikonPasif': Color(0xFF9DADAA),
+    'kenarlik': Color(0xFF1F2928),
+    'ayirici': Color(0xFF222D2C),
+    'girdiKenarlik': Color(0xFF2A3735),
+    'birincil': Color(0xFF3DC2B0),
+    'birincilUstu': Color(0xFF04201C),
+    'birincilMetin': Color(0xFF5FD3C2),
+    'birincilYuzey': Color(0xFF11342F),
+    'birincilAcik': Color(0xFF23625A),
+    'markaBandi': Color(0xFF0D1312),
+    'markaBandiMetin': Color(0xFF9DADAA),
+    'markaBandiVurgu': Color(0xFF3DC2B0),
+    'uyari': Color(0xFFF0B458),
+    'uyariYuzey': Color(0xFF241A0B),
+    'uyariKenar': Color(0xFF6B4A16),
+    'tehlike': Color(0xFFF29A8C),
+    'tehlikeYuzey': Color(0xFF2A1613),
+    'bilgi': Color(0xFF8FB8F0),
+    'bilgiYuzey': Color(0xFF14202F),
+  });
+  @override
+  YbRenkler copyWith({Map<String, Color>? values}) =>
+      YbRenkler._({..._values, ...?values});
+  @override
+  YbRenkler lerp(covariant YbRenkler? other, double t) => other == null
+      ? this
+      : YbRenkler._({
+          for (final key in _values.keys)
+            key: Color.lerp(_values[key], other._values[key], t)!,
+        });
+  static YbRenkler of(BuildContext context) =>
+      Theme.of(context).extension<YbRenkler>()!;
+}

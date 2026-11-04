@@ -1,0 +1,238 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'api/providers.dart';
+import 'bilesenler/ortak.dart';
+import 'ekranlar/auth_screen.dart';
+import 'ekranlar/home_screen.dart';
+import 'ekranlar/profile_screen.dart';
+import 'ekranlar/reports_screen.dart';
+import 'oturum/session_controller.dart';
+import 'tema/tema.dart';
+
+class _RouterRefresh extends ChangeNotifier {
+  void refresh() => notifyListeners();
+}
+
+final routerProvider = Provider<GoRouter>((ref) {
+  final refresh = _RouterRefresh();
+  ref.listen(sessionProvider, (_, _) => refresh.refresh());
+  ref.listen(configProvider, (_, _) => refresh.refresh());
+  ref.listen(versionProvider, (_, _) => refresh.refresh());
+  final router = GoRouter(
+    refreshListenable: refresh,
+    initialLocation: '/',
+    redirect: (context, state) {
+      final config = ref.read(configProvider),
+          version = ref.read(versionProvider),
+          session = ref.read(sessionProvider);
+      final path = state.uri.path;
+      if (config.isLoading ||
+          version.isLoading ||
+          config.hasError ||
+          version.hasError ||
+          session.phase == SessionPhase.restoring ||
+          session.phase == SessionPhase.failed) {
+        return path == '/durum' ? null : '/durum';
+      }
+      try {
+        if (config.requireValue.requiresUpdate(version.requireValue)) {
+          return path == '/guncelle' ? null : '/guncelle';
+        }
+      } on FormatException {
+        return path == '/durum' ? null : '/durum';
+      }
+      final public = ['/giris', '/kayit', '/sifremi-unuttum'].contains(path);
+      if (session.phase != SessionPhase.signedIn) {
+        return public ? null : '/giris';
+      }
+      if (public || path == '/durum' || path == '/guncelle') return '/';
+      return null;
+    },
+    routes: [
+      GoRoute(path: '/durum', builder: (_, _) => const StatusScreen()),
+      GoRoute(path: '/guncelle', builder: (_, _) => const UpdateScreen()),
+      GoRoute(
+        path: '/giris',
+        builder: (_, _) => const AuthScreen(AuthMode.login),
+      ),
+      GoRoute(
+        path: '/kayit',
+        builder: (_, _) => const AuthScreen(AuthMode.register),
+      ),
+      GoRoute(
+        path: '/sifremi-unuttum',
+        builder: (_, _) => const AuthScreen(AuthMode.forgot),
+      ),
+      ShellRoute(
+        builder: (context, state, child) =>
+            AppShell(path: state.uri.path, child: child),
+        routes: [
+          GoRoute(path: '/', builder: (_, _) => const HomeScreen()),
+          GoRoute(
+            path: '/raporlar',
+            builder: (_, _) => const ReportsScreen(),
+            routes: [
+              GoRoute(
+                path: ':id',
+                builder: (_, s) => ReportDetailScreen(s.pathParameters['id']!),
+              ),
+            ],
+          ),
+          GoRoute(path: '/analiz', builder: (_, _) => const ComingSoonScreen()),
+          GoRoute(
+            path: '/kredi',
+            builder: (_, _) => const ComingSoonScreen(credits: true),
+          ),
+          GoRoute(
+            path: '/profil',
+            builder: (_, _) => const ProfileScreen(),
+            routes: [
+              GoRoute(
+                path: 'duzenle',
+                builder: (_, _) => const AccountEditScreen(EditMode.profile),
+              ),
+              GoRoute(
+                path: 'sifre',
+                builder: (_, _) => const AccountEditScreen(EditMode.password),
+              ),
+              GoRoute(
+                path: 'sil',
+                builder: (_, _) => const AccountEditScreen(EditMode.delete),
+              ),
+              GoRoute(
+                path: 'gecmis',
+                builder: (_, _) => const CreditHistoryScreen(),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+    errorBuilder: (context, state) => Scaffold(
+      appBar: AppBar(title: const Text('Sayfa bulunamadı')),
+      body: PageBody(
+        child: TextButton(
+          onPressed: () => context.go('/'),
+          child: const Text('Ana sayfaya dön'),
+        ),
+      ),
+    ),
+  );
+  ref.onDispose(() {
+    router.dispose();
+    refresh.dispose();
+  });
+  return router;
+});
+
+class YerimeBakApp extends ConsumerWidget {
+  const YerimeBakApp({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => MaterialApp.router(
+    title: 'YerimeBak',
+    debugShowCheckedModeBanner: false,
+    theme: YbTema.acik,
+    darkTheme: YbTema.koyu,
+    themeMode: ref.watch(themeModeProvider),
+    routerConfig: ref.watch(routerProvider),
+    locale: const Locale('tr', 'TR'),
+    supportedLocales: const [Locale('tr', 'TR')],
+    localizationsDelegates: GlobalMaterialLocalizations.delegates,
+  );
+}
+
+class AppShell extends StatelessWidget {
+  final Widget child;
+  final String path;
+  const AppShell({super.key, required this.path, required this.child});
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: child,
+    bottomNavigationBar: NavigationBar(
+      selectedIndex: path.startsWith('/raporlar')
+          ? 1
+          : path.startsWith('/kredi')
+          ? 2
+          : path.startsWith('/profil')
+          ? 3
+          : 0,
+      onDestinationSelected: (index) =>
+          context.go(['/', '/raporlar', '/kredi', '/profil'][index]),
+      destinations: const [
+        NavigationDestination(
+          icon: Icon(Icons.home_outlined),
+          label: 'Ana sayfa',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.description_outlined),
+          label: 'Raporlarım',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.account_balance_wallet_outlined),
+          label: 'Kredi',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.person_outline),
+          label: 'Profil',
+        ),
+      ],
+    ),
+  );
+}
+
+class StatusScreen extends ConsumerWidget {
+  const StatusScreen({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(sessionProvider),
+        config = ref.watch(configProvider),
+        version = ref.watch(versionProvider);
+    Object? error = config.error ?? version.error ?? session.error;
+    if (error == null && config.hasValue && version.hasValue) {
+      try {
+        config.requireValue.requiresUpdate(version.requireValue);
+      } on FormatException catch (e) {
+        error = e.message;
+      }
+    }
+    return Scaffold(
+      appBar: AppBar(title: const Text('YerimeBak')),
+      body: PageBody(
+        child: error != null
+            ? FailureView(error, () {
+                ref.invalidate(configProvider);
+                ref.invalidate(versionProvider);
+                ref.read(sessionProvider).restore();
+              })
+            : const LoadingView(),
+      ),
+    );
+  }
+}
+
+class UpdateScreen extends ConsumerWidget {
+  const UpdateScreen({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final config = ref.watch(configProvider).requireValue;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Güncelleme gerekli')),
+      body: PageBody(
+        child: Panel('YerimeBak’ı güncelleyin', [
+          Text(
+            'Devam etmek için en az ${config.minimumVersion} sürümü gerekir.',
+          ),
+          ActionButton(
+            'Mağazada aç',
+            config.storeUrl.isEmpty
+                ? null
+                : () => ref.read(platformProvider).openLink(config.storeUrl),
+          ),
+          Text('Destek: ${config.supportEmail}'),
+        ]),
+      ),
+    );
+  }
+}
