@@ -34,7 +34,7 @@ JWT_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRE_HOURS", "24"))
 def _validate_email(email: str) -> bool:
     """🔒 Email formatini dogrular."""
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    return bool(re.match(pattern, email.strip()))
+    return bool(re.match(pattern, email.strip())) and email.strip().lower().rsplit('@', 1)[-1] != 'silindi.invalid'
 
 
 def _validate_password_strength(password: str) -> Optional[str]:
@@ -161,7 +161,7 @@ class AuthService:
             if not row:
                 return None
             user = dict(row)
-            if not user.get('is_active', 1):
+            if not user.get('is_active', 1) or user.get('deleted_at'):
                 return None
             return {
                 "id": user['id'],
@@ -179,7 +179,7 @@ class AuthService:
         try:
             cursor = conn.cursor()
             cursor.execute(
-                f"SELECT id, email, full_name, phone, credits, role FROM users WHERE id = {self._p}",
+                f"SELECT id, email, full_name, phone, credits, role FROM users WHERE id = {self._p} AND is_active=1 AND deleted_at IS NULL",
                 (user_id,),
             )
             row = cursor.fetchone()
@@ -205,7 +205,7 @@ class AuthService:
             if not user.get('password') or not _verify_password(password, user['password']):
                 return {"error": "Gecersiz email veya sifre"}
 
-            if not user.get('is_active', 1):
+            if not user.get('is_active', 1) or user.get('deleted_at'):
                 return {"error": "Hesabiniz devre disi birakilmis"}
 
             cursor.execute(f"""

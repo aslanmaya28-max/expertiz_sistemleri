@@ -47,6 +47,7 @@ export default function ProfilSayfasi() {
       </div>
 
       <div className="mt-6 flex gap-4">
+        <a href="/hesap-silme" className="px-4 py-2 text-sm font-medium text-tehlike underline">Hesabımı sil</a>
         <a href="/fiyatlar" className="px-4 py-2 bg-birincil text-white text-sm font-medium rounded-lg hover:bg-birincil-koyu transition-colors">Kredi Satın Al</a>
         <button
           onClick={() => { logout(); window.location.href = "/"; }}

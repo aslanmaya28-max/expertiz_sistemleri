@@ -95,6 +95,7 @@ desktop.ini
 **/.kilocode/
 **/.clinerules
 .worktrees/
+*service-account*.json
 
 # Claude <-> Codex koprusu: gorev/sonuc dosyalari yerelde kalir
 kopru/codex_icin/

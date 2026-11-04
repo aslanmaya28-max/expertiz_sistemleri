@@ -42,6 +42,10 @@ class ChangePasswordRequest(BaseModel):
     new_password: str
 
 
+class DeleteAccountRequest(BaseModel):
+    password: str
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -332,9 +336,12 @@ async def update_profile(
         if updates:
             assignments = ", ".join([f"{key} = %s" for key in updates.keys()])
             cursor.execute(
-                f"UPDATE users SET {assignments} WHERE id = %s",
+                f"UPDATE users SET {assignments} WHERE id = %s AND is_active=1 AND deleted_at IS NULL",
                 tuple(updates.values()) + (user["id"],),
             )
+            if not cursor.rowcount:
+                conn.rollback()
+                raise HTTPException(status_code=401, detail='Hesap etkin değil.')
 
         conn.commit()
 
@@ -382,6 +389,15 @@ async def change_password(
     result = get_auth_service().change_password(user.get("id"), payload.current_password, payload.new_password)
     if "error" in result:
         raise HTTPException(status_code=int(result.get("http_status") or 400), detail=result["error"])
+    return result
+
+
+@router.post('/delete-account')
+def delete_account(payload: DeleteAccountRequest, user: Dict[str, Any] = Depends(get_current_user)):
+    from yerimebak_ai_v5.services import account_service
+    result = account_service.delete_account(user['id'], payload.password)
+    if 'error' in result:
+        raise HTTPException(status_code=int(result.get('http_status') or 400), detail=result['error'])
     return result
 
 

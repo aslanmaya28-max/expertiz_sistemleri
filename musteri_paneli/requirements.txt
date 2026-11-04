@@ -18,6 +18,7 @@ pyjwt>=2.8.0
 # Dis servisler (OpenRouter / DeepSeek, PayTR)
 httpx>=0.25.0
 requests>=2.31.0
+google-auth>=2.38.0,<3
 openai>=1.0.0
 
 # Kurumsal rapor PDF metni

@@ -54,6 +54,7 @@ def ensure_schema(force: bool = False) -> None:
         conn = DatabaseConfig.get_connection()
         try:
             cursor = conn.cursor()
+            cursor.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ')
             # Mevcut kullanicilar dogrulanmis sayilir (DEFAULT TRUE ile eklenir),
             # bundan sonraki kayitlar FALSE baslar.
             cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT TRUE")
@@ -308,5 +309,108 @@ def reset_password(token: str, new_password: str) -> Dict[str, Any]:
         )
         conn.commit()
         return {"success": True}
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
+def delete_account(user_id: Any, password: str) -> Dict[str, Any]:
+    """Müşteri kişisel alanlarını ve kurtarma bağlantılarını tek işlemde temizler."""
+    import json
+    from psycopg2.extras import Json
+    from yerimebak_ai_v5.services.auth_service import _hash_password, _verify_password
+    from yerimebak_ai_v5.services.expertiz_service import _expertiz_profile_id
+
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM users WHERE id=%s FOR UPDATE', (user_id,))
+        row = cursor.fetchone()
+        if not row or not row['is_active']:
+            return _error('Hesap etkin değil.', 401)
+        user = dict(row)
+        if str(user.get('role') or '').lower() not in ('user', 'musteri', 'customer'):
+            return _error('Admin ve personel hesapları bu yolla silinemez.', 403)
+        if not _verify_password(password or '', user.get('password') or ''):
+            return _error('Şifreniz yanlış.', 403)
+        uid = user['id']
+        email = f'silindi-{uid}@silindi.invalid'
+        cursor.execute('''SELECT 1 FROM users WHERE lower(email)=lower(%s) AND id<>%s
+                          UNION ALL SELECT 1 FROM profiles WHERE lower(email)=lower(%s) AND id<>%s LIMIT 1''',
+                       (email, uid, email, _expertiz_profile_id(user)))
+        if cursor.fetchone():
+            # Eski kurulumda rezerve alan adıyla açılmış hesaplar silmeyi engellemez.
+            email = f'silindi-{uid}-{secrets.token_hex(12)}@silindi.invalid'
+        # Bazı profil kolonları eski kurulumlarda yalnız /auth/profile açıldığında eklenir.
+        personal_fields = ('full_name', 'phone', 'api_key', 'company_name', 'city',
+                           'tax_number', 'tax_office', 'invoice_address')
+        assignments = ','.join(f'{field}=NULL' for field in personal_fields if field in user)
+        cursor.execute(f'''UPDATE users SET email=%s,password=%s,is_active=0,credits=0,
+                            deleted_at=NOW(),{assignments} WHERE id=%s''',
+                       (email, _hash_password(secrets.token_urlsafe(48)), uid))
+        cursor.execute('UPDATE account_tokens SET used_at=NOW() WHERE user_id=%s AND used_at IS NULL', (uid,))
+        cursor.execute('UPDATE legal_consents SET ip=NULL WHERE user_id=%s', (uid,))
+        cursor.execute('UPDATE payment_orders SET user_email=%s,user_phone=NULL WHERE user_id=%s', (email, uid))
+        cursor.execute('''INSERT INTO credit_usage_logs (user_id,action,credits_used,description)
+                          VALUES (%s,'account_deleted',%s,'Hesap silindi; kalan kredi sıfırlandı')''',
+                       (uid, -int(user.get('credits') or 0)))
+
+        # Raporlar tutulur; müşteri kopyaları ad/e-posta/telefon/adres taşımaz.
+        sensitive_keys = {'email', 'e_posta', 'phone', 'telefon', 'full_name', 'customer_name',
+                          'customer_email', 'customer_phone', 'musteriAdi', 'ad_soyad',
+                          'invoice_address', 'tax_number', 'tax_office', 'company_name',
+                          'address', 'adres', 'obfuscatedExternalAccountId', 'user_email', 'user_phone'}
+        originals = sorted({str(user[k]) for k in ('email', 'phone')
+                            if user.get(k) and len(str(user[k])) >= 3}, key=len, reverse=True)
+
+        def scrub(value):
+            if isinstance(value, dict):
+                return {k: (None if k in sensitive_keys else scrub(v)) for k, v in value.items()}
+            if isinstance(value, list):
+                return [scrub(v) for v in value]
+            if isinstance(value, str):
+                for original in originals:
+                    value = value.replace(original, '[silindi]')
+            return value
+
+        def scrub_rows(table, fields, where, params, json_fields=()):
+            cursor.execute(f'SELECT id,{",".join(fields)} FROM {table} WHERE {where}', params)
+            for record in cursor.fetchall():
+                values = []
+                for field in fields:
+                    value = record[field]
+                    if field in json_fields and isinstance(value, str):
+                        try:
+                            value = json.loads(value)
+                        except ValueError:
+                            value = {}
+                    cleaned = scrub(value)
+                    if field in json_fields:
+                        values.append(Json(cleaned) if field == 'report_json' or table in ('reports', 'google_play_purchases') else json.dumps(cleaned, ensure_ascii=False))
+                    else:
+                        values.append(cleaned)
+                cursor.execute(f'UPDATE {table} SET {",".join(f"{f}=%s" for f in fields)} WHERE id=%s',
+                               (*values, record['id']))
+
+        cursor.execute("SELECT set_config('yerimebak.anonymizing_user',%s,true)", (str(uid),))
+        scrub_rows('analysis_history', ('vehicle_json', 'valuation_json', 'report_json'), 'user_id=%s', (uid,),
+                   ('vehicle_json', 'valuation_json', 'report_json'))
+        cursor.execute("SELECT set_config('yerimebak.anonymizing_user','',true)")
+        scrub_rows('payment_orders', ('admin_note',), 'user_id=%s', (uid,))
+        scrub_rows('credit_usage_logs', ('description',), 'user_id=%s', (uid,))
+        scrub_rows('google_play_purchases', ('raw_json',), 'user_id=%s', (uid,), ('raw_json',))
+        scrub_rows('expertiz_requests', ('data',), 'user_id=%s', (str(uid),), ('data',))
+        cursor.execute('UPDATE expertiz_requests SET user_email=%s WHERE user_id=%s', (email, str(uid)))
+        profile_id = _expertiz_profile_id(user)
+        scrub_rows('reports', ('data', 'ai_analiz_detay', 'ai_analysis_result'),
+                   'user_id=%s OR customer_id=%s', (profile_id, profile_id),
+                   ('data', 'ai_analiz_detay', 'ai_analysis_result'))
+        cursor.execute('''UPDATE profiles SET email=%s,ad_soyad='',telefon=NULL,bolge=NULL,
+                          aktif_mi=FALSE,updated_at=NOW() WHERE id=%s''', (email, profile_id))
+        cursor.execute("DELETE FROM notifications WHERE audience='user' AND user_id=%s", (str(uid),))
+        conn.commit()
+        return {'success': True, 'message': 'Hesabınız silindi ve kişisel bilgileriniz anonimleştirildi.'}
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         DatabaseConfig.return_connection(conn)

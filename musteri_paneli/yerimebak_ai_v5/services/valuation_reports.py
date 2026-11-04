@@ -42,6 +42,17 @@ def ensure_schema(cursor):
     cursor.execute('''CREATE OR REPLACE FUNCTION protect_valuation_snapshot() RETURNS trigger AS $$
         BEGIN
             IF OLD.report_json IS NOT NULL THEN
+                -- Yalnız hesap silme işleminin aynı transaction içindeki anonimleştirmesi.
+                -- Kimlik, rapor numarası, zaman ve diğer arşiv metaverileri korunur.
+                IF TG_OP = 'UPDATE'
+                   AND current_setting('yerimebak.anonymizing_user', true) = OLD.user_id::text
+                   AND EXISTS (SELECT 1 FROM users WHERE id=OLD.user_id AND is_active=0
+                               AND deleted_at=transaction_timestamp()
+                               AND xmin::text=(txid_current() % 4294967296)::text)
+                   AND (to_jsonb(NEW) - ARRAY['vehicle_json','valuation_json','report_json'])
+                       = (to_jsonb(OLD) - ARRAY['vehicle_json','valuation_json','report_json']) THEN
+                    RETURN NEW;
+                END IF;
                 RAISE EXCEPTION 'Kayıtlı değerleme raporu değiştirilemez';
             END IF;
             IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
