@@ -1,0 +1,45 @@
+# YerimeBak yol haritası (4 Kasım 2026)
+
+Karar: önce az parayla çalışan ve gelir getiren parça çıkar. **Mobil uygulamadaki kredili araç değerleme**
+nakit akışını sağlar. Ekspertiz (yerinde inceleme), şirket kuruluşu ve PayTR bu gelirle kurulur.
+
+## Aşama 1 — Sunucu (uygulama buna bağlanır)
+- `degerleme-web-kaynak` dalı `main`'e birleşir (Render ve Vercel `main`'den yayınlar). Yalnız kullanıcı onayıyla.
+- Supabase (PostgreSQL + dosya deposu) ve Render (API) kurulumu: `musteri_paneli/docs/CANLIYA_CIKIS.md`.
+- `api.yerimebak.com.tr` DNS kaydı.
+- Maliyet: Render Starter ~7 $/ay, Supabase başlangıçta ücretsiz, OpenRouter rapor başına ~0,03 $.
+
+## Aşama 2 — Müşteri uygulaması (para akışı)
+Yeni Flutter projesi `musteri_uygulamasi/`, önce Android. Paket adı `com.yerimebak.app` (Play'de yayınlandıktan sonra değişmez).
+Admin/personel paneli (`expertiz_paneli/`) ayrı kalır; müşteri uygulamasına admin kodu girmez.
+
+| Görev | İş | Bağımlılık |
+|---|---|---|
+| 019 | Sunucu: Google Play satın alma doğrulama, `/app/config` ayarları, hesap silme (API + site sayfası) | — |
+| 020 | Uygulama iskeleti: giriş/kayıt, e-posta doğrulama, kredi bakiyesi, raporlarım, rapor detayı + PDF, hesap silme | 019 ile paralel |
+| 021 | İlan okuma (paylaş menüsü + WebView + metin yapıştırma), analiz formu, analiz ve sonuç | 020 |
+| 022 | Google Play ile kredi satışı (uygulama tarafı) | 019, 021 |
+| 023 | Ekspertiz talep ekranı, sunucu ayarıyla **kapalı** başlar | 020 |
+| 024 | Yayın hazırlığı: ikon, imza, mağaza metinleri, veri güvenliği formu notları | 021, 022 |
+
+Kurallar:
+- Dijital ürün (analiz kredisi) uygulama içinde **yalnız Google Play Faturalandırma** ile satılır. Uygulama web ödeme sayfasına
+  yönlendirmez, link vermez. Web'de alınan kredi uygulamada kullanılabilir (aynı hesap).
+- Fiziksel hizmet (yerinde inceleme) Google Play dışı ödemeyle (PayTR) alınabilir.
+- Uygulama rapor rakamlarını kendisi hesaplamaz; sunucunun döndürdüğünü web ile aynı kurallarla gösterir.
+- Google Play kapalı testi: yeni kişisel geliştirici hesabında üretime çıkmadan önce **en az 12 test kullanıcısı, kesintisiz 14 gün**.
+  Bu süre takvime eklenmeli; test kullanıcıları erken bulunmalı.
+- Play komisyonu: yıllık ilk 1 milyon $ için %15. Uygulama içi kredi fiyatı buna göre belirlenir (kullanıcı kararı).
+- Uygulama gelirinin vergisi (GVK 20/B istisnası ya da şahıs şirketi) mali müşavirle netleşir.
+
+## Aşama 3 — Ekspertiz (ikinci gelir kapısı)
+- Şahıs şirketi, mali müşavir, PayTR üye işyeri, e-Arşiv fatura, ETBİS kaydı.
+- Yasal sayfalarda şirket bilgileri (Vercel `COMPANY_*` değişkenleri).
+- Web ekspertiz akışının son testleri: ödeme, personel ataması, admin onayı. Talep formu hâlâ `/expertiz/requests/unpaid` kullanıyor; ödemeli akışa geçer.
+- Uygulamada `expertiz_enabled` açılır, Firebase push bildirimleri eklenir.
+- Personel paneli web'den ya da APK ile devreye girer.
+
+## Bilinen eksikler
+- Vercel'de `COMPANY_*` yok: yasal sayfalarda adres, vergi no, MERSİS "—" görünür.
+- 3 PDF testi Linux'ta başarısız (örnek PDF Windows Arial ile üretildi), canlıyı etkilemez.
+- Uygulamada push bildirimi yok (Aşama 3).
