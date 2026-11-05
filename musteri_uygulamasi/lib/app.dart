@@ -16,6 +16,11 @@ import 'ekranlar/reports_screen.dart';
 import 'kredi/kredi_ekrani.dart';
 import 'oturum/session_controller.dart';
 import 'tema/tema.dart';
+import 'api/models.dart';
+import 'hizmetler/hizmet_tanitim.dart';
+import 'hizmetler/talep_ekrani.dart';
+import 'hizmetler/odeme_ekrani.dart';
+import 'hizmetler/kayit_ekranlari.dart';
 
 class _RouterRefresh extends ChangeNotifier {
   void refresh() => notifyListeners();
@@ -53,6 +58,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (session.phase != SessionPhase.signedIn) {
         return public ? null : '/giris';
       }
+      if ((path == '/ekspertiz/talep' ||
+              path.startsWith('/ekspertiz/odeme/')) &&
+          !config.requireValue.expertizEnabled) {
+        return '/yerinde-inceleme';
+      }
       if (public || path == '/durum' || path == '/guncelle') return '/';
       return null;
     },
@@ -87,6 +97,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/analiz/bekle',
         builder: (_, _) => const AnalizBeklemeEkrani(),
       ),
+      GoRoute(
+        path: '/ekspertiz/talep',
+        builder: (_, s) =>
+            EkspertizTalepEkrani(arac: s.extra is Map ? object(s.extra) : null),
+      ),
+      GoRoute(
+        path: '/ekspertiz/odeme/:id',
+        builder: (_, s) => HizmetOdemeEkrani(
+          s.pathParameters['id']!,
+          checkout: s.extra is Map ? object(s.extra) : null,
+        ),
+      ),
       ShellRoute(
         builder: (context, state, child) =>
             AppShell(path: state.uri.path, child: child),
@@ -107,6 +129,35 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (_, _) => const AnalizBaslatEkrani(),
           ),
           GoRoute(path: '/kredi', builder: (_, _) => const KrediEkrani()),
+          GoRoute(
+            path: '/yerinde-inceleme',
+            builder: (_, s) => YerindeIncelemeEkrani(
+              arac: s.extra is Map ? object(s.extra) : null,
+            ),
+          ),
+          GoRoute(
+            path: '/uzaktan-satin-alma',
+            builder: (_, _) => const UzaktanSatinAlmaEkrani(),
+          ),
+          GoRoute(
+            path: '/talepler',
+            builder: (_, _) => const HizmetKayitlariEkrani(),
+          ),
+          GoRoute(
+            path: '/ekspertiz-raporlari',
+            builder: (_, _) => const HizmetKayitlariEkrani(raporlar: true),
+            routes: [
+              GoRoute(
+                path: ':id',
+                builder: (_, s) =>
+                    EkspertizRaporEkrani(s.pathParameters['id']!),
+              ),
+            ],
+          ),
+          GoRoute(
+            path: '/bildirimler',
+            builder: (_, _) => const BildirimEkrani(),
+          ),
           GoRoute(
             path: '/profil',
             builder: (_, _) => const ProfileScreen(),
@@ -181,7 +232,10 @@ class AppShell extends StatelessWidget {
           ? 1
           : path.startsWith('/kredi')
           ? 2
-          : path.startsWith('/profil')
+          : (path.startsWith('/profil') ||
+                path.startsWith('/talepler') ||
+                path.startsWith('/ekspertiz-raporlari') ||
+                path.startsWith('/bildirimler'))
           ? 3
           : 0,
       onChanged: (index) =>

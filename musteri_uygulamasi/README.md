@@ -157,3 +157,9 @@ Uyarlanabilir/tek renk ikon, Android12 ve eski Android açılış ekranı üreti
 Geliştirici hesabı ve doğrulama → ödeme profili → uygulama oluşturma → Play App Signing/ürünler → listeleme ve veri güvenliği/erişim formları → AAB ile kapalı test → 12+ kesintisiz testçiyle 14 gün → gerçek geri bildirimlerle üretim erişimi başvurusu. Ayrıntılar `magaza/kapali-test-plani.md` içinde. Testçilere mesaj otomatik gönderilmez.
 
 024 yerel ekran denemesi: mevcut sunucu `http://10.0.2.2:8001/api/v1`; yalnız debug için `--dart-define=PLAY_SIMULASYON=true`. Release HTTPS zorunluluğu korunur; yerel HTTP denemesi için bu kuralı gevşetmeyin. Sunucuyu başlatma/durdurma 024 kapsamı değildir.
+
+### Hizmetler ve yerinde ekspertiz (023)
+
+`lib/hizmetler/` katalog, sunucu fiyat teklifi, talep, PayTR, fiziksel rapor/dosya ve uygulama içi bildirim akışlarını içerir. `expertiz_enabled=false` iken hizmet tanıtımı görünür; derin bağlantı ve doğrudan repository çağrısı dahil yeni talep/ödeme engellenir. Açılınca firma/paket → araç/adres/zaman → sözleşmeler ve ödeme adımları kullanılır. Not/adres/zaman mevcut API'nin `note` alanında etiketlenerek iletilir. Fiyat veya KDV istemcide hesaplanmaz; KDV dahil hizmet tutarı `service_fee_incl_vat_tl` alanından beklenir (köprü isteği009). Alan eksikse tutar uydurulmaz.
+
+PayTR dönüş adresi yalnız dönüş sinyalidir; başarı durumu API sipariş durumundan doğrulanır. Dosyalar yalnız API'nin kendi imzalı medya yollarından indirilir. Okundu bildirimleri `/expertiz/notifications/read` üzerinden işaretlenir; push kurulmaz. Vekalet ve çekici tanıtım olarak kalır. İlgi kaydı ucu gelene kadar destek e-postası taslağı kullanılır.

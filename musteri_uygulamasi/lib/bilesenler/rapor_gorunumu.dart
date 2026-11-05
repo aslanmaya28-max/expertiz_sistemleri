@@ -16,7 +16,13 @@ import '../tema/yazi.dart';
 class ReportView extends StatelessWidget {
   final ReportSnapshot snapshot;
   final LinkAction onLink;
-  const ReportView(this.snapshot, {super.key, required this.onLink});
+  final Widget? sonrakiAdim;
+  const ReportView(
+    this.snapshot, {
+    super.key,
+    required this.onLink,
+    this.sonrakiAdim,
+  });
   @override
   Widget build(BuildContext context) {
     final vehicle = snapshot.vehicle,
@@ -106,6 +112,7 @@ class ReportView extends StatelessWidget {
             if (text(income['aciklama']).isNotEmpty)
               Text(text(income['aciklama'])),
           ]),
+        ?sonrakiAdim,
         if (objects(snapshot.raw['bilgiKaynaklari']).isNotEmpty)
           Panel('Bu rapordaki bilgiler nereden geliyor?', [
             for (final source in objects(snapshot.raw['bilgiKaynaklari']))

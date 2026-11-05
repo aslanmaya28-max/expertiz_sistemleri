@@ -38,11 +38,13 @@ class AppFixture {
   final int configStatus;
   final String minVersion;
   final Json? report;
+  final Map<String, Json> responses;
   late final ApiClient api;
   AppFixture({
     this.configStatus = 200,
     this.minVersion = '1.0.0',
     this.report,
+    this.responses = const {},
   }) {
     api = ApiClient(
       store: store,
@@ -98,6 +100,9 @@ class AppFixture {
             200,
             headers: {'content-type': 'application/pdf'},
           );
+        }
+        if (responses.containsKey(path)) {
+          body = responses[path]!;
         }
         return http.Response(
           jsonEncode(body),

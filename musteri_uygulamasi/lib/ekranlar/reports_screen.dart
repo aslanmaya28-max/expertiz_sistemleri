@@ -9,6 +9,7 @@ import '../bilesenler/alt_eylem_cubugu.dart';
 import '../bilesenler/pazarlik_plani.dart';
 import '../bilesenler/rapor_gorunumu.dart';
 import 'home_screen.dart';
+import '../hizmetler/hizmet_tanitim.dart';
 
 class ReportsScreen extends ConsumerWidget {
   const ReportsScreen({super.key});
@@ -100,6 +101,7 @@ class ReportDetailScreen extends ConsumerWidget {
                 ReportView(
                   snapshot,
                   onLink: ref.read(platformProvider).openLink,
+                  sonrakiAdim: SonrakiAdim(snapshot.vehicle),
                 ),
               ],
             ),

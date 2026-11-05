@@ -23,7 +23,19 @@
 | Uygulama etkinliği → Kullanıcı tarafından oluşturulan diğer içerikler | Evet | Uygulama işlevleri | Araç bilgileri, ilan linki/metni, hasar/kaporta beyanı ve üretilen rapor; analiz isteğe bağlı, sonuç sunucuda saklanır |
 | Cihaz veya diğer kimlikler | Evet | Güvenlik, kötüye kullanımı önleme | API ağ kayıtlarında IP; Google Play satın alma doğrulama kimlikleri. Reklam kimliği SDK'sı yok |
 
-Parola kimlik doğrulama amacıyla sunucuya gider, uygulamada kaydedilmez; sunucuda parola özeti saklanır. Kart numarası/banka hesabı uygulamada toplanmaz; ödemeyi Google Play alır. Hassas konum, kamera, rehber, mikrofon, fotoğraf galerisi, sağlık, reklam kimliği veya reklam/analitik SDK'sı bu sürümde yoktur. Uygulama içi bildirim/push SDK'sı yoktur.
+Parola kimlik doğrulama amacıyla sunucuya gider, uygulamada kaydedilmez; sunucuda parola özeti saklanır. Kart numarası/banka hesabı uygulama tarafından alınmaz; dijital krediyi Google Play, fiziksel ekspertiz hizmeti açıldığında onun ödemesini PayTR alır. Cihaz konumu, kamera, rehber, mikrofon, fotoğraf galerisi, sağlık, reklam kimliği veya reklam/analitik SDK'sı bu sürümde yoktur. Bildirim listesi API'den okunur; push SDK'sı yoktur.
+
+## Yerinde ekspertiz açıldığında ek beyanlar
+
+Varsayılan `expertiz_enabled=false` iken hizmet yalnız tanıtılır; talep ve ödeme açılamaz. Ayar sunucudan açılabildiği için yayın beyanı bu olası kullanımı da kapsamalıdır:
+
+- Kişisel bilgiler → Adres: kullanıcının yazdığı İstanbul ilçe/adres bilgisi, randevu organizasyonu için isteğe bağlı hizmet talebi sırasında toplanır ve sunucuda saklanır. GPS izni veya cihazdan konum alma yoktur.
+- Kullanıcının oluşturduğu içerik: plaka, araç bilgileri, uygun zaman ve talep notu; hizmetin yürütülmesi ve raporların gösterimi amacıyla işlenir. Hizmeti kullanmayan kişiden bu alanlar istenmez.
+- Satın alma geçmişi: fiziksel hizmet siparişi ve ödeme durumu; PayTR ödeme WebView'ı HTTPS üzerinden açılır. Uygulama kart alanlarını oluşturmaz veya okumaz. Ödeme sağlayıcısının kendi topladığı verileri ayrıca onun politikası açıklar.
+- Anlaşmalı ekspertiz firmasıyla hizmeti yürütmek için paylaşılacak adres/araç/randevu bilgilerini, fiilî sunucu aktarımı ve sözleşmeyle doğrulayın; ortaklara aktarım varsa ilgili veri türlerinde paylaşımı da beyan edin.
+- Kullanıcı PDF/rapor paketini istediğinde dosya geçici uygulama klasörüne indirilir ve seçilen görüntüleyiciye açılır. Bildirim okundu durumu API'de saklanır. “Açılınca bana haber ver” yalnız destek e-postası taslağını açar; kullanıcı göndermeden mesaj iletilmez.
+
+Kod: `lib/hizmetler/talep_ekrani.dart`, `hizmet_api.dart`, `odeme_ekrani.dart`, `hizmet_dosyalari.dart`.
 
 ## Aktarım ve “paylaşım” alanı
 

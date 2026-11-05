@@ -6,6 +6,7 @@ import '../api/providers.dart';
 import '../bilesenler/ortak.dart';
 import '../tema/olculer.dart';
 import '../tema/yazi.dart';
+import '../hizmetler/hizmet_tanitim.dart';
 import '../tema/renkler.dart';
 import '../bilesenler/marka.dart';
 import '../bilesenler/kart.dart';
@@ -86,6 +87,7 @@ class HomeScreen extends ConsumerWidget {
                     ),
                     loading: () => const LoadingView(),
                   ),
+                  const HizmetKartlari(),
                 ],
               ),
             ),

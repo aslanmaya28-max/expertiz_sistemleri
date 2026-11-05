@@ -44,6 +44,23 @@ class ProfileScreen extends ConsumerWidget {
                   onTap: () => context.push('/profil/gecmis'),
                 ),
               ]),
+              Panel('Hizmetler ve bildirimler', [
+                ListeSatiri(
+                  'Taleplerim',
+                  ikon: LucideIcons.clipboardList,
+                  onTap: () => context.push('/talepler'),
+                ),
+                ListeSatiri(
+                  'Ekspertiz raporlarım',
+                  ikon: LucideIcons.fileCheck,
+                  onTap: () => context.push('/ekspertiz-raporlari'),
+                ),
+                ListeSatiri(
+                  'Bildirimler',
+                  ikon: LucideIcons.bell,
+                  onTap: () => context.push('/bildirimler'),
+                ),
+              ]),
               Panel('Görünüm', [
                 DropdownButtonFormField<ThemeMode>(
                   initialValue: ref.watch(themeModeProvider),
