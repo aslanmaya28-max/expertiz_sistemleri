@@ -17,6 +17,14 @@ function tl(value?: number | null) {
 const GOSTERILEN_GUVEN = new Set(["yuksek", "orta"]);
 
 const SORUN_GRUPLARI: { kategori: SorunKategorisi; baslik: string }[] = [
+  { kategori: "motor", baslik: "Motor" },
+  { kategori: "sanziman", baslik: "Şanzıman" },
+  { kategori: "kaporta", baslik: "Kaporta" },
+  { kategori: "alt_takim", baslik: "Alt takım" },
+  { kategori: "elektronik", baslik: "Elektronik" },
+  { kategori: "diger", baslik: "Diğer" },
+];
+const ESKI_SORUN_GRUPLARI: { kategori: SorunKategorisi; baslik: string }[] = [
   { kategori: "mekanik_motor", baslik: "Mekanik ve motor" },
   { kategori: "elektronik", baslik: "Elektronik ve sensör" },
   { kategori: "trim_kasa", baslik: "Trim, şasi ve kasa" },
@@ -25,11 +33,12 @@ const ONEM_SIRASI = { yuksek: 0, orta: 1, dusuk: 2 };
 type SorunMaddesi = { baslik: string; kategori?: SorunKategorisi; onem?: SorunOnemi };
 
 /** Kısmi/eski kayıtlar bölünmez; sıralama her zaman yeni dizide yapılır. */
-function sorunGruplari<T extends SorunMaddesi>(maddeler: T[]): { baslik?: string; maddeler: T[] }[] {
-  if (!maddeler.every((m) => SORUN_GRUPLARI.some((g) => g.kategori === m.kategori))) {
+function sorunGruplari<T extends SorunMaddesi>(maddeler: T[], modern = false): { baslik?: string; maddeler: T[] }[] {
+  const gruplar = modern || maddeler.some((m) => ["motor", "sanziman", "kaporta", "alt_takim", "diger"].includes(m.kategori || "")) ? SORUN_GRUPLARI : ESKI_SORUN_GRUPLARI;
+  if (!maddeler.every((m) => gruplar.some((g) => g.kategori === m.kategori))) {
     return [{ maddeler }];
   }
-  return SORUN_GRUPLARI.map((g) => ({
+  return gruplar.map((g) => ({
     baslik: g.baslik,
     maddeler: maddeler.filter((m) => m.kategori === g.kategori)
       .sort((a, b) => (a.onem ? ONEM_SIRASI[a.onem] : 3) - (b.onem ? ONEM_SIRASI[b.onem] : 3)),
@@ -48,8 +57,8 @@ function GrupluListe<T extends SorunMaddesi>({ gruplar, madde }: {
   ));
 }
 
-function OnemEtiketi({ onem }: { onem?: SorunOnemi }) {
-  if (onem === "yuksek") return <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">Yüksek masraf</span>;
+function OnemEtiketi({ onem, kmUyarisi }: { onem?: SorunOnemi; kmUyarisi?: string }) {
+  if (onem === "yuksek") return <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">{kmUyarisi ? "Öncelikli kontrol" : "Yüksek masraf"}</span>;
   if (onem === "orta") return <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-800">Orta</span>;
   if (onem === "dusuk") return <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">Küçük / konfor</span>;
   return null;
@@ -94,8 +103,9 @@ function Kaynaklar({ urller }: { urller?: string[] }) {
 export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
   const { pazarlikPlani: plan, modelRiskleri, kullaniciSikayetleri, bakim, saticiSorulari } = sonuc;
   const riskler = (modelRiskleri?.riskler || []).filter((r) => GOSTERILEN_GUVEN.has(r.guven));
-  const riskGruplari = sorunGruplari(riskler);
-  const sikayetGruplari = sorunGruplari(kullaniciSikayetleri || []);
+  const modern = modelRiskleri?.gorunumSurumu === 2;
+  const riskGruplari = sorunGruplari(riskler, modern);
+  const sikayetGruplari = sorunGruplari(kullaniciSikayetleri || [], modern);
   const kritik = [
     ...riskler.filter((r) => r.onem === "yuksek"),
     ...(kullaniciSikayetleri || []).filter((s) => s.onem === "yuksek")
@@ -178,8 +188,8 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
       )}
 
       {modelRiskleri && (
-        <section className="bg-white rounded-xl border border-kenarlik-acik p-6" aria-label="Modelin bilinen sorunları">
-          <h2 className="text-lg font-semibold text-metin-birincil">Modelin bilinen sorunları</h2>
+        <section className="bg-white rounded-xl border border-kenarlik-acik p-6" aria-label={modern ? "Bu araçta dikkat edilecekler" : "Modelin bilinen sorunları"}>
+          <h2 className="text-lg font-semibold text-metin-birincil">{modern ? "Bu araçta dikkat edilecekler" : "Modelin bilinen sorunları"}</h2>
           <p className="mt-1 text-xs text-metin-ikincil">Arıza teşhisi değildir; araç sürümü, şasi numarası ve servis kayıtlarıyla doğrulayın.</p>
           {riskler.length === 0 ? (
             <p className="mt-3 text-sm text-metin-ikincil">{modelRiskleri.mesaj || "Bu model/motor için kaynağı doğrulanmış bilinen sorun bulunamadı."}</p>
@@ -189,16 +199,20 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
                   <li key={r.baslik} className="rounded-lg border border-kenarlik-acik p-4 text-sm">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-metin-birincil">{r.baslik}</span>
-                      <OnemEtiketi onem={r.onem} />
-                      {r.guven === "yuksek" && <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">Resmi kaynak</span>}
+                      <OnemEtiketi onem={r.onem} kmUyarisi={r.kilometreUyarisi} />
+                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">{r.kanitSeviyesi || (r.guven === "yuksek" ? "Resmî kayıt" : "Teknik kaynak")}</span>
+                      {r.kilometreUyarisi && <span className="font-semibold text-tehlike">{r.kilometreUyarisi}</span>}
                     </div>
                     {r.aciklama && <p className="mt-1 text-metin-ikincil">{r.aciklama}</p>}
                     <dl className="mt-2 grid gap-1 text-metin-ikincil">
                       {r.etkiledigi && <div><dt className="inline font-medium text-metin-birincil">Kimleri etkiler: </dt><dd className="inline">{r.etkiledigi}</dd></div>}
                       {r.belirtiler?.length > 0 && <div><dt className="inline font-medium text-metin-birincil">Belirtiler: </dt><dd className="inline">{r.belirtiler.join("; ")}</dd></div>}
                       <div><dt className="inline font-medium text-metin-birincil">Nasıl kontrol edilir: </dt><dd className="inline">{r.kontrol}</dd></div>
-                      <div><dt className="inline font-medium text-metin-birincil">Tahmini masraf: </dt><dd className="inline">{r.tahminiMaliyet ? `${tl(r.tahminiMaliyet.min)} – ${tl(r.tahminiMaliyet.max)}` : "kaynakta belirtilmemiş"}</dd></div>
+                      <div><dt className="inline font-medium text-metin-birincil">Tahmini masraf: </dt><dd className="inline">{r.tahminiMaliyet ? `${r.tahminiMaliyet.min.toLocaleString("tr-TR")}–${r.tahminiMaliyet.max.toLocaleString("tr-TR")} TL` : "kaynakta belirtilmemiş"}</dd></div>
+                      {r.tipikKm && <div><dt className="inline font-medium text-metin-birincil">Genelde </dt><dd className="inline">{r.tipikKm.min.toLocaleString("tr-TR")}{r.tipikKm.min === r.tipikKm.max ? " km civarı" : `–${r.tipikKm.max.toLocaleString("tr-TR")} km`}</dd></div>}
                     </dl>
+                    {r.maliyetKaynagi && <div className="mt-2 text-xs text-metin-ikincil">Masraf kaynağı{r.maliyetKaynagi.onarim ? ` · ${r.maliyetKaynagi.onarim}` : ""}{r.maliyetKaynagi.tarih ? ` · Erişim: ${r.maliyetKaynagi.tarih}` : ""}<Kaynaklar urller={[r.maliyetKaynagi.url]} /></div>}
+                    {r.kmKaynagi && <div className="mt-1 text-xs text-metin-ikincil">Kilometre kaynağı{r.kmKaynagi.tarih ? ` · Erişim: ${r.kmKaynagi.tarih}` : ""}<Kaynaklar urller={[r.kmKaynagi.url]} /></div>}
                     <Kaynaklar urller={r.kaynaklar} />
                     {uzmanSatiri(r)}
                   </li>
@@ -220,6 +234,7 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
                   <div className="flex flex-wrap items-center gap-2">
                     <h4 className="font-semibold text-metin-birincil">{s.baslik}</h4>
                     <OnemEtiketi onem={s.onem} />
+                    <span className="text-xs text-metin-ikincil">Kullanıcı deneyimi</span>
                   </div>
                   <p className="mt-1 text-metin-ikincil">{s.aciklama}</p>
                   <p className="mt-2 text-xs text-metin-ikincil">{s.kaynakSayisi} farklı kaynakta geçiyor</p>

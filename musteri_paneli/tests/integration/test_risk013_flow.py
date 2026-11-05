@@ -45,7 +45,7 @@ def test_single_research_keeps_verified_metadata_in_archive_and_pdf(client, must
     assert _krediler(uid) == 2 and body['kredi']['dusulen'] == 1
     risks = body['modelRiskleri']['riskler']
     assert len(risks) == 1
-    assert risks[0]['kategori'] == 'mekanik_motor' and risks[0]['onem'] == 'yuksek'
+    assert risks[0]['kategori'] == 'motor' and risks[0]['onem'] == 'yuksek'
     complaints = body['kullaniciSikayetleri']
     assert len(complaints) == 1 and complaints[0]['kaynakSayisi'] == 2
     assert complaints[0]['kategori'] == 'elektronik' and complaints[0]['onem'] == 'orta'
@@ -60,7 +60,7 @@ def test_single_research_keeps_verified_metadata_in_archive_and_pdf(client, must
     assert pdf.status_code == 200
     with pdfplumber.open(io.BytesIO(pdf.content)) as document:
         text = ' '.join(' '.join((p.extract_text() or '').split()) for p in document.pages)
-    assert 'Mekanik ve motor' in text and 'Elektronik ve sensör' in text
+    assert 'Bu araçta dikkat edilecekler' in text and 'Motor' in text and 'Elektronik' in text
     assert 'Yüksek masraf' in text and 'Bu araçta en çok dikkat etmeniz gerekenler' in text
     assert text.count('YerimeBak uzmanı bunu yerinde kontrol eder.') == 1
     assert len(calls) == 1 and _krediler(uid) == 2

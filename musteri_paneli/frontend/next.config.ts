@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
   // Değerleme isteği 20–60 sn sürer; vekilin varsayılan 30 sn sınırı bağlantıyı erken kesiyordu.
   experimental: {
     proxyTimeout: 180_000,
+    // 4 × 8 MB fotoğraf ve multipart başlıkları; API ayrıca sıkı sınır uygular.
+    proxyClientMaxBodySize: "33mb",
   },
   images: {
     // Ilan fotograflari zaten kaynak sitelerin CDN'inden gelir. Vercel gorsel

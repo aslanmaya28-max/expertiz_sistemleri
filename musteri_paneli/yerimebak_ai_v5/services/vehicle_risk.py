@@ -14,6 +14,7 @@ import logging
 import math
 import os
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import datetime
 from urllib.parse import unquote, urlsplit
@@ -23,6 +24,7 @@ import httpx
 from yerimebak_ai_v5.services import web_market_reference as wmr
 from yerimebak_ai_v5.services.llm_json import oku
 from yerimebak_ai_v5.services.web_market_reference import fold, _displacements
+from yerimebak_ai_v5.services import risk_evidence, risk_cost_search
 
 
 # İlk değer, çıktı ve tekilleştirme anahtarıdır. Eş anlamlılar kaynakta aranır.
@@ -32,7 +34,7 @@ _TOPICS = {
     "triger": ("triger", "timing belt"),
     "zincir": ("zincir", "timing chain"),
     "mekatronik": ("mekatronik", "mechatronic"),
-    "sanziman": ("şanzıman", "transmission", "gearbox"),
+    "sanziman": ("şanzıman", "transmission", "gearbox", "DSG", "DCT", "EDC", "CVT"),
     "debriyaj": ("debriyaj", "clutch"),
     "volan": ("volan", "çift kütle", "dual mass"),
     "dpf": ("dpf", "partikül"),
@@ -54,7 +56,7 @@ _TOPICS = {
     "suspansiyon": ("süspansiyon", "amortisör", "suspension"),
     "sensor": ("sensör", "sensor"),
     "adas": ("adas", "şerit takip", "adaptif hız", "lane assist"),
-    "elektronik_unite": ("elektronik ünite", "ecu", "kontrol ünitesi"),
+    "elektronik_unite": ("elektronik ünite", "elektronik aksam", "elektrik tesisatı", "ecu", "kontrol ünitesi"),
     "multimedya": ("multimedya", "infotainment"),
     "anahtarsiz": ("anahtarsız", "keyless"),
     "gosterge": ("gösterge", "instrument cluster"),
@@ -67,6 +69,10 @@ _TOPICS = {
     "ariza_lambasi": ("arıza lambası", "arıza ışığı", "check engine"),
     "guc_kaybi": ("güç düşmesi", "güç kaybı", "çekiş kaybı", "nefes kesilmesi", "limp mode"),
     "titreme": ("titreme", "sarsıntı", "vibration"),
+    "rot": ("rot başı", "rot kolu", "salıncak"),
+    "aks": ("aks", "cv joint"),
+    "direksiyon": ("direksiyon", "steering"),
+    "kaporta": ("kaput", "kaporta", "çamurluk", "tampon"),
 }
 _OFFICIAL = {
     "seat": ("seat.com", "seat.com.tr"), "volkswagen": ("volkswagen.com", "volkswagen.com.tr"),
@@ -191,7 +197,7 @@ def _topics(text):
     # Kısa "pas" sözcüğü Passat/paspas gibi adları kanıt saymamalı;
     # paslanma ve paslı çekimleri kendi açık kökleriyle eşleşir.
     return [key for key, terms in _TOPICS.items() if any(
-        re.search(r"\b" + re.escape(fold(term)) + (r"\b" if term == "pas" else ""), text)
+        re.search(r"\b" + re.escape(fold(term)) + (r"\b" if term in ("pas", "aks") else ""), text)
         for term in terms)]
 
 
@@ -250,18 +256,33 @@ def _domain(host, domains):
 
 
 def _confidence(url, text, vehicle):
-    host = (urlsplit(url).hostname or "").lower()
+    return _confidence_details(url, text, vehicle)[0]
+
+
+def _confidence_details(url, text, vehicle):
+    parsed = urlsplit(url)
+    host = (parsed.hostname or "").lower()
     if (_domain(host, _USER_SOURCES + _COMPILATIONS)
             or any(word in host + urlsplit(url).path.lower() for word in ("forum", "club", "reddit", "community"))):
-        return "dusuk"
+        return "dusuk", 'Kullanıcı/derleme kaynağı'
     # Sürüm/model kapsamı belirsiz bir metin yüksek/orta güven kazanamaz.
     target = _displacements(str(vehicle.get("engine") or "") + " " + str(vehicle.get("package") or ""))
     if fold(vehicle.get("model")) not in fold(text) or (target and not target & _displacements(text)):
-        return "dusuk"
+        return "dusuk", 'Kaynakta model/motor kapsamı yetersiz'
     official = _OFFICIAL.get(fold(vehicle.get("brand")), ()) + _AUTHORITIES
-    if _domain(host, official) and re.search(r"geri cagirma|recall|servis bulteni|service bulletin", fold(text)):
-        return "yuksek"
-    return "orta" if _domain(host, _TECHNICAL) else "dusuk"
+    if _domain(host, official):
+        known_text = re.search(r"geri cagirma|recall|servis bulteni|service bulletin", fold(text))
+        # NHTSA'nın mevcut resmî TSB arşivindeki Ford SSM/TSB kaydı,
+        # başlığında 'service bulletin' yazmasa da aynı kayıt türüdür.
+        archived_message = (_domain(host, ('nhtsa.gov',))
+            and re.fullmatch(r'/odi/tsbs/\d{4}/mc-\d{8}-\d{4}\.pdf', parsed.path.lower())
+            and re.search(r'\b(?:ssm|tsb)\s*#?\s*(?:\d{2}-\d{4}|\d{4,7})\b', fold(text)))
+        if known_text or archived_message:
+            return "yuksek", 'Resmî geri çağırma/teknik bülten kaydı'
+        return "dusuk", 'Resmî alan adı tanınıyor; kayıt türü doğrulanamadı'
+    if _domain(host, _TECHNICAL):
+        return "orta", 'Tanımlı teknik kaynak'
+    return "dusuk", 'Kaynak mevcut üretici/teknik güven listesinde değil'
 
 
 def _cost(value, texts, topics):
@@ -295,6 +316,7 @@ def _verify(item, sources, vehicle):
                        ("baslik", "aciklama", "etkiledigi", "belirtiler", "kontrol"))
     if not topics or _fuel_incompatible(details, vehicle) or _incompatible(str(item.get("etkiledigi") or ""), vehicle):
         return None
+    source_topics = risk_evidence.evidence_topics(topics, item['baslik'])
     valid = {}
     for url in item.get("kaynaklar") or []:
         if not isinstance(url, str) or urlsplit(url).scheme not in ("https", "http"):
@@ -303,7 +325,7 @@ def _verify(item, sources, vehicle):
             continue
         url = url.rstrip("/")
         text = sources.get(url)
-        required = set(topics) - {"geri_cagirma"} or set(topics)
+        required = set(source_topics)
         if not isinstance(text, str) or not required & set(_topics(text)) or _incompatible(text, vehicle):
             continue
         # Bir sayfa birden çok motoru anlatabilir. İddiayı taşıyan cümlenin
@@ -317,27 +339,92 @@ def _verify(item, sources, vehicle):
         return None
     confidence = max((_confidence(url, text, vehicle) for url, text in valid.items()),
                      key=lambda c: {"dusuk": 0, "orta": 1, "yuksek": 2}[c])
-    cost = _cost(item.get("tahminiMaliyet"), valid.values(), topics)
+    cost = _cost(item.get("tahminiMaliyet"), valid.values(), source_topics)
     category, severity = _classification(item, topics, cost)
-    return {"baslik": item["baslik"], "aciklama": str(item.get("aciklama") or ""),
+    out = {"baslik": item["baslik"], "aciklama": str(item.get("aciklama") or ""),
             "etkiledigi": str(item.get("etkiledigi") or "Kapsamı servisle doğrulayın"),
             "belirtiler": [s for s in item.get("belirtiler", []) if isinstance(s, str)]
             if isinstance(item.get("belirtiler"), list) else [],
             "kontrol": str(item.get("kontrol") or "Şasi numarası ve servis kaydıyla doğrulayın."),
             "tahminiMaliyet": cost, "kategori": category, "onem": severity,
             "kaynaklar": list(valid), "guven": confidence}
+    out['kanitSeviyesi'] = ('Resmî kayıt' if confidence == 'yuksek' else
+                            'Çok kaynaklı' if len({_root_domain(url) for url in valid}) >= 2 else
+                            'Teknik kaynak' if confidence == 'orta' else 'Kullanıcı deneyimi')
+    if cost:
+        url = next(url for url, text in valid.items() if _cost(cost, [text], source_topics))
+        out['maliyetKaynagi'] = {'url': url, 'tarih': risk_evidence.today()}
+    km = risk_evidence.km_range(valid, source_topics, _TOPICS)
+    if km:
+        out['tipikKm'], out['kmKaynagi'] = km
+    return risk_evidence.at_km(out, vehicle.get('km'))
+
+
+def _price_scope_compatible(text, topics, vehicle):
+    if _incompatible(text, vehicle):
+        return False
+    required = set(topics) - {'geri_cagirma'} or set(topics)
+    return not any(_incompatible(sentence, vehicle) for sentence in risk_evidence.sentences(text)
+                   if required & set(_topics(sentence)))
+
+
+def _extra_evidence(extra, vehicle):
+    """Modelin sayısını değil, atıfta dönen sayfanın aynı onarım fiyatını kabul eder."""
+    output = []
+    sources = extra.get('sources') or {}
+    for item in extra.get('items') or []:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get('baslik') or '')
+        topics = risk_evidence.evidence_topics(_topics(title), title)
+        urls = item.get('kaynaklar')
+        for url in (urls if isinstance(urls, list) else []):
+            if not isinstance(url, str):
+                continue
+            try:
+                parsed = urlsplit(url)
+                if parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username:
+                    continue
+                if _domain(parsed.hostname, _USER_SOURCES + _COMPILATIONS + _BLOCKED) or any(
+                        key in parsed.hostname for key in ('forum', 'reddit', 'club')):
+                    continue
+            except ValueError:
+                continue
+            text = sources.get(url.rstrip('/'))
+            if not isinstance(text, str) or not _price_scope_compatible(text, topics, vehicle):
+                continue
+            cost = risk_evidence.cost_proof(item.get('tahminiMaliyet'), text,
+                                             item.get('onarim'), topics, _topics, _cost)
+            if cost:
+                output.append({'baslik': item['baslik'], 'onarim': item['onarim'],
+                               'cost': cost, 'url': url, 'text': text, 'tarih': risk_evidence.today()})
+                break
+    return output
+
+
+def _apply_extra(risks, evidence, vehicle):
+    for risk in risks:
+        if risk.get('tahminiMaliyet') or risk.get('guven') not in ('orta', 'yuksek'):
+            continue
+        topics = risk_evidence.evidence_topics(_topics(risk['baslik']), risk['baslik'])
+        for proof in evidence:
+            if (not isinstance(proof, dict) or proof.get('baslik') != risk.get('baslik')
+                    or not isinstance(proof.get('text'), str)
+                    or not _price_scope_compatible(proof['text'], topics, vehicle)):
+                continue
+            cost = risk_evidence.cost_proof(proof.get('cost'), proof['text'], proof.get('onarim'),
+                                            topics, _topics, _cost)
+            if cost:
+                risk['tahminiMaliyet'] = cost
+                risk['maliyetKaynagi'] = {'url': proof['url'], 'tarih': proof['tarih'], 'onarim': proof['onarim']}
+                break
 
 
 def _classification(item, topics, cost):
     keys = set(topics)
-    category = item.get("kategori")
-    if category not in ("mekanik_motor", "elektronik", "trim_kasa"):
-        if keys & {"trim", "far_bugusu", "kaplama", "kasa"}:
-            category = "trim_kasa"
-        elif keys & {"sensor", "adas", "elektronik_unite", "multimedya", "anahtarsiz", "gosterge", "aku"}:
-            category = "elektronik"
-        else:
-            category = "mekanik_motor"
+    category = risk_evidence.category(risk_evidence.evidence_topics(topics, item.get('baslik')))
+    if category == 'diger' and 'sanziman' in keys:
+        category = 'sanziman'
     severity = item.get("onem")
     if severity not in ("yuksek", "orta", "dusuk"):
         if ((cost and cost["max"] >= 25000) or keys & {
@@ -442,7 +529,7 @@ def _merge_complaints(*lists):
     """Aynı konu tek madde; kaynaklar birleşir, kaynak sayısı yeniden hesaplanır; en fazla 5."""
     merged = {}
     for entry in (e for group in lists for e in group):
-        topics = _topics(entry["baslik"])
+        topics = risk_evidence.evidence_topics(_topics(entry["baslik"]), entry["baslik"])
         key = topics[0] if topics else fold(entry["baslik"])
         if key in merged:
             target = merged[key]
@@ -471,7 +558,7 @@ def _verified_complaints(items, sources, vehicle):
         verified = _verify(item, sources, vehicle)
         if not verified:
             continue
-        topic = _topics(verified["baslik"])[0]
+        topic = risk_evidence.evidence_topics(_topics(verified["baslik"]), verified["baslik"])[0]
         group = groups.setdefault(topic, {"baslik": verified["baslik"],
                                           "aciklama": verified["aciklama"], "kaynaklar": [],
                                           "kategori": verified["kategori"], "onem": verified["onem"]})
@@ -490,6 +577,7 @@ def _verified_complaints(items, sources, vehicle):
 
 def get_model_risks(vehicle) -> dict:
     """Tek arama; opsiyonel 30 günlük DB önbelleği, arıza teşhisi değildir."""
+    started = time.monotonic()
     result = {"riskler": [], "kullaniciSikayetleri": [], "bulunamadi": True,
               "scope": {"cached": False, "searches": 0, "cost_usd": 0, "model": wmr.model_name()}}
     if not os.getenv("OPENROUTER_API_KEY") or not vehicle.get("brand") or not vehicle.get("model"):
@@ -501,15 +589,30 @@ def get_model_risks(vehicle) -> dict:
             # Aynı kovadaki başka yıl, daha dar kapsamlı bir riski devralamaz.
             # Ham adayları tutmak, ilk araçta elenen bir adayın uygun yılda
             # yeniden değerlendirilmesini de sağlar; yeniden arama yapılmaz.
-            candidates = cached.pop("_candidates", [])
+            candidates = cached.pop("_candidates", None)
             complaints = cached.pop("_complaint_candidates", [])
             cited_complaints = cached.pop("_cited_complaints", [])
             cited = cached.pop("_cited", {})
             sources = cached.pop("_sources", {})
-            cached["riskler"] = _verified_items(candidates, sources, vehicle)
-            cached["kullaniciSikayetleri"] = _merge_complaints(
-                _verified_complaints(complaints, sources, vehicle),
-                _verified_cited_complaints(cited_complaints, cited, vehicle))
+            evidence = cached.pop('_cost_evidence', [])
+            source_date = cached.pop('_source_date', None)
+            if candidates is not None:
+                cached["riskler"] = _verified_items(candidates, sources, vehicle)
+                for entry in cached['riskler']:
+                    for field in ('maliyetKaynagi', 'kmKaynagi'):
+                        if field in entry:
+                            entry[field]['tarih'] = source_date
+                cached["kullaniciSikayetleri"] = _merge_complaints(
+                    _verified_complaints(complaints, sources, vehicle),
+                    _verified_cited_complaints(cited_complaints, cited, vehicle))
+            else:
+                # Eski, ham adaysız kayıt okunabilir kalır; yeni km verisi uydurulmaz.
+                for entry in (cached.get('riskler') or []) + (cached.get('kullaniciSikayetleri') or []):
+                    entry['kategori'] = _classification(entry, _topics(entry.get('baslik') or ''), entry.get('tahminiMaliyet'))[0]
+                    if not entry.get('kaynaklar'):
+                        entry.pop('tahminiMaliyet', None)
+            _apply_extra(cached.get('riskler') or [], evidence, vehicle)
+            cached['scope'] = {**cached.get('scope', {}), 'cached': True, 'cost_usd': 0, 'cost_searches': 0, 'cost_search_usd': 0}
             cached["bulunamadi"] = not bool(cached["riskler"])
             return cached
     errors = (httpx.HTTPError, ValueError, TypeError, KeyError, RuntimeError)
@@ -574,12 +677,25 @@ def get_model_risks(vehicle) -> dict:
         return result
     # Başarıyla tamamlanan boş sonuç da aynı modelde yeniden arama maliyetini önler.
     # Aramalardan biri düştüyse önbelleğe yazılmaz (30 gün eksik sonuçla kalınmasın).
+    visible = [r for r in result['riskler'] if r.get('guven') in ('orta', 'yuksek')]
+    before = {'costs': sum(bool(r.get('tahminiMaliyet')) for r in visible), 'km': 0}
+    cost_found = risk_cost_search.search(vehicle, result['riskler'], timeout=max(0, 85 - (time.monotonic() - started)))
+    evidence = _extra_evidence(cost_found, vehicle)
+    _apply_extra(result['riskler'], evidence, vehicle)
+    result['scope']['cost_usd'] += cost_found['cost_usd']
+    result['scope']['searches'] += cost_found['searches']
+    result['scope']['cost_searches'] = cost_found['searches']
+    result['scope']['cost_search_usd'] = cost_found['cost_usd']
+    result['scope']['coverage'] = {'before': before,
+        'after': {'costs': sum(bool(r.get('tahminiMaliyet')) for r in visible),
+                  'km': sum(bool(r.get('tipikKm')) for r in visible)}}
     if days and risks_ok and complaints_ok:
         wmr._cache_write(key, {**result, "_candidates": found.get("risks") or [],
                                "_complaint_candidates": found.get("complaints") or [],
                                "_cited_complaints": extra.get("complaints") or [],
                                "_cited": extra.get("cited") or {},
-                               "_sources": found.get("sources") or {}})
+                               "_sources": found.get("sources") or {}, '_cost_evidence': evidence,
+                               '_source_date': risk_evidence.today()})
     return result
 
 

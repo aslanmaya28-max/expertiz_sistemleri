@@ -741,6 +741,7 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
     # Musteriye yalniz kaynagi dogrulanmis (yuksek/orta) maddeler gider; forum vb. dusuk guven atilir
     risks = {**risks, "riskler": [r for r in (risks.get("riskler") or []) if r.get("guven") in DISPLAYED_RISK_CONFIDENCE]}
     result["modelRiskleri"] = {
+        "gorunumSurumu": 2,
         "riskler": risks.get("riskler") or [],
         "bulunamadi": not risks["riskler"],
         "mesaj": ("Bu raporda bilinen teknik sorun araştırması tamamlanamadı; aşağıdaki kullanıcı şikâyetlerine "
@@ -763,6 +764,9 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
         })
     result["saticiSorulari"] = vehicle_risk.seller_questions(risk_vehicle, risks, _findings(parts, tramer_amount))
     web_cost = float((reference.get("scope") or {}).get("cost_usd") or 0)
+
+    from yerimebak_ai_v5.services.inspection_findings import enrich_report
+    enrich_report(result, payload)
 
     deduction = payment.deduct_credits(
         user["id"],

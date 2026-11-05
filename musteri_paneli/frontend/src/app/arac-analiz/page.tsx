@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { tekrarliIstek } from "@/lib/tekrarliIstek";
 import DegerlemeSonucu from "@/bilesenler/DegerlemeSonucu";
+import EkspertizFotografi from "@/bilesenler/EkspertizFotografi";
+import { fotoOnDolum } from "@/lib/ekspertizFotografi";
 import { AnalizBekleme } from "@/bilesenler/AkilliAliciBolumleri";
 import { AracSemasi, AramaliSecim, SayiAlani } from "@/bilesenler/AracFormAlanlari";
 import { MARKALAR, degerlemeFormHatasi, modelleri } from "@/lib/aracFormu";
@@ -22,6 +24,7 @@ import {
   type PartStatus,
   type ValuationPartsResponse,
   type ValuationResult,
+  type InspectionPhotoResult,
 } from "@/lib/api";
 
 interface Form {
@@ -77,7 +80,22 @@ export default function AracAnalizSayfasi() {
   }
   const [sonuc, setSonuc] = useState<ValuationResult | null>(null);
   const [hata, setHata] = useState<{ message: string; code?: string } | null>(null);
-  const [busy, setBusy] = useState<"prefill" | "analyze" | null>(null);
+  const [busy, setBusy] = useState<"prefill" | "photo" | "analyze" | null>(null);
+  const [photo, setPhoto] = useState<InspectionPhotoResult | null>(null);
+  const [belirsiz, setBelirsiz] = useState<string[]>([]);
+  const [photoChecked, setPhotoChecked] = useState(false);
+
+  function resetPhoto() {
+    setPhoto(null); setBelirsiz([]); setPhotoChecked(false);
+    setParts({}); setForm((previous) => ({ ...previous, tramer: "" }));
+    setOrigins((previous) => Object.fromEntries(Object.entries(previous).filter(([key]) => !key.startsWith("parts.") && key !== "tramer_amount")));
+  }
+  function applyPhoto(result: InspectionPhotoResult) {
+    const values = fotoOnDolum(result, (meta?.parts || []).map((part) => part.key));
+    setPhoto(result); setPhotoChecked(false); setBelirsiz(values.belirsiz);
+    setParts(values.parts); setForm((previous) => ({ ...previous, tramer: values.tramer }));
+    setOrigins((previous) => ({ ...Object.fromEntries(Object.entries(previous).filter(([key]) => !key.startsWith("parts.") && key !== "tramer_amount")), ...values.origins }));
+  }
   // Kasa geçiş yılı: araç yılı iki kasaya denk geliyorsa müşteriye sorulur (ör. 2021 Tucson: TL / NX4)
   const [kasaBilgisi, setKasaBilgisi] = useState<KasaBilgisi | null>(null);
   const [kasa, setKasa] = useState<"" | "yeni" | "eski">("");
@@ -113,10 +131,13 @@ export default function AracAnalizSayfasi() {
   });
   const set = (key: keyof Form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setValue(key)(e.target.value);
   const setValue = (key: keyof Form) => (value: string) => {
+    if (key === "tramer") setPhotoChecked(false);
     clearOrigin(key);
     setForm((f) => ({ ...f, [key]: value }));
   };
   function parcaDegistir(parca: string, durum: PartStatus) {
+    setBelirsiz((previous) => previous.filter((key) => key !== parca));
+    setPhotoChecked(false);
     clearOrigin(`parts.${parca}`);
     setParts((p) => {
       const copy = { ...p };
@@ -130,7 +151,7 @@ export default function AracAnalizSayfasi() {
     const source = origins[originKey(key)];
     if (!source) return null;
     return <span className={`ml-2 inline-block rounded px-1.5 py-0.5 text-xs ${source.dogrulandi ? "bg-green-50 text-green-800" : "bg-yellow-50 text-yellow-800"}`}>
-      {source.dogrulandi ? (source.kaynak === "ilan_metni" ? "İlan metninden alındı" : "İlandan alındı") : source.kaynak === "link_kelimeleri" ? "Linkten tahmin — kontrol edin" : "Kayıtlı bilgi — kontrol edin"}
+      {source.kaynak === "ekspertiz_raporu" ? "Ekspertiz raporundan — kontrol edin" : source.dogrulandi ? (source.kaynak === "ilan_metni" ? "İlan metninden alındı" : "İlandan alındı") : source.kaynak === "link_kelimeleri" ? "Linkten tahmin — kontrol edin" : "Kayıtlı bilgi — kontrol edin"}
     </span>;
   }
 
@@ -144,6 +165,7 @@ export default function AracAnalizSayfasi() {
       return;
     }
     setYapistirUyarisi(false);
+    setPhoto(null); setBelirsiz([]); setPhotoChecked(false);
     const v = res.vehicle || {};
     // Her çıkarım yeni bir ilanı temsil eder: önceki ilandan eksik alan taşınmaz.
     setForm((f) => ({
@@ -203,6 +225,10 @@ export default function AracAnalizSayfasi() {
         window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
+      if (photo && (belirsiz.length || !form.tramer || !photoChecked)) {
+        setHata({ message: "Raporda okunmayan parçaların durumunu ve tramer tutarını kontrol edin; ardından bilgileri onaylayın." });
+        return;
+      }
       // Aynı istek numarasıyla yeniden sormak raporu yeniden üretmez, krediyi ikinci kez düşmez.
       const istek = {
         request_id: crypto.randomUUID(),
@@ -219,6 +245,11 @@ export default function AracAnalizSayfasi() {
         parts,
         tramer_amount: form.tramer ? Number(form.tramer) : 0,
         kasa: kasaBilgisi?.gecisYili && kasa ? kasa : undefined,
+        kaynak_turu: photo ? "ekspertiz_raporu" as const : "musteri" as const,
+        bulgular: photo?.bulgular,
+        tramer_count: photo?.tramer_count ?? undefined,
+        ekspertiz_firma_adi: photo?.firma_adi ?? undefined,
+        ekspertiz_rapor_tarihi: photo?.rapor_tarihi ?? undefined,
       };
       const res = await tekrarliIstek(() => analyzeValuation(istek));
       setSonuc(res);
@@ -356,9 +387,11 @@ export default function AracAnalizSayfasi() {
             </div>
           </section>
 
+          <EkspertizFotografi key={user?.id} disabled={busy !== null || !meta} onBusy={(value) => setBusy(value ? "photo" : null)} onApply={applyPhoto} onReset={resetPhoto}
+            labels={Object.fromEntries((meta?.parts || []).map((part) => [part.key, part.label]))} />
           <section className="bg-white rounded-xl border border-kenarlik-acik p-6">
             <h2 className="text-lg font-semibold text-metin-birincil">3. Boya / değişen ve hasar kaydı</h2>
-            <p className="text-sm text-metin-ikincil mt-1">İlandaki ekspertiz bilgisine göre parçaları araç üzerinde işaretleyin. İşaretlemedikleriniz orijinal sayılır.</p>
+            <p className="text-sm text-metin-ikincil mt-1">{photo ? "Okunmayan parçalar belirtilmedi olarak kalır. Her eksik parçanın durumunu kendiniz doğrulayın ve şemada işaretleyin." : "İlandaki ekspertiz bilgisine göre parçaları araç üzerinde işaretleyin. İşaretlemedikleriniz orijinal sayılır."}</p>
             {(["painted_count", "changed_count"] as const).map((key) => origins[key] && (
               <p className="mt-2 text-sm" key={key}>{key === "painted_count" ? "Boyalı" : "Değişen"} parça sayısı: {origins[key].deger}{badge(key)}. Hangi parçalar olduğunu aşağıdan kontrol edin.</p>
             ))}
@@ -367,9 +400,19 @@ export default function AracAnalizSayfasi() {
                 parcalar={parts}
                 etiketler={Object.fromEntries((meta?.parts || []).map((p) => [p.key, p.label]))}
                 onDegistir={parcaDegistir}
+                belirsiz={belirsiz}
                 rozet={(k) => badge(`parts.${k}`)}
               />
             </div>
+            {photo && <div className="mt-4 space-y-2 text-sm">
+              <p className="font-medium">Kaynak: ekspertiz raporundan — YerimeBak uzmanı tarafından doğrulanmadı.</p>
+              {belirsiz.length > 0 && <p role="alert">Durumu kontrol edilmesi gereken parçalar: {belirsiz.map((key) => meta?.parts.find((part) => part.key === key)?.label || key).join(", ")}. Orijinal ise şemada Orijinal seçip parçaya dokunun.</p>}
+              {photo.bulgular.filter((item) => item.ciddiyet === "ciddi").map((item, index) => <p key={index} className="rounded-lg bg-red-50 p-3 text-tehlike">Ciddi bulgu: {item.metin}. Satın almadan önce yerinde doğrulatın.</p>)}
+              <p>Tramer okunmadıysa kendiniz doğrulayın; hasar kaydı yoksa açıkça 0 girin.</p>
+              <label className="flex items-start gap-2"><input type="checkbox" checked={photoChecked} disabled={belirsiz.length > 0 || !form.tramer} onChange={(event) => setPhotoChecked(event.target.checked)} />
+                <span>Parçaları, trameri ve rapordan okunan bulguları kontrol ettim. Düzelttiğim/eksik alanları kendi beyanımla tamamladım.</span></label>
+              <button type="button" onClick={resetPhoto} className="text-birincil underline">Fotoğraf bilgilerini kaldır ve elle doldur</button>
+            </div>}
             <div className="mt-4 max-w-xs">
               <label className={label}>Tramer / hasar kaydı tutarı (₺){badge("tramer")}</label>
               <SayiAlani ariaLabel="Tramer tutarı" enFazlaHane={9} value={form.tramer} onChange={setValue("tramer")} className={input} placeholder="0" />

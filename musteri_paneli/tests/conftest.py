@@ -3,6 +3,12 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
+def _ek_masraf_aramasi_kapali(monkeypatch):
+    # Yeni ağ sınırı varsayılan testlerde kapalı; davranış testleri açıkça açar.
+    monkeypatch.setenv('RISK_COST_SEARCH_LIMIT', '0')
+
+
+@pytest.fixture(autouse=True)
 def _sikayet_aramasi_kapali(monkeypatch):
     # Risk aramasını taklit eden testler yalnız `_search`'ü değiştirir; ikinci (Türkçe şikâyet)
     # araması varsayılan olarak boş döner. Bu davranışı sınayan testler kendi sahtesini kurar.

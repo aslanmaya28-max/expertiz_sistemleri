@@ -72,7 +72,7 @@ def test_pdf_akilli_alici_bolumleri_turkce_ve_uzun_url():
         text = '\n'.join(page.extract_text() for page in document.pages)
         # Kartta etiket ve büyük rakam ayrı satırlarda: içerik korunur.
         for part in ('Pazarlık planı', 'Açılış teklifi:', '900.000 TL', 'Modelin bilinen sorunları', 'Şanzıman titreşimi 24',
-                     'Resmi kaynak', 'kaynakta belirtilmemiş', 'Bu kilometrede doğrulanacak bakımlar',
+                     'Resmî kayıt', 'kaynakta belirtilmemiş', 'Bu kilometrede doğrulanacak bakımlar',
                      'Satıcıya sorulacak sorular', '2. Motor kaputu neden boyandı?',
                      'Bu aracı YerimeBak ile yerinde inceletin', 'https://www.yerimebak.com.tr/ekspertiz-talebi'):
             assert part in text, part

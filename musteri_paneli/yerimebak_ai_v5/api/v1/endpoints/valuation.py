@@ -5,15 +5,22 @@ Her analiz 1 kredi; yeterli piyasa verisi yoksa kredi dusulmez.
 """
 import asyncio
 from uuid import UUID
-from typing import Any, Dict, Optional
+from datetime import date
+from typing import Any, Dict, Optional, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from yerimebak_ai_v5.api.v1.endpoints.auth import get_current_user
 from yerimebak_ai_v5.services import valuation_service, listing_extract
 
 router = APIRouter()
+
+
+class InspectionFinding(BaseModel):
+    kategori: Literal['motor', 'sanziman', 'kaporta', 'alt_takim', 'elektronik', 'diger']
+    metin: str = Field(min_length=1, max_length=400)
+    ciddiyet: Literal['ciddi', 'pazarlik', 'bilgi']
 
 
 class ValuationRequest(BaseModel):
@@ -35,6 +42,10 @@ class ValuationRequest(BaseModel):
     kasa: Optional[str] = Field(default=None, pattern="^(yeni|eski)$")
     # Motor gücü (hp): kasa değişiminde güç de değişir; farklı güçteki ilanlar emsal sayılmaz
     hp: Optional[int] = Field(default=None, ge=40, le=800)
+    kaynak_turu: Optional[Literal['ekspertiz_raporu', 'ilan', 'musteri']] = None
+    bulgular: list[InspectionFinding] = Field(default_factory=list, max_length=30)
+    ekspertiz_firma_adi: Optional[str] = Field(default=None, max_length=120)
+    ekspertiz_rapor_tarihi: Optional[date] = None
 
 
 def _raise_if_error(result: Dict[str, Any]) -> Dict[str, Any]:
@@ -86,6 +97,18 @@ async def parts() -> Dict[str, Any]:
         ],
         "cost_credits": valuation_service.ANALYSIS_COST,
     }
+
+
+@router.post('/inspection-photo')
+async def inspection_photo(request: Request, user: Dict[str, Any] = Depends(get_current_user)):
+    from yerimebak_ai_v5.services import inspection_photo as photo
+    from yerimebak_ai_v5.services.inspection_photo_upload import files_from_request
+    await _consume_daily(user)
+    try:
+        files = await files_from_request(request)
+        return await asyncio.get_running_loop().run_in_executor(None, photo.read, files)
+    except photo.PhotoError as exc:
+        raise HTTPException(exc.status, str(exc)) from None
 
 
 @router.get("/generation")
