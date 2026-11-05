@@ -12,10 +12,10 @@ Sınırlar: 1–4 JPEG/PNG/HEIC, dosya başına8MB, uzun kenar2000px; günlük m
 - [x] Kimlikli multipart uç, akış ve dosya sınırları, ortak kota. Sınırlı kaynak/bulgular istek modeli; entegrasyon testleri.
 - [x] Tek rapor zenginleştirme: ciddi önce doğrulama; yalnız kozmetik pazarlık; firma/tarih ve doğrulanmadı kaynağı. Değişmez senaryo ve PDF eşlik testi.
 - [x] Web fotoğraf bileşeni/API tipleri, sonuç kontrol/onay, kaporta/tramer ön dolumu ve uyarılar. Next yerel rehberi, tsc ve site testleri.
-- [ ] Tam Python testleri, kod incelemesi, sentetik gerçek model denemesi/maliyet, Türkçe commit ve köprü teslimi.
+- [x] Tam Python testleri, kod incelemesi, sentetik gerçek model denemesi/maliyet, Türkçe commit ve köprü teslimi.
 
 Karar: güncel resmi OpenRouter model sayfasına göre google/gemini-3.5-flash-lite varsayılanı kullanılacak; girdi0.30$/M, çıktı2.50$/M (5Kasım2026 inceleme). Gerçek maliyet API usage.cost alanından alınacak, tahmin gerçek ölçüm diye yazılmayacak. Kaynaklar: https://openrouter.ai/google/gemini-3.5-flash-lite ve https://openrouter.ai/docs/guides/overview/multimodal/image-understanding .
 
 İnceleme: iki P2 doğrulandı ve kırmızı→yeşil testlerle düzeltildi. Genel olumlu alt dize filtresi olumsuz/karma ciddi bulguyu siliyordu; artık yalnız bütün cümlesi açık olumlu ifadeler elenir. Şasi numarası/VIN etiket ve değerleri tüm serbest metin çıkışlarında temizlenir. Kod incelemesi review_025 tarafından salt okunur yapıldı. Oran/tramer modülü ve uygulama/admin klasörleri değişmedi.
 
-Canlı deneme: süreç/kullanıcı/sistem ortamında model anahtarı yok. Gizli dosya okunmadı. Hazır tools.inspection_photo_smoke betiğinin gerçek sonuç/maliyet ölçümü Claude010 köprüsünde istendi; kullanıcı010'u Claude'a yaptıracağını bildirdi. Bu bağımlılık çözülmeden gerçek model denemesi bitti denmez.
+Canlı deneme: süreç/kullanıcı/sistem ortamında model anahtarı yok. Bu oturum gizli dosya okumadı. Hazır tools.inspection_photo_smoke betiğini Claude010 köprüsü üzerinden kendi yetkili sürecinde çalıştırdı: çıkış0, kaput boyalı/sol ön kapı değişen, tramer125000TL/2, motor ciddi ve tampon kozmetik doğru; gerçek rapor maliyeti0.00087USD. Kaynak kök kopru/claude_sonuc/010-025-026-gercek-model-denemesi.md. Uyarı listesinde eksik kalan sağ ön kapı için ayrıca kırmızı→yeşil test eklendi: Türkçe parça adı anahtara çevrilir ve model listeyi unutsa da eksik parçalar okunamayan/belirtilmeyen listesinde tutulur. Güncel smoke bunu da assert eder; görüntü modeli yeniden çağrılmadan normalizasyon farkı ağsız doğrulandı.

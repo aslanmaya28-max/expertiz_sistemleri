@@ -60,7 +60,7 @@ export default function EkspertizFotografi({ disabled, onBusy, onApply, onReset,
         <ul className="mt-1 list-disc pl-5">{result.bulgular.filter((item) => item.ciddiyet === "ciddi").map((item, index) => <li key={index}>{item.metin}</li>)}</ul>
       </div>}
       <ul className="list-disc pl-5">{result.bulgular.filter((item) => item.ciddiyet !== "ciddi").map((item, index) => <li key={index}>{item.metin} ({item.ciddiyet === "pazarlik" ? "kozmetik / küçük onarım" : "bilgi"})</li>)}</ul>
-      {result.okunamayan_alanlar.length > 0 && <p>Okunamayan alanlar: {result.okunamayan_alanlar.map((key) => labels[key] || key).join(", ")}. Eksik parçalar orijinal sayılmaz.</p>}
+      {result.okunamayan_alanlar.length > 0 && <p>Okunamayan veya belirtilmeyen alanlar: {result.okunamayan_alanlar.map((key) => labels[key] || key).join(", ")}. Eksik parçalar orijinal sayılmaz.</p>}
       {result.found && <>
         <label className="flex items-start gap-2"><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
           <span>Okunan bilgileri raporla karşılaştırdım. Forma aktaracağım; eksik veya hatalı alanları düzelteceğim.</span></label>

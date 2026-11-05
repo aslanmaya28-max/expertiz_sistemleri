@@ -50,6 +50,16 @@ def test_uncertain_part_is_not_assumed_original():
     assert out['parts'] == {}
 
 
+def test_unread_display_label_maps_to_key_and_missing_parts_stay_visible():
+    out = photo.normalize({'parts': {'kaput': 'boyali', 'sagOnKapi': 'orijinal'},
+                           'okunamayan_alanlar': ['Sağ Ön Kapı']})
+    assert 'sagOnKapi' not in out['parts']
+    assert 'sagOnKapi' in out['okunamayan_alanlar']
+    out = photo.normalize({'parts': {'kaput': 'boyali'}, 'okunamayan_alanlar': []})
+    assert 'sagOnKapi' in out['okunamayan_alanlar']
+    assert 'kaput' not in out['okunamayan_alanlar']
+
+
 def test_fake_model_read_reports_cost_without_persisting(monkeypatch):
     monkeypatch.setattr(photo, '_model', lambda images: (
         {'parts': {'kaput': 'boyali'}, 'firma_adi': 'Örnek'},

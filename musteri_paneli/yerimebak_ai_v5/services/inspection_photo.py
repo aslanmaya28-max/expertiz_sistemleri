@@ -96,11 +96,19 @@ def _number(value, maximum):
 def normalize(data):
     data = data if isinstance(data, dict) else {}
     unread = data.get('okunamayan_alanlar')
-    unread = [x for x in (unread if isinstance(unread, list) else [])
-              if x in (*PART_LABELS, 'tramer_amount', 'tramer_count', 'firma_adi', 'rapor_tarihi')]
+    aliases = {re.sub(r'[^a-z0-9]', '', fold(name)): key
+               for key, label in PART_LABELS.items() for name in (key, label)}
+    aliases.update({re.sub(r'[^a-z0-9]', '', key): key
+                    for key in ('tramer_amount', 'tramer_count', 'firma_adi', 'rapor_tarihi')})
+    unread = list(dict.fromkeys(aliases[re.sub(r'[^a-z0-9]', '', fold(x))]
+                  for x in (unread if isinstance(unread, list) else []) if isinstance(x, str)
+                  and re.sub(r'[^a-z0-9]', '', fold(x)) in aliases))
     parts = data.get('parts')
     parts = {k: v for k, v in (parts.items() if isinstance(parts, dict) else [])
              if k in PART_LABELS and v in STATUSES and k not in unread}
+    # Model uyarı dizisini unutsa bile bilgi boşluğu görünür kalır.
+    # Yokluğu orijinal durumuna çevirmeyiz; belirtilmemiş alan da kontrol ister.
+    unread = list(dict.fromkeys(unread + [key for key in PART_LABELS if key not in parts]))
     findings = []
     for item in (data.get('bulgular') if isinstance(data.get('bulgular'), list) else [])[:30]:
         if not isinstance(item, dict):

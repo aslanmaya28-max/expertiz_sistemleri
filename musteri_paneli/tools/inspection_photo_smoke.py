@@ -45,6 +45,7 @@ if __name__ == '__main__':
         assert result['parts'].get('kaput') == 'boyali'
         assert result['parts'].get('solOnKapi') == 'degisen'
         assert 'sagOnKapi' not in result['parts']
+        assert 'sagOnKapi' in result['okunamayan_alanlar']
         assert result['tramer_amount'] == 125000
         assert result['tramer_count'] == 2
         assert any(x['ciddiyet'] == 'ciddi' for x in result['bulgular'])
