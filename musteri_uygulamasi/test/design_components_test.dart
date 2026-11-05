@@ -8,6 +8,7 @@ import 'package:yerimebak/bilesenler/karar_rozeti.dart';
 import 'package:yerimebak/bilesenler/fiyat_araligi.dart';
 import 'package:yerimebak/bilesenler/kaporta_semasi.dart';
 import 'package:yerimebak/bilesenler/hata.dart';
+import 'package:yerimebak/bilesenler/kart.dart';
 import 'package:yerimebak/tema/tema.dart';
 import 'package:yerimebak/tema/gorunum.dart';
 
@@ -136,6 +137,17 @@ void main() {
     expect(find.text('İşlem tamamlanamadı'), findsNothing);
     await host(tester, Hata(const ApiFailure('Geçersiz', status: 401), () {}));
     expect(find.text('Oturumunuz sona erdi'), findsOneWidget);
+  });
+  testWidgets('hata kartı sınırlı ekranda gereksiz yere tam boya uzamaz', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: YbTema.acik,
+        home: Scaffold(body: Hata(const ApiFailure('Bağlantı yok'), () {})),
+      ),
+    );
+    expect(tester.getSize(find.byType(Kart)).height, lessThan(400));
   });
   test('görünüm seçimi yeniden açılışta korunur', () async {
     SharedPreferences.setMockInitialValues({});

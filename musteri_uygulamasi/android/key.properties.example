@@ -1,0 +1,6 @@
+# Bu dosyayı key.properties olarak kopyalayın. Gerçek değerleri Git'e eklemeyin.
+# Windows yolunda / kullanın; keystore proje klasörü dışında olmalı.
+storeFile=
+storePassword=
+keyAlias=upload
+keyPassword=

@@ -19,6 +19,7 @@ class BosDurum extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Kart(
     child: Column(
+        mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(ikon, size: Olcu.ikon, color: YbRenkler.of(context).ikonPasif),

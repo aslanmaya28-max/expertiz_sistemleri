@@ -10,6 +10,7 @@ import 'package:yerimebak/api/models.dart';
 import 'package:yerimebak/api/providers.dart';
 import 'package:yerimebak/api/repositories.dart';
 import 'package:yerimebak/app.dart';
+import 'package:yerimebak/bilesenler/pazarlik_uclusu.dart';
 import 'api_client_test.dart' show MemoryTokens;
 import 'report_view_test.dart' show fixture;
 
@@ -36,8 +37,13 @@ class AppFixture {
   final calls = <http.Request>[];
   final int configStatus;
   final String minVersion;
+  final Json? report;
   late final ApiClient api;
-  AppFixture({this.configStatus = 200, this.minVersion = '1.0.0'}) {
+  AppFixture({
+    this.configStatus = 200,
+    this.minVersion = '1.0.0',
+    this.report,
+  }) {
     api = ApiClient(
       store: store,
       client: MockClient((r) async {
@@ -82,7 +88,9 @@ class AppFixture {
             'offset': 0,
           };
         }
-        if (path.endsWith('/valuation/reports/report20')) body = fixture();
+        if (path.endsWith('/valuation/reports/report20')) {
+          body = report ?? fixture();
+        }
         if (path.endsWith('/pdf')) {
           expect(r.headers['authorization'], 'Bearer valid');
           return http.Response(
@@ -145,6 +153,39 @@ void main() {
     expect(app.platform.opened, ['report20']);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'satıcı mesajı kısayolu fiyat planı yerine doğrudan mesajı açar',
+    (tester) async {
+      final data = fixture()
+        ..['pazarlikPlani'] = {
+          'saticiMesaji': 'Belgeleri paylaşır mısınız?',
+          'acilisTeklifi': 900000,
+          'hedefFiyat': 930000,
+          'ustSinir': 940000,
+        };
+      final app = AppFixture(report: data);
+      app.store.token = 'valid';
+      final container = await app.pump(tester);
+      container.read(routerProvider).go('/raporlar/report20');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Satıcıya mesaj'));
+      await tester.pumpAndSettle();
+      final sheet = find.byType(BottomSheet);
+      expect(
+        find.descendant(of: sheet, matching: find.byType(SelectableText)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: sheet, matching: find.byType(PazarlikUclusu)),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: sheet, matching: find.text('Mesajı kopyala')),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('zorunlu güncelleme doğrudan profil rotasıyla geçilemez', (
     tester,

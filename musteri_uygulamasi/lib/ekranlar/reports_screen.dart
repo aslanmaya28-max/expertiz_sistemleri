@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/providers.dart';
@@ -69,15 +70,18 @@ class ReportDetailScreen extends ConsumerWidget {
               mesaj: text(detail.valueOrNull!.plan['saticiMesaji']).isEmpty
                   ? null
                   : () async {
-                      await showModalBottomSheet<void>(
-                        context: context,
-                        isScrollControlled: true,
-                        builder: (context) => SafeArea(
-                          child: SingleChildScrollView(
-                            child: PageBody(
-                              child: NegotiationSection(
-                                detail.requireValue.plan,
-                                ref.read(platformProvider).openLink,
+                      unawaited(
+                        showModalBottomSheet<void>(
+                          context: context,
+                          isScrollControlled: true,
+                          builder: (context) => SafeArea(
+                            child: SingleChildScrollView(
+                              child: PageBody(
+                                child: SaticiMesaji(
+                                  text(
+                                    detail.requireValue.plan['saticiMesaji'],
+                                  ),
+                                ),
                               ),
                             ),
                           ),

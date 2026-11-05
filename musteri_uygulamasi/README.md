@@ -21,7 +21,7 @@ flutter build apk --debug --dart-define=API_BASE_URL=http://10.0.2.2:8001/api/v1
 flutter build appbundle --release --dart-define=API_BASE_URL=https://api.yerimebak.com.tr/api/v1
 ```
 
-Yayın imzası ve mağaza hazırlığı 024 görevidir. Anahtar, keystore, key.properties ve google-services.json depoya girmez.
+Yayın imzası ve mağaza hazırlığı aşağıdaki 024 adımlarındadır. Anahtar, keystore, key.properties ve google-services.json depoya girmez.
 
 Yerel sunucuyu ana demo 8000/3000 ve `ybdemo` üzerinde çalıştırmayın. Kendi PostgreSQL veritabanınızı (`ybapp_020` gibi)
 oluşturup API'yi 8001'de açın; ayrı test kullanıcısı kaydedin. Test için `PYTHON_DOTENV_DISABLED=1`, `SECRET_KEY=test`,
@@ -36,7 +36,7 @@ Bu uygulama kredi satın almak için web ödemesine yönlendirmez.
 - Profil: ad/telefon, şifre değişikliği, analiz kredi geçmişi, yasal/destek bağlantıları, sürüm, açık/koyu/sistem tema seçimi.
 - Hesap silme: şifre ve açık onay sonrası sunucuya istek, başarıda güvenli belirteci temizleyip çıkış.
 - Asgari sürüm kapısı; eski sunucuda `/app/config` 404 ise hesap silme gizlenir.
-- Araç analizi (021) ve Play kredi satışı (022) için yer tutucu ekranlar. Ekspertiz akışı 023 kapsamındadır.
+- İlan okuma, araç analizi ve Google Play kredi satışı hazırdır. Ekspertiz akışı 023 kapsamındadır.
 
 ## Kod düzeni
 
@@ -64,7 +64,7 @@ flutter build apk --debug
 ```
 
 Testler API'yi taklit eder; gerçek satın alma, model çağrısı, hesap silme veya demo DB işlemi yapmaz.
-API hata/yenileme ve oturum yarışları, sürüm kapısı, profil silme, rapor gizleme, sayfalama, PDF ve yüzde 130 yazı ölçeği sınanır.
+API hata/yenileme ve oturum yarışları, sürüm kapısı, profil silme, müşteriye açık karar/rapor alanları, sayfalama, PDF ve yüzde 130 yazı ölçeği sınanır.
 Açık/koyu ana bileşen golden referansları `test/goldens/` altındadır. Kasıtlı tasarım değişiminde görselleri inceleyerek:
 
 ```sh
@@ -72,7 +72,7 @@ flutter test test/theme_golden_test.dart --update-goldens
 ```
 
 `PlatformServices`, `TokenStore`, HTTP istemcisi ve Riverpod sağlayıcıları testlerde değiştirilebilir.
-Tema seçimi bu altyapı sürümünde geçerli uygulama oturumu boyunca korunur; yeniden açılış varsayılan olarak sistem temasını izler.
+Tema seçimi shared_preferences ile kalıcıdır; ilk açılış varsayılanı sistem temasıdır.
 
 ## İlan okuma, analiz ve Google Play (021–022)
 
@@ -98,3 +98,62 @@ Tema seçimi bu altyapı sürümünde geçerli uygulama oturumu boyunca korunur;
 ### Emülatörden yerel API
 
 Android emülatörü için API adresi `http://10.0.2.2:8000/api/v1` olur. Sunucuyu `EXTRA_ALLOWED_HOSTS=10.0.2.2` ortam değişkeniyle başlatın; aksi halde Host başlığı 400 ile reddedilir. `.env` dosyasını değiştirmek gerekmez.
+
+## Play yayını (024)
+
+Mağaza alanlarının kopyalanabilir metinleri `magaza/` içindedir. Kalıcı inceleme hesabı, Play Console ürünleri ve üretim sunucusu kurucu tarafından hazırlanır; bu görev dış servise yükleme yapmaz.
+
+### Yükleme anahtarı
+
+JDK17 `keytool` ile **proje klasörü dışında** anahtar üretin. Parolayı komuta yazmayın; araç etkileşimli sorar:
+
+```powershell
+New-Item -ItemType Directory -Force "$env:USERPROFILE/yerimebak-anahtarlar"
+keytool -genkeypair -v -keystore "$env:USERPROFILE/yerimebak-anahtarlar/upload.jks" -alias upload -keyalg RSA -keysize 2048 -validity 10000
+Copy-Item android/key.properties.example android/key.properties
+```
+
+`android/key.properties` dosyasına `storeFile=C:/Users/KULLANICI/yerimebak-anahtarlar/upload.jks`, `keyAlias=upload`, gerçek `storePassword` ve `keyPassword` girin. Windows yolunda `/` kullanın. Dosya ve keystore Git'te yok sayılır; parola/anahtarları sohbete veya commit'e koymayın. Alternatif: `YB_ANDROID_KEY_PROPERTIES` ortam değişkeniyle depo dışındaki özellik dosyasının tam yolunu verin.
+
+**Play App Signing kullanın; yükleme anahtarını ve parolaları güvenli iki yerde yedekleyin.** Anahtar kaybı yeni sürüm yüklemesini engeller ve Console kurtarma süreci gerektirebilir. Doğrulama sırasında oluşturulan geçici anahtar yayın anahtarı değildir.
+
+### Yayın derlemesi
+
+```powershell
+flutter pub get
+flutter analyze
+flutter test
+flutter build appbundle --release --dart-define=API_BASE_URL=https://api.yerimebak.com.tr/api/v1
+# Soğuk açılış / yerel sürüm denemesi için:
+flutter build apk --release --dart-define=API_BASE_URL=https://api.yerimebak.com.tr/api/v1
+```
+
+Çıktı: `build/app/outputs/bundle/release/app-release.aab`. R8 küçültme ve kaynak daraltma açıktır. API HTTPS zorunludur; `PLAY_SIMULASYON` release'de kapalıdır. İmza eksikse derleme durur; debug anahtarına geri düşmez. Sürüm `pubspec.yaml` içindeki `1.0.0+1` değerinden gelir; her sonraki Console yüklemesinde `+` sonrasındaki kodu artırın. Paket adı `com.yerimebak.app`, minimum API24, hedef API36.
+
+Release APK ile:
+
+```powershell
+adb install -r build/app/outputs/flutter-apk/app-release.apk
+adb shell am force-stop com.yerimebak.app
+adb shell am start -W -n com.yerimebak.app/.MainActivity
+```
+
+`TotalTime` ilk Android görüntüsüne kadar geçen süredir; ağdan config/oturum yanıtının gelmesi ayrıca ölçülmelidir. Debug süresiyle karşılaştırıp kullanıcıya release süresi diye sunmayın. İnternet kapalı testte açılış marka ekranından sonra anlaşılır hata ekranına geçmelidir.
+
+### Marka kaynaklarını yenileme
+
+Sitedeki SVG sembolü aynı path ile kullanılır; renkler tasarım sisteminin marka bandı ve vurgu değerleridir. Bitmap kaynakları kodla vektörden üretilir:
+
+```powershell
+flutter test tool/marka_uret_test.dart
+dart run flutter_launcher_icons
+dart run flutter_native_splash:create
+```
+
+Uyarlanabilir/tek renk ikon, Android12 ve eski Android açılış ekranı üretilir. Paketlerde yalnız Android hedefi açık; iOS/web eklenmez. `allowBackup=false` ve XML yedek/cihaz aktarım dışlamaları oturum belirteçlerini korur. Kamera, konum, rehber veya galeri izni yoktur.
+
+### Console sırası
+
+Geliştirici hesabı ve doğrulama → ödeme profili → uygulama oluşturma → Play App Signing/ürünler → listeleme ve veri güvenliği/erişim formları → AAB ile kapalı test → 12+ kesintisiz testçiyle 14 gün → gerçek geri bildirimlerle üretim erişimi başvurusu. Ayrıntılar `magaza/kapali-test-plani.md` içinde. Testçilere mesaj otomatik gönderilmez.
+
+024 yerel ekran denemesi: mevcut sunucu `http://10.0.2.2:8001/api/v1`; yalnız debug için `--dart-define=PLAY_SIMULASYON=true`. Release HTTPS zorunluluğu korunur; yerel HTTP denemesi için bu kuralı gevşetmeyin. Sunucuyu başlatma/durdurma 024 kapsamı değildir.
