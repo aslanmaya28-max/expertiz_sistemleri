@@ -23,6 +23,8 @@ dependencies:
   flutter_svg: 2.2.3
   lucide_icons_flutter: 4.0.2
   share_plus: 11.1.0
+  webview_flutter: 4.14.1
+  in_app_purchase: 3.3.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

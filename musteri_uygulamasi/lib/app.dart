@@ -5,11 +5,15 @@ import 'package:go_router/go_router.dart';
 import 'api/providers.dart' hide themeModeProvider;
 import 'tema/gorunum.dart';
 import 'bilesenler/alt_menu.dart';
+import 'analiz/analiz_ekranlari.dart';
+import 'analiz/ilan_metni.dart';
+import 'analiz/paylasim.dart';
 import 'bilesenler/ortak.dart';
 import 'ekranlar/auth_screen.dart';
 import 'ekranlar/home_screen.dart';
 import 'ekranlar/profile_screen.dart';
 import 'ekranlar/reports_screen.dart';
+import 'kredi/kredi_ekrani.dart';
 import 'oturum/session_controller.dart';
 import 'tema/tema.dart';
 
@@ -67,6 +71,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/sifremi-unuttum',
         builder: (_, _) => const AuthScreen(AuthMode.forgot),
       ),
+      // Analiz adımları alt menüsüz, tam ekran: müşteri akıştan dağılmaz.
+      GoRoute(
+        path: '/analiz/oku',
+        builder: (_, s) {
+          final link = s.uri.queryParameters['link'] ?? '';
+          return paylasimdanLink(link) == null
+              ? const AnalizBaslatEkrani()
+              : IlanOkunuyorEkrani(link);
+        },
+      ),
+      GoRoute(path: '/analiz/metin', builder: (_, _) => const MetinEkrani()),
+      GoRoute(path: '/analiz/form', builder: (_, _) => const AracFormuEkrani()),
+      GoRoute(path: '/analiz/bekle', builder: (_, _) => const AnalizBeklemeEkrani()),
       ShellRoute(
         builder: (context, state, child) =>
             AppShell(path: state.uri.path, child: child),
@@ -82,11 +99,8 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          GoRoute(path: '/analiz', builder: (_, _) => const ComingSoonScreen()),
-          GoRoute(
-            path: '/kredi',
-            builder: (_, _) => const ComingSoonScreen(credits: true),
-          ),
+          GoRoute(path: '/analiz', builder: (_, _) => const AnalizBaslatEkrani()),
+          GoRoute(path: '/kredi', builder: (_, _) => const KrediEkrani()),
           GoRoute(
             path: '/profil',
             builder: (_, _) => const ProfileScreen(),
@@ -139,6 +153,10 @@ class YerimeBakApp extends ConsumerWidget {
     darkTheme: YbTema.koyu,
     themeMode: ref.watch(themeModeProvider),
     routerConfig: ref.watch(routerProvider),
+    builder: (context, child) => UygulamaDinleyicileri(
+      yonlendirici: (r) => r.read(routerProvider),
+      child: child ?? const SizedBox.shrink(),
+    ),
     locale: const Locale('tr', 'TR'),
     supportedLocales: const [Locale('tr', 'TR')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,

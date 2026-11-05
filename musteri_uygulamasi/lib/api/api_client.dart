@@ -100,8 +100,9 @@ class ApiClient {
     String method,
     String path,
     Object? body,
-    String? token,
-  ) async {
+    String? token, {
+    Duration? timeout,
+  }) async {
     if (!path.startsWith('/') ||
         path.startsWith('//') ||
         path.contains('://')) {
@@ -120,7 +121,7 @@ class ApiClient {
       return await client
           .send(request)
           .then(http.Response.fromStream)
-          .timeout(timeout);
+          .timeout(timeout ?? this.timeout);
     } on TimeoutException {
       throw const ApiFailure('Sunucu yanıtı gecikti. Lütfen tekrar deneyin.');
     } on http.ClientException {
@@ -158,12 +159,13 @@ class ApiClient {
     String path, {
     Object? body,
     bool authenticated = true,
+    Duration? timeout,
   }) async {
     final generation = _generation;
     await _storageWrites;
     final token = authenticated ? await store.read() : null;
     _checkSession(generation, authenticated);
-    var response = await _send(method, path, body, token);
+    var response = await _send(method, path, body, token, timeout: timeout);
     if (response.statusCode == 401 &&
         authenticated &&
         token != null &&
@@ -182,7 +184,13 @@ class ApiClient {
         }
       }
       if (replacement != null && generation == _generation) {
-        response = await _send(method, path, body, replacement);
+        response = await _send(
+          method,
+          path,
+          body,
+          replacement,
+          timeout: timeout,
+        );
       }
     }
     if (authenticated && generation != _generation) {
@@ -209,13 +217,15 @@ class ApiClient {
     String method,
     String path,
     Object? body,
-    bool authenticated,
-  ) async {
+    bool authenticated, {
+    Duration? timeout,
+  }) async {
     final response = await request(
       method,
       path,
       body: body,
       authenticated: authenticated,
+      timeout: timeout,
     );
     try {
       final value = jsonDecode(utf8.decode(response.bodyBytes));
@@ -228,11 +238,13 @@ class ApiClient {
 
   Future<Map<String, dynamic>> get(String path, {bool authenticated = true}) =>
       _json('GET', path, null, authenticated);
+  /// [timeout] yalnız uzun süren işlerde (analiz 60–180 sn) varsayılan 30 sn'yi aşar.
   Future<Map<String, dynamic>> post(
     String path,
     Object body, {
     bool authenticated = true,
-  }) => _json('POST', path, body, authenticated);
+    Duration? timeout,
+  }) => _json('POST', path, body, authenticated, timeout: timeout);
   Future<Map<String, dynamic>> put(String path, Object body) =>
       _json('PUT', path, body, true);
   Future<Uint8List> getPdf(String path) async {
