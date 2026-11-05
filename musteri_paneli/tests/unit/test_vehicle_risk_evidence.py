@@ -74,3 +74,16 @@ def test_cost_search_does_not_erase_cited_complaints_in_cache(monkeypatch):
     assert cold['kullaniciSikayetleri']
     cached = vr.get_model_risks(VEHICLE)
     assert cached['kullaniciSikayetleri'] == cold['kullaniciSikayetleri']
+
+
+def test_price_for_other_engine_cannot_borrow_vehicle_intro(monkeypatch):
+    setup_search(monkeypatch)
+    source = 'Seat Arona 1.0 TSI DSG. Seat Arona 1.4 TSI DSG mekatronik onarımı 25.000–30.000 TL.'
+    monkeypatch.setattr(cs, 'search', lambda *a, **k: {'items': [{'baslik': 'Mekatronik',
+        'onarim': 'Mekatronik onarımı', 'tahminiMaliyet': {'min': 25000, 'max': 30000}, 'kaynaklar': [PRICE]}],
+        'sources': {PRICE: source}, 'cost_usd': .004, 'searches': 1})
+    assert vr.get_model_risks(VEHICLE)['riskler'][0]['tahminiMaliyet'] is None
+    risks = [{'baslik': 'Mekatronik', 'guven': 'orta', 'tahminiMaliyet': None}]
+    vr._apply_extra(risks, [{'baslik': 'Mekatronik', 'onarim': 'Mekatronik onarımı', 'text': source,
+                           'cost': {'min': 25000, 'max': 30000}, 'url': PRICE, 'tarih': '2026-11-05'}], VEHICLE)
+    assert risks[0]['tahminiMaliyet'] is None

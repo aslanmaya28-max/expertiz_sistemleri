@@ -344,6 +344,14 @@ def _verify(item, sources, vehicle):
     return risk_evidence.at_km(out, vehicle.get('km'))
 
 
+def _price_scope_compatible(text, topics, vehicle):
+    if _incompatible(text, vehicle):
+        return False
+    required = set(topics) - {'geri_cagirma'} or set(topics)
+    return not any(_incompatible(sentence, vehicle) for sentence in risk_evidence.sentences(text)
+                   if required & set(_topics(sentence)))
+
+
 def _extra_evidence(extra, vehicle):
     """Modelin sayısını değil, atıfta dönen sayfanın aynı onarım fiyatını kabul eder."""
     output = []
@@ -366,7 +374,7 @@ def _extra_evidence(extra, vehicle):
             except ValueError:
                 continue
             text = sources.get(url.rstrip('/'))
-            if not isinstance(text, str) or _incompatible(text, vehicle):
+            if not isinstance(text, str) or not _price_scope_compatible(text, topics, vehicle):
                 continue
             cost = risk_evidence.cost_proof(item.get('tahminiMaliyet'), text,
                                              item.get('onarim'), topics, _topics, _cost)
@@ -383,7 +391,8 @@ def _apply_extra(risks, evidence, vehicle):
             continue
         for proof in evidence:
             if (not isinstance(proof, dict) or proof.get('baslik') != risk.get('baslik')
-                    or not isinstance(proof.get('text'), str) or _incompatible(proof['text'], vehicle)):
+                    or not isinstance(proof.get('text'), str)
+                    or not _price_scope_compatible(proof['text'], _topics(risk['baslik']), vehicle)):
                 continue
             cost = risk_evidence.cost_proof(proof.get('cost'), proof['text'], proof.get('onarim'),
                                             _topics(risk['baslik']), _topics, _cost)
