@@ -24,7 +24,7 @@ import httpx
 from yerimebak_ai_v5.services import web_market_reference as wmr
 from yerimebak_ai_v5.services.llm_json import oku
 from yerimebak_ai_v5.services.web_market_reference import fold, _displacements
-from yerimebak_ai_v5.services import risk_evidence, risk_cost_search
+from yerimebak_ai_v5.services import risk_evidence, risk_cost_search, risk_sources
 
 
 # İlk değer, çıktı ve tekilleştirme anahtarıdır. Eş anlamlılar kaynakta aranır.
@@ -85,7 +85,8 @@ _OFFICIAL = {
     "fiat": ("fiat.com", "fiat.com.tr"), "honda": ("honda.com", "honda.com.tr"),
     "hyundai": ("hyundai.com",), "kia": ("kia.com",), "opel": ("opel.com", "opel.com.tr"),
 }
-_AUTHORITIES = ("nhtsa.gov", "gov.uk", "ec.europa.eu")
+_AUTHORITIES = ("nhtsa.gov", "gov.uk", "ec.europa.eu", "kba.de")
+_FAMILIES = {"tsi", "tdi", "tfsi", "dci", "tce", "hdi", "puretech", "ecoboost", "tdci"}
 _TECHNICAL = ("whatcar.com", "adac.de", "rac.co.uk", "theaa.com", "autocar.co.uk")
 _USER_SOURCES = ("sikayetvar.com", "donanimhaber.com", "technopat.net")
 _COMPILATIONS = ("araclo.com",)
@@ -152,7 +153,8 @@ def _cache_key(vehicle):
               ("brand", "model", "engine", "package", "fuel", "transmission")]
     values.append((wmr._int(vehicle.get("year")) or 0) // 5)
     # v4: ayrı Türkçe şikâyet araması eklendi; v3 kayıtlarında şikâyet adayı yok
-    return "vehicle-risk:v5:" + hashlib.sha256(json.dumps(values).encode()).hexdigest()
+    # v6: 029 kaynak güveni (resmî kayıt yüksek, iki bağımsız kapsamlı kaynak orta); eski kayıt devralınmaz
+    return "vehicle-risk:v6:" + hashlib.sha256(json.dumps(values).encode()).hexdigest()
 
 
 _LISTS = ("riskler", "kullaniciSikayetleri")
@@ -337,9 +339,30 @@ def _verify(item, sources, vehicle):
         valid[url] = text
     if not valid:
         return None
-    confidence = max((_confidence(url, text, vehicle) for url, text in valid.items()),
-                     key=lambda c: {"dusuk": 0, "orta": 1, "yuksek": 2}[c])
-    cost = _cost(item.get("tahminiMaliyet"), valid.values(), source_topics)
+    # 029 (kullanıcı kararı B): resmî kayıt tek başına yüksek; aynı risk en az iki bağımsız kaynakta aynı cümlede
+    # model + motor/şanzıman + konu ile geçiyorsa orta. Forum/şikâyet sayılmaz. Güven için sayılmayan metin
+    # fiyat/km kanıtı da olamaz.
+    levels = {url: _confidence(url, text, vehicle) for url, text in valid.items()}
+    rank = {"dusuk": 0, "orta": 1, "yuksek": 2}
+    best = max(levels.values(), key=rank.get)
+    brand = fold(vehicle.get("brand"))
+    scoped = {url: text for url, text in valid.items()
+              if risk_sources.source_kind(url, brand) not in ("user", "blocked")
+              and _scoped(text, vehicle, source_topics)}
+    if best == "yuksek":
+        confidence, label = "yuksek", "Resmî kayıt"
+        evidence = {u: t for u, t in valid.items() if levels[u] == "yuksek"}
+    elif risk_sources.independent_count(scoped, brand) >= 2:
+        confidence, label, evidence = "orta", "İki bağımsız teknik kaynak", scoped
+    elif best == "orta":
+        confidence, label = "orta", "Teknik kaynak"
+        evidence = {u: t for u, t in valid.items() if levels[u] == "orta"}
+    else:
+        # Düşük güvenli risk müşteriye gösterilmez; önemi yine kaynaklı masrafla belirlenebilir, ama forum/şikâyet
+        # metni masraf ya da km kanıtı olamaz.
+        confidence, label = "dusuk", "Kullanıcı deneyimi"
+        evidence = {u: t for u, t in valid.items() if risk_sources.source_kind(u, brand) not in ("user", "blocked")}
+    cost = _cost(item.get("tahminiMaliyet"), evidence.values(), source_topics)
     category, severity = _classification(item, topics, cost)
     out = {"baslik": item["baslik"], "aciklama": str(item.get("aciklama") or ""),
             "etkiledigi": str(item.get("etkiledigi") or "Kapsamı servisle doğrulayın"),
@@ -348,16 +371,33 @@ def _verify(item, sources, vehicle):
             "kontrol": str(item.get("kontrol") or "Şasi numarası ve servis kaydıyla doğrulayın."),
             "tahminiMaliyet": cost, "kategori": category, "onem": severity,
             "kaynaklar": list(valid), "guven": confidence}
-    out['kanitSeviyesi'] = ('Resmî kayıt' if confidence == 'yuksek' else
-                            'Çok kaynaklı' if len({_root_domain(url) for url in valid}) >= 2 else
-                            'Teknik kaynak' if confidence == 'orta' else 'Kullanıcı deneyimi')
+    out['kanitSeviyesi'] = label
     if cost:
-        url = next(url for url, text in valid.items() if _cost(cost, [text], source_topics))
+        url = next(url for url, text in evidence.items() if _cost(cost, [text], source_topics))
         out['maliyetKaynagi'] = {'url': url, 'tarih': risk_evidence.today()}
-    km = risk_evidence.km_range(valid, source_topics, _TOPICS)
+    km = risk_evidence.km_range(evidence, source_topics, _TOPICS) if evidence else None
     if km:
         out['tipikKm'], out['kmKaynagi'] = km
     return risk_evidence.at_km(out, vehicle.get('km'))
+
+
+def _scoped(text, vehicle, topics):
+    """Aynı cümlede model + (motor hacmi/ailesi ya da özel şanzıman) + risk konusu geçiyor mu?"""
+    model = fold(vehicle.get("model")).strip()
+    if not model:
+        return False
+    target = " ".join(str(vehicle.get(k) or "") for k in ("engine", "package"))
+    displacements = _displacements(target)
+    families = set(re.findall(r"\b[a-z]+\b", fold(target))) & _FAMILIES
+    gears = _gear(target + " " + str(vehicle.get("transmission") or "")) - {"manual"}
+    for sentence in re.split(r"(?<!\d)[.!?](?!\d)|[\n;]", text or ""):
+        folded = fold(sentence)
+        if model not in folded or not set(_topics(sentence)) & set(topics):
+            continue
+        if ((displacements and displacements & _displacements(sentence))
+                or families & set(re.findall(r"\b[a-z]+\b", folded)) or gears & _gear(sentence)):
+            return True
+    return False
 
 
 def _price_scope_compatible(text, topics, vehicle):
