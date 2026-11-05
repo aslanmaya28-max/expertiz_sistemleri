@@ -1,6 +1,5 @@
 """Aynı ham aday/kaynak üzerinde eski-yeni doğrulayıcı tanısı; ağ çağrısı yapmaz."""
 from collections import Counter
-from urllib.parse import urlsplit
 from yerimebak_ai_v5.services import vehicle_risk as vr
 
 
@@ -36,16 +35,8 @@ def compare_candidates(items, sources, vehicle, current, legacy):
             continue
         reasons = []
         for url in item.get('kaynaklar') or []:
-            host = urlsplit(url).hostname or ''
             text = sources.get(url, '')
-            target = vr._displacements(str(vehicle.get('engine') or '') + ' ' + str(vehicle.get('package') or ''))
-            if (vr._domain(host, vr._USER_SOURCES + vr._COMPILATIONS)
-                    or any(word in host for word in ('forum', 'club', 'reddit', 'community'))):
-                reason = 'Kullanıcı/derleme kaynağı'
-            elif vr.fold(vehicle.get('model')) not in vr.fold(text) or (target and not target & vr._displacements(text)):
-                reason = 'Kaynakta model/motor kapsamı yetersiz'
-            else:
-                reason = 'Kaynak mevcut üretici/teknik güven listesinde değil'
+            _, reason = vr._confidence_details(url, text, vehicle)
             reasons.append({'url': url, 'neden': reason})
         low.append({'baslik': item['baslik'], 'kaynaklar': reasons})
     return {'raw_risk_count': len(items), 'current_verified_count': len(current),

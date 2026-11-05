@@ -15,3 +15,12 @@ def test_zero_visible_does_not_mean_verified_candidates_regressed():
     assert out['confidence_counts'] == {'dusuk': 1}
     assert out['dropped'][0]['neden'] == 'Başlıkta tanınan teknik konu yok'
     assert out['low_confidence'][0]['kaynaklar'][0]['neden'] == 'Kullanıcı/derleme kaynağı'
+
+
+def test_known_official_domain_is_not_reported_as_missing_from_list():
+    url = 'https://static.nhtsa.gov/general.pdf'
+    item = {'baslik': 'Soğutma', 'guven': 'dusuk', 'kaynaklar': [url]}
+    old = SimpleNamespace(_verified_items=lambda *a: [item])
+    out = compare_candidates([item], {url: 'Focus 1.0L EcoBoost coolant consumption'},
+                             {'model': 'Focus', 'engine': '1.0 EcoBoost'}, [item], old)
+    assert out['low_confidence'][0]['kaynaklar'][0]['neden'] == 'Resmî alan adı tanınıyor; kayıt türü doğrulanamadı'

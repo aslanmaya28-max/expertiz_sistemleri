@@ -31,6 +31,17 @@ def sentences(text):
     return re.split(r'(?<!\d)[.!?](?!\d)|[\n;]', text)
 
 
+def evidence_topics(topics, title=None):
+    """DSG gibi araç bağlamını, adı verilen arızalı parçanın kanıtı sayma."""
+    keys = list(dict.fromkeys(topics))
+    if ('sanziman' in keys and title is not None
+            and not re.search(r'\b(?:sanziman|transmission|gearbox)\w*', fold(title))
+            and any(key not in ('sanziman', 'geri_cagirma') for key in keys)):
+        keys.remove('sanziman')
+    concrete = [key for key in keys if key != 'geri_cagirma']
+    return concrete or keys
+
+
 _N = r'(?:\d{1,3}(?:[. ]\d{3})+|\d+)'
 
 
@@ -46,6 +57,11 @@ def km_range(sources, topics, topic_terms):
                     distances = {}
                     for topic, terms in topic_terms.items():
                         for term in terms:
+                            # DSG/DCT araç bağlamıdır; asıl parça seçilmişse
+                            # onun km'sine rakip başka bir parça sayılmaz.
+                            if (topic == 'sanziman' and topic not in required
+                                    and fold(term) in {'dsg', 'dct', 'edc', 'cvt'}):
+                                continue
                             pattern = r'\b' + re.escape(fold(term)) + (r'\b' if term in ('pas', 'aks') else '')
                             for anchor in re.finditer(pattern, clause):
                                 distance = max(match.start() - anchor.end(), anchor.start() - match.end(), 0)
