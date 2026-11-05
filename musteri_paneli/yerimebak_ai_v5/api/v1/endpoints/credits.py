@@ -2,7 +2,7 @@
 """
 Credits API Endpoint - Bakiye sorgulama, kredi gecmisi
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Dict, Any
 
 from yerimebak_ai_v5.services.payment_service import get_payment_service
@@ -26,3 +26,12 @@ async def get_analysis_history(
     payment = get_payment_service()
     history = payment.get_analysis_history(user['id'])
     return {"history": history, "total": len(history)}
+
+
+@router.get("/movements")
+async def get_credit_movements(
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    return get_payment_service().get_credit_movements(user['id'], limit, offset)

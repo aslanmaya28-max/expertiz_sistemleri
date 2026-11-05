@@ -729,3 +729,23 @@ export function getValuationReport(id: string, signal?: AbortSignal): Promise<Va
 export function downloadValuationPdf(id: string): Promise<Blob> {
   return fetchAPI(`/valuation/reports/${encodeURIComponent(id)}/pdf`, { cache: "no-store" }, "blob");
 }
+
+
+export interface CreditMovement {
+  id: number;
+  tarih: string | null;
+  tur: "yukleme" | "kullanim" | "iade" | "sifirlama" | "duzeltme";
+  miktar: number;
+  aciklama: string;
+  kaynak: "google_play" | "paytr" | "admin" | "analiz" | "hesap_silme";
+}
+
+export interface CreditMovementsResponse {
+  movements: CreditMovement[];
+  total: number;
+  balance: number;
+}
+
+export function getCreditMovements(limit = 20, offset = 0): Promise<CreditMovementsResponse> {
+  return fetchAPI<CreditMovementsResponse>(`/credits/movements?limit=${limit}&offset=${offset}`);
+}

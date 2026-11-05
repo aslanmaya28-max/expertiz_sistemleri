@@ -34,6 +34,36 @@ def credit_refusal(reason, credits=None):
     return 402, "insufficient_credits", "Yetersiz kredi. Analiz için kredi paketi satın alın." + mevcut
 
 
+# Eski yazıcılar farklı işaretler kullanır: analiz ve admin tüketim,
+# satın alma/banka iadesi/hesap silme ise bakiye farkı olarak tutulur.
+_MOVEMENT_RULES = {
+    "credit_purchase": ("yukleme", 1, "paytr", "Kredi paketi yüklendi"),
+    "analysis": ("kullanim", -1, "analiz", "Araç analizi için kredi kullanıldı"),
+    "google_play_voided": ("iade", 1, "google_play", "Google Play iadesi/iptali nedeniyle kredi geri alındı"),
+    "credit_refund": ("iade", 1, "paytr", "Kredi paketi iadesi nedeniyle kredi geri alındı"),
+    "account_deleted": ("sifirlama", 1, "hesap_silme", "Hesap silindi; kalan kredi sıfırlandı"),
+    "admin_adjustment": ("duzeltme", -1, "admin", "Yönetici kredi düzeltmesi"),
+    "welcome_bonus": ("yukleme", 1, "admin", "Hoş geldin kredisi yüklendi"),
+}
+
+
+def credit_movement(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Günlük kaydını müşteri sözleşmesine çevirir; ham açıklamayı paylaşmaz."""
+    action = row['action']
+    kind, sign, source, description = _MOVEMENT_RULES.get(
+        action, ("duzeltme", 1, "admin", "Kredi düzeltmesi"))
+    amount = int(row['credits_used'] or 0) * sign
+    if action == 'admin_adjustment' and amount > 0:
+        kind, description = 'yukleme', 'Yönetici tarafından kredi yüklendi'
+    if action == 'credit_purchase' and (row.get('description') or '').startswith('Google Play '):
+        source, description = 'google_play', 'Google Play kredi paketi yüklendi'
+    date = row['created_at']
+    if date is not None and date.tzinfo is None:
+        date = date.replace(tzinfo=timezone.utc)
+    return {'id': row['id'], 'tarih': date.isoformat() if date else None,
+            'tur': kind, 'miktar': amount, 'aciklama': description, 'kaynak': source}
+
+
 class PaymentService:
     def __init__(self):
         self._db_type = DatabaseConfig._get_db_type()
@@ -342,6 +372,31 @@ class PaymentService:
                 LIMIT {self._p}
             """, (user_id, limit))
             return [dict(row) for row in cursor.fetchall()]
+        finally:
+            DatabaseConfig.return_connection(conn)
+
+    def get_credit_movements(self, user_id: int, limit: int = 50, offset: int = 0) -> Dict[str, Any]:
+        # Tek SELECT: bakiye, toplam ve sayfa eşzamanlı yazımlarda aynı anlık
+        # görüntüden okunur; sayfa boşken de toplam ve bakiye korunur.
+        conn = DatabaseConfig.get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT u.credits AS balance,
+                       (SELECT COUNT(*) FROM credit_usage_logs WHERE user_id=u.id) AS total,
+                       page.id, page.action, page.credits_used, page.description, page.created_at
+                FROM users u
+                LEFT JOIN LATERAL (
+                    SELECT id, action, credits_used, description, created_at
+                    FROM credit_usage_logs WHERE user_id=u.id
+                    ORDER BY created_at DESC NULLS LAST, id DESC LIMIT %s OFFSET %s
+                ) page ON TRUE
+                WHERE u.id=%s
+            """, (limit, offset, user_id))
+            rows = [dict(row) for row in cursor.fetchall()]
+            return {'movements': [credit_movement(row) for row in rows if row['id'] is not None],
+                    'total': int(rows[0]['total']) if rows else 0,
+                    'balance': int(rows[0]['balance']) if rows else 0}
         finally:
             DatabaseConfig.return_connection(conn)
 
