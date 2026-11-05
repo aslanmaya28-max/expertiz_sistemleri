@@ -39,6 +39,13 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
         <Link href={`/dogrula/${sonuc.rapor.verification_code}`} className="text-birincil underline">Doğrulama kodu: {sonuc.rapor.verification_code}</Link>
         <p className="mt-2 text-metin-ikincil">Kredili değerleme raporu — uzman incelemesi içermez.</p>
       </div>}
+      {sonuc.ekspertizRaporu && <section className="rounded-xl border border-kenarlik-acik bg-white p-6" aria-label="Ekspertiz raporundan okunan bulgular">
+        <h2 className="text-lg font-semibold">Ekspertiz raporundan okunan bulgular</h2>
+        <p className="mt-2 text-sm text-metin-ikincil">{sonuc.ekspertizRaporu.aciklama}</p>
+        <ul className="mt-3 space-y-2 text-sm">{sonuc.ekspertizRaporu.bulgular.map((item, index) => <li key={index} className={item.ciddiyet === "ciddi" ? "font-medium text-tehlike" : "text-metin-ikincil"}>
+          {item.ciddiyet === "ciddi" ? "Yerinde doğrulatın" : item.ciddiyet === "pazarlik" ? "Kozmetik / küçük onarım" : "Bilgi"}: {item.metin}
+        </li>)}</ul>
+      </section>}
       {ozet && (
         <section className="bg-white rounded-xl border border-kenarlik-acik p-6" aria-label="Özet">
           <h2 className="text-lg font-semibold text-metin-birincil">Özet</h2>

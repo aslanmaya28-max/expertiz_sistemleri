@@ -280,7 +280,15 @@ def build_pdf(report, ornek=False):
     text(f'{vehicle["marka"]} {vehicle["model"]} {vehicle["yil"]}' + (f' • {vehicle["paket"]}' if vehicle.get('paket') else ''), True, 15, line_height=7)
     text(f'{date} • {_num(vehicle.get("km"))} km • {vehicle.get("yakit") or "—"} • {vehicle.get("vites") or "—"}'
          + (f' • İlan fiyatı {_money(vehicle.get("ilanFiyati"))}' if vehicle.get('ilanFiyati') else ''))
-    text('Uzman incelemesi içermez. İlan/müşteri beyanına dayalı hesaplama.', size=8.5, color=MUTED)
+    text('YerimeBak uzman incelemesi içermez. Müşterinin sunduğu ekspertiz raporu ve beyanına dayalı hesaplama.'
+         if report.get('ekspertizRaporu') else 'Uzman incelemesi içermez. İlan/müşteri beyanına dayalı hesaplama.', size=8.5, color=MUTED)
+    inspection = report.get('ekspertizRaporu')
+    if inspection:
+        heading('Ekspertiz raporundan okunan bulgular')
+        text(inspection.get('aciklama'), size=9, color=MUTED)
+        for finding in inspection.get('bulgular') or []:
+            label = {'ciddi': 'Yerinde doğrulatın', 'pazarlik': 'Kozmetik / küçük onarım', 'bilgi': 'Bilgi'}.get(finding.get('ciddiyet'), 'Bilgi')
+            bullet(label + ': ' + str(finding.get('metin') or ''))
     summary = report.get('ozet') or {}
     heading('Fiyatlar')
     fair = valuation.get('adilFiyatAraligi') or {}

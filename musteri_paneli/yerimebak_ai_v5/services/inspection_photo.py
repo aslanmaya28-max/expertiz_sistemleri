@@ -80,9 +80,12 @@ def _text(value, limit=400):
     # Teknik bulgu içine yanlışlıkla eklenen kişisel alanlar dışarı çıkmaz.
     if re.search(r'\b(musteri|sahibi|personel|telefon|e-posta|plaka|sase no|adres)\b', fold(value)):
         return ''
+    value = re.sub(r'\b(?:VIN|[Şş]asi\s+(?:numaras[ıi]|no(?:su)?))\s*[:#]?\s*[A-Z0-9-]{5,30}\b', '', value, flags=re.I)
+    value = re.sub(r'\b(?=[A-HJ-NPR-Z0-9]{17}\b)(?=[A-HJ-NPR-Z0-9]*\d)[A-HJ-NPR-Z0-9]{17}\b',
+                   '[şasi kimliği çıkarıldı]', value, flags=re.I)
     value = re.sub(r'\b\d{2}\s*[A-Za-zÇĞİÖŞÜçğıöşü]{1,3}\s*\d{2,4}\b', '[plaka çıkarıldı]', value)
     value = re.sub(r'\S+@\S+|(?:\+?90[\s-]*)?0?5\d{2}(?:[\s()-]*\d){7}', '[kişisel bilgi çıkarıldı]', value)
-    return value
+    return value.strip()
 
 
 def _number(value, maximum):
@@ -107,7 +110,11 @@ def normalize(data):
         if not value or not re.search(_TECH, folded):
             continue
         # Olumlu kayıtları risk gibi sunma. Belirsiz bulguya yapay güven atama.
-        if re.search(r'sorun yok|kacak yok|normal|saglam|hasarsiz|ariza yok', folded):
+        # Yalnız bütün cümle açık olumluysa ele; 'normal çalışmıyor',
+        # 'sağlam değil' veya 'motor normal, şaside hasar' kaybolmamalı.
+        subject = r'(?:motor|sanziman|sasi|kaporta|fren|lastik|elektrik|hava yastigi|arac)'
+        positive = r'(?:sorun yok(?:tur)?|kacak yok(?:tur)?|ariza yok(?:tur)?|normal(?: calisiyor)?|saglam|hasarsiz)'
+        if re.fullmatch(r'(?:' + subject + r'\s*[:\-]?\s*)?' + positive + r'[.! ]*', folded):
             continue
         severity = item.get('ciddiyet')
         if re.search(_SERIOUS, folded):

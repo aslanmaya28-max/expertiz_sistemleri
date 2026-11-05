@@ -8,10 +8,14 @@ Mimari: ayrı inspection_photo servisi görüntü doğrulama/dönüştürme ve s
 
 Sınırlar: 1–4 JPEG/PNG/HEIC, dosya başına8MB, uzun kenar2000px; günlük mevcut20çıkarım kotası; kalıcı görüntü yok; plaka/kişi çıktısı yok; bilinmeyen parça orijinal sayılmaz; oran/tramer hesabı ve uygulama/admin klasörleri değişmez. Gizli dosyalar okunmaz. Testler ybtest_025; ybapp/ybdemo'ya dokunulmaz, yerel sunucu başlatılıp durdurulmaz.
 
-- [ ] Servis: bellek içi görüntü doğrulama, küçültme, HEIC desteği; OpenRouter modeli EKSPERTIZ_OKUMA_MODEL; dayanıklı JSON + alan beyaz listesi ve Türkçe hata. Önce sahte model ve geçersiz dosya testleri.
-- [ ] Kimlikli multipart uç, akış ve dosya sınırları, ortak kota. Sınırlı kaynak/bulgular istek modeli; entegrasyon testleri.
-- [ ] Tek rapor zenginleştirme: ciddi önce doğrulama; yalnız kozmetik pazarlık; firma/tarih ve doğrulanmadı kaynağı. Değişmez senaryo ve PDF eşlik testi.
-- [ ] Web fotoğraf bileşeni/API tipleri, sonuç kontrol/onay, kaporta/tramer ön dolumu ve uyarılar. Next yerel rehberi, tsc ve site testleri.
+- [x] Servis: bellek içi görüntü doğrulama, küçültme, HEIC desteği; OpenRouter modeli EKSPERTIZ_OKUMA_MODEL; dayanıklı JSON + alan beyaz listesi ve Türkçe hata. Önce sahte model ve geçersiz dosya testleri.
+- [x] Kimlikli multipart uç, akış ve dosya sınırları, ortak kota. Sınırlı kaynak/bulgular istek modeli; entegrasyon testleri.
+- [x] Tek rapor zenginleştirme: ciddi önce doğrulama; yalnız kozmetik pazarlık; firma/tarih ve doğrulanmadı kaynağı. Değişmez senaryo ve PDF eşlik testi.
+- [x] Web fotoğraf bileşeni/API tipleri, sonuç kontrol/onay, kaporta/tramer ön dolumu ve uyarılar. Next yerel rehberi, tsc ve site testleri.
 - [ ] Tam Python testleri, kod incelemesi, sentetik gerçek model denemesi/maliyet, Türkçe commit ve köprü teslimi.
 
-Karar: güncel resmi OpenRouter model sayfasına göre google/gemini-3.5-flash-lite varsayılanı kullanılacak; girdi0.30$/M, çıktı2.50$/M (6Kasım2026 inceleme). Gerçek maliyet API usage.cost alanından alınacak, tahmin gerçek ölçüm diye yazılmayacak. Kaynaklar: https://openrouter.ai/google/gemini-3.5-flash-lite ve https://openrouter.ai/docs/guides/overview/multimodal/image-understanding .
+Karar: güncel resmi OpenRouter model sayfasına göre google/gemini-3.5-flash-lite varsayılanı kullanılacak; girdi0.30$/M, çıktı2.50$/M (5Kasım2026 inceleme). Gerçek maliyet API usage.cost alanından alınacak, tahmin gerçek ölçüm diye yazılmayacak. Kaynaklar: https://openrouter.ai/google/gemini-3.5-flash-lite ve https://openrouter.ai/docs/guides/overview/multimodal/image-understanding .
+
+İnceleme: iki P2 doğrulandı ve kırmızı→yeşil testlerle düzeltildi. Genel olumlu alt dize filtresi olumsuz/karma ciddi bulguyu siliyordu; artık yalnız bütün cümlesi açık olumlu ifadeler elenir. Şasi numarası/VIN etiket ve değerleri tüm serbest metin çıkışlarında temizlenir. Kod incelemesi review_025 tarafından salt okunur yapıldı. Oran/tramer modülü ve uygulama/admin klasörleri değişmedi.
+
+Canlı deneme: süreç/kullanıcı/sistem ortamında model anahtarı yok. Gizli dosya okunmadı. Hazır tools.inspection_photo_smoke betiğinin gerçek sonuç/maliyet ölçümü Claude010 köprüsünde istendi; kullanıcı010'u Claude'a yaptıracağını bildirdi. Bu bağımlılık çözülmeden gerçek model denemesi bitti denmez.

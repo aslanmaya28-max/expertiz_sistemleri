@@ -84,6 +84,10 @@ def test_pdf_ana_tutarlar_ilgili_kart_ve_etikette_api_ile_ayni(pdf_raporu):
 @pytest.mark.parametrize("pdf_raporu", SENARYOLAR, indirect=True)
 def test_pdf_uyari_ve_getiri_bolumleri_web_raporuyla_eslesir(pdf_raporu):
     rapor, _, metin = pdf_raporu
+    if rapor.get('ekspertizRaporu'):
+        assert _normal(rapor['ekspertizRaporu']['aciklama']) in metin
+        assert _normal(rapor['ozet']['riskler'][0]) in metin
+        assert _normal(rapor['ozet']['simdiNeYapmali']) in metin
     uyari = rapor["pazarlikPlani"].get("uyari")
     if uyari:
         assert _normal(uyari) in metin

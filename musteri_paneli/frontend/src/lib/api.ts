@@ -18,7 +18,7 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit, responseType
   const token = authenticated ? getToken() : null;
   const res = await fetch(`${API_BASE}${endpoint}`, {
     headers: {
-      "Content-Type": "application/json",
+      ...((typeof FormData !== "undefined" && options?.body instanceof FormData) ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options?.headers,
     },
@@ -410,7 +410,7 @@ export interface ValuationPartsResponse {
 
 export interface PrefillField {
   deger: string | number;
-  kaynak: "ilan_sayfasi" | "ilan_metni" | "link_kelimeleri";
+  kaynak: "ilan_sayfasi" | "ilan_metni" | "link_kelimeleri" | "ekspertiz_raporu";
   dogrulandi: boolean;
 }
 
@@ -431,6 +431,10 @@ export interface ValuationPrefill {
 }
 
 export interface ValuationRequestPayload {
+  kaynak_turu?: "ekspertiz_raporu" | "ilan" | "musteri";
+  bulgular?: InspectionFinding[];
+  ekspertiz_firma_adi?: string;
+  ekspertiz_rapor_tarihi?: string;
   request_id?: string;
   listing_url?: string;
   brand?: string;
@@ -448,6 +452,32 @@ export interface ValuationRequestPayload {
   kasa?: "yeni" | "eski";
   /** Motor gücü (hp) */
   hp?: number;
+}
+
+export interface InspectionFinding {
+  kategori: "motor" | "sanziman" | "kaporta" | "alt_takim" | "elektronik" | "diger";
+  metin: string;
+  ciddiyet: "ciddi" | "pazarlik" | "bilgi";
+}
+
+export interface InspectionPhotoResult {
+  success: boolean;
+  found: boolean;
+  parts: Record<string, PartStatus>;
+  tramer_amount: number | null;
+  tramer_count: number | null;
+  bulgular: InspectionFinding[];
+  firma_adi: string | null;
+  rapor_tarihi: string | null;
+  okunamayan_alanlar: string[];
+  message: string;
+  scope?: { model: string; cost_usd: number | null };
+}
+
+export function uploadInspectionPhoto(files: File[]): Promise<InspectionPhotoResult> {
+  const data = new FormData();
+  files.forEach((file) => data.append("files", file));
+  return fetchAPI("/valuation/inspection-photo", { method: "POST", body: data });
 }
 
 export interface KasaSecenegi { kod: "yeni" | "eski"; kasa?: string | null; baslangic?: number | null; bitis?: number | null }
@@ -508,6 +538,7 @@ export interface KullaniciSikayeti {
 }
 
 export interface ValuationResult {
+  ekspertizRaporu?: { firmaAdi: string | null; raporTarihi: string | null; aciklama: string; bulgular: InspectionFinding[] };
   tekrar?: boolean;
   rapor?: {
     id: string; report_no: string; verification_code: string; verification_url: string;

@@ -40,6 +40,19 @@ const result = {
 };
 const render = (Component, sonuc) => renderToStaticMarkup(React.createElement(Component, { sonuc }));
 
+test('ekspertiz kaynağı ve ciddi/kozmetik bulgular web raporunda aynı metinle görünür', () => {
+  const html = render(DegerlemeSonucu, { ...result, ekspertizRaporu: {
+    aciklama: 'Ekspertiz raporu (Sentetik, 2026-11-05) — YerimeBak uzmanı tarafından doğrulanmadı',
+    bulgular: [{ ciddiyet: 'ciddi', metin: 'Motorda yağ kaçağı' },
+              { ciddiyet: 'pazarlik', metin: 'Tamponda çizik' },
+              { ciddiyet: 'bilgi', metin: 'Lastik kontrolü önerilir' }],
+  } });
+  assert.ok(html.includes('YerimeBak uzmanı tarafından doğrulanmadı'));
+  assert.ok(html.includes('Yerinde doğrulatın: Motorda yağ kaçağı'));
+  assert.ok(html.includes('Kozmetik / küçük onarım: Tamponda çizik'));
+  assert.ok(html.includes('Bilgi: Lastik kontrolü önerilir'));
+});
+
 const risk = (baslik, extra = {}) => ({ baslik, belirtiler: [], kontrol: 'Servise sorun', kaynaklar: [], guven: 'orta', ...extra });
 const complaint = (baslik, extra = {}) => ({ baslik, aciklama: 'Kullanıcı beyanı', kaynakSayisi: 2, kaynaklar: [], ...extra });
 const section = (html, title) => html.match(new RegExp(`<section[^>]*aria-label="${title}"[^>]*>([\\s\\S]*?)</section>`))?.[1] || '';

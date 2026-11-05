@@ -24,7 +24,7 @@ SENARYOLAR = [
     "hasar_sonrasi_pahali_chery", "yalniz_tramer", "boyali_parca",
     "az_emsal_3", "az_emsal_4", "kasa_gecis_yili",
     "risk_hatasi_sikayet_var", "risk_ve_sikayet_yok", "enflasyon_yok",
-    "ortalama_medyan_farkli",
+    "ortalama_medyan_farkli", "ekspertiz_raporlu",
 ]
 
 
@@ -150,6 +150,11 @@ def rapor_uret(client, customer_token, monkeypatch):
             payload["tramer_amount"] = 120000
         elif senaryo == "boyali_parca":
             payload["parts"] = {"kaput": "boyali"}
+        elif senaryo == "ekspertiz_raporlu":
+            payload.update(kaynak_turu='ekspertiz_raporu', ekspertiz_firma_adi='Sentetik Ekspertiz',
+                           ekspertiz_rapor_tarihi='2026-11-05', parts={'kaput': 'boyali'},
+                           bulgular=[{'kategori': 'motor', 'metin': 'Motorda yağ kaçağı görüldü', 'ciddiyet': 'ciddi'},
+                                     {'kategori': 'kaporta', 'metin': 'Tamponda çizik görüldü', 'ciddiyet': 'pazarlik'}])
         elif senaryo == "kasa_gecis_yili":
             payload["kasa"] = "yeni"
         reference, risks = _referans(senaryo), _riskler(senaryo)
@@ -158,6 +163,12 @@ def rapor_uret(client, customer_token, monkeypatch):
         response = client.post("/api/v1/valuation/analyze", headers=headers, json=payload)
         assert response.status_code == 200, response.text
         body = response.json()
+        if senaryo == 'ekspertiz_raporlu':
+            assert 'Motorda yağ kaçağı' in body['ozet']['riskler'][0]
+            assert body['ozet']['simdiNeYapmali'].startswith('Önce')
+            assert 'Motorda yağ' not in str(body['pazarlikPlani']['gerekceler'])
+            assert 'Tamponda çizik' in str(body['pazarlikPlani']['gerekceler'])
+            assert any(x['kaynak'] == 'ekspertiz_raporu' for x in body['bilgiKaynaklari'])
         assert body["kredi"]["dusulen"] == 1
         stored = sql("SELECT report_json FROM analysis_history WHERE id=%s AND user_id=%s",
                      (body["rapor"]["id"], uid), True)

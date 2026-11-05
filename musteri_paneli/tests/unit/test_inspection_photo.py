@@ -1,4 +1,6 @@
 import io
+import json
+import httpx
 import pytest
 from PIL import Image
 from yerimebak_ai_v5.services import inspection_photo as photo
@@ -61,3 +63,58 @@ def test_fake_model_read_reports_cost_without_persisting(monkeypatch):
 def test_count_limit(files):
     with pytest.raises(photo.PhotoError):
         photo.read(files)
+
+
+@pytest.mark.parametrize('fmt', ['JPEG', 'PNG', 'HEIF'])
+def test_all_supported_formats(fmt):
+    raw = image_bytes((64, 64), fmt)
+    with Image.open(io.BytesIO(photo.prepare(raw))) as image:
+        assert image.format == 'JPEG'
+
+
+def test_pixel_limit_before_decode():
+    # PNG sıkıştırması küçük olsa da decoded piksel sınırını aşar.
+    with pytest.raises(photo.PhotoError, match='megapiksel'):
+        photo.prepare(image_bytes((8000, 5100)))
+
+
+@pytest.mark.parametrize('text', ['Motor normal çalışmıyor', 'Şasi sağlam değil',
+                                  'Motor normal, şaside hasar var'])
+def test_negative_or_mixed_statement_preserves_serious_finding(text):
+    result = photo.normalize({'bulgular': [{'metin': text, 'kategori': 'motor', 'ciddiyet': 'ciddi'}]})
+    assert len(result['bulgular']) == 1
+    assert result['bulgular'][0]['ciddiyet'] == 'ciddi'
+
+
+@pytest.mark.parametrize('text', ['Motor normal çalışıyor', 'Şasi sağlam', 'Motor: sorun yok'])
+def test_explicit_positive_statement_is_not_a_risk(text):
+    assert photo.normalize({'bulgular': [{'metin': text, 'kategori': 'motor', 'ciddiyet': 'ciddi'}]})['bulgular'] == []
+
+
+@pytest.mark.parametrize('field,text', [('metin', 'Şasi numarası VF1ABCDEF12345678'),
+                                      ('metin', 'Şaside VF1ABCDEF12345678 hasar var'),
+                                      ('firma_adi', 'VIN VF1ABCDEF12345678'),
+                                      ('firma_adi', 'Yetkili VF1ABCDEF12345678 Ekspertiz')])
+def test_vin_removed_from_every_text_output(field, text):
+    data = {'bulgular': [{'metin': text, 'kategori': 'kaporta', 'ciddiyet': 'ciddi'}]} if field == 'metin' else {field: text}
+    assert 'VF1ABCDEF12345678' not in str(photo.normalize(data))
+
+
+def test_responses_model_request_and_usage_cost(monkeypatch):
+    monkeypatch.setenv('OPENROUTER_API_KEY', 'test-only')
+    monkeypatch.setenv('EKSPERTIZ_OKUMA_MODEL', 'fake/vision')
+    original = httpx.Client
+    def handle(request):
+        assert str(request.url) == 'https://openrouter.ai/api/v1/responses'
+        body = json.loads(request.content)
+        assert body['model'] == 'fake/vision'
+        assert body['input'][0]['content'][0]['type'] == 'input_text'
+        assert body['input'][0]['content'][1]['image_url'].startswith('data:image/jpeg;base64,')
+        assert body.get('store', False) is False
+        return httpx.Response(200, json={'output': [{'type': 'message', 'content': [
+            {'type': 'output_text', 'text': '{"parts":{"kaput":"boyali"}}'}]}],
+            'usage': {'cost': 0.0017}})
+    monkeypatch.setattr(photo.httpx, 'Client', lambda **kw: original(transport=httpx.MockTransport(handle), **kw))
+    result = photo.read([image_bytes((50, 50))])
+    assert result['parts'] == {'kaput': 'boyali'}
+    assert result['scope'] == {'model': 'fake/vision', 'cost_usd': 0.0017}

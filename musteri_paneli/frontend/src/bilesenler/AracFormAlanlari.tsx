@@ -144,7 +144,7 @@ function yanAd(kisa: string) {
  * Aynı durumdaki parçaya tekrar dokunmak parçayı orijinale döndürür.
  */
 export function AracSemasi({
-  parcalar, etiketler, onDegistir, rozet,
+  parcalar, etiketler, onDegistir, rozet, belirsiz = [],
 }: {
   parcalar: Record<string, PartStatus>;
   /** Parça anahtarı → tam ad (API'den); yoksa kısa ad kullanılır */
@@ -152,6 +152,7 @@ export function AracSemasi({
   onDegistir: (parca: string, durum: PartStatus) => void;
   /** İlandan okunan parçalar için kaynak rozeti */
   rozet?: (parca: string) => React.ReactNode;
+  belirsiz?: string[];
 }) {
   const [mod, setMod] = useState<PartStatus>("boyali");
   const ad = (k: string) => etiketler?.[k] || PARCA_SEKLI[k]?.kisa || k;
@@ -183,13 +184,14 @@ export function AracSemasi({
           <path d="M60 284 L140 284 L146 308 L54 308 Z" fill="#e2e8f0" stroke="#cbd5e1" />
           {Object.entries(PARCA_SEKLI).map(([k, s]) => {
             const durum = DURUM[parcalar[k] || "orijinal"];
+            const bilinmiyor = belirsiz.includes(k);
             return (
-              <g key={k} role="button" tabIndex={0} aria-label={`${ad(k)}: ${durum.etiket.replace(" (sil)", "")}`}
+              <g key={k} role="button" tabIndex={0} aria-label={`${ad(k)}: ${bilinmiyor ? "Belirtilmedi" : durum.etiket.replace(" (sil)", "")}`}
                 onClick={() => dokun(k)}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); dokun(k); } }}
                 className="cursor-pointer outline-none focus-visible:opacity-80">
                 <title>{ad(k)}</title>
-                <rect x={s.x} y={s.y} width={s.w} height={s.h} rx={s.rx} fill={durum.dolgu} stroke={durum.kenar} strokeWidth={2} />
+                <rect x={s.x} y={s.y} width={s.w} height={s.h} rx={s.rx} fill={bilinmiyor ? "#e2e8f0" : durum.dolgu} stroke={durum.kenar} strokeWidth={2} strokeDasharray={bilinmiyor ? "4 3" : undefined} />
                 {s.w > 60 ? (
                   <text x={s.x + s.w / 2} y={s.y + s.h / 2} textAnchor="middle" dominantBaseline="middle" fontSize="10" fill="#334155" pointerEvents="none">
                     {s.kisa}
@@ -212,7 +214,7 @@ export function AracSemasi({
         <div className="w-full text-sm sm:max-w-[240px]">
           <div className="font-semibold text-metin-birincil">İşaretli parçalar</div>
           {isaretli.length === 0 ? (
-            <p className="mt-1 text-metin-ikincil">Yok — tüm parçalar orijinal sayılır.</p>
+            <p className="mt-1 text-metin-ikincil">{belirsiz.length ? "Okunmayan parçalar belirtilmedi; orijinal sayılmaz." : "Yok — tüm parçalar orijinal sayılır."}</p>
           ) : (
             <ul className="mt-1 space-y-1">
               {isaretli.map(([k, d]) => (
