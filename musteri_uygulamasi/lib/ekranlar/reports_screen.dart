@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/providers.dart';
 import '../api/report_list_controller.dart';
 import '../bilesenler/ortak.dart';
+import '../api/models.dart';
+import '../bilesenler/alt_eylem_cubugu.dart';
+import '../bilesenler/pazarlik_plani.dart';
 import '../bilesenler/rapor_gorunumu.dart';
 import 'home_screen.dart';
 
@@ -59,19 +62,37 @@ class ReportDetailScreen extends ConsumerWidget {
     final detail = ref.watch(reportDetailProvider(id));
     return Scaffold(
       appBar: AppBar(title: const Text('Rapor detayı')),
+      bottomNavigationBar:
+          detail.valueOrNull == null || detail.valueOrNull!.summaryOnly
+          ? null
+          : AltEylemCubugu(
+              mesaj: text(detail.valueOrNull!.plan['saticiMesaji']).isEmpty
+                  ? null
+                  : () async {
+                      await showModalBottomSheet<void>(
+                        context: context,
+                        isScrollControlled: true,
+                        builder: (context) => SafeArea(
+                          child: SingleChildScrollView(
+                            child: PageBody(
+                              child: NegotiationSection(
+                                detail.requireValue.plan,
+                                ref.read(platformProvider).openLink,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+              pdf: () =>
+                  ref.read(platformProvider).openPdf(ref.read(apiProvider), id),
+            ),
       body: SingleChildScrollView(
         child: PageBody(
           child: detail.when(
             data: (snapshot) => Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (!snapshot.summaryOnly)
-                  ActionButton(
-                    'PDF raporunu aç',
-                    () => ref
-                        .read(platformProvider)
-                        .openPdf(ref.read(apiProvider), id),
-                  ),
                 ReportView(
                   snapshot,
                   onLink: ref.read(platformProvider).openLink,

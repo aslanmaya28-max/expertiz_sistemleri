@@ -38,10 +38,14 @@ class YbRenkler extends ThemeExtension<YbRenkler> {
   Color get cam => _values['cam']!;
   Color get beyaz => _values['beyaz']!;
   static const acik = YbRenkler._({
-    'lokalYuzey': Color(0xFFFDF1E2), 'lokalKenar': Color(0xFFF2C894),
-    'boyaliYuzey': Color(0xFFF2C894), 'boyaliKenar': Color(0xFFC98A3A),
-    'degisenYuzey': Color(0xFFA3580A), 'degisenMetin': Color(0xFFFFFFFF),
-    'cam': Color(0xFFE9EEED), 'beyaz': Color(0xFFFFFFFF),
+    'lokalYuzey': Color(0xFFFDF1E2),
+    'lokalKenar': Color(0xFFF2C894),
+    'boyaliYuzey': Color(0xFFF2C894),
+    'boyaliKenar': Color(0xFFC98A3A),
+    'degisenYuzey': Color(0xFFA3580A),
+    'degisenMetin': Color(0xFFFFFFFF),
+    'cam': Color(0xFFE9EEED),
+    'beyaz': Color(0xFFFFFFFF),
     'zemin': Color(0xFFF2F5F4),
     'yuzey': Color(0xFFFFFFFF),
     'yuzeyIkincil': Color(0xFFF2F5F4),
@@ -69,10 +73,14 @@ class YbRenkler extends ThemeExtension<YbRenkler> {
     'bilgiYuzey': Color(0xFFE8F0FB),
   });
   static const koyu = YbRenkler._({
-    'lokalYuzey': Color(0xFF241A0B), 'lokalKenar': Color(0xFF6B4A16),
-    'boyaliYuzey': Color(0xFF6B4A16), 'boyaliKenar': Color(0xFFB8812F),
-    'degisenYuzey': Color(0xFFE9A23B), 'degisenMetin': Color(0xFF04201C),
-    'cam': Color(0xFF253230), 'beyaz': Color(0xFFFFFFFF),
+    'lokalYuzey': Color(0xFF241A0B),
+    'lokalKenar': Color(0xFF6B4A16),
+    'boyaliYuzey': Color(0xFF6B4A16),
+    'boyaliKenar': Color(0xFFB8812F),
+    'degisenYuzey': Color(0xFFE9A23B),
+    'degisenMetin': Color(0xFF04201C),
+    'cam': Color(0xFF253230),
+    'beyaz': Color(0xFFFFFFFF),
     'zemin': Color(0xFF0D1312),
     'yuzey': Color(0xFF151D1C),
     'yuzeyIkincil': Color(0xFF1C2625),

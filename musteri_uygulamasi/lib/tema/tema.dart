@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'olculer.dart';
 import 'renkler.dart';
 import 'yazi.dart';
@@ -48,6 +49,11 @@ abstract final class YbTema {
       colorScheme: scheme,
       scaffoldBackgroundColor: r.zemin,
       fontFamily: 'Inter',
+      actionIconTheme: ActionIconThemeData(
+        backButtonIconBuilder: (_) => const Icon(LucideIcons.arrowLeft),
+        closeButtonIconBuilder: (_) => const Icon(LucideIcons.x),
+      ),
+      iconTheme: IconThemeData(size: Olcu.ikonInce, color: r.ikonPasif),
       extensions: [r, const YbYazi()],
       textTheme: Yazilar.textTheme.apply(
         bodyColor: r.metin,

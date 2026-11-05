@@ -41,7 +41,15 @@ class ReportSummarySection extends StatelessWidget {
         const Text('Pazarlık gerekçeleri'),
         BulletList(strings(data['pazarlikGerekceleri'])),
       ],
-      Container(width:double.infinity,padding:const EdgeInsets.all(Olcu.s16),decoration:BoxDecoration(color:YbRenkler.of(context).birincilYuzey,borderRadius:BorderRadius.circular(Olcu.butonKose)),child:ValueLine('Şimdi ne yapmalı?', text(data['simdiNeYapmali']))),
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(Olcu.s16),
+        decoration: BoxDecoration(
+          color: YbRenkler.of(context).birincilYuzey,
+          borderRadius: BorderRadius.circular(Olcu.butonKose),
+        ),
+        child: ValueLine('Şimdi ne yapmalı?', text(data['simdiNeYapmali'])),
+      ),
     ]);
   }
 }

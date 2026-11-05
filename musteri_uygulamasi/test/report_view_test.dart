@@ -30,6 +30,7 @@ Json fixture() => {
     'uyarilar': ['Yalnızca 3 doğrulanmış emsal ilan bulundu (hedef 5).'],
   },
   'degerleme': {
+    'aiDegeri': 945000,
     'tavsiyeFiyat': 930000,
     'temizPiyasaDegeri': 950000,
     'adilFiyatAraligi': {'min': 900000, 'max': 950000},
@@ -37,7 +38,8 @@ Json fixture() => {
     'toplamDegerKaybiYuzde': 0,
     'toplamDegerKaybiTutar': 0,
   },
-  'karar': {'sonuc': 'ALMA', 'aciklama': 'YALNIZ ADMIN'},
+  'karar': {'sonuc': 'ALMA', 'aciklama': 'Ek inceleme yaptırın.'},
+  'admin_note': 'YALNIZ ADMIN',
   'kredi': {'dusulen': 1, 'kalan': 4},
 };
 
@@ -69,6 +71,9 @@ void main() {
     (tester) async {
       await showReport(tester, fixture());
       expect(find.text('Özet'), findsOneWidget);
+      expect(find.text('ÖNERİLMEZ'), findsOneWidget);
+      expect(find.text('Ek inceleme yaptırın.'), findsOneWidget);
+      expect(find.text('945.000 TL'), findsOneWidget);
       expect(find.text('930.000 TL'), findsOneWidget);
       for (final label in [
         'Pazarlık planı',

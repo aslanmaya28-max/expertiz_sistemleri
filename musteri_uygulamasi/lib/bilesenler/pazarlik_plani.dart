@@ -15,7 +15,11 @@ class NegotiationSection extends StatelessWidget {
     if (plan.isEmpty) return const SizedBox.shrink();
     return Panel('Pazarlık planı', [
       if (text(plan['uyari']).isNotEmpty) Text(text(plan['uyari'])),
-      PazarlikUclusu(acilis:plan['acilisTeklifi'] as num?,hedef:plan['hedefFiyat'] as num?,ustSinir:plan['ustSinir'] as num?),
+      PazarlikUclusu(
+        acilis: plan['acilisTeklifi'] as num?,
+        hedef: plan['hedefFiyat'] as num?,
+        ustSinir: plan['ustSinir'] as num?,
+      ),
       if (plan['potansiyelKazanc'] is num && plan['potansiyelKazanc'] > 0)
         Text(
           'Hedefe ulaşırsanız ilan fiyatına göre yaklaşık ${money(plan['potansiyelKazanc'])} tasarruf edersiniz.',
@@ -41,7 +45,12 @@ class NegotiationSection extends StatelessWidget {
           },
           child: const Text('Mesajı kopyala'),
         ),
-        TextButton(onPressed:()=>SharePlus.instance.share(ShareParams(text:text(plan['saticiMesaji']))),child:const Text('Mesajı paylaş')),
+        TextButton(
+          onPressed: () => SharePlus.instance.share(
+            ShareParams(text: text(plan['saticiMesaji'])),
+          ),
+          child: const Text('Mesajı paylaş'),
+        ),
       ],
     ]);
   }

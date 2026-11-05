@@ -94,3 +94,7 @@ Tema seçimi bu altyapı sürümünde geçerli uygulama oturumu boyunca korunur;
   adb shell "am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT '<ilan linki>' -n com.yerimebak.app/.MainActivity"
   ```
 - **Marka/model kataloğu** web'den üretilir: `python tool/katalog_uret.py ../musteri_paneli/frontend/src/lib/aracFormu.ts lib/analiz/arac_katalogu.dart`.
+
+### Emülatörden yerel API
+
+Android emülatörü için API adresi `http://10.0.2.2:8000/api/v1` olur. Sunucuyu `EXTRA_ALLOWED_HOSTS=10.0.2.2` ortam değişkeniyle başlatın; aksi halde Host başlığı 400 ile reddedilir. `.env` dosyasını değiştirmek gerekmez.

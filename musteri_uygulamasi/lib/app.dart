@@ -83,7 +83,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/analiz/metin', builder: (_, _) => const MetinEkrani()),
       GoRoute(path: '/analiz/form', builder: (_, _) => const AracFormuEkrani()),
-      GoRoute(path: '/analiz/bekle', builder: (_, _) => const AnalizBeklemeEkrani()),
+      GoRoute(
+        path: '/analiz/bekle',
+        builder: (_, _) => const AnalizBeklemeEkrani(),
+      ),
       ShellRoute(
         builder: (context, state, child) =>
             AppShell(path: state.uri.path, child: child),
@@ -99,7 +102,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          GoRoute(path: '/analiz', builder: (_, _) => const AnalizBaslatEkrani()),
+          GoRoute(
+            path: '/analiz',
+            builder: (_, _) => const AnalizBaslatEkrani(),
+          ),
           GoRoute(path: '/kredi', builder: (_, _) => const KrediEkrani()),
           GoRoute(
             path: '/profil',
@@ -171,8 +177,15 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
     body: child,
     bottomNavigationBar: AltMenu(
-      secili: path.startsWith('/raporlar') ? 1 : path.startsWith('/kredi') ? 2 : path.startsWith('/profil') ? 3 : 0,
-      onChanged: (index) => context.go(['/', '/raporlar', '/kredi', '/profil'][index]),
+      secili: path.startsWith('/raporlar')
+          ? 1
+          : path.startsWith('/kredi')
+          ? 2
+          : path.startsWith('/profil')
+          ? 3
+          : 0,
+      onChanged: (index) =>
+          context.go(['/', '/raporlar', '/kredi', '/profil'][index]),
     ),
   );
 }

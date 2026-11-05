@@ -43,16 +43,16 @@ class Panel extends StatelessWidget {
     child: Kart(
       rapor: true,
       child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Semantics(
-              header: true,
-              child: Text(title, style: Theme.of(context).textTheme.titleLarge),
-            ),
-            const SizedBox(height: Olcu.s12),
-            ...children,
-          ],
-        ),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(
+            header: true,
+            child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+          ),
+          const SizedBox(height: Olcu.s12),
+          ...children,
+        ],
+      ),
     ),
   );
 }
@@ -82,9 +82,15 @@ class BulletList extends StatelessWidget {
   final List<String> items;
   const BulletList(this.items, {super.key});
   @override
-  Widget build(BuildContext context) => AcilirListe(children: [
-    for (final item in items) Padding(padding: const EdgeInsets.only(bottom:Olcu.s8),child:Text('• $item')),
-  ]);
+  Widget build(BuildContext context) => AcilirListe(
+    children: [
+      for (final item in items)
+        Padding(
+          padding: const EdgeInsets.only(bottom: Olcu.s8),
+          child: Text('• $item'),
+        ),
+    ],
+  );
 }
 
 class FailureView extends StatelessWidget {
@@ -92,7 +98,7 @@ class FailureView extends StatelessWidget {
   final VoidCallback retry;
   const FailureView(this.error, this.retry, {super.key});
   @override
-  Widget build(BuildContext context) => Hata(error,retry);
+  Widget build(BuildContext context) => Hata(error, retry);
 }
 
 class LoadingView extends StatelessWidget {
@@ -105,9 +111,15 @@ class ActionButton extends StatelessWidget {
   final String label;
   final Future<void> Function()? action;
   final bool destructive;
-  const ActionButton(this.label,this.action,{super.key,this.destructive=false});
+  const ActionButton(
+    this.label,
+    this.action, {
+    super.key,
+    this.destructive = false,
+  });
   @override
-  Widget build(BuildContext context) => AnaButon(label,action,destructive:destructive);
+  Widget build(BuildContext context) =>
+      AnaButon(label, action, destructive: destructive);
 }
 
 void showMessage(BuildContext context, String message) => ScaffoldMessenger.of(
@@ -131,6 +143,12 @@ class FormFieldView extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: Olcu.s16),
-    child: MetinKutusu(label,controller,password:password,keyboard:keyboard,validator:validator),
+    child: MetinKutusu(
+      label,
+      controller,
+      password: password,
+      keyboard: keyboard,
+      validator: validator,
+    ),
   );
 }

@@ -6,6 +6,12 @@ import '../api/providers.dart';
 import '../bilesenler/ortak.dart';
 import '../tema/olculer.dart';
 import '../tema/yazi.dart';
+import '../tema/renkler.dart';
+import '../bilesenler/marka.dart';
+import '../bilesenler/kart.dart';
+import '../bilesenler/karar_rozeti.dart';
+import '../analiz/analiz_ekranlari.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -25,12 +31,12 @@ class HomeScreen extends ConsumerWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('YerimeBak')),
       body: RefreshIndicator(
         onRefresh: refresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
+            _AnaBaslik(balance: balance),
             PageBody(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -48,26 +54,22 @@ class HomeScreen extends ConsumerWidget {
                         if (context.mounted) showMessage(context, message);
                       }),
                     ]),
-                  balance.when(
-                    data: (value) => Panel('Kredi bakiyeniz', [
-                      Text('$value kredi', style: Yazilar.rakamBuyuk),
-                      Text(
-                        '${ref.watch(configProvider).valueOrNull?.analysisCost ?? 1} kredi ile bir araç analizi',
-                      ),
-                      TextButton(
-                        onPressed: () => context.go('/kredi'),
-                        child: const Text('Kredi yükle'),
-                      ),
-                    ]),
-                    error: (e, _) =>
-                        FailureView(e, () => ref.invalidate(balanceProvider)),
-                    loading: () => const LoadingView(),
+                  Kart(
+                    analiz: true,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text('Yeni araç analizi', style: Yazilar.baslik2),
+                        const SizedBox(height: Olcu.s8),
+                        const Text(
+                          'İlanı ve araç bilgilerini birlikte değerlendirin.',
+                        ),
+                        const SizedBox(height: Olcu.s16),
+                        const IlanLinkKutusu(sade: true),
+                      ],
+                    ),
                   ),
-                  ActionButton(
-                    'Araç analizi başlat',
-                    () async => context.push('/analiz'),
-                  ),
-                  const SizedBox(height: Olcu.s16),
+                  const SizedBox(height: Olcu.s24),
                   recent.when(
                     data: (page) => Panel('Son raporlar', [
                       if (page.reports.isEmpty)
@@ -98,15 +100,135 @@ class ReportTile extends StatelessWidget {
   final ReportSummary report;
   const ReportTile(this.report, {super.key});
   @override
-  Widget build(BuildContext context) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    title: Text(report.title.isEmpty ? 'Araç analizi' : report.title),
-    subtitle: Text(
-      '${dateText(report.createdAt)}\n${report.summaryOnly ? 'Özet kayıt — tam rapor bulunmuyor' : report.reportNumber}${report.decision.isEmpty ? '' : '\n${report.decision}'}',
-    ),
-    isThreeLine: true,
+  Widget build(BuildContext context) => InkWell(
     onTap: () => context.push('/raporlar/${Uri.encodeComponent(report.id)}'),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: Olcu.s16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                LucideIcons.car,
+                size: Olcu.ikonInce,
+                color: YbRenkler.of(context).ikonPasif,
+              ),
+              const SizedBox(width: Olcu.s12),
+              Expanded(
+                child: Text(
+                  report.title.isEmpty ? 'Araç analizi' : report.title,
+                  style: Yazilar.bolumBaslik,
+                ),
+              ),
+              const Icon(LucideIcons.chevronRight, size: Olcu.ikonInce),
+            ],
+          ),
+          const SizedBox(height: Olcu.s8),
+          Text(
+            '${dateText(report.createdAt)} · ${report.summaryOnly ? 'Özet kayıt — tam rapor bulunmuyor' : report.reportNumber}',
+            style: Yazilar.etiket.copyWith(
+              color: YbRenkler.of(context).metinIkincil,
+            ),
+          ),
+          if (report.decision.isNotEmpty) ...[
+            const SizedBox(height: Olcu.s8),
+            KararRozeti(report.decision),
+          ],
+        ],
+      ),
+    ),
   );
+}
+
+class _AnaBaslik extends StatelessWidget {
+  final AsyncValue<int> balance;
+  const _AnaBaslik({required this.balance});
+  @override
+  Widget build(BuildContext context) {
+    final r = YbRenkler.of(context),
+        light = Theme.of(context).brightness == Brightness.light;
+    return Container(
+      color: light ? r.markaBandi : r.zemin,
+      child: SafeArea(
+        bottom: false,
+        child: PageBody(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: Olcu.s12,
+                children: [
+                  Marka(bant: light),
+                  if (!light)
+                    balance.when(
+                      data: (v) => TextButton.icon(
+                        style: TextButton.styleFrom(
+                          backgroundColor: r.yuzeyIkincil,
+                        ),
+                        onPressed: () => context.go('/kredi'),
+                        icon: const Icon(
+                          LucideIcons.wallet,
+                          size: Olcu.ikonInce,
+                        ),
+                        label: Text('$v kredi'),
+                      ),
+                      error: (e, _) => TextButton(
+                        onPressed: () => context.go('/kredi'),
+                        child: const Text('Bakiyeyi gör'),
+                      ),
+                      loading: () => const SizedBox.shrink(),
+                    ),
+                ],
+              ),
+              if (light) ...[
+                const SizedBox(height: Olcu.s24),
+                Text(
+                  'Araç alırken doğru adımı atın.',
+                  style: Yazilar.baslik1.copyWith(color: r.beyaz),
+                ),
+                const SizedBox(height: Olcu.s16),
+                balance.when(
+                  data: (v) => Wrap(
+                    spacing: Olcu.s16,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        '$v kredi',
+                        style: Yazilar.bolumBaslik.copyWith(
+                          color: r.markaBandiVurgu,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => context.go('/kredi'),
+                        child: Text(
+                          'Kredi yükle',
+                          style: Yazilar.etiket.copyWith(color: r.beyaz),
+                        ),
+                      ),
+                    ],
+                  ),
+                  error: (e, _) => TextButton(
+                    onPressed: () => context.go('/kredi'),
+                    child: Text(
+                      'Kredi bakiyesi alınamadı · Tekrar dene',
+                      style: Yazilar.etiket.copyWith(color: r.markaBandiMetin),
+                    ),
+                  ),
+                  loading: () => Text(
+                    'Bakiye yükleniyor',
+                    style: Yazilar.etiket.copyWith(color: r.markaBandiMetin),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class ComingSoonScreen extends StatelessWidget {

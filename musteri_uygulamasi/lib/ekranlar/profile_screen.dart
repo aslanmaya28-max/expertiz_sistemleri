@@ -28,9 +28,21 @@ class ProfileScreen extends ConsumerWidget {
                 ValueLine('Ad soyad', user?.name ?? ''),
                 ValueLine('E-posta', user?.email ?? ''),
                 ValueLine('Telefon', user?.phone ?? ''),
-                ListeSatiri('Bilgilerimi düzenle',ikon:LucideIcons.userPen,onTap:()=>context.push('/profil/duzenle')),
-                ListeSatiri('Şifremi değiştir',ikon:LucideIcons.lockKeyhole,onTap:()=>context.push('/profil/sifre')),
-                ListeSatiri('Kredi geçmişi',ikon:LucideIcons.history,onTap:()=>context.push('/profil/gecmis')),
+                ListeSatiri(
+                  'Bilgilerimi düzenle',
+                  ikon: LucideIcons.userPen,
+                  onTap: () => context.push('/profil/duzenle'),
+                ),
+                ListeSatiri(
+                  'Şifremi değiştir',
+                  ikon: LucideIcons.lockKeyhole,
+                  onTap: () => context.push('/profil/sifre'),
+                ),
+                ListeSatiri(
+                  'Kredi geçmişi',
+                  ikon: LucideIcons.history,
+                  onTap: () => context.push('/profil/gecmis'),
+                ),
               ]),
               Panel('Görünüm', [
                 DropdownButtonFormField<ThemeMode>(
@@ -52,7 +64,11 @@ class ProfileScreen extends ConsumerWidget {
                   ],
                   onChanged: (v) async {
                     if (v != null) {
-                      try { await ref.read(themeModeProvider.notifier).sec(v); } catch(e) { if(context.mounted) showMessage(context,e.toString()); }
+                      try {
+                        await ref.read(themeModeProvider.notifier).sec(v);
+                      } catch (e) {
+                        if (context.mounted) showMessage(context, e.toString());
+                      }
                     }
                   },
                 ),

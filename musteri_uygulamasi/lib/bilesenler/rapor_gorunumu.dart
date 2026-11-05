@@ -39,17 +39,32 @@ class ReportView extends StatelessWidget {
           ].where((e) => e != null).join(' '),
           [
             if (object(snapshot.raw['karar']).isNotEmpty) ...[
-              KararRozeti(text(object(snapshot.raw['karar'])['sonuc']),buyuk:true),
-              const SizedBox(height:Olcu.s8),
+              KararRozeti(
+                text(object(snapshot.raw['karar'])['sonuc']),
+                buyuk: true,
+              ),
+              const SizedBox(height: Olcu.s8),
               Text(text(object(snapshot.raw['karar'])['aciklama'])),
-              const SizedBox(height:Olcu.s24),
+              const SizedBox(height: Olcu.s24),
             ],
-            const Text('Hesaplanan değer',style:Yazilar.etiket),
-            Text(money(snapshot.valuation['aiDegeri']),style:Yazilar.rakamBuyuk),
-            FiyatAraligi(alt:object(snapshot.valuation['adilFiyatAraligi'])['min'] as num?,ust:object(snapshot.valuation['adilFiyatAraligi'])['max'] as num?,hesaplanan:snapshot.valuation['aiDegeri'] as num?,ilan:vehicle['ilanFiyati'] as num?),
-            const SizedBox(height:Olcu.s8),
-            Text('${integer(snapshot.market['emsalSayisi'])} benzer ilana göre'),
-            const SizedBox(height:Olcu.s16),
+            const Text('Hesaplanan değer', style: Yazilar.etiket),
+            Text(
+              money(snapshot.valuation['aiDegeri']),
+              style: Yazilar.rakamBuyuk,
+            ),
+            FiyatAraligi(
+              alt:
+                  object(snapshot.valuation['adilFiyatAraligi'])['min'] as num?,
+              ust:
+                  object(snapshot.valuation['adilFiyatAraligi'])['max'] as num?,
+              hesaplanan: snapshot.valuation['aiDegeri'] as num?,
+              ilan: vehicle['ilanFiyati'] as num?,
+            ),
+            const SizedBox(height: Olcu.s8),
+            Text(
+              'Adil fiyat aralığı · ${integer(snapshot.market['emsalSayisi'])} benzer ilan',
+            ),
+            const SizedBox(height: Olcu.s16),
             if (text(vehicle['paket']).isNotEmpty) Text(text(vehicle['paket'])),
             Text('${number(vehicle['km'])} km'),
             if (meta.isNotEmpty) ...[
