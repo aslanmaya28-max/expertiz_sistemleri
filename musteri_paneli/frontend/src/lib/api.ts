@@ -512,10 +512,15 @@ export interface PazarlikPlani {
   uyari?: string | null;
 }
 
-export type SorunKategorisi = "mekanik_motor" | "elektronik" | "trim_kasa";
+export type SorunKategorisi = "motor" | "sanziman" | "kaporta" | "alt_takim" | "elektronik" | "diger" | "mekanik_motor" | "trim_kasa";
 export type SorunOnemi = "yuksek" | "orta" | "dusuk";
 
 export interface ModelRiski {
+  kanitSeviyesi?: string;
+  tipikKm?: { min: number; max: number } | null;
+  kilometreUyarisi?: string;
+  maliyetKaynagi?: { url: string; tarih?: string | null; onarim?: string };
+  kmKaynagi?: { url: string; tarih?: string | null };
   baslik: string;
   aciklama?: string;
   etkiledigi?: string;
@@ -596,7 +601,7 @@ export interface ValuationResult {
   bilgiKaynaklari?: { alan: string; kaynak: string; aciklama: string }[];
   /** Akilli alici bolumleri (tek rapor); eski raporlarda yok */
   pazarlikPlani?: PazarlikPlani;
-  modelRiskleri?: { riskler: ModelRiski[]; bulunamadi: boolean; mesaj?: string | null };
+  modelRiskleri?: { riskler: ModelRiski[]; bulunamadi: boolean; mesaj?: string | null; gorunumSurumu?: number };
   kullaniciSikayetleri?: KullaniciSikayeti[];
   bakim?: { baslik: string; aciklama: string; kontrol?: string }[];
   saticiSorulari?: string[];

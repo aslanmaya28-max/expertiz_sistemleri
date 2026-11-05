@@ -20,7 +20,9 @@ INK = (27, 45, 61)
 MUTED = (88, 105, 121)
 LIGHT = (245, 248, 251)
 RULE = (217, 227, 235)
-ISSUE_GROUPS = (('mekanik_motor', 'Mekanik ve motor'),
+ISSUE_GROUPS = (('motor', 'Motor'), ('sanziman', 'Şanzıman'), ('kaporta', 'Kaporta'),
+                ('alt_takim', 'Alt takım'), ('elektronik', 'Elektronik'), ('diger', 'Diğer'))
+LEGACY_ISSUE_GROUPS = (('mekanik_motor', 'Mekanik ve motor'),
                 ('elektronik', 'Elektronik ve sensör'),
                 ('trim_kasa', 'Trim, şasi ve kasa'))
 ISSUE_IMPORTANCE = {'yuksek': ('Yüksek masraf', (163, 42, 42)),
@@ -207,7 +209,9 @@ def build_pdf(report, ornek=False):
     def issue_label(item):
         label = ISSUE_IMPORTANCE.get(item.get('onem'))
         if label:
-            text(label[0], True, 8.5, label[1], line_height=4)
+            text('Öncelikli kontrol' if item.get('kilometreUyarisi') and item.get('onem') == 'yuksek' else label[0], True, 8.5, label[1], line_height=4)
+        if item.get('kilometreUyarisi'):
+            text(item['kilometreUyarisi'], True, 8.5, line_height=4)
 
     def expert_line(item):
         nonlocal expert_line_count
@@ -216,11 +220,14 @@ def build_pdf(report, ornek=False):
             expert_line_count += 1
 
     def issue_groups(items):
+        modern = (report.get('modelRiskleri') or {}).get('gorunumSurumu') == 2 or any(
+            item.get('kategori') in ('motor', 'sanziman', 'kaporta', 'alt_takim', 'diger') for item in items)
+        groups = ISSUE_GROUPS if modern else LEGACY_ISSUE_GROUPS
         # Kısmi/eski kayıtta kategorisiz maddeyi düşürmeden eski görünümü koru.
-        if not items or not all(item.get('kategori') in dict(ISSUE_GROUPS) for item in items):
+        if not items or not all(item.get('kategori') in dict(groups) for item in items):
             return [(None, items)]
         return [(label, [item for item in items if item['kategori'] == category])
-                for category, label in ISSUE_GROUPS
+                for category, label in groups
                 if any(item['kategori'] == category for item in items)]
 
     def issue_details(items, render):
@@ -244,11 +251,20 @@ def build_pdf(report, ornek=False):
         if item.get('belirtiler'):
             text('Belirtiler: '+'; '.join(item['belirtiler']))
         text('Nasıl kontrol edilir: '+str(item.get('kontrol') or 'Servis kayıtlarıyla doğrulayın.'))
-        if item.get('guven') == 'yuksek':
-            text('Resmi kaynak (geri çağırma / servis bülteni)')
+        text(item.get('kanitSeviyesi') or ('Resmî kayıt' if item.get('guven') == 'yuksek' else 'Teknik kaynak'))
         cost = item.get('tahminiMaliyet')
-        text('Maliyet: '+(f'{_money(cost.get("min"))} - {_money(cost.get("max"))}'
+        text('Tahmini masraf: '+(f'{_num(cost.get("min"))}–{_num(cost.get("max"))} TL'
                           if isinstance(cost, dict) else 'kaynakta belirtilmemiş'))
+        span = item.get('tipikKm')
+        if isinstance(span, dict):
+            text('Genelde '+(_num(span.get('min'))+' km civarı' if span.get('min') == span.get('max')
+                            else _num(span.get('min'))+'–'+_num(span.get('max'))+' km'))
+        for field, label in (('maliyetKaynagi', 'Masraf kaynağı'), ('kmKaynagi', 'Kilometre kaynağı')):
+            source = item.get(field)
+            if isinstance(source, dict):
+                text(label + (f' · {source["onarim"]}' if source.get('onarim') else '')
+                     + (f' · Erişim: {source["tarih"]}' if source.get('tarih') else ''), size=8.5, color=MUTED)
+                source_links([source.get('url')])
         source_links(item.get('kaynaklar'))
         expert_line(item)
         pdf.ln(4)
@@ -257,6 +273,7 @@ def build_pdf(report, ornek=False):
         ensure(30)
         text(item.get('baslik'), True)
         issue_label(item)
+        text('Kullanıcı deneyimi', size=8.5, color=MUTED)
         text(item.get('aciklama'))
         text(f'{item.get("kaynakSayisi", 0)} farklı kaynakta geçiyor', size=8.5, color=MUTED)
         source_links(item.get('kaynaklar'))
@@ -350,7 +367,7 @@ def build_pdf(report, ornek=False):
                         for index, item in enumerate(critical, 1)),
               fill=(253, 245, 245), accent=ISSUE_IMPORTANCE['yuksek'][1])
     if 'modelRiskleri' in report:
-        heading('Modelin bilinen sorunları')
+        heading('Bu araçta dikkat edilecekler' if risks.get('gorunumSurumu') == 2 else 'Modelin bilinen sorunları')
         text('Bu başlıklar arıza teşhisi değildir; araç sürümü, şasi numarası ve servis kayıtlarıyla doğrulayın.')
         issue_details(shown, risk_details)
         if not shown:

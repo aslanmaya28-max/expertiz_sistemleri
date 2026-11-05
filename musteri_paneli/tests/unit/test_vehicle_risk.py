@@ -55,7 +55,8 @@ def test_verified_and_turkish(monkeypatch):
     calls = search(monkeypatch, [item()])
     result = vr.get_model_risks(VEHICLE)
     assert len(calls) == 1
-    assert result["riskler"][0] == item(kategori="mekanik_motor", onem="yuksek")
+    assert result["riskler"][0] == item(kategori="motor", onem="yuksek", kanitSeviyesi='Resmî kayıt',
+        maliyetKaynagi={'url': URL, 'tarih': vr.risk_evidence.today()})
     assert not result["bulunamadi"]
     assert result["scope"]["cost_usd"] == .009
 
@@ -215,7 +216,7 @@ def test_complaints_merge_topics_count_root_domains_and_omit_cost(monkeypatch):
     assert len(calls) == 1 and result["scope"]["searches"] == 2  # risk + Türkçe şikâyet araması
     assert result["kullaniciSikayetleri"] == [{
         "baslik": "Triger sesi", "aciklama": "Kullanıcılar triger sesinden söz ediyor.",
-        "kaynakSayisi": 2, "kaynaklar": urls, "kategori": "mekanik_motor", "onem": "yuksek"}]
+        "kaynakSayisi": 2, "kaynaklar": urls, "kategori": "motor", "onem": "yuksek"}]
 
 
 @pytest.mark.parametrize("urls,text,vehicle", [
@@ -280,10 +281,10 @@ def test_preferred_user_sources_do_not_establish_verified_confidence(monkeypatch
 
 
 @pytest.mark.parametrize("title,category,severity", [
-    ("Triger", "mekanik_motor", "yuksek"), ("Sensör arızası", "elektronik", "orta"),
-    ("Far buğusu", "trim_kasa", "dusuk"), ("Multimedya donması", "elektronik", "dusuk"),
-    ("Trim sesi", "trim_kasa", "dusuk"), ("Süspansiyon", "mekanik_motor", "orta"),
-    ("Yakıt pompası", "mekanik_motor", "yuksek"), ("Motor arızası", "mekanik_motor", "yuksek"),
+    ("Triger", "motor", "yuksek"), ("Sensör arızası", "elektronik", "orta"),
+    ("Far buğusu", "elektronik", "dusuk"), ("Multimedya donması", "elektronik", "dusuk"),
+    ("Trim sesi", "kaporta", "dusuk"), ("Süspansiyon", "alt_takim", "orta"),
+    ("Yakıt pompası", "motor", "yuksek"), ("Motor arızası", "motor", "yuksek"),
 ])
 def test_category_and_severity_fallback_in_both_lists(monkeypatch, title, category, severity):
     urls = ["https://sikayetvar.com/arona", "https://forum.donanimhaber.com/arona"]
@@ -299,10 +300,10 @@ def test_category_and_severity_fallback_in_both_lists(monkeypatch, title, catego
     assert "tahminiMaliyet" not in result["kullaniciSikayetleri"][0]
 
 
-def test_explicit_valid_category_and_severity_preserved(monkeypatch):
+def test_model_category_is_ignored_while_explicit_severity_preserved(monkeypatch):
     search(monkeypatch, [item(kategori="trim_kasa", onem="dusuk")])
     result = vr.get_model_risks(VEHICLE)["riskler"][0]
-    assert (result["kategori"], result["onem"]) == ("trim_kasa", "dusuk")
+    assert (result["kategori"], result["onem"]) == ("motor", "dusuk")
 
 
 @pytest.mark.parametrize("verified,want", [(False, "dusuk"), (True, "yuksek")])

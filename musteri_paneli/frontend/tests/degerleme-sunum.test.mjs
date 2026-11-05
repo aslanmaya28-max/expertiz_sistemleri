@@ -53,6 +53,31 @@ test('ekspertiz kaynağı ve ciddi/kozmetik bulgular web raporunda aynı metinle
   assert.ok(html.includes('Bilgi: Lastik kontrolü önerilir'));
 });
 
+test('yeni risk görünümü altı kategori, kanıt, kaynaklı masraf ve kilometreyi gösterir', () => {
+  const titles = ['Motor', 'Şanzıman', 'Kaporta', 'Alt takım', 'Elektronik', 'Diğer'];
+  const keys = ['motor', 'sanziman', 'kaporta', 'alt_takim', 'elektronik', 'diger'];
+  const risks = keys.map((kategori, i) => ({ baslik: `Başlık ${i}`, kategori, guven: 'orta',
+    onem: 'orta', kontrol: 'Servis kaydı', kaynaklar: ['https://servis.test/risk'],
+    kanitSeviyesi: 'Teknik kaynak', ...(i === 1 ? {
+      tahminiMaliyet: { min: 25000, max: 30000 }, tipikKm: { min: 80000, max: 100000 },
+      kilometreUyarisi: 'Bu kilometrede dikkat',
+      maliyetKaynagi: { url: 'https://servis.test/fiyat', tarih: '2026-11-05', onarim: 'Mekatronik onarımı' },
+    } : {}) }));
+  const html = render(AkilliAliciBolumleri, { ...result, modelRiskleri: { gorunumSurumu: 2, riskler: risks },
+    kullaniciSikayetleri: [{ baslik: 'Şikâyet', kategori: 'motor', kaynakSayisi: 2, kaynaklar: [],
+      tahminiMaliyet: { min: 9999, max: 9999 } }] });
+  assert.ok(html.includes('Bu araçta dikkat edilecekler'));
+  for (const title of titles) assert.ok(html.includes(`>${title}</h3>`));
+  assert.ok(html.includes('25.000–30.000 TL'));
+  assert.ok(html.includes('80.000–100.000 km'));
+  assert.ok(html.includes('Bu kilometrede dikkat'));
+  assert.ok(html.includes('href="https://servis.test/fiyat"'));
+  assert.ok(html.includes('Erişim: 2026-11-05'));
+  assert.ok(html.includes('Teknik kaynak') && html.includes('Kullanıcı deneyimi'));
+  assert.ok(!html.includes('9.999'));
+  assert.ok(html.includes('kaynakta belirtilmemiş'));
+});
+
 const risk = (baslik, extra = {}) => ({ baslik, belirtiler: [], kontrol: 'Servise sorun', kaynaklar: [], guven: 'orta', ...extra });
 const complaint = (baslik, extra = {}) => ({ baslik, aciklama: 'Kullanıcı beyanı', kaynakSayisi: 2, kaynaklar: [], ...extra });
 const section = (html, title) => html.match(new RegExp(`<section[^>]*aria-label="${title}"[^>]*>([\\s\\S]*?)</section>`))?.[1] || '';
