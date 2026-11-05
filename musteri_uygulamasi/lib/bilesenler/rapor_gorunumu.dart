@@ -7,12 +7,22 @@ import 'model_bulgulari.dart';
 import 'deger_kaybi.dart';
 import 'piyasa_bolumu.dart';
 import 'rapor_kaynaklar.dart';
+import 'karar_rozeti.dart';
+import 'fiyat_araligi.dart';
+import '../tema/olculer.dart';
+import '../tema/yazi.dart';
 
-/// Web müşteriye admin karar alanlarını göstermez; burada da gösterilmez.
+/// Yalnızca müşteriye açık rapor alanlarını sunar.
 class ReportView extends StatelessWidget {
   final ReportSnapshot snapshot;
   final LinkAction onLink;
-  const ReportView(this.snapshot, {super.key, required this.onLink});
+  final Widget? sonrakiAdim;
+  const ReportView(
+    this.snapshot, {
+    super.key,
+    required this.onLink,
+    this.sonrakiAdim,
+  });
   @override
   Widget build(BuildContext context) {
     final vehicle = snapshot.vehicle,
@@ -34,6 +44,33 @@ class ReportView extends StatelessWidget {
             vehicle['yil'],
           ].where((e) => e != null).join(' '),
           [
+            if (object(snapshot.raw['karar']).isNotEmpty) ...[
+              KararRozeti(
+                text(object(snapshot.raw['karar'])['sonuc']),
+                buyuk: true,
+              ),
+              const SizedBox(height: Olcu.s8),
+              Text(text(object(snapshot.raw['karar'])['aciklama'])),
+              const SizedBox(height: Olcu.s24),
+            ],
+            const Text('Hesaplanan değer', style: Yazilar.etiket),
+            Text(
+              money(snapshot.valuation['aiDegeri']),
+              style: Yazilar.rakamBuyuk,
+            ),
+            FiyatAraligi(
+              alt:
+                  object(snapshot.valuation['adilFiyatAraligi'])['min'] as num?,
+              ust:
+                  object(snapshot.valuation['adilFiyatAraligi'])['max'] as num?,
+              hesaplanan: snapshot.valuation['aiDegeri'] as num?,
+              ilan: vehicle['ilanFiyati'] as num?,
+            ),
+            const SizedBox(height: Olcu.s8),
+            Text(
+              'Adil fiyat aralığı · ${integer(snapshot.market['emsalSayisi'])} benzer ilan',
+            ),
+            const SizedBox(height: Olcu.s16),
             if (text(vehicle['paket']).isNotEmpty) Text(text(vehicle['paket'])),
             Text('${number(vehicle['km'])} km'),
             if (meta.isNotEmpty) ...[
@@ -47,11 +84,11 @@ class ReportView extends StatelessWidget {
         ),
         ReportSummarySection(snapshot),
         NegotiationSection(snapshot.plan, onLink),
-        ModelFindings(snapshot, onLink),
-        ReportPrices(snapshot),
         LossSection(snapshot.valuation),
-        GenerationSection(object(snapshot.market['gecisYili'])),
+        ReportPrices(snapshot),
         MarketSection(snapshot.market, onLink),
+        ModelFindings(snapshot, onLink),
+        GenerationSection(object(snapshot.market['gecisYili'])),
         if (income.isNotEmpty)
           Panel('Getiri tahmini (araç enflasyonu)', [
             Text(
@@ -75,6 +112,7 @@ class ReportView extends StatelessWidget {
             if (text(income['aciklama']).isNotEmpty)
               Text(text(income['aciklama'])),
           ]),
+        ?sonrakiAdim,
         if (objects(snapshot.raw['bilgiKaynaklari']).isNotEmpty)
           Panel('Bu rapordaki bilgiler nereden geliyor?', [
             for (final source in objects(snapshot.raw['bilgiKaynaklari']))

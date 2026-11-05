@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'api/providers.dart' hide themeModeProvider;
+import 'tema/gorunum.dart';
+import 'bilesenler/alt_menu.dart';
 import 'analiz/analiz_ekranlari.dart';
 import 'analiz/ilan_metni.dart';
 import 'analiz/paylasim.dart';
-import 'api/providers.dart';
 import 'bilesenler/ortak.dart';
 import 'ekranlar/auth_screen.dart';
 import 'ekranlar/home_screen.dart';
@@ -14,6 +16,11 @@ import 'ekranlar/reports_screen.dart';
 import 'kredi/kredi_ekrani.dart';
 import 'oturum/session_controller.dart';
 import 'tema/tema.dart';
+import 'api/models.dart';
+import 'hizmetler/hizmet_tanitim.dart';
+import 'hizmetler/talep_ekrani.dart';
+import 'hizmetler/odeme_ekrani.dart';
+import 'hizmetler/kayit_ekranlari.dart';
 
 class _RouterRefresh extends ChangeNotifier {
   void refresh() => notifyListeners();
@@ -51,6 +58,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (session.phase != SessionPhase.signedIn) {
         return public ? null : '/giris';
       }
+      if ((path == '/ekspertiz/talep' ||
+              path.startsWith('/ekspertiz/odeme/')) &&
+          !config.requireValue.expertizEnabled) {
+        return '/yerinde-inceleme';
+      }
       if (public || path == '/durum' || path == '/guncelle') return '/';
       return null;
     },
@@ -81,7 +93,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/analiz/metin', builder: (_, _) => const MetinEkrani()),
       GoRoute(path: '/analiz/form', builder: (_, _) => const AracFormuEkrani()),
-      GoRoute(path: '/analiz/bekle', builder: (_, _) => const AnalizBeklemeEkrani()),
+      GoRoute(
+        path: '/analiz/bekle',
+        builder: (_, _) => const AnalizBeklemeEkrani(),
+      ),
+      GoRoute(
+        path: '/ekspertiz/talep',
+        builder: (_, s) =>
+            EkspertizTalepEkrani(arac: s.extra is Map ? object(s.extra) : null),
+      ),
+      GoRoute(
+        path: '/ekspertiz/odeme/:id',
+        builder: (_, s) => HizmetOdemeEkrani(
+          s.pathParameters['id']!,
+          checkout: s.extra is Map ? object(s.extra) : null,
+        ),
+      ),
       ShellRoute(
         builder: (context, state, child) =>
             AppShell(path: state.uri.path, child: child),
@@ -97,8 +124,40 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          GoRoute(path: '/analiz', builder: (_, _) => const AnalizBaslatEkrani()),
+          GoRoute(
+            path: '/analiz',
+            builder: (_, _) => const AnalizBaslatEkrani(),
+          ),
           GoRoute(path: '/kredi', builder: (_, _) => const KrediEkrani()),
+          GoRoute(
+            path: '/yerinde-inceleme',
+            builder: (_, s) => YerindeIncelemeEkrani(
+              arac: s.extra is Map ? object(s.extra) : null,
+            ),
+          ),
+          GoRoute(
+            path: '/uzaktan-satin-alma',
+            builder: (_, _) => const UzaktanSatinAlmaEkrani(),
+          ),
+          GoRoute(
+            path: '/talepler',
+            builder: (_, _) => const HizmetKayitlariEkrani(),
+          ),
+          GoRoute(
+            path: '/ekspertiz-raporlari',
+            builder: (_, _) => const HizmetKayitlariEkrani(raporlar: true),
+            routes: [
+              GoRoute(
+                path: ':id',
+                builder: (_, s) =>
+                    EkspertizRaporEkrani(s.pathParameters['id']!),
+              ),
+            ],
+          ),
+          GoRoute(
+            path: '/bildirimler',
+            builder: (_, _) => const BildirimEkrani(),
+          ),
           GoRoute(
             path: '/profil',
             builder: (_, _) => const ProfileScreen(),
@@ -168,34 +227,19 @@ class AppShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     body: child,
-    bottomNavigationBar: NavigationBar(
-      selectedIndex: path.startsWith('/raporlar')
+    bottomNavigationBar: AltMenu(
+      secili: path.startsWith('/raporlar')
           ? 1
           : path.startsWith('/kredi')
           ? 2
-          : path.startsWith('/profil')
+          : (path.startsWith('/profil') ||
+                path.startsWith('/talepler') ||
+                path.startsWith('/ekspertiz-raporlari') ||
+                path.startsWith('/bildirimler'))
           ? 3
           : 0,
-      onDestinationSelected: (index) =>
+      onChanged: (index) =>
           context.go(['/', '/raporlar', '/kredi', '/profil'][index]),
-      destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.home_outlined),
-          label: 'Ana sayfa',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.description_outlined),
-          label: 'Raporlarım',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.account_balance_wallet_outlined),
-          label: 'Kredi',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.person_outline),
-          label: 'Profil',
-        ),
-      ],
     ),
   );
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../api/models.dart';
 import 'ortak.dart';
+import 'acilir_liste.dart';
 
 typedef LinkAction = Future<void> Function(String url);
 bool safeWeb(String value) {
@@ -16,8 +17,7 @@ class SourceLinks extends StatelessWidget {
   final LinkAction onLink;
   const SourceLinks(this.urls, this.onLink, {super.key});
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => AcilirListe(
     children: [
       for (final url in urls.where(safeWeb))
         TextButton(
@@ -39,8 +39,7 @@ class ListingEvidence extends StatelessWidget {
   final LinkAction onLink;
   const ListingEvidence(this.listings, this.onLink, {super.key});
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => AcilirListe(
     children: [
       for (final item in listings)
         Column(

@@ -7,6 +7,11 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../api/api_client.dart';
 import '../api/providers.dart';
 import '../bilesenler/ortak.dart';
+import '../bilesenler/kaporta_semasi.dart';
+import '../bilesenler/ana_buton.dart';
+import '../bilesenler/kart.dart';
+import '../tema/yazi.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../tema/olculer.dart';
 import '../tema/renkler.dart';
 import 'analiz_api.dart';
@@ -18,13 +23,25 @@ import 'ilan_metni.dart';
 // 1) Link girişi
 // ---------------------------------------------------------------------------
 
-class AnalizBaslatEkrani extends ConsumerStatefulWidget {
+class AnalizBaslatEkrani extends StatelessWidget {
   const AnalizBaslatEkrani({super.key});
   @override
-  ConsumerState<AnalizBaslatEkrani> createState() => _AnalizBaslatEkraniState();
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Yeni araç analizi')),
+    body: const SingleChildScrollView(
+      child: PageBody(child: Kart(child: IlanLinkKutusu())),
+    ),
+  );
 }
 
-class _AnalizBaslatEkraniState extends ConsumerState<AnalizBaslatEkrani> {
+class IlanLinkKutusu extends ConsumerStatefulWidget {
+  final bool sade;
+  const IlanLinkKutusu({super.key, this.sade = false});
+  @override
+  ConsumerState<IlanLinkKutusu> createState() => _AnalizBaslatEkraniState();
+}
+
+class _AnalizBaslatEkraniState extends ConsumerState<IlanLinkKutusu> {
   final link = TextEditingController();
   String? hata;
 
@@ -47,23 +64,34 @@ class _AnalizBaslatEkraniState extends ConsumerState<AnalizBaslatEkrani> {
   void oku() {
     final uri = paylasimdanLink(link.text);
     if (uri == null) {
-      setState(() => hata = 'Geçerli bir ilan linki yapıştırın (https://… ile başlar).');
+      setState(
+        () =>
+            hata = 'Geçerli bir ilan linki yapıştırın (https://… ile başlar).',
+      );
       return;
     }
-    context.push('/analiz/oku?link=${Uri.encodeQueryComponent(uri.toString())}');
+    context.push(
+      '/analiz/oku?link=${Uri.encodeQueryComponent(uri.toString())}',
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final r = YbRenkler.of(context);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Yeni araç analizi')),
-      body: ListView(
-        padding: const EdgeInsets.all(Olcu.sayfa),
-        children: [
-          Panel('İlan linkini yapıştırın', [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!widget.sade) ...[
+              const Text('İlan linkini yapıştırın', style: Yazilar.bolumBaslik),
+              const SizedBox(height: Olcu.s12),
+            ],
             Text(
-              'Araç bilgilerini ilandan biz okuyalım; siz yalnız kontrol edin.',
+              widget.sade
+                  ? 'İlan linkini yapıştırın; bilgileri okuyalım.'
+                  : 'Araç bilgilerini ilandan biz okuyalım; siz yalnız kontrol edin.',
               style: TextStyle(color: r.metinIkincil),
             ),
             const SizedBox(height: Olcu.s16),
@@ -75,35 +103,36 @@ class _AnalizBaslatEkraniState extends ConsumerState<AnalizBaslatEkrani> {
                 labelText: 'İlan linki',
                 hintText: 'sahibinden.com veya arabam.com',
                 errorText: hata,
-                suffixIcon: TextButton(onPressed: yapistir, child: const Text('Yapıştır')),
+                suffixIcon: TextButton(
+                  onPressed: yapistir,
+                  child: const Text('Yapıştır'),
+                ),
               ),
               onSubmitted: (_) => oku(),
             ),
             const SizedBox(height: Olcu.s16),
-            SizedBox(
-              width: double.infinity,
-              height: Olcu.anaButon,
-              child: FilledButton(onPressed: oku, child: const Text('İlanı oku')),
-            ),
+            AnaButon('İlanı oku', () async => oku(), icon: LucideIcons.search),
             const SizedBox(height: Olcu.s12),
             Text(
               'İlan uygulamasında Paylaş → YerimeBak ile de gönderebilirsiniz.',
               style: TextStyle(color: r.metinIkincil),
             ),
-          ]),
-          TextButton(
-            onPressed: () => context.push('/analiz/metin'),
-            child: const Text('Link yok mu? İlan metnini yapıştırın'),
-          ),
-          TextButton(
-            onPressed: () {
-              ref.read(analizTaslagiProvider.notifier).state = AnalizTaslagi(AracFormu());
-              context.push('/analiz/form');
-            },
-            child: const Text('Bilgileri elle girin'),
-          ),
-        ],
-      ),
+          ],
+        ),
+        TextButton(
+          onPressed: () => context.push('/analiz/metin'),
+          child: const Text('Link yok mu? İlan metnini yapıştırın'),
+        ),
+        TextButton(
+          onPressed: () {
+            ref.read(analizTaslagiProvider.notifier).state = AnalizTaslagi(
+              AracFormu(),
+            );
+            context.push('/analiz/form');
+          },
+          child: const Text('Bilgileri elle girin'),
+        ),
+      ],
     );
   }
 }
@@ -122,7 +151,8 @@ class IlanOkunuyorEkrani extends ConsumerStatefulWidget {
 }
 
 class _IlanOkunuyorEkraniState extends ConsumerState<IlanOkunuyorEkrani> {
-  static const _sayfayiGosterme = Duration(seconds: 8), _vazgec = Duration(seconds: 75);
+  static const _sayfayiGosterme = Duration(seconds: 8),
+      _vazgec = Duration(seconds: 75);
   WebViewController? web;
   Timer? yoklama;
   final sure = Stopwatch();
@@ -163,10 +193,14 @@ class _IlanOkunuyorEkraniState extends ConsumerState<IlanOkunuyorEkrani> {
           onNavigationRequest: (r) {
             final s = Uri.tryParse(r.url)?.scheme;
             // Uygulama açma (intent://, sahibinden://) ve dosya adresleri engellenir; yalnız web sayfası.
-            return s == 'https' || s == 'http' ? NavigationDecision.navigate : NavigationDecision.prevent;
+            return s == 'https' || s == 'http'
+                ? NavigationDecision.navigate
+                : NavigationDecision.prevent;
           },
           onPageFinished: (_) {
-            if (mounted && asama == _Asama.aciliyor) setState(() => asama = _Asama.okunuyor);
+            if (mounted && asama == _Asama.aciliyor) {
+              setState(() => asama = _Asama.okunuyor);
+            }
           },
         ),
       )
@@ -182,7 +216,9 @@ class _IlanOkunuyorEkraniState extends ConsumerState<IlanOkunuyorEkrani> {
     String metin;
     try {
       metin = jsSonucunuCoz(
-        await c.runJavaScriptReturningResult('document.body ? document.body.innerText : ""'),
+        await c.runJavaScriptReturningResult(
+          'document.body ? document.body.innerText : ""',
+        ),
       );
     } catch (_) {
       return; // Sayfa geçişi sırasında okunamaz; sonraki turda tekrar denenir.
@@ -200,21 +236,29 @@ class _IlanOkunuyorEkraniState extends ConsumerState<IlanOkunuyorEkrani> {
       case SayfaDurumu.dogrulamaGerekli:
         if (!sayfaGorunur) setState(() => sayfaGorunur = true);
       case SayfaDurumu.yukleniyor:
-        if (!sayfaGorunur && sure.elapsed > _sayfayiGosterme) setState(() => sayfaGorunur = true);
+        if (!sayfaGorunur && sure.elapsed > _sayfayiGosterme) {
+          setState(() => sayfaGorunur = true);
+        }
         // Sayfa müşteriye açıkken (çerez onayı, doğrulama, başka ilana geçiş) süre sınırı işlemez.
         if (!sayfaGorunur && sure.elapsed > _vazgec) {
           bitti = true;
           yoklama?.cancel();
-          _hata('İlan okunamadı. İlan metnini kopyalayıp yapıştırarak devam edebilirsiniz.');
+          _hata(
+            'İlan okunamadı. İlan metnini kopyalayıp yapıştırarak devam edebilirsiniz.',
+          );
         }
     }
   }
 
   Future<void> _metniGonder(String metin) async {
     try {
-      final od = await ref.read(analizRepositoryProvider).metindenOku(ilanMetniniKirp(metin));
+      final od = await ref
+          .read(analizRepositoryProvider)
+          .metindenOku(ilanMetniniKirp(metin));
       if (od.dogrulananSayisi == 0 && !od.yeterli) {
-        return _hata('İlandan bilgi okunamadı. Bilgileri elle girebilir ya da ilan metnini yapıştırabilirsiniz.');
+        return _hata(
+          'İlandan bilgi okunamadı. Bilgileri elle girebilir ya da ilan metnini yapıştırabilirsiniz.',
+        );
       }
       _tamam(od);
     } on ApiFailure catch (e) {
@@ -224,7 +268,9 @@ class _IlanOkunuyorEkraniState extends ConsumerState<IlanOkunuyorEkrani> {
 
   void _tamam(OnDoldurma od) {
     if (!mounted) return;
-    ref.read(analizTaslagiProvider.notifier).state = AnalizTaslagi(od.forma(uri.toString()));
+    ref.read(analizTaslagiProvider.notifier).state = AnalizTaslagi(
+      od.forma(uri.toString()),
+    );
     context.pushReplacement('/analiz/form');
   }
 
@@ -240,7 +286,9 @@ class _IlanOkunuyorEkraniState extends ConsumerState<IlanOkunuyorEkrani> {
   Widget build(BuildContext context) {
     final r = YbRenkler.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(sayfaGorunur ? 'İlanı doğrulayın' : 'İlan okunuyor')),
+      appBar: AppBar(
+        title: Text(sayfaGorunur ? 'İlanı doğrulayın' : 'İlan okunuyor'),
+      ),
       body: Stack(
         children: [
           if (web != null)
@@ -251,11 +299,16 @@ class _IlanOkunuyorEkraniState extends ConsumerState<IlanOkunuyorEkrani> {
                   if (sayfaGorunur && hata == null)
                     Material(
                       color: r.yuzey,
-                      elevation: 8,
+                      elevation: Olcu.yukselti,
                       child: SafeArea(
                         top: false,
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(Olcu.sayfa, Olcu.s12, Olcu.sayfa, Olcu.s4),
+                          padding: const EdgeInsets.fromLTRB(
+                            Olcu.sayfa,
+                            Olcu.s12,
+                            Olcu.sayfa,
+                            Olcu.s4,
+                          ),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -264,8 +317,11 @@ class _IlanOkunuyorEkraniState extends ConsumerState<IlanOkunuyorEkrani> {
                                 'Sayfa bir onay ya da doğrulama istiyorsa tamamlayın. İlan sayfası açılınca okuma kendiliğinden başlar.',
                               ),
                               TextButton(
-                                onPressed: () => context.pushReplacement('/analiz/metin'),
-                                child: const Text('Okunmazsa: ilan metnini yapıştırın'),
+                                onPressed: () =>
+                                    context.pushReplacement('/analiz/metin'),
+                                child: const Text(
+                                  'Okunmazsa: ilan metnini yapıştırın',
+                                ),
                               ),
                             ],
                           ),
@@ -285,19 +341,23 @@ class _IlanOkunuyorEkraniState extends ConsumerState<IlanOkunuyorEkrani> {
                     Text(uri.host, style: TextStyle(color: r.metinIkincil)),
                     const SizedBox(height: Olcu.s12),
                     if (hata == null) ...[
-                      Text('Birkaç saniye sürer. Bilgiler hazır olunca kontrol edip analizi başlatacaksınız.',
-                          style: TextStyle(color: r.metinIkincil)),
-                      const SizedBox(height: Olcu.s20),
-                      AsamaListesi(
-                        const ['İlan açıldı', 'Araç bilgileri okunuyor', 'Form dolduruluyor'],
-                        aktif: asama.index,
+                      Text(
+                        'Birkaç saniye sürer. Bilgiler hazır olunca kontrol edip analizi başlatacaksınız.',
+                        style: TextStyle(color: r.metinIkincil),
                       ),
+                      const SizedBox(height: Olcu.s20),
+                      AsamaListesi(const [
+                        'İlan açıldı',
+                        'Araç bilgileri okunuyor',
+                        'Form dolduruluyor',
+                      ], aktif: asama.index),
                     ] else
                       Panel('İlan okunamadı', [
                         Text(hata!),
                         const SizedBox(height: Olcu.s12),
                         FilledButton(
-                          onPressed: () => context.pushReplacement('/analiz/metin'),
+                          onPressed: () =>
+                              context.pushReplacement('/analiz/metin'),
                           child: const Text('İlan metnini yapıştır'),
                         ),
                         TextButton(
@@ -336,14 +396,17 @@ class AsamaListesi extends StatelessWidget {
             for (var i = 0; i < asamalar.length; i++)
               ListTile(
                 leading: i < aktif
-                    ? Icon(Icons.check_circle, color: r.birincil)
+                    ? Icon(LucideIcons.circleCheck, color: r.birincil)
                     : i == aktif
                     ? SizedBox(
                         width: Olcu.ikon,
                         height: Olcu.ikon,
-                        child: CircularProgressIndicator(strokeWidth: 2.5, color: r.birincil),
+                        child: CircularProgressIndicator(
+                          strokeWidth: Olcu.yuklemeKenar,
+                          color: r.birincil,
+                        ),
                       )
-                    : Icon(Icons.radio_button_unchecked, color: r.girdiKenarlik),
+                    : Icon(LucideIcons.circle, color: r.girdiKenarlik),
                 title: Text(
                   asamalar[i],
                   style: TextStyle(
@@ -384,21 +447,30 @@ class _MetinEkraniState extends ConsumerState<MetinEkrani> {
       padding: const EdgeInsets.all(Olcu.sayfa),
       children: [
         Panel('İlan metnini yapıştırın', [
-          const Text('İlan sayfasındaki yazıların tamamını seçip kopyalayın ve buraya yapıştırın.'),
+          const Text(
+            'İlan sayfasındaki yazıların tamamını seçip kopyalayın ve buraya yapıştırın.',
+          ),
           const SizedBox(height: Olcu.s12),
           TextField(
             controller: metin,
             minLines: 8,
             maxLines: 16,
-            decoration: const InputDecoration(labelText: 'İlan metni', alignLabelWithHint: true),
+            decoration: const InputDecoration(
+              labelText: 'İlan metni',
+              alignLabelWithHint: true,
+            ),
           ),
           const SizedBox(height: Olcu.s16),
           ActionButton('Bilgileri çıkar', () async {
             final t = metin.text.trim();
             if (t.isEmpty) throw const ApiFailure('İlan metni boş olamaz.');
-            final od = await ref.read(analizRepositoryProvider).metindenOku(ilanMetniniKirp(t));
+            final od = await ref
+                .read(analizRepositoryProvider)
+                .metindenOku(ilanMetniniKirp(t));
             final link = paylasimdanLink(t)?.toString() ?? '';
-            ref.read(analizTaslagiProvider.notifier).state = AnalizTaslagi(od.forma(link));
+            ref.read(analizTaslagiProvider.notifier).state = AnalizTaslagi(
+              od.forma(link),
+            );
             if (context.mounted) context.pushReplacement('/analiz/form');
           }),
         ]),
@@ -483,14 +555,25 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(Olcu.metinSayfa, 0, Olcu.metinSayfa, Olcu.s12),
+                  padding: const EdgeInsets.fromLTRB(
+                    Olcu.metinSayfa,
+                    0,
+                    Olcu.metinSayfa,
+                    Olcu.s12,
+                  ),
                   child: Text(
                     '${f.yil} model ${f.marka} ${f.model} iki farklı kasada satıldı. İlandaki araç hangisi?',
                   ),
                 ),
                 for (final s in secenekler)
-                  ListTile(title: Text(s.ad), onTap: () => Navigator.pop(ctx, s.kod)),
-                ListTile(title: const Text('Bilmiyorum'), onTap: () => Navigator.pop(ctx, '')),
+                  ListTile(
+                    title: Text(s.ad),
+                    onTap: () => Navigator.pop(ctx, s.kod),
+                  ),
+                ListTile(
+                  title: const Text('Bilmiyorum'),
+                  onTap: () => Navigator.pop(ctx, ''),
+                ),
               ],
             ),
           ),
@@ -510,10 +593,18 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Krediniz yok'),
-          content: const Text('Analiz için 1 kredi gerekir. Kredi yükleyip bu forma geri dönebilirsiniz.'),
+          content: const Text(
+            'Analiz için 1 kredi gerekir. Kredi yükleyip bu forma geri dönebilirsiniz.',
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Kredi yükle')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Kredi yükle'),
+            ),
           ],
         ),
       );
@@ -524,7 +615,13 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
     context.push('/analiz/bekle');
   }
 
-  Widget _alan(String anahtar, String etiket, {TextInputType? klavye, String? sonEk, String? ipucu}) {
+  Widget _alan(
+    String anahtar,
+    String etiket, {
+    TextInputType? klavye,
+    String? sonEk,
+    String? ipucu,
+  }) {
     final r = YbRenkler.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: Olcu.s12),
@@ -535,26 +632,41 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
           labelText: etiket,
           hintText: ipucu,
           suffixText: sonEk,
-          helperText: f.ilandanOkunan.contains(anahtar) ? 'İlandan okundu · kontrol edin' : null,
+          helperText: f.ilandanOkunan.contains(anahtar)
+              ? 'İlandan okundu · kontrol edin'
+              : null,
           helperStyle: TextStyle(color: r.birincilMetin),
         ),
       ),
     );
   }
 
-  Widget _secim(String etiket, String deger, List<String> secenekler, void Function(String) degisti, String anahtar) {
+  Widget _secim(
+    String etiket,
+    String deger,
+    List<String> secenekler,
+    void Function(String) degisti,
+    String anahtar,
+  ) {
     final r = YbRenkler.of(context);
-    final liste = [if (deger.isNotEmpty && !secenekler.contains(deger)) deger, ...secenekler];
+    final liste = [
+      if (deger.isNotEmpty && !secenekler.contains(deger)) deger,
+      ...secenekler,
+    ];
     return Padding(
       padding: const EdgeInsets.only(bottom: Olcu.s12),
       child: DropdownButtonFormField<String>(
         initialValue: deger.isEmpty ? null : deger,
         decoration: InputDecoration(
           labelText: etiket,
-          helperText: f.ilandanOkunan.contains(anahtar) ? 'İlandan okundu · kontrol edin' : null,
+          helperText: f.ilandanOkunan.contains(anahtar)
+              ? 'İlandan okundu · kontrol edin'
+              : null,
           helperStyle: TextStyle(color: r.birincilMetin),
         ),
-        items: [for (final s in liste) DropdownMenuItem(value: s, child: Text(s))],
+        items: [
+          for (final s in liste) DropdownMenuItem(value: s, child: Text(s)),
+        ],
         onChanged: (v) => setState(() => degisti(v ?? '')),
       ),
     );
@@ -565,10 +677,6 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
     final r = YbRenkler.of(context);
     final parcalar = ref.watch(parcalarProvider);
     final bakiye = ref.watch(balanceProvider);
-    final degisenler = [
-      for (final e in f.parcalar.entries)
-        if (e.value != 'orijinal') e.key,
-    ];
     return Scaffold(
       appBar: AppBar(title: const Text('Araç bilgileri')),
       body: ListView(
@@ -578,7 +686,7 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
             Card(
               color: r.birincilYuzey,
               child: ListTile(
-                leading: Icon(Icons.check_circle_outline, color: r.birincilMetin),
+                leading: Icon(LucideIcons.circleCheck, color: r.birincilMetin),
                 title: Text(
                   'İlandan ${f.ilandanOkunan.length} bilgi okundu. Kontrol edin, eksikleri tamamlayın.',
                   style: TextStyle(color: r.metin),
@@ -588,7 +696,9 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
           if (hata != null)
             Card(
               color: r.tehlikeYuzey,
-              child: ListTile(title: Text(hata!, style: TextStyle(color: r.tehlike))),
+              child: ListTile(
+                title: Text(hata!, style: TextStyle(color: r.tehlike)),
+              ),
             ),
           Panel('Araç', [
             KatalogAlani(
@@ -601,21 +711,53 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
             KatalogAlani(
               etiket: 'Model',
               denetleyici: c['model']!,
-              secenekler: (sorgu) => katalogAra(modelleri(c['marka']!.text), sorgu, sinir: 8),
+              secenekler: (sorgu) =>
+                  katalogAra(modelleri(c['marka']!.text), sorgu, sinir: 8),
               ilandan: f.ilandanOkunan.contains('model'),
             ),
             const SizedBox(height: Olcu.s12),
-            _alan('paket', 'Paket / motor', ipucu: 'Örn. 1.6 T-GDI Intelligent'),
+            _alan(
+              'paket',
+              'Paket / motor',
+              ipucu: 'Örn. 1.6 T-GDI Intelligent',
+            ),
             _alan('yil', 'Model yılı', klavye: TextInputType.number),
             _alan('km', 'Kilometre', klavye: TextInputType.number, sonEk: 'km'),
-            _secim('Yakıt', f.yakit, const ['Benzin', 'Dizel', 'Hibrit', 'Elektrik', 'LPG'], (v) => f.yakit = v, 'yakit'),
-            _secim('Vites', f.vites, const ['Otomatik', 'Manuel', 'Yarı Otomatik'], (v) => f.vites = v, 'vites'),
-            _alan('hp', 'Motor gücü (hp)', klavye: TextInputType.number, ipucu: 'İsteğe bağlı'),
+            _secim(
+              'Yakıt',
+              f.yakit,
+              const ['Benzin', 'Dizel', 'Hibrit', 'Elektrik', 'LPG'],
+              (v) => f.yakit = v,
+              'yakit',
+            ),
+            _secim(
+              'Vites',
+              f.vites,
+              const ['Otomatik', 'Manuel', 'Yarı Otomatik'],
+              (v) => f.vites = v,
+              'vites',
+            ),
+            _alan(
+              'hp',
+              'Motor gücü (hp)',
+              klavye: TextInputType.number,
+              ipucu: 'İsteğe bağlı',
+            ),
           ]),
           Panel('Fiyat ve hasar kaydı', [
-            _alan('fiyat', 'İlan fiyatı', klavye: TextInputType.number, sonEk: 'TL'),
-            _alan('tramer', 'Tramer (hasar kaydı) toplamı', klavye: TextInputType.number, sonEk: 'TL',
-                ipucu: 'Kayıt yoksa 0; ilanda yazmıyorsa boş'),
+            _alan(
+              'fiyat',
+              'İlan fiyatı',
+              klavye: TextInputType.number,
+              sonEk: 'TL',
+            ),
+            _alan(
+              'tramer',
+              'Tramer (hasar kaydı) toplamı',
+              klavye: TextInputType.number,
+              sonEk: 'TL',
+              ipucu: 'Kayıt yoksa 0; ilanda yazmıyorsa boş',
+            ),
           ]),
           Panel('Boya ve değişen', [
             Text(
@@ -625,43 +767,18 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
             const SizedBox(height: Olcu.s8),
             parcalar.when(
               loading: () => const LoadingView(),
-              error: (e, _) => FailureView(e, () => ref.invalidate(parcalarProvider)),
-              data: (liste) => Column(
-                children: [
-                  for (final p in liste)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: Olcu.s8),
-                      child: Row(
-                        children: [
-                          Expanded(child: Text(p.ad)),
-                          DropdownButton<String>(
-                            value: f.parcalar[p.anahtar] ?? 'orijinal',
-                            items: [
-                              for (final d in parcaDurumlari)
-                                DropdownMenuItem(value: d, child: Text(parcaDurumAdlari[d]!)),
-                            ],
-                            onChanged: (v) => setState(() {
-                              if (v == null || v == 'orijinal') {
-                                f.parcalar.remove(p.anahtar);
-                              } else {
-                                f.parcalar[p.anahtar] = v;
-                              }
-                            }),
-                          ),
-                        ],
-                      ),
+              error: (e, _) =>
+                  FailureView(e, () => ref.invalidate(parcalarProvider)),
+              data: (liste) => KaportaSemasi(
+                degerler: f.parcalar,
+                onChanged: (next) => setState(() {
+                  f.parcalar.clear();
+                  f.parcalar.addAll(
+                    Map.fromEntries(
+                      next.entries.where((e) => e.value != 'orijinal'),
                     ),
-                  const Divider(),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      degisenler.isEmpty
-                          ? 'Tüm parçalar orijinal'
-                          : '${degisenler.length} parça işaretli · diğerleri orijinal',
-                      style: TextStyle(color: r.metinIkincil),
-                    ),
-                  ),
-                ],
+                  );
+                }),
               ),
             ),
           ]),
@@ -670,7 +787,12 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(Olcu.sayfa, Olcu.s8, Olcu.sayfa, Olcu.s12),
+          padding: const EdgeInsets.fromLTRB(
+            Olcu.sayfa,
+            Olcu.s8,
+            Olcu.sayfa,
+            Olcu.s12,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -726,7 +848,8 @@ class _KatalogAlaniState extends State<KatalogAlani> {
     return RawAutocomplete<String>(
       textEditingController: widget.denetleyici,
       focusNode: odak,
-      optionsBuilder: (v) => v.text.trim().isEmpty ? const <String>[] : widget.secenekler(v.text),
+      optionsBuilder: (v) =>
+          v.text.trim().isEmpty ? const <String>[] : widget.secenekler(v.text),
       fieldViewBuilder: (ctx, ctrl, odakNoktasi, gonder) => TextField(
         controller: ctrl,
         focusNode: odakNoktasi,
@@ -740,16 +863,20 @@ class _KatalogAlaniState extends State<KatalogAlani> {
       optionsViewBuilder: (ctx, sec, secenekler) => Align(
         alignment: Alignment.topLeft,
         child: Material(
-          elevation: 4,
+          elevation: Olcu.menuYukselti,
           color: r.yuzey,
           borderRadius: BorderRadius.circular(Olcu.butonKose),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 280, maxWidth: Olcu.azamiIcerik - 2 * Olcu.sayfa),
+            constraints: const BoxConstraints(
+              maxHeight: Olcu.oneriAzamiYukseklik,
+              maxWidth: Olcu.azamiIcerik - 2 * Olcu.sayfa,
+            ),
             child: ListView(
               padding: EdgeInsets.zero,
               shrinkWrap: true,
               children: [
-                for (final s in secenekler) ListTile(title: Text(s), onTap: () => sec(s)),
+                for (final s in secenekler)
+                  ListTile(title: Text(s), onTap: () => sec(s)),
               ],
             ),
           ),
@@ -766,11 +893,16 @@ class _KatalogAlaniState extends State<KatalogAlani> {
 class AnalizBeklemeEkrani extends ConsumerStatefulWidget {
   const AnalizBeklemeEkrani({super.key});
   @override
-  ConsumerState<AnalizBeklemeEkrani> createState() => _AnalizBeklemeEkraniState();
+  ConsumerState<AnalizBeklemeEkrani> createState() =>
+      _AnalizBeklemeEkraniState();
 }
 
 class _AnalizBeklemeEkraniState extends ConsumerState<AnalizBeklemeEkrani> {
-  static const _asamalar = ['Benzer ilanlar aranıyor', 'Modelin bilinen sorunları araştırılıyor', 'Rapor hazırlanıyor'];
+  static const _asamalar = [
+    'Benzer ilanlar aranıyor',
+    'Modelin bilinen sorunları araştırılıyor',
+    'Rapor hazırlanıyor',
+  ];
   static const _saniyeler = [0, 12, 35];
   final sure = Stopwatch();
   Timer? saat;
@@ -801,7 +933,11 @@ class _AnalizBeklemeEkraniState extends ConsumerState<AnalizBeklemeEkrani> {
   Future<void> _calistir() async {
     final t = taslak;
     if (t == null) {
-      setState(() => hata = const ApiFailure('Analiz bilgileri bulunamadı. Formu yeniden doldurun.'));
+      setState(
+        () => hata = const ApiFailure(
+          'Analiz bilgileri bulunamadı. Formu yeniden doldurun.',
+        ),
+      );
       return;
     }
     setState(() => hata = null);
@@ -813,12 +949,16 @@ class _AnalizBeklemeEkraniState extends ConsumerState<AnalizBeklemeEkrani> {
       if (mounted) setState(() {});
     });
     try {
-      final sonuc = await ref.read(analizRepositoryProvider).analizEt(t.form, t.istekNo);
+      final sonuc = await ref
+          .read(analizRepositoryProvider)
+          .analizEt(t.form, t.istekNo);
       saat?.cancel();
       ref.invalidate(balanceProvider);
       ref.invalidate(recentReportsProvider);
       ref.read(analizTaslagiProvider.notifier).state = null;
-      if (mounted) context.go('/raporlar/${Uri.encodeComponent(sonuc.raporId)}');
+      if (mounted) {
+        context.go('/raporlar/${Uri.encodeComponent(sonuc.raporId)}');
+      }
     } catch (e) {
       saat?.cancel();
       if (mounted) setState(() => hata = e);
@@ -831,7 +971,10 @@ class _AnalizBeklemeEkraniState extends ConsumerState<AnalizBeklemeEkrani> {
     final f = taslak?.form;
     final e = hata;
     return Scaffold(
-      appBar: AppBar(title: const Text('Rapor hazırlanıyor'), automaticallyImplyLeading: e != null),
+      appBar: AppBar(
+        title: const Text('Rapor hazırlanıyor'),
+        automaticallyImplyLeading: e != null,
+      ),
       body: ListView(
         padding: const EdgeInsets.all(Olcu.metinSayfa),
         children: [
@@ -852,16 +995,27 @@ class _AnalizBeklemeEkraniState extends ConsumerState<AnalizBeklemeEkrani> {
             ),
           ] else if (e is InsufficientCredits)
             Panel('Krediniz yetersiz', [
-              const Text('Analiz için 1 kredi gerekir. Kredi yükledikten sonra formunuz kaybolmadan devam edebilirsiniz.'),
+              const Text(
+                'Analiz için 1 kredi gerekir. Kredi yükledikten sonra formunuz kaybolmadan devam edebilirsiniz.',
+              ),
               const SizedBox(height: Olcu.s12),
-              FilledButton(onPressed: () => context.go('/kredi'), child: const Text('Kredi yükle')),
+              FilledButton(
+                onPressed: () => context.go('/kredi'),
+                child: const Text('Kredi yükle'),
+              ),
             ])
           else
             Panel('Rapor tamamlanamadı', [
               Text(e.toString()),
               const SizedBox(height: Olcu.s12),
-              FilledButton(onPressed: _calistir, child: const Text('Tekrar dene')),
-              TextButton(onPressed: () => context.go('/raporlar'), child: const Text('Raporlarım')),
+              FilledButton(
+                onPressed: _calistir,
+                child: const Text('Tekrar dene'),
+              ),
+              TextButton(
+                onPressed: () => context.go('/raporlar'),
+                child: const Text('Raporlarım'),
+              ),
             ]),
         ],
       ),

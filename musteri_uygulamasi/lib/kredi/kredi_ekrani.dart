@@ -5,13 +5,21 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import '../analiz/analiz_durumu.dart';
 import '../api/providers.dart';
 import '../bilesenler/ortak.dart';
+import '../tema/yazi.dart';
+import '../bilesenler/kart.dart';
+import '../bilesenler/ana_buton.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../tema/olculer.dart';
 import '../tema/renkler.dart';
 import 'satin_alma.dart';
 
-const _playSimulasyonu = bool.fromEnvironment('PLAY_SIMULASYON') && !bool.fromEnvironment('dart.vm.product');
+const _playSimulasyonu =
+    bool.fromEnvironment('PLAY_SIMULASYON') &&
+    !bool.fromEnvironment('dart.vm.product');
 
-final krediRepositoryProvider = Provider((ref) => KrediRepository(ref.watch(apiProvider)));
+final krediRepositoryProvider = Provider(
+  (ref) => KrediRepository(ref.watch(apiProvider)),
+);
 final odemeMagazasiProvider = Provider<OdemeMagazasi>(
   (ref) => _playSimulasyonu ? SimulasyonMagazasi() : GooglePlayMagazasi(),
 );
@@ -41,17 +49,24 @@ class KrediVitrini {
   const KrediVitrini(this.paketler, this.hesapKimligi, this.magazaHazir);
 }
 
-final krediVitriniProvider = FutureProvider.autoDispose<KrediVitrini>((ref) async {
+final krediVitriniProvider = FutureProvider.autoDispose<KrediVitrini>((
+  ref,
+) async {
   ref.watch(sessionProvider.select((s) => s.user?.id));
   final magaza = ref.watch(odemeMagazasiProvider);
   final liste = await ref.watch(krediRepositoryProvider).paketler();
-  if (!await magaza.hazirMi()) return KrediVitrini(const [], liste.hesapKimligi, false);
-  final yanit = await magaza.urunler({for (final p in liste.paketler) p.urunKimligi});
+  if (!await magaza.hazirMi()) {
+    return KrediVitrini(const [], liste.hesapKimligi, false);
+  }
+  final yanit = await magaza.urunler({
+    for (final p in liste.paketler) p.urunKimligi,
+  });
   final urunler = {for (final u in yanit.productDetails) u.id: u};
   return KrediVitrini(
     [
       for (final p in liste.paketler)
-        if (urunler[p.urunKimligi] != null) SatilabilirPaket(p, urunler[p.urunKimligi]!),
+        if (urunler[p.urunKimligi] != null)
+          SatilabilirPaket(p, urunler[p.urunKimligi]!),
     ],
     liste.hesapKimligi,
     true,
@@ -79,16 +94,30 @@ class _KrediEkraniState extends ConsumerState<KrediEkrani> {
       body: ListView(
         padding: const EdgeInsets.all(Olcu.sayfa),
         children: [
-          Card(
-            child: ListTile(
-              title: const Text('Mevcut bakiyeniz'),
-              subtitle: Text(
-                bakiye.maybeWhen(data: (b) => '$b kredi', orElse: () => '…'),
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: r.metin),
-              ),
-              trailing: Text('1 analiz raporu\n= 1 kredi', textAlign: TextAlign.right, style: TextStyle(color: r.metinIkincil)),
+          Kart(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  LucideIcons.wallet,
+                  size: Olcu.ikonInce,
+                  color: r.birincil,
+                ),
+                const SizedBox(height: Olcu.s16),
+                const Text('Mevcut bakiyeniz', style: Yazilar.etiket),
+                Text(
+                  bakiye.maybeWhen(data: (b) => '$b kredi', orElse: () => '…'),
+                  style: Yazilar.rakamBuyuk,
+                ),
+                const SizedBox(height: Olcu.s8),
+                Text(
+                  '1 analiz raporu = 1 kredi',
+                  style: Yazilar.govdeKucuk.copyWith(color: r.metinIkincil),
+                ),
+              ],
             ),
           ),
+          const SizedBox(height: Olcu.s16),
           if (yonetici.mesaj != null)
             Card(
               color: yonetici.durum == SatinAlmaDurumu.hata
@@ -99,17 +128,25 @@ class _KrediEkraniState extends ConsumerState<KrediEkrani> {
               child: ListTile(
                 title: Text(
                   yonetici.mesaj!,
-                  style: TextStyle(color: yonetici.durum == SatinAlmaDurumu.hata ? r.tehlike : r.metin),
+                  style: TextStyle(
+                    color: yonetici.durum == SatinAlmaDurumu.hata
+                        ? r.tehlike
+                        : r.metin,
+                  ),
                 ),
                 trailing: yonetici.durum == SatinAlmaDurumu.tamam && taslakVar
-                    ? TextButton(onPressed: () => context.go('/analiz/form'), child: const Text('Analize dön'))
+                    ? TextButton(
+                        onPressed: () => context.go('/analiz/form'),
+                        child: const Text('Analize dön'),
+                      )
                     : null,
               ),
             ),
           const SizedBox(height: Olcu.s8),
           vitrin.when(
             loading: () => const LoadingView(),
-            error: (e, _) => FailureView(e, () => ref.invalidate(krediVitriniProvider)),
+            error: (e, _) =>
+                FailureView(e, () => ref.invalidate(krediVitriniProvider)),
             data: (v) {
               if (!v.magazaHazir || v.paketler.isEmpty) {
                 return Panel('Google Play şu an kullanılamıyor', [
@@ -118,17 +155,37 @@ class _KrediEkraniState extends ConsumerState<KrediEkrani> {
                     've uygulamanın Google Play’den yüklendiğinden emin olun, sonra tekrar deneyin.',
                   ),
                   const SizedBox(height: Olcu.s12),
-                  OutlinedButton(onPressed: () => ref.invalidate(krediVitriniProvider), child: const Text('Tekrar dene')),
+                  OutlinedButton(
+                    onPressed: () => ref.invalidate(krediVitriniProvider),
+                    child: const Text('Tekrar dene'),
+                  ),
                 ]);
               }
-              final sec = secili ?? v.paketler.firstWhere((p) => p.paket.populer, orElse: () => v.paketler.first).paket.urunKimligi;
-              final seciliPaket = v.paketler.firstWhere((p) => p.paket.urunKimligi == sec, orElse: () => v.paketler.first);
+              final sec =
+                  secili ??
+                  v.paketler
+                      .firstWhere(
+                        (p) => p.paket.populer,
+                        orElse: () => v.paketler.first,
+                      )
+                      .paket
+                      .urunKimligi;
+              final seciliPaket = v.paketler.firstWhere(
+                (p) => p.paket.urunKimligi == sec,
+                orElse: () => v.paketler.first,
+              );
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: Olcu.s4, vertical: Olcu.s8),
-                    child: Text('Paket seçin', style: Theme.of(context).textTheme.titleMedium),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: Olcu.s4,
+                      vertical: Olcu.s8,
+                    ),
+                    child: Text(
+                      'Paket seçin',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                   ),
                   RadioGroup<String>(
                     groupValue: sec,
@@ -136,19 +193,40 @@ class _KrediEkraniState extends ConsumerState<KrediEkrani> {
                     child: Column(
                       children: [
                         for (final p in v.paketler)
-                          Card(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(Olcu.kartKose),
-                              side: BorderSide(
-                                color: p.paket.urunKimligi == sec ? r.birincil : r.kenarlik,
-                                width: p.paket.urunKimligi == sec ? 2 : 1,
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: Olcu.s12),
+                            child: Card(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  Olcu.kartKose,
+                                ),
+                                side: BorderSide(
+                                  color: p.paket.urunKimligi == sec
+                                      ? r.birincil
+                                      : r.kenarlik,
+                                  width: p.paket.urunKimligi == sec
+                                      ? Olcu.vurguluKenar
+                                      : Olcu.kenar,
+                                ),
                               ),
-                            ),
-                            child: RadioListTile<String>(
-                              value: p.paket.urunKimligi,
-                              title: Text('${p.paket.kredi} kredi'),
-                              subtitle: p.paket.populer ? Text('En çok tercih edilen', style: TextStyle(color: r.birincilMetin)) : null,
-                              secondary: Text(p.urun.price, style: Theme.of(context).textTheme.titleMedium),
+                              child: RadioListTile<String>(
+                                value: p.paket.urunKimligi,
+                                title: Text('${p.paket.kredi} kredi'),
+                                subtitle: p.paket.populer
+                                    ? Text(
+                                        'En çok tercih edilen',
+                                        style: TextStyle(
+                                          color: r.birincilMetin,
+                                        ),
+                                      )
+                                    : null,
+                                secondary: Text(
+                                  p.urun.price,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
+                                ),
+                              ),
                             ),
                           ),
                       ],
@@ -160,17 +238,16 @@ class _KrediEkraniState extends ConsumerState<KrediEkrani> {
                     style: TextStyle(color: r.metinIkincil),
                   ),
                   const SizedBox(height: Olcu.s16),
-                  SizedBox(
-                    height: Olcu.anaButon,
-                    child: ActionButton(
-                      'Google Play ile öde · ${seciliPaket.urun.price}',
-                      yonetici.durum == SatinAlmaDurumu.krediYukleniyor
-                          ? null
-                          : () async {
-                              ref.read(satinAlmaProvider).mesajiTemizle();
-                              await ref.read(odemeMagazasiProvider).satinAl(seciliPaket.urun, v.hesapKimligi);
-                            },
-                    ),
+                  AnaButon(
+                    'Google Play ile öde · ${seciliPaket.urun.price}',
+                    yonetici.durum == SatinAlmaDurumu.krediYukleniyor
+                        ? null
+                        : () async {
+                            ref.read(satinAlmaProvider).mesajiTemizle();
+                            await ref
+                                .read(odemeMagazasiProvider)
+                                .satinAl(seciliPaket.urun, v.hesapKimligi);
+                          },
                   ),
                   const SizedBox(height: Olcu.s8),
                   Text(

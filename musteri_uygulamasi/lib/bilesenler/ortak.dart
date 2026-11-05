@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../tema/olculer.dart';
 import '../tema/renkler.dart';
+import 'kart.dart';
+import 'ana_buton.dart';
+import 'metin_kutusu.dart';
+import 'hata.dart';
+import 'yukleniyor.dart';
+import 'acilir_liste.dart';
 import '../tema/yazi.dart';
 
 String money(dynamic value) =>
@@ -34,20 +40,18 @@ class Panel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: Olcu.kartArasi),
-    child: Card(
-      child: Padding(
-        padding: const EdgeInsets.all(Olcu.kartIci),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Semantics(
-              header: true,
-              child: Text(title, style: Theme.of(context).textTheme.titleLarge),
-            ),
-            const SizedBox(height: Olcu.s12),
-            ...children,
-          ],
-        ),
+    child: Kart(
+      rapor: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(
+            header: true,
+            child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+          ),
+          const SizedBox(height: Olcu.s12),
+          ...children,
+        ],
       ),
     ),
   );
@@ -78,8 +82,7 @@ class BulletList extends StatelessWidget {
   final List<String> items;
   const BulletList(this.items, {super.key});
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => AcilirListe(
     children: [
       for (final item in items)
         Padding(
@@ -95,34 +98,16 @@ class FailureView extends StatelessWidget {
   final VoidCallback retry;
   const FailureView(this.error, this.retry, {super.key});
   @override
-  Widget build(BuildContext context) => Panel('İşlem tamamlanamadı', [
-    Text(error.toString(), semanticsLabel: error.toString()),
-    const SizedBox(height: Olcu.s12),
-    OutlinedButton(onPressed: retry, child: const Text('Tekrar dene')),
-  ]);
+  Widget build(BuildContext context) => Hata(error, retry);
 }
 
 class LoadingView extends StatelessWidget {
   const LoadingView({super.key});
   @override
-  Widget build(BuildContext context) => Semantics(
-    label: 'Yükleniyor',
-    liveRegion: true,
-    child: Column(
-      children: List.generate(
-        3,
-        (_) => Padding(
-          padding: const EdgeInsets.only(bottom: Olcu.s12),
-          child: Card(
-            child: SizedBox(width: double.infinity, height: Olcu.anaButon),
-          ),
-        ),
-      ),
-    ),
-  );
+  Widget build(BuildContext context) => const Yukleniyor();
 }
 
-class ActionButton extends StatefulWidget {
+class ActionButton extends StatelessWidget {
   final String label;
   final Future<void> Function()? action;
   final bool destructive;
@@ -133,42 +118,8 @@ class ActionButton extends StatefulWidget {
     this.destructive = false,
   });
   @override
-  State<ActionButton> createState() => _ActionButtonState();
-}
-
-class _ActionButtonState extends State<ActionButton> {
-  bool busy = false;
-  @override
-  Widget build(BuildContext context) => FilledButton(
-    style: widget.destructive
-        ? FilledButton.styleFrom(
-            backgroundColor: YbRenkler.of(context).tehlike,
-            foregroundColor: YbRenkler.of(context).tehlikeYuzey,
-          )
-        : null,
-    onPressed: busy || widget.action == null
-        ? null
-        : () async {
-            setState(() => busy = true);
-            try {
-              await widget.action!();
-            } catch (e) {
-              if (context.mounted) showMessage(context, e.toString());
-            } finally {
-              if (mounted) setState(() => busy = false);
-            }
-          },
-    child: busy
-        ? Semantics(
-            label: '${widget.label} işlemi sürüyor',
-            child: const SizedBox(
-              width: Olcu.ikon,
-              height: Olcu.ikon,
-              child: CircularProgressIndicator(),
-            ),
-          )
-        : Text(widget.label),
-  );
+  Widget build(BuildContext context) =>
+      AnaButon(label, action, destructive: destructive);
 }
 
 void showMessage(BuildContext context, String message) => ScaffoldMessenger.of(
@@ -192,17 +143,12 @@ class FormFieldView extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: Olcu.s16),
-    child: TextFormField(
-      controller: controller,
-      decoration: InputDecoration(labelText: label),
-      obscureText: password,
-      enableSuggestions: !password,
-      autocorrect: !password,
-      keyboardType: keyboard,
-      validator:
-          validator ??
-          (v) =>
-              v == null || v.trim().isEmpty ? '$label alanını doldurun.' : null,
+    child: MetinKutusu(
+      label,
+      controller,
+      password: password,
+      keyboard: keyboard,
+      validator: validator,
     ),
   );
 }

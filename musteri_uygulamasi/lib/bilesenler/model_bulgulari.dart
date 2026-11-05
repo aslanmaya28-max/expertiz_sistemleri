@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../api/models.dart';
 import '../tema/olculer.dart';
 import 'ortak.dart';
+import 'acilir_liste.dart';
 import 'rapor_kaynaklar.dart';
 
 const _groups = {
@@ -64,38 +65,40 @@ class ModelFindings extends StatelessWidget {
                     ? 'Bu model/motor için kaynağı doğrulanmış bilinen sorun bulunamadı.'
                     : text(model['mesaj']),
               ),
-            ..._grouped(
-              risks,
-              (r) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: Olcu.s8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      text(r['baslik']),
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    if (r['onem'] != null)
-                      Text('Önem: ${_importance(r['onem'])}'),
-                    if (r['guven'] == 'yuksek') const Text('Resmî kaynak'),
-                    if (text(r['aciklama']).isNotEmpty)
-                      Text(text(r['aciklama'])),
-                    if (text(r['etkiledigi']).isNotEmpty)
-                      ValueLine('Kimleri etkiler', text(r['etkiledigi'])),
-                    if (strings(r['belirtiler']).isNotEmpty)
-                      ValueLine(
-                        'Belirtiler',
-                        strings(r['belirtiler']).join('; '),
+            AcilirListe(
+              children: _grouped(
+                risks,
+                (r) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: Olcu.s8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        text(r['baslik']),
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
-                    ValueLine('Nasıl kontrol edilir', text(r['kontrol'])),
-                    ValueLine(
-                      'Tahmini masraf',
-                      r['tahminiMaliyet'] is Map
-                          ? '${money(object(r['tahminiMaliyet'])['min'])} – ${money(object(r['tahminiMaliyet'])['max'])}'
-                          : 'Kaynakta belirtilmemiş',
-                    ),
-                    SourceLinks(strings(r['kaynaklar']), onLink),
-                  ],
+                      if (r['onem'] != null)
+                        Text('Önem: ${_importance(r['onem'])}'),
+                      if (r['guven'] == 'yuksek') const Text('Resmî kaynak'),
+                      if (text(r['aciklama']).isNotEmpty)
+                        Text(text(r['aciklama'])),
+                      if (text(r['etkiledigi']).isNotEmpty)
+                        ValueLine('Kimleri etkiler', text(r['etkiledigi'])),
+                      if (strings(r['belirtiler']).isNotEmpty)
+                        ValueLine(
+                          'Belirtiler',
+                          strings(r['belirtiler']).join('; '),
+                        ),
+                      ValueLine('Nasıl kontrol edilir', text(r['kontrol'])),
+                      ValueLine(
+                        'Tahmini masraf',
+                        r['tahminiMaliyet'] is Map
+                            ? '${money(object(r['tahminiMaliyet'])['min'])} – ${money(object(r['tahminiMaliyet'])['max'])}'
+                            : 'Kaynakta belirtilmemiş',
+                      ),
+                      SourceLinks(strings(r['kaynaklar']), onLink),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -109,21 +112,25 @@ class ModelFindings extends StatelessWidget {
               const Text(
                 'Birden fazla kaynakta tekrarlanan kullanıcı şikâyeti bulunamadı.',
               ),
-            ..._grouped(
-              complaints,
-              (r) => Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    text(r['baslik']),
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  if (r['onem'] != null)
-                    Text('Önem: ${_importance(r['onem'])}'),
-                  Text(text(r['aciklama'])),
-                  Text('${integer(r['kaynakSayisi'])} farklı kaynakta geçiyor'),
-                  SourceLinks(strings(r['kaynaklar']), onLink),
-                ],
+            AcilirListe(
+              children: _grouped(
+                complaints,
+                (r) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      text(r['baslik']),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    if (r['onem'] != null)
+                      Text('Önem: ${_importance(r['onem'])}'),
+                    Text(text(r['aciklama'])),
+                    Text(
+                      '${integer(r['kaynakSayisi'])} farklı kaynakta geçiyor',
+                    ),
+                    SourceLinks(strings(r['kaynaklar']), onLink),
+                  ],
+                ),
               ),
             ),
           ]),
