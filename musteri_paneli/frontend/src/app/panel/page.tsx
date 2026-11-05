@@ -6,12 +6,14 @@ import type { FormEvent } from "react";
 import {
   getAnalysisHistory,
   getCreditBalance,
+  getCreditMovements,
   getMyExpertizReports,
   getMyExpertizRequests,
   getProfile,
   updateProfile,
   type AnalysisHistoryItem,
   type CreditBalanceResponse,
+  type CreditMovementsResponse,
   type CustomerProfile,
   type ExpertizReportSummary,
   type ExpertizRequestSummary,
@@ -37,7 +39,7 @@ function formatPrice(value?: number | null): string {
   return new Intl.NumberFormat("tr-TR").format(Math.round(value)) + " TL";
 }
 
-function formatDate(value?: string): string {
+function formatDate(value?: string | null): string {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -435,21 +437,73 @@ function QuickActions({ credits }: { credits: number }) {
 }
 
 function CreditPanel({ balance, historyCount }: { balance: CreditBalanceResponse | null; historyCount: number }) {
+  const [page, setPage] = useState(0);
+  const [result, setResult] = useState<CreditMovementsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
+  const pageSize = 20;
+
+  useEffect(() => {
+    let cancelled = false;
+    getCreditMovements(pageSize, page * pageSize)
+      .then((data) => { if (!cancelled) setResult(data); })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Kredi hareketleri yüklenemedi.");
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [page, retry]);
+
+  function changePage(next: number) {
+    setLoading(true);
+    setError(null);
+    setPage(next);
+  }
+
   return (
     <div className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
       <PanelSection title="Kredi Durumu">
         <div className="rounded-lg bg-gray-50 p-5">
-          <div className="text-sm text-metin-ikincil">Kullanilabilir kredi</div>
-          <div className="mt-2 text-4xl font-bold text-metin-birincil">{balance?.credits ?? 0}</div>
+          <div className="text-sm text-metin-ikincil">Kullanılabilir kredi</div>
+          <div className="mt-2 text-4xl font-bold text-metin-birincil">{result?.balance ?? balance?.credits ?? 0}</div>
         </div>
+        <SummaryCard label="Toplam analiz" value={String(historyCount)} hint="Krediyle yapılan analizler" />
         <Link href="/fiyatlar" className="inline-flex w-full justify-center rounded-lg bg-birincil px-4 py-2 text-sm font-semibold text-white">
-          Kredi paketlerini gor
+          Kredi paketlerini gör
         </Link>
       </PanelSection>
-      <PanelSection title="Kullanim Ozeti">
-        <div className="grid gap-3">
-          <SummaryCard label="Toplam analiz" value={String(historyCount)} hint="Kredi gecmisinden gelen kayitlar" />
-        </div>
+      <PanelSection title="Kredi hareketleri" count={result?.total}>
+        <p className="text-sm text-metin-ikincil">Yüklemeler, kullanımlar ve iadeler. Eski hesapların başlangıç bakiyesi hareket listesinde yer almayabilir.</p>
+        {loading ? <p role="status">Kredi hareketleri yükleniyor...</p> : error ? (
+          <div role="alert">
+            <p>{error}</p>
+            <button type="button" onClick={() => { setLoading(true); setError(null); setRetry((v) => v + 1); }} className="mt-2 underline">Tekrar dene</button>
+          </div>
+        ) : result?.movements.length ? (
+          <>
+            <ul className="divide-y divide-kenarlik-acik">
+              {result.movements.map((item) => (
+                <li key={item.id} className="flex items-center justify-between gap-4 py-3">
+                  <div>
+                    <p className="font-medium">{item.aciklama}</p>
+                    <p className="text-sm text-metin-ikincil">{formatDate(item.tarih)}</p>
+                  </div>
+                  <span className={item.miktar > 0 ? "font-semibold text-green-700" : "font-semibold text-metin-birincil"}>
+                    {item.miktar > 0 ? "+" : ""}{item.miktar} kredi
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : <EmptyState text="Henüz kredi hareketiniz yok." />}
+        {!loading && !error && result && result.total > pageSize && (
+          <div className="flex items-center justify-between gap-3">
+            <button type="button" disabled={page === 0} onClick={() => changePage(page - 1)} className="rounded border px-3 py-2 disabled:opacity-40">Önceki</button>
+            <span className="text-sm">Sayfa {page + 1} / {Math.ceil(result.total / pageSize)}</span>
+            <button type="button" disabled={(page + 1) * pageSize >= result.total} onClick={() => changePage(page + 1)} className="rounded border px-3 py-2 disabled:opacity-40">Sonraki</button>
+          </div>
+        )}
       </PanelSection>
     </div>
   );
