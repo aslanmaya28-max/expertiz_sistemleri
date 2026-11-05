@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../api/api_client.dart';
-import '../api/providers.dart';
+import '../api/providers.dart' hide themeModeProvider;
+import '../tema/gorunum.dart';
+import '../bilesenler/liste_satiri.dart';
+import '../bilesenler/ikincil_buton.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../bilesenler/ortak.dart';
 import '../oturum/form_rules.dart';
 import '../tema/olculer.dart';
@@ -24,18 +28,9 @@ class ProfileScreen extends ConsumerWidget {
                 ValueLine('Ad soyad', user?.name ?? ''),
                 ValueLine('E-posta', user?.email ?? ''),
                 ValueLine('Telefon', user?.phone ?? ''),
-                TextButton(
-                  onPressed: () => context.push('/profil/duzenle'),
-                  child: const Text('Bilgilerimi düzenle'),
-                ),
-                TextButton(
-                  onPressed: () => context.push('/profil/sifre'),
-                  child: const Text('Şifremi değiştir'),
-                ),
-                TextButton(
-                  onPressed: () => context.push('/profil/gecmis'),
-                  child: const Text('Kredi geçmişi'),
-                ),
+                ListeSatiri('Bilgilerimi düzenle',ikon:LucideIcons.userPen,onTap:()=>context.push('/profil/duzenle')),
+                ListeSatiri('Şifremi değiştir',ikon:LucideIcons.lockKeyhole,onTap:()=>context.push('/profil/sifre')),
+                ListeSatiri('Kredi geçmişi',ikon:LucideIcons.history,onTap:()=>context.push('/profil/gecmis')),
               ]),
               Panel('Görünüm', [
                 DropdownButtonFormField<ThemeMode>(
@@ -55,9 +50,9 @@ class ProfileScreen extends ConsumerWidget {
                       child: Text('Koyu'),
                     ),
                   ],
-                  onChanged: (v) {
+                  onChanged: (v) async {
                     if (v != null) {
-                      ref.read(themeModeProvider.notifier).state = v;
+                      try { await ref.read(themeModeProvider.notifier).sec(v); } catch(e) { if(context.mounted) showMessage(context,e.toString()); }
                     }
                   },
                 ),
@@ -68,7 +63,7 @@ class ProfileScreen extends ConsumerWidget {
                   'KVKK Aydınlatma Metni': 'kvkk',
                   'Kullanım Koşulları': 'kullanim-kosullari',
                 }.entries)
-                  ActionButton(
+                  IkincilButon(
                     entry.key,
                     () => ref
                         .read(platformProvider)
@@ -76,7 +71,7 @@ class ProfileScreen extends ConsumerWidget {
                           'https://www.yerimebak.com.tr/${entry.value}',
                         ),
                   ),
-                ActionButton(
+                IkincilButon(
                   'Destek: ${config?.supportEmail ?? 'destek@yerimebak.com.tr'}',
                   () => ref
                       .read(platformProvider)

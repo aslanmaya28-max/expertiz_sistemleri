@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// TASARIM_SISTEMI.md b?l?m 3; koyu temada marka band? kullan?lmaz.
+/// Tasarım sistemi bölüm 3; koyu temada marka bandı kullanılmaz.
 class YbRenkler extends ThemeExtension<YbRenkler> {
   final Map<String, Color> _values;
   const YbRenkler._(this._values);
@@ -29,7 +29,19 @@ class YbRenkler extends ThemeExtension<YbRenkler> {
   Color get tehlikeYuzey => _values['tehlikeYuzey']!;
   Color get bilgi => _values['bilgi']!;
   Color get bilgiYuzey => _values['bilgiYuzey']!;
+  Color get lokalYuzey => _values['lokalYuzey']!;
+  Color get lokalKenar => _values['lokalKenar']!;
+  Color get boyaliYuzey => _values['boyaliYuzey']!;
+  Color get boyaliKenar => _values['boyaliKenar']!;
+  Color get degisenYuzey => _values['degisenYuzey']!;
+  Color get degisenMetin => _values['degisenMetin']!;
+  Color get cam => _values['cam']!;
+  Color get beyaz => _values['beyaz']!;
   static const acik = YbRenkler._({
+    'lokalYuzey': Color(0xFFFDF1E2), 'lokalKenar': Color(0xFFF2C894),
+    'boyaliYuzey': Color(0xFFF2C894), 'boyaliKenar': Color(0xFFC98A3A),
+    'degisenYuzey': Color(0xFFA3580A), 'degisenMetin': Color(0xFFFFFFFF),
+    'cam': Color(0xFFE9EEED), 'beyaz': Color(0xFFFFFFFF),
     'zemin': Color(0xFFF2F5F4),
     'yuzey': Color(0xFFFFFFFF),
     'yuzeyIkincil': Color(0xFFF2F5F4),
@@ -57,6 +69,10 @@ class YbRenkler extends ThemeExtension<YbRenkler> {
     'bilgiYuzey': Color(0xFFE8F0FB),
   });
   static const koyu = YbRenkler._({
+    'lokalYuzey': Color(0xFF241A0B), 'lokalKenar': Color(0xFF6B4A16),
+    'boyaliYuzey': Color(0xFF6B4A16), 'boyaliKenar': Color(0xFFB8812F),
+    'degisenYuzey': Color(0xFFE9A23B), 'degisenMetin': Color(0xFF04201C),
+    'cam': Color(0xFF253230), 'beyaz': Color(0xFFFFFFFF),
     'zemin': Color(0xFF0D1312),
     'yuzey': Color(0xFF151D1C),
     'yuzeyIkincil': Color(0xFF1C2625),

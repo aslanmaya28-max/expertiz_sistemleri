@@ -6,6 +6,10 @@ import '../api/providers.dart';
 import '../bilesenler/ortak.dart';
 import '../oturum/form_rules.dart';
 import '../tema/olculer.dart';
+import '../tema/renkler.dart';
+import '../tema/yazi.dart';
+import '../bilesenler/marka.dart';
+import '../bilesenler/kart.dart';
 
 enum AuthMode { login, register, forgot }
 
@@ -66,16 +70,18 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(title)),
     body: SafeArea(
       child: SingleChildScrollView(
-        child: PageBody(
-          child: AutofillGroup(
+        child: Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+          Container(color:Theme.of(context).brightness==Brightness.light?YbRenkler.of(context).markaBandi:YbRenkler.of(context).zemin,padding:const EdgeInsets.all(Olcu.s28),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Marka(bant:Theme.of(context).brightness==Brightness.light),const SizedBox(height:Olcu.s24),Text('Araç almadan önce doğru bilgiye ulaşın.',style:Yazilar.baslik1.copyWith(color:Theme.of(context).brightness==Brightness.light?YbRenkler.of(context).beyaz:YbRenkler.of(context).metin))])),
+          PageBody(child:Kart(child:AutofillGroup(
             child: Form(
               key: form,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Text(title,style:Yazilar.baslik1),
+                  const SizedBox(height:Olcu.s24),
                   if (widget.mode == AuthMode.forgot && sent) ...[
                     const Text(
                       'Bu e-posta adresi kayıtlıysa şifre sıfırlama bağlantısı gönderildi.',
@@ -165,8 +171,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 ],
               ),
             ),
-          ),
-        ),
+          ))),
+        ]),
       ),
     ),
   );

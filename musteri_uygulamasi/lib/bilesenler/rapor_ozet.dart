@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../api/models.dart';
 import 'ortak.dart';
+import '../tema/olculer.dart';
+import '../tema/renkler.dart';
 
 bool legacySampleWarning(String value, int count) =>
     [3, 4].contains(count) &&
@@ -39,7 +41,7 @@ class ReportSummarySection extends StatelessWidget {
         const Text('Pazarlık gerekçeleri'),
         BulletList(strings(data['pazarlikGerekceleri'])),
       ],
-      ValueLine('Şimdi ne yapmalı?', text(data['simdiNeYapmali'])),
+      Container(width:double.infinity,padding:const EdgeInsets.all(Olcu.s16),decoration:BoxDecoration(color:YbRenkler.of(context).birincilYuzey,borderRadius:BorderRadius.circular(Olcu.butonKose)),child:ValueLine('Şimdi ne yapmalı?', text(data['simdiNeYapmali']))),
     ]);
   }
 }

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'api/providers.dart';
+import 'api/providers.dart' hide themeModeProvider;
+import 'tema/gorunum.dart';
+import 'bilesenler/alt_menu.dart';
 import 'bilesenler/ortak.dart';
 import 'ekranlar/auth_screen.dart';
 import 'ekranlar/home_screen.dart';
@@ -150,34 +152,9 @@ class AppShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     body: child,
-    bottomNavigationBar: NavigationBar(
-      selectedIndex: path.startsWith('/raporlar')
-          ? 1
-          : path.startsWith('/kredi')
-          ? 2
-          : path.startsWith('/profil')
-          ? 3
-          : 0,
-      onDestinationSelected: (index) =>
-          context.go(['/', '/raporlar', '/kredi', '/profil'][index]),
-      destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.home_outlined),
-          label: 'Ana sayfa',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.description_outlined),
-          label: 'Raporlarım',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.account_balance_wallet_outlined),
-          label: 'Kredi',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.person_outline),
-          label: 'Profil',
-        ),
-      ],
+    bottomNavigationBar: AltMenu(
+      secili: path.startsWith('/raporlar') ? 1 : path.startsWith('/kredi') ? 2 : path.startsWith('/profil') ? 3 : 0,
+      onChanged: (index) => context.go(['/', '/raporlar', '/kredi', '/profil'][index]),
     ),
   );
 }
