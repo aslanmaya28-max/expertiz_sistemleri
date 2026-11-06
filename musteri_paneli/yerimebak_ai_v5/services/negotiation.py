@@ -26,40 +26,43 @@ def _tl(value: Optional[float]) -> str:
     return f"{int(round(value)):,} TL".replace(",", ".")
 
 
-# Ilan benzer ilan ortalamasinin bu oranda altindaysa uyari sertlesir (gizli kusur / kapora dolandiriciligi).
+def _yaklasik(value: Optional[float]) -> str:
+    """Müşteri/satıcı metinlerinde tutar bine yuvarlanır ("yaklaşık 58.000 TL"); tablolarda kesin rakam kalır."""
+    if value is None:
+        return "-"
+    return _tl(round(float(value), -3))
+
+
+# Ilan hesaplanan degerin bu oranda altindaysa uyari sertlesir (gizli kusur / kapora dolandiriciligi).
 DUSUK_FIYAT_SERT_YUZDE = 10.0
 
 
-def dusuk_fiyat_yuzdesi(price: float, reference: Dict[str, Any], deger_kaybi: float = 0.0) -> Optional[float]:
-    """Ilan, bildirilen hasar dusulmus benzer ilan ortalamasinin yuzde kac altinda; altinda degilse None."""
-    ortalama = reference.get("market_avg_price") or reference.get("market_median_price")
-    orta = reference.get("market_median_price") or ortalama
+def dusuk_fiyat_yuzdesi(price: float, deger: Optional[float], alt_sinir: Optional[float]) -> Optional[float]:
+    """İlan, hesaplanan değerin (bildirilen hasar düşülmüş) yüzde kaç altında; yalnız adil aralığın altındaysa.
+
+    Kullanıcı kararı (07.11.2026, BYD Seal U denemesi): uyarı ve "piyasanın altında" yargısı raporun kendi
+    hesaplanan değerine göre verilir. Eskiden ilanların düz ortalamasına bakılıyor; ilan hesaplanan değerin
+    %0,9 üstündeyken "fiyat piyasanın altında, kusur gizleniyor olabilir" deniyordu."""
     try:
-        ortalama, orta = float(ortalama or 0), float(orta or 0)
-        price, kayip = float(price or 0), max(0.0, float(deger_kaybi or 0))
+        price, deger = float(price or 0), float(deger or 0)
+        alt = float(alt_sinir) if alt_sinir else deger
     except (TypeError, ValueError):
         return None
-    beklenen = ortalama - kayip
-    # Ortalama ve orta fiyatın İKİSİNİN de altında olmalı: tek bir çok pahalı ilan ortalamayı şişirdiğinde
-    # (orta fiyata göre "piyasanın üstünde" olan) ilana "ortalamanın altında" denmesin (018 değişmez testi).
-    if ortalama <= 0 or beklenen <= 0 or price <= 0 or price >= min(beklenen, orta - kayip):
+    if price <= 0 or deger <= 0 or price >= alt or price >= deger:
         return None
-    return (1 - price / beklenen) * 100
+    return (1 - price / deger) * 100
 
 
-def dusuk_fiyat_uyarisi(price: float, reference: Dict[str, Any], deger_kaybi: float = 0.0) -> Optional[str]:
-    """Ilan benzer ilanlarin ortalamasinin altindaysa: satici bir kusuru belirtmemis olabilir (kullanici karari).
+def dusuk_fiyat_uyarisi(price: float, deger: Optional[float], alt_sinir: Optional[float]) -> Optional[str]:
+    """İlan adil aralığın altındaysa: satıcı bir kusuru belirtmemiş olabilir (kullanıcı kararı).
 
-    Karsilastirma, BILDIRILEN hasarin etkisi dusulmus ortalamayla yapilir. Chery Tiggo denemesinde (03.11.2026)
-    180.000 TL tramer + 2 degisen kapili ilan hasarsiz ortalamanin %10,9 altinda diye "gizli kusur" uyarisi aliyordu;
-    oysa hasar dusulunce ilan piyasanin %19,7 USTUNDEYDI. Dusuk fiyatin nedeni zaten beyan edilmisse uyari verilmez."""
-    yuzde = dusuk_fiyat_yuzdesi(price, reference, deger_kaybi)
+    Hesaplanan değer bildirilen hasarı zaten düşer: düşük fiyatın nedeni beyan edilmişse (Chery Tiggo, 03.11.2026)
+    ilan aralığın altına düşmez ve uyarı verilmez."""
+    yuzde = dusuk_fiyat_yuzdesi(price, deger, alt_sinir)
     if yuzde is None:
         return None
-    kayip = max(0.0, float(deger_kaybi or 0))
     oran = f"%{yuzde:.1f}".replace(".", ",")
-    giris = (f"İlan fiyatı, bildirilen hasarın etkisi düşüldükten sonra bile benzer ilanların ortalamasının {oran} altında."
-             if kayip else f"İlan fiyatı benzer ilanların ortalamasının {oran} altında.")
+    giris = f"İlan fiyatı, bildirilen hasar hesaba katıldıktan sonra bile aracın hesaplanan değerinin {oran} altında."
     if yuzde >= DUSUK_FIYAT_SERT_YUZDE:
         return (f"{giris} Bu kadar düşük fiyat; gizlenmiş bir hasara, arızaya, ağır hasar kaydına ya da ilan "
                 "dolandırıcılığına işaret edebilir. Satıcıyla konuşup fiyatın neden düşük olduğunu öğrenin, aracı görmeden "
@@ -86,6 +89,7 @@ def build_plan(
     *, price: float, fair_min: Optional[float], fair_max: Optional[float], recommended: float,
     reference: Dict[str, Any], kalemler: List[Dict[str, Any]], confidence_level: str,
     vehicle_title: str, vehicle_year: Optional[int] = None, vehicle_km: Optional[int] = None,
+    value: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Pazarlik plani. Fiyat zaten adil araligin altindaysa pazarlik payi kucuk tutulur."""
     price = float(price)
@@ -101,8 +105,10 @@ def build_plan(
     # hedef yine de ilan fiyatinin altinda kalir (hedef = ilan fiyati, pazarlik degildir).
     # Benzer ilanların ortası hasarsız araçlardır: bildirilen hasarın etkisi düşülmeden karşılaştırılmaz
     # (Chery: hasarlı ilan "ortanın altında" sanılıp hedef = üst sınır = adil aralık tavanı çıkıyordu).
-    kayip = sum(float(k.get("tutar") or 0) for k in kalemler)
-    piyasa_alti = price <= recommended or (median is not None and price <= median - kayip)
+    # Tek ölçü: raporun hesaplanan değeri (bildirilen hasar düşülmüş). Benzer ilanların ortasıyla ayrıca
+    # karşılaştırmak "piyasayla uyumlu" denen ilana "piyasanın altında" dedirtiyordu (BYD, 07.11.2026).
+    deger = float(value) if value else float(recommended)
+    piyasa_alti = price <= deger
 
     if price <= lo:
         durum = "fiyat_uygun"
@@ -115,8 +121,16 @@ def build_plan(
     else:
         durum = "pazarlik_payi_var" if price > hi else "kucuk_pay"
         hedef = _round_price(min(recommended, price))
-        acilis = _round_price(max(lo * OPENING_FLOOR_RATIO,
-                                  min(recommended * 0.97, price * (1 - OPENING_MAX_DISCOUNT))))
+        # Adil aralıktaki ilanda açılış ilanın en fazla %7 altı: satıcıyı kırmadan pazarlık başlar
+        # (aralığın üstündeki ilanda %10'a kadar).
+        indirim = OPENING_MAX_DISCOUNT if price > hi else 0.05
+        acilis = max(lo * OPENING_FLOOR_RATIO, min(recommended * 0.97, price * (1 - indirim)))
+        if price <= hi:
+            acilis = max(acilis, price * 0.93)
+        acilis = _round_price(acilis)
+    # Tavsiye alım fiyatı = pazarlık hedefi: hedef tavsiyeyi hiçbir dalda geçmez (BYD: tavsiye 2.015.000,
+    # hedef 2.045.000 çıkıyordu).
+    hedef = min(hedef, _round_price(recommended))
     ust = min(price, hi, median if median is not None else float("inf"))
     hedef = min(hedef, ust)
     if hedef >= price:
@@ -156,7 +170,7 @@ def build_plan(
             kalem_durumu = str(k.get('durum') or '')
             kalem = (f"{k.get('baslik')} {kalem_durumu}" if any(c.isdigit() for c in kalem_durumu)
                      else f"{k.get('baslik')} ({kalem_durumu.replace('I', 'ı').replace('İ', 'i').lower()})")
-            gerekceler.append(f"{kalem} değeri yaklaşık {_tl(k.get('tutar'))} düşürüyor.")
+            gerekceler.append(f"{kalem} değeri yaklaşık {_yaklasik(k.get('tutar'))} düşürüyor.")
 
     kanitlar = _evidence(reference, price, year)
 
@@ -168,7 +182,7 @@ def build_plan(
         ]
     elif piyasa_alti:
         adimlar = [
-            "İlan fiyatı benzer ilanların ortasının altında; pazarlık payı sınırlı. Fazla zorlamak aracı kaçırmanıza neden olabilir.",
+            "İlan fiyatı aracın hesaplanan değerinin altında; pazarlık payı sınırlı. Fazla zorlamak aracı kaçırmanıza neden olabilir.",
             f"{_tl(acilis)} ile açın, {_tl(hedef)} civarında anlaşmayı hedefleyin.",
             f"İlan fiyatı olan {_tl(ust)} üst sınırınız; bunun üstüne çıkmayın.",
             "Son fiyatı ekspertiz sonucuna bağlayın: incelemede beyan dışı hasar çıkarsa fiyat yeniden konuşulur.",
@@ -205,7 +219,7 @@ def build_plan(
         not_ = ("İlan fiyatı benzer ilanların belirgin şekilde üstünde. Fark yeni kasa, motor gücü, donanım veya "
                 "garantiden kaynaklanıyor olabilir; teklif vermeden önce satıcıdan nedenini isteyin.")
         uyari = f"{uyari} {not_}" if uyari else not_
-    dusuk = dusuk_fiyat_uyarisi(price, reference, kayip)
+    dusuk = dusuk_fiyat_uyarisi(price, deger, lo)
     if dusuk:
         uyari = f"{dusuk} {uyari}" if uyari else dusuk
 

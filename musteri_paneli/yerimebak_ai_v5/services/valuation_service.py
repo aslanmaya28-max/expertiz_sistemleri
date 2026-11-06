@@ -178,7 +178,7 @@ def decision_summary(
         riskler.append("Ağır hasar sınıfında bulgu bildirildi; aracın yapısal durumu mutlaka uzmanca incelenmeli.")
     for k in kalemler[:2]:
         if (k.get("tutar") or 0) > 0:
-            riskler.append(f"{_kalem_metni(k)}: değeri yaklaşık {_tl(k.get('tutar'))} düşürüyor.")
+            riskler.append(f"{_kalem_metni(k)}: değeri yaklaşık {_tl(round(float(k.get('tutar')), -3))} düşürüyor.")
     for f in flags:
         if f.get("kod") in LOW_CONFIDENCE_FLAGS and f.get("mesaj"):
             riskler.append(f["mesaj"] + ".")
@@ -194,19 +194,20 @@ def decision_summary(
     # İlan benzer ilan ortalamasının altındaysa satıcı bir kusuru belirtmemiş olabilir (kullanıcı kararı):
     # ağır hasardan sonra en üste yazılır ki 4 maddelik özet kesilince kaybolmasın.
     from yerimebak_ai_v5.services.negotiation import (
-        DUSUK_FIYAT_SERT_YUZDE, dusuk_fiyat_uyarisi, dusuk_fiyat_yuzdesi)
-    kayip = degerleme.get("toplamDegerKaybiTutar") or 0
-    dusuk_fiyat = dusuk_fiyat_uyarisi(price, reference, kayip)
+        DUSUK_FIYAT_SERT_YUZDE, _yaklasik, dusuk_fiyat_uyarisi, dusuk_fiyat_yuzdesi)
+    # Tek ölçü: hesaplanan değer ve adil aralık (BYD, 07.11.2026).
+    deger, alt_sinir = degerleme.get("aiDegeri"), aralik.get("min")
+    dusuk_fiyat = dusuk_fiyat_uyarisi(price, deger, alt_sinir)
     if dusuk_fiyat:
         riskler.insert(1 if degerleme.get("agirHasar") else 0, dusuk_fiyat)
     # Kullanıcı kararı (6 Kasım 2026, Seat Ibiza denemesi): ilan piyasanın %10 ve daha fazla altındayken
     # üstte "Alınabilir, avantajlı" yazıp altta dolandırıcılık uyarısı vermek çelişkili. Karar temkinli olur;
     # hesaplanan eğilim ("AL") bilgi olarak kalır.
-    yuzde = dusuk_fiyat_yuzdesi(price, reference, kayip)
+    yuzde = dusuk_fiyat_yuzdesi(price, deger, alt_sinir)
     if sonuc == "AL" and yuzde is not None and yuzde >= DUSUK_FIYAT_SERT_YUZDE:
         oran = f"%{yuzde:.0f}"
         sonuc, aciklama = LOW_CONFIDENCE_VERDICT, (
-            f"İlan fiyatı benzer ilanların {oran} altında. Bu bir fırsat olabilir, ama fiyatın neden bu kadar "
+            f"İlan fiyatı aracın hesaplanan değerinin {oran} altında. Bu bir fırsat olabilir, ama fiyatın neden bu kadar "
             "düşük olduğu öğrenilmeden ve araç yerinde incelenmeden alım kararı verilmemeli.")
     riskler.append("Boya, değişen ve tramer bilgileri ilan/müşteri beyanına dayanıyor; uzman tarafından doğrulanmadı.")
 
@@ -218,7 +219,7 @@ def decision_summary(
                           f"{_tl(reference['market_median_price'])}.")
     for k in kalemler[:2]:
         if (k.get("tutar") or 0) > 0:
-            gerekceler.append(f"{_kalem_metni(k)}: yaklaşık {_tl(k.get('tutar'))} değer kaybı.")
+            gerekceler.append(f"{_kalem_metni(k)}: yaklaşık {_yaklasik(k.get('tutar'))} değer kaybı.")
 
     if level == "dusuk":
         # Az/dağınık veride müşteriye somut bilgi: kaç ilan, kaçı aynı yıl, ne kadar belirsizlik.
@@ -728,7 +729,7 @@ def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, An
         fair_max=(degerleme.get("adilFiyatAraligi") or {}).get("max"), recommended=recommended,
         reference=reference, kalemler=degerleme.get("kalemler") or [],
         confidence_level=summary["karar"]["guvenSeviyesi"], vehicle_title=f"{year} {brand} {model}",
-        vehicle_year=year, vehicle_km=km,
+        vehicle_year=year, vehicle_km=km, value=ai_value,
     )
     # Tavsiye alım fiyatı = pazarlık hedefi. Eskiden ilan piyasanın altındayken tavsiye ilan fiyatının
     # üstünde kalıyordu (Cupra: ilan 2.265.000, tavsiye 2.275.000); özet metinleri de aynı rakamla yeniden yazılır.

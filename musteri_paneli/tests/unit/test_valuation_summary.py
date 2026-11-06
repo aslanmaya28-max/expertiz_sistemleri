@@ -108,12 +108,13 @@ def test_hasardan_gelen_farkta_neden_sorusu_cikmaz():
 def test_cok_ucuz_ilanda_karar_alinabilir_yerine_ek_dogrulama():
     """Kullanıcı kararı (6 Kasım 2026, Seat Ibiza): ilan piyasanın %10+ altındayken üstte 'Alınabilir' yazıp
     altta dolandırıcılık uyarısı vermek çelişkili; karar temkinli olur, eğilim bilgi olarak kalır."""
-    temiz = {**DEGERLEME, "kalemler": [], "fiyatYorumu": {"farkYuzde": -29.3}}
+    temiz = {**DEGERLEME, "kalemler": [], "fiyatYorumu": {"farkYuzde": -29.4}, "aiDegeri": 1_360_000,
+             "adilFiyatAraligi": {"min": 1_275_000, "max": 1_440_000}}
     ref = {**REF, "market_avg_price": 1_340_000, "market_median_price": 1_358_000}
     s = _ozet(price=960_000, degerleme=temiz, recommended=946_000, verdict_key="AVANTAJLI",
               karar="AL", karar_aciklama="Avantajlı.", reference=ref)
     assert s["karar"]["sonuc"] == LOW_CONFIDENCE_VERDICT and s["karar"]["hesaplananEgilim"] == "AL"
-    assert s["karar"]["guvenSeviyesi"] == "yuksek" and "%28 altında" in s["karar"]["aciklama"]
+    assert s["karar"]["guvenSeviyesi"] == "yuksek" and "%29 altında" in s["karar"]["aciklama"]
     # Adım, az veri metni değil düşük fiyat yönlendirmesidir.
     assert "kapora" in s["ozet"]["simdiNeYapmali"] and "az sayıda" not in s["ozet"]["simdiNeYapmali"]
     # %10'un altındaki ucuzlukta karar değişmez (yalnız yumuşak uyarı).

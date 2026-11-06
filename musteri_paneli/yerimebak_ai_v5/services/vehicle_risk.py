@@ -798,7 +798,30 @@ BAKIM_REHBERI = {
     "DPF / EGR kontrolü": (
         "Dizel araçta partikül filtresi (DPF) ve EGR temizliği ya da değişimi yapılıp yapılmadığını sorun.",
         "Gösterge panelinde DPF uyarısı ve şehir içi kullanımda güç kaybı olup olmadığına bakın."),
+    # Elektrikli ve hibrit araçta en pahalı parça yüksek voltaj bataryasıdır (BYD Seal U DM-i, 07.11.2026).
+    # Eşik ya da rakam yazılmaz; müşteri raporu ister ve garantiyi sorar.
+    "Yüksek voltaj batarya sağlığı ve garantisi": (
+        "Satın almadan önce yetkili serviste batarya sağlık raporu (SoH) aldırın; kapasite kaybı aracın değerini "
+        "doğrudan etkiler. Batarya garantisinin kalan süresini, kilometre sınırını ve ikinci sahibe geçip "
+        "geçmediğini yetkili servise sorun.",
+        "Raporda batarya sağlık yüzdesi ve test tarihi yazmalı; tam şarjda gösterilen menzili katalog değeriyle "
+        "karşılaştırın."),
+    "Şarj sistemi kontrolü": (
+        "Şarj kablosunun ve ekipmanlarının araçla birlikte verildiğini, şarj soketinde hasar olmadığını kontrol edin.",
+        "Test sırasında şarjın sorunsuz başladığını ve gösterge panelinde batarya ya da şarj uyarısı olmadığını görün."),
 }
+
+
+def _elektrik_turu(vehicle) -> str:
+    """'elektrikli' | 'sarjli_hibrit' | 'hibrit' | '' (yakıt ve paket metninden)."""
+    metin = fold(f"{vehicle.get('fuel') or ''} {vehicle.get('package') or ''}")
+    if fold(vehicle.get("fuel")) in ("elektrik", "elektrikli", "electric", "ev"):
+        return "elektrikli"
+    if re.search(r"plug[- ]?in|\bphev\b|sarj edilebilir", metin):
+        return "sarjli_hibrit"
+    if re.search(r"hibrit|hybrid|\bhev\b", metin):
+        return "hibrit"
+    return ""
 
 
 def upcoming_maintenance(vehicle, risks) -> list:
@@ -809,7 +832,12 @@ def upcoming_maintenance(vehicle, risks) -> list:
     fuel = fold(vehicle.get("fuel"))
     electric = fuel in ("elektrik", "elektrikli", "electric", "ev")
     automatic = "otomatik" in fold(vehicle.get("transmission")) or bool(_gear(str(vehicle.get("package"))) - {"manual"})
+    tur = _elektrik_turu(vehicle)
     labels = ["Fren ve lastik kontrolü", "Periyodik bakım kayıtları"]
+    if tur:
+        # En önemli kontrol başa: batarya; şarj edilebilen araçta şarj sistemi de.
+        labels = ["Yüksek voltaj batarya sağlığı ve garantisi"] + (
+            ["Şarj sistemi kontrolü"] if tur in ("elektrikli", "sarjli_hibrit") else []) + labels
     if age >= 4:
         labels += ["Akü kontrolü"]
     if not electric:
@@ -856,6 +884,9 @@ BAKIM_SORUSU = {
     "Turbo ve enjektör kontrolü": "Turbo ya da enjektörlerle ilgili bir onarım yapıldı mı?",
     "Debriyaj / çift kütleli volan kontrolü": "Debriyaj seti en son kaç km'de değişti?",
     "DPF / EGR kontrolü": "DPF ve EGR temizliği ya da değişimi yapıldı mı?",
+    "Yüksek voltaj batarya sağlığı ve garantisi": ("Yetkili servisten batarya sağlık (SoH) raporu alabilir miyiz? "
+                                                    "Batarya garantisi ne zamana kadar ve bana devrediliyor mu?"),
+    "Şarj sistemi kontrolü": "Şarj kablosu ve şarj ekipmanları araçla birlikte veriliyor mu?",
 }
 
 def seller_questions(vehicle, risks, findings) -> list:

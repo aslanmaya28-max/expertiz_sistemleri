@@ -55,17 +55,44 @@ def test_bakim_maddeleri_ve_sorular_tekrarsiz():
 
 
 def test_ortalamanin_altindaki_ilanda_gizli_kusur_uyarisi():
+    # Kullanıcı kararı (07.11.2026, BYD Seal U): uyarı tek ölçüyle, hesaplanan değer ve adil aralıkla verilir.
+    # Cupra Formentor: ilan 2.265.000, adil aralık 2.205.000–2.485.000 içinde, uyarı yok.
     from yerimebak_ai_v5.services.negotiation import build_plan, dusuk_fiyat_uyarisi
     ref = {"count": 8, "market_avg_price": 2_331_752, "market_median_price": 2_338_115, "samples": []}
-    uyari = dusuk_fiyat_uyarisi(2_265_000, ref)
-    assert "%2,9 altında" in uyari and "kusuru" in uyari and "yerinde inceletin" in uyari
+    assert dusuk_fiyat_uyarisi(2_265_000, 2_345_000, 2_205_000) is None
     plan = build_plan(price=2_265_000, fair_min=2_205_000, fair_max=2_485_000, recommended=2_275_000,
-                      reference=ref, kalemler=[], confidence_level="yuksek", vehicle_title="2023 Cupra Formentor")
-    assert plan["uyari"].startswith("İlan fiyatı benzer ilanların ortalamasının")
-    # Çok düşük fiyatta uyarı sertleşir: kapora uyarısı.
-    assert "kapora" in dusuk_fiyat_uyarisi(2_000_000, ref)
-    # Ortalamanın üstündeki ilanda bu uyarı yok.
-    assert dusuk_fiyat_uyarisi(2_400_000, ref) is None
+                      reference=ref, kalemler=[], confidence_level="yuksek", vehicle_title="2023 Cupra Formentor",
+                      value=2_345_000)
+    assert plan["uyari"] is None and "hesaplanan değerinin altında" in plan["adimlar"][0]
+    # Aralığın altında: yumuşak uyarı; %10 ve üstü: kapora uyarısı.
+    uyari = dusuk_fiyat_uyarisi(2_180_000, 2_345_000, 2_205_000)
+    assert "%7,0 altında" in uyari and "kusuru" in uyari and "yerinde inceletin" in uyari
+    assert "kapora" in dusuk_fiyat_uyarisi(2_000_000, 2_345_000, 2_205_000)
+    plan = build_plan(price=2_000_000, fair_min=2_205_000, fair_max=2_485_000, recommended=2_275_000,
+                      reference=ref, kalemler=[], confidence_level="yuksek", vehicle_title="2023 Cupra Formentor",
+                      value=2_345_000)
+    assert plan["uyari"].startswith("İlan fiyatı, bildirilen hasar hesaba katıldıktan sonra bile")
+    # Hesaplanan değerin üstündeki ilanda bu uyarı yok.
+    assert dusuk_fiyat_uyarisi(2_400_000, 2_345_000, 2_205_000) is None
+
+
+def test_hesaplanan_degere_uyumlu_ilanda_piyasa_alti_denmez_ve_tavsiye_hedefe_esit():
+    # BYD Seal U DM-i 2024 (canlı ilk rapor, 07.11.2026): ilan 2.095.000, hesaplanan değer 2.075.000 (%0,9 üstü),
+    # benzer ilanların ortası 2.193.260. Eski plan "ortanın altında" deyip hedefi 2.045.000 koyuyor, tavsiye
+    # 2.015.000 kalıyor; özet hem "piyasayla uyumlu" hem "piyasanın altında" diyordu.
+    from yerimebak_ai_v5.services.negotiation import build_plan, dusuk_fiyat_uyarisi
+    ref = {"count": 7, "market_avg_price": 2_198_957, "market_median_price": 2_193_260, "samples": []}
+    kalemler = [{"baslik": "Sol Arka Çamurluk", "durum": "Boyalı", "tutar": 57_618}]
+    assert dusuk_fiyat_uyarisi(2_095_000, 2_075_000, 1_950_000) is None
+    plan = build_plan(price=2_095_000, fair_min=1_950_000, fair_max=2_200_000, recommended=2_015_000,
+                      reference=ref, kalemler=kalemler, confidence_level="yuksek",
+                      vehicle_title="2024 BYD Seal U DM-i", value=2_075_000)
+    assert plan["uyari"] is None
+    assert plan["hedefFiyat"] == 2_015_000 and plan["acilisTeklifi"] < plan["hedefFiyat"] <= plan["ustSinir"] <= 2_095_000
+    assert plan["acilisTeklifi"] >= 2_095_000 * 0.93 - 5_000
+    assert not any("ortasının altında" in a or "hesaplanan değerinin altında" in a for a in plan["adimlar"])
+    # Satıcıya giden metinde tutar yuvarlak.
+    assert "yaklaşık 58.000 TL" in plan["saticiMesaji"] and "57.618" not in plan["saticiMesaji"]
 
 
 def test_motor_yazilmis_aracta_paket_girilmemis_denmez():
@@ -77,21 +104,22 @@ def test_motor_yazilmis_aracta_paket_girilmemis_denmez():
 
 def test_hasari_beyan_edilmis_ucuz_ilanda_gizli_kusur_uyarisi_yok_ve_plan_tutarli():
     # Chery Tiggo 7 Pro Max denemesi (03.11.2026): 180.000 TL tramer + 2 değişen kapı. İlan hasarsız ortalamanın
-    # %10,9 altında ama hasar düşülünce hesaplanan değerin %19,7 üstünde. Eski rapor "gizli kusur" uyarısı veriyor,
-    # hedef = üst sınır = 1.530.000 çıkıyor ve tavsiye fiyatıyla (1.400.000) çelişiyordu.
+    # %10,9 altında ama hasar düşülünce hesaplanan değerin (≈1.445.000) %19,7 üstünde. Eski rapor "gizli kusur"
+    # uyarısı veriyor, hedef = üst sınır = 1.530.000 çıkıyor ve tavsiye fiyatıyla (1.400.000) çelişiyordu.
     from yerimebak_ai_v5.services.negotiation import build_plan, dusuk_fiyat_uyarisi
     ref = {"count": 6, "market_avg_price": 1_941_952, "market_median_price": 1_928_809, "samples": []}
     kalemler = [{"baslik": "Tramer (hasar kaydı)", "durum": "180.000 TL", "tutar": 270_000},
                 {"baslik": "Sol Ön Kapı", "durum": "Değişen", "tutar": 115_729},
                 {"baslik": "Sol Arka Kapı", "durum": "Değişen", "tutar": 98_402}]
-    assert dusuk_fiyat_uyarisi(1_730_000, ref, 484_131) is None
+    assert dusuk_fiyat_uyarisi(1_730_000, 1_445_000, 1_360_000) is None
     plan = build_plan(price=1_730_000, fair_min=1_360_000, fair_max=1_530_000, recommended=1_400_000,
-                      reference=ref, kalemler=kalemler, confidence_level="orta", vehicle_title="2025 Chery Tiggo 7 Pro Max")
+                      reference=ref, kalemler=kalemler, confidence_level="orta",
+                      vehicle_title="2025 Chery Tiggo 7 Pro Max", value=1_445_000)
     assert plan["durum"] == "pazarlik_payi_var"
     assert plan["hedefFiyat"] == 1_400_000 < plan["ustSinir"] == 1_530_000
     assert plan["uyari"] is None
-    # Hasar düşüldükten sonra da ucuzsa uyarı verilir ve bunu açıkça söyler.
-    assert "bildirilen hasarın etkisi düşüldükten sonra" in dusuk_fiyat_uyarisi(1_300_000, ref, 484_131)
+    # Hasar hesaba katıldıktan sonra da aralığın altındaysa uyarı verilir ve bunu açıkça söyler.
+    assert "bildirilen hasar hesaba katıldıktan sonra bile" in dusuk_fiyat_uyarisi(1_300_000, 1_445_000, 1_360_000)
 
 
 def test_birden_cok_degisen_parca_tek_soruda_hepsi_sorulur():
@@ -120,3 +148,20 @@ def test_tramer_ile_ayni_hasarin_degisen_parcalari_iki_kez_dusulmez():
     assert r["fiyatYorumu"]["karar"] == "PAZARLIK"
     tramer = next(k for k in r["kalemler"] if k["kategori"] == "tramer")
     assert tramer["yuzde"] >= 2.0
+
+
+def test_elektrikli_ve_hibrit_aracta_batarya_kontrolu_basta():
+    # BYD Seal U DM-i (07.11.2026): şarj edilebilir hibritte rapor batarya sağlığını ve garantisini hiç sormuyordu.
+    phev = {"fuel": "Benzin (Plug-in Hibrit)", "package": "1.5 PHEV Design", "km": 47_000, "year": 2024,
+            "transmission": "Otomatik"}
+    basliklar = [m["baslik"] for m in vr.upcoming_maintenance(phev, {"riskler": []})]
+    assert basliklar[:2] == ["Yüksek voltaj batarya sağlığı ve garantisi", "Şarj sistemi kontrolü"]
+    sorular = vr.seller_questions(phev, {"riskler": []}, [])
+    assert any("SoH" in q and "garanti" in q for q in sorular)
+    # Kendi kendine şarj olan hibritte şarj sistemi sorulmaz; benzinli araçta (Chevrolet dahil) batarya yok.
+    hev = [m["baslik"] for m in vr.upcoming_maintenance({"fuel": "Hibrit", "package": "1.8 HEV", "km": 30_000,
+                                                         "year": 2022}, {"riskler": []})]
+    assert hev[0] == "Yüksek voltaj batarya sağlığı ve garantisi" and "Şarj sistemi kontrolü" not in hev
+    for arac in [{"fuel": "Benzin", "package": "1.5 TSI"}, {"fuel": "Benzin", "package": "Chevrolet Cruze 1.6"}]:
+        assert not any("batarya" in m["baslik"] for m in vr.upcoming_maintenance({**arac, "km": 10_000, "year": 2024},
+                                                                                  {"riskler": []}))
