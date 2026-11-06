@@ -11,7 +11,8 @@ services:
     region: frankfurt
     # Ucretsiz plan istek gelmeyince uyur; arka plan AI isleyicisi icin en az starter
     plan: starter
-    branch: main
+    # Kapali test: API calisma dalindan yayinlanir; site (Vercel) main'de kalir. main birlesince 'main' yapin.
+    branch: degerleme-web-kaynak
     autoDeploy: true
     healthCheckPath: /health
     envVars:
@@ -89,3 +90,14 @@ services:
         value: deepseek/deepseek-v4.1-flash-1017
       - key: SENTRY_DSN
         sync: false
+      # --- Google Play kredi satisi (Android uygulamasi). Hesap JSON'u Play Console'dan sonra girilir;
+      # bos kaldikca satin alma dogrulanamaz ve kredi yuklenmez (simulasyon canlida kapali).
+      - key: GOOGLE_PLAY_PACKAGE_NAME
+        value: com.yerimebak.app
+      - key: GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: GOOGLE_PLAY_SIMULATION
+        value: "false"
+      # Uygulama ayarlari (/app/config): ekspertiz talebi kapali baslar
+      - key: APP_EXPERTIZ_ENABLED
+        value: "false"
