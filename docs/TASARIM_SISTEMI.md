@@ -38,20 +38,22 @@ Tüm metin/zemin çiftleri WCAG AA'yı geçer (en düşük 5,08:1). Yeni çift e
 | `kenarlik` | `#E3E8E7` | `#1F2928` | Üst çubuk/alt menü çizgisi |
 | `ayirici` | `#E6ECEA` | `#222D2C` | Liste satırları arası |
 | `girdiKenarlik` | `#CFD8D6` | `#2A3735` | Metin kutusu, ikincil buton kenarı |
-| `birincil` | `#087C72` | `#3DC2B0` | Ana buton zemini, aktif sekme, seçili durum |
+| `birincil` | `#00876F` | `#2ED9B8` | Ana buton zemini, aktif sekme, seçili durum |
 | `birincilUstu` | `#FFFFFF` | `#04201C` | Ana buton yazısı |
-| `birincilMetin` | `#075E56` | `#5FD3C2` | Bağlantı, vurgulu yazı |
-| `birincilYuzey` | `#E3F3EF` | `#11342F` | Hedef fiyat kutusu, ikon kutusu |
-| `birincilAcik` | `#9ED8CF` | `#23625A` | Adil aralık çubuğu, ince vurgu kenarı |
-| `markaBandi` | `#0B4A45` | — | Ana ekran üst bandı (yalnız açık tema) |
-| `markaBandiMetin` | `#B8D4D0` | — | Bant içi ikincil yazı |
-| `markaBandiVurgu` | `#8FE0D3` | — | Logodaki "Bak", "Yakında" rozeti zemini (bantta) |
-| `vurgu` | `#C6613F` | `#E08A68` | Turuncu dokunuş: hizmet kartı simgesi, fiyat çubuğunda ilan çizgisi |
-| `vurguMetin` / `vurguKenar` | `#A84E2F` / `#EBB8A2` | `#EBA587` / `#7A4433` | "Yakında" rozeti yazı/kenar, koyu temada kredi düğmesi |
-| `vurguBant` | `#F2A07B` | — | Açık temada yeşil bantta kredi sayısı |
+| `birincilMetin` | `#006B58` | `#55E3C6` | Bağlantı, vurgulu yazı |
+| `birincilYuzey` | `#D6F5EB` | `#0E3A31` | Hedef fiyat kutusu, ikon kutusu |
+| `birincilAcik` | `#6EDCC2` | `#1C7F6C` | Adil aralık çubuğu, ince vurgu kenarı |
+| `markaBandi` | `#00574C` | — | Ana ekran üst bandı (yalnız açık tema) |
+| `markaBandiMetin` | `#B5E3D8` | — | Bant içi ikincil yazı |
+| `markaBandiVurgu` | `#5CEBC6` | — | Logodaki "Bak", "Yakında" rozeti zemini (bantta) |
+| `vurgu` | `#E8622C` | `#FF8A57` | Turuncu dokunuş: hizmet kartı simgesi, fiyat çubuğunda ilan çizgisi |
+| `vurguMetin` / `vurguKenar` | `#B4461B` / `#F7B48E` | `#FFA57D` / `#8A4326` | "Yakında" rozeti yazı/kenar, koyu temada kredi düğmesi |
+| `vurguBant` | `#FF9B6A` | — | Açık temada yeşil bantta kredi sayısı |
 
 > **Turuncu kuralı (kullanıcı kararı, 6 Kasım 2026):** ana renk yeşil kalır. Turuncu yalnız yukarıdaki küçük
 > dokunuşlarda kullanılır; düğme, karar rozeti, bağlantı ve seçili menü yeşildir. Kaporta durum renkleri ayrıdır.
+> Aynı gün "daha canlı" isteğiyle yeşil ve turuncu doygunlaştırıldı; hizmet kartları sırayla nane (`birincilYuzey`)
+> ve şeftali (`vurguYuzey`) zeminlidir.
 | `uyari` | `#8A4B00` | `#F0B458` | "Pazarlık yapın" yazısı, ilan işareti (koyu) |
 | `uyariYuzey` | `#FDF1E2` | `#241A0B` | "Pazarlık yapın" rozet zemini |
 | `uyariKenar` | `#F2C894` | `#6B4A16` | Uyarı rozet kenarı |

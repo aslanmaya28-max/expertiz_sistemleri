@@ -40,6 +40,7 @@ class HizmetKartlari extends ConsumerWidget {
           LucideIcons.clipboardCheck,
           () => context.push(ekspertizYolu(acik)),
           yakinda: !acik,
+          turuncu: false,
         ),
         const SizedBox(height: Olcu.s12),
         LayoutBuilder(
@@ -50,12 +51,14 @@ class HizmetKartlari extends ConsumerWidget {
                 'Aracı doğrudan sizin adınıza alalım.',
                 LucideIcons.keyRound,
                 () => context.push('/uzaktan-satin-alma'),
+                turuncu: true,
               ),
               _HizmetKarti(
                 'Çekiciyle ilinize sevk',
                 'Aracınız kurumsal çekiciyle gelsin.',
                 LucideIcons.truck,
                 () => context.push('/uzaktan-satin-alma'),
+                turuncu: false,
               ),
             ];
             if (c.maxWidth < Olcu.satirYatayEsik ||
@@ -91,12 +94,16 @@ class _HizmetKarti extends StatelessWidget {
   final IconData ikon;
   final VoidCallback onTap;
   final bool yakinda;
+
+  /// Canlı renk (kullanıcı isteği): kartlar nane yeşili ve şeftali zeminle sırayla renklenir.
+  final bool turuncu;
   const _HizmetKarti(
     this.baslik,
     this.aciklama,
     this.ikon,
     this.onTap, {
     this.yakinda = true,
+    this.turuncu = false,
   });
   @override
   Widget build(BuildContext context) => Semantics(
@@ -105,6 +112,9 @@ class _HizmetKarti extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(Olcu.kartKose),
       child: Kart(
+        renk: turuncu
+            ? YbRenkler.of(context).vurguYuzey
+            : YbRenkler.of(context).birincilYuzey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -113,7 +123,9 @@ class _HizmetKarti extends StatelessWidget {
                 Icon(
                   ikon,
                   size: Olcu.ikonInce,
-                  color: YbRenkler.of(context).vurgu,
+                  color: turuncu
+                      ? YbRenkler.of(context).vurgu
+                      : YbRenkler.of(context).birincil,
                 ),
                 const Spacer(),
                 if (yakinda) const YakindaRozeti(),

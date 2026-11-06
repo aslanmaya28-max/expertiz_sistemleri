@@ -7,17 +7,21 @@ class Kart extends StatelessWidget {
   final Widget child;
   final bool rapor, analiz;
   final EdgeInsetsGeometry? padding;
+
+  /// Renkli kart zemini (hizmet kartları); verilmezse yüzey rengi.
+  final Color? renk;
   const Kart({
     super.key,
     required this.child,
     this.rapor = false,
     this.analiz = false,
     this.padding,
+    this.renk,
   });
   @override
   Widget build(BuildContext context) => Container(
     decoration: BoxDecoration(
-      color: YbRenkler.of(context).yuzey,
+      color: renk ?? YbRenkler.of(context).yuzey,
       borderRadius: BorderRadius.circular(
         rapor ? Olcu.raporKose : Olcu.kartKose,
       ),
