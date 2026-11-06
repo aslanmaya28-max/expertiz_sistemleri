@@ -1,4 +1,4 @@
-"""İki gerçek araç modeli için kontrollü önce/sonra kaynak kapsamı ölçümü.
+"""Beş araç için 029/030 kaynak ve takma ad kapsamı ölçümü.
 
 Anahtar yetkili süreç ortamından gelir; gizli dosya okunmaz. Tek özel yerel test
 veritabanı yalnız bütçe sayacı içindir; uygulama ve demo verilerine dokunmaz.
@@ -10,9 +10,6 @@ from pathlib import Path
 import subprocess
 import types
 os.environ['PYTHON_DOTENV_DISABLED'] = '1'
-os.environ['DATABASE_URL'] = 'postgresql://postgres:test@localhost:55432/ybtest_026_smoke'
-os.environ['WEB_RISK_CACHE_DAYS'] = '0'
-os.environ['RISK_COST_SEARCH_LIMIT'] = '20'
 
 from yerimebak_ai_v5.services import vehicle_risk as vr
 from tools.risk_smoke_diagnostics import compare_candidates
@@ -32,19 +29,31 @@ TECHNICAL_VEHICLES = [
 ]
 
 
+def selected_vehicles(technical_pair=False):
+    if technical_pair:
+        return TECHNICAL_VEHICLES
+    return VEHICLES + TECHNICAL_VEHICLES + [
+        {'brand': 'Fiat', 'model': 'Egea Cross', 'package': '1.6 Multijet', 'engine': '1.6 Multijet',
+         'transmission': 'Manuel', 'fuel': 'Dizel', 'year': 2021, 'km': 100000},
+    ]
+
+
 if __name__ == '__main__':
+    os.environ['DATABASE_URL'] = 'postgresql://postgres:test@localhost:55432/ybtest_030_smoke'
+    os.environ['WEB_RISK_CACHE_DAYS'] = '0'
+    os.environ['RISK_COST_SEARCH_LIMIT'] = '20'
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--technical-pair', action='store_true', help='Ford Focus / Volkswagen Golf çiftini ölç')
     args = parser.parse_args()
     if not os.getenv('OPENROUTER_API_KEY'):
         raise SystemExit('Yetkili süreçte OPENROUTER_API_KEY tanımlı olmalı; gizli dosya okunmadı.')
     outputs = []
-    legacy = types.ModuleType('risk_baseline_026')
-    source = subprocess.check_output(['git', 'show', 'e09f9cb:musteri_paneli/yerimebak_ai_v5/services/vehicle_risk.py'],
+    legacy = types.ModuleType('risk_baseline_029')
+    source = subprocess.check_output(['git', 'show', '1701e1c:musteri_paneli/yerimebak_ai_v5/services/vehicle_risk.py'],
         cwd=Path(__file__).resolve().parents[2], encoding='utf-8')
-    exec(compile(source, 'e09f9cb/vehicle_risk.py', 'exec'), legacy.__dict__)
+    exec(compile(source, '1701e1c/vehicle_risk.py', 'exec'), legacy.__dict__)
     original = vr._verified_items
-    for vehicle in (TECHNICAL_VEHICLES if args.technical_pair else VEHICLES):
+    for vehicle in selected_vehicles(args.technical_pair):
         traces = []
         def traced(items, sources, current_vehicle):
             result = original(items, sources, current_vehicle)
@@ -62,6 +71,7 @@ if __name__ == '__main__':
                         'extra_searches': scope.get('cost_searches', 0),
                         'extra_cost_usd': scope.get('cost_search_usd', 0),
                         'total_cost_usd': scope.get('cost_usd'), 'error': report.get('hata', False),
+                        'alias_accepted_source_count': sum(t['alias_accepted_source_count'] for t in traces),
                         'diagnostics': traces,
                         'items': [{key: r.get(key) for key in ('baslik', 'guven', 'kategori',
                                    'tahminiMaliyet', 'tipikKm', 'maliyetKaynagi', 'kmKaynagi')} for r in visible]})

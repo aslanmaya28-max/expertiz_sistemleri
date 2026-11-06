@@ -24,7 +24,7 @@ import httpx
 from yerimebak_ai_v5.services import web_market_reference as wmr
 from yerimebak_ai_v5.services.llm_json import oku
 from yerimebak_ai_v5.services.web_market_reference import fold, _displacements
-from yerimebak_ai_v5.services import risk_evidence, risk_cost_search, risk_sources
+from yerimebak_ai_v5.services import risk_evidence, risk_cost_search, risk_sources, model_aliases
 
 
 # İlk değer, çıktı ve tekilleştirme anahtarıdır. Eş anlamlılar kaynakta aranır.
@@ -95,6 +95,11 @@ _PROMPT = """Şu araç için motor/şanzıman sürümüne özgü bilinen sorunla
 geri çağırmaları/servis bültenlerini ve doğrulanacak büyük bakım kalemlerini bul: {vehicle}.
 Üretici, resmi geri çağırma ve güvenilir teknik incelemeleri öncele. Forum iddiasını
 kesin bilgi sayma. Aracın arızalı olduğunu veya bakımının yapılmadığını varsayma.
+Her risk için en az iki bağımsız kaynak (farklı yayıncı) bul ve kaynaklar alanında ver.
+Aynı yayıncının farklı sayfaları, kopyaları ve birbirini aktaran yazılar bağımsız değildir.
+Verilen yerel ve yurt dışı model adlarını birlikte ara; yıl/kasa, motor ve şanzıman
+aynı olmalı. Her kanıtta model, motor/şanzıman ve konu aynı cümlede geçsin.
+İkinci kaynak yoksa uydurma; tek kaynaklı riski düşük güvenle döndür.
 Yalnız kaynakta açıkça yazan motor, şanzıman, model yılı kapsamını ve TL maliyeti ver.
 Belirli km/yaş için kesin değişim aralığı uydurma. Şasi numarasıyla kontrolü öner.
 Sadece JSON: {{"riskler":[{{"baslik":"Triger seti", "aciklama":"",
@@ -152,9 +157,12 @@ def _cache_key(vehicle):
     values = [fold(vehicle.get(k)).strip() for k in
               ("brand", "model", "engine", "package", "fuel", "transmission")]
     values.append((wmr._int(vehicle.get("year")) or 0) // 5)
+    # Alias uygunluğu kova içinde değişebilir (Cross 2020/2021).
+    values.append(model_aliases.aliases(vehicle))
     # v4: ayrı Türkçe şikâyet araması eklendi; v3 kayıtlarında şikâyet adayı yok
     # v6: 029 kaynak güveni (resmî kayıt yüksek, iki bağımsız kapsamlı kaynak orta); eski kayıt devralınmaz
-    return "vehicle-risk:v6:" + hashlib.sha256(json.dumps(values).encode()).hexdigest()
+    # v7: belgeli pazar adları ve risk başına bağımsız iki kaynak istemi.
+    return "vehicle-risk:v7:" + hashlib.sha256(json.dumps(values).encode()).hexdigest()
 
 
 _LISTS = ("riskler", "kullaniciSikayetleri")
@@ -212,7 +220,7 @@ def _gear(text):
 
 
 def _incompatible(text, vehicle):
-    if _fuel_incompatible(text, vehicle):
+    if _fuel_incompatible(text, vehicle) or model_aliases.incompatible(text, vehicle):
         return True
     target = " ".join(str(vehicle.get(k) or "") for k in ("engine", "package", "transmission"))
     a, b = _displacements(target), _displacements(text)
@@ -257,11 +265,11 @@ def _domain(host, domains):
     return any(host == d or host.endswith("." + d) for d in domains)
 
 
-def _confidence(url, text, vehicle):
-    return _confidence_details(url, text, vehicle)[0]
+def _confidence(url, text, vehicle, topics=None):
+    return _confidence_details(url, text, vehicle, topics)[0]
 
 
-def _confidence_details(url, text, vehicle):
+def _confidence_details(url, text, vehicle, topics=None):
     parsed = urlsplit(url)
     host = (parsed.hostname or "").lower()
     if (_domain(host, _USER_SOURCES + _COMPILATIONS)
@@ -269,7 +277,10 @@ def _confidence_details(url, text, vehicle):
         return "dusuk", 'Kullanıcı/derleme kaynağı'
     # Sürüm/model kapsamı belirsiz bir metin yüksek/orta güven kazanamaz.
     target = _displacements(str(vehicle.get("engine") or "") + " " + str(vehicle.get("package") or ""))
-    if fold(vehicle.get("model")) not in fold(text) or (target and not target & _displacements(text)):
+    direct_model = model_aliases.matches(text, {**vehicle, 'brand': ''})
+    alias_scoped = (model_aliases.matches(text, vehicle, aliases_only=True)
+                    and _scoped(text, vehicle, topics if topics is not None else _topics(text)))
+    if (not direct_model and not alias_scoped) or (target and not target & _displacements(text)):
         return "dusuk", 'Kaynakta model/motor kapsamı yetersiz'
     official = _OFFICIAL.get(fold(vehicle.get("brand")), ()) + _AUTHORITIES
     if _domain(host, official):
@@ -283,6 +294,8 @@ def _confidence_details(url, text, vehicle):
             return "yuksek", 'Resmî geri çağırma/teknik bülten kaydı'
         return "dusuk", 'Resmî alan adı tanınıyor; kayıt türü doğrulanamadı'
     if _domain(host, _TECHNICAL):
+        if not direct_model:
+            return "dusuk", 'Takma ad kapsamı doğrulandı; ikinci bağımsız kaynak gerekli'
         return "orta", 'Tanımlı teknik kaynak'
     return "dusuk", 'Kaynak mevcut üretici/teknik güven listesinde değil'
 
@@ -342,7 +355,7 @@ def _verify(item, sources, vehicle):
     # 029 (kullanıcı kararı B): resmî kayıt tek başına yüksek; aynı risk en az iki bağımsız kaynakta aynı cümlede
     # model + motor/şanzıman + konu ile geçiyorsa orta. Forum/şikâyet sayılmaz. Güven için sayılmayan metin
     # fiyat/km kanıtı da olamaz.
-    levels = {url: _confidence(url, text, vehicle) for url, text in valid.items()}
+    levels = {url: _confidence(url, text, vehicle, source_topics) for url, text in valid.items()}
     rank = {"dusuk": 0, "orta": 1, "yuksek": 2}
     best = max(levels.values(), key=rank.get)
     brand = fold(vehicle.get("brand"))
@@ -392,7 +405,11 @@ def _scoped(text, vehicle, topics):
     gears = _gear(target + " " + str(vehicle.get("transmission") or "")) - {"manual"}
     for sentence in re.split(r"(?<!\d)[.!?](?!\d)|[\n;]", text or ""):
         folded = fold(sentence)
-        if model not in folded or not set(_topics(sentence)) & set(topics):
+        if (not model_aliases.matches(sentence, vehicle) or _incompatible(sentence, vehicle)
+                or not set(_topics(sentence)) & set(topics)):
+            continue
+        direct = model_aliases.matches(sentence, {**vehicle, 'brand': ''})
+        if not direct and not model_aliases.engine_scoped(sentence, vehicle):
             continue
         if ((displacements and displacements & _displacements(sentence))
                 or families & set(re.findall(r"\b[a-z]+\b", folded)) or gears & _gear(sentence)):
@@ -657,6 +674,9 @@ def get_model_risks(vehicle) -> dict:
             return cached
     errors = (httpx.HTTPError, ValueError, TypeError, KeyError, RuntimeError)
     query = wmr._vehicle_text({**vehicle, "km": None}) + " " + str(vehicle.get("engine") or "")
+    aliases = model_aliases.aliases(vehicle)
+    if aliases:
+        query += " (yurt dışında: " + ", ".join(aliases) + ")"
     complaint_query = " ".join(str(p) for p in (vehicle.get("brand"), vehicle.get("model"),
                                                 vehicle.get("engine") or vehicle.get("package")) if p)
     complaint_query += " kronik sorun şikayet"
