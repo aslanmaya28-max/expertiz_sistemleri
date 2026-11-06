@@ -11,7 +11,7 @@ declare global {
 }
 
 /** The engine owns only its attributes inside this marketing page. */
-export default function ScrollSahnesi({ children }: { children: ReactNode }) {
+export default function ScrollSahnesi({ children, className = "" }: { children: ReactNode; className?: string }) {
   const root = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -24,7 +24,7 @@ export default function ScrollSahnesi({ children }: { children: ReactNode }) {
     const sync = () => {
       instance?.destroy();
       instance = null;
-      // The full content remains normal flow on phones and with reduced motion.
+      // Dossier pinning stays desktop-only; card stacks also work on tall phones.
       if (preference.matches) {
         element.dataset.motion = "reduced";
         element.querySelectorAll<HTMLElement>("[data-sc-parallax]").forEach((node) => node.style.removeProperty("transform"));
@@ -32,6 +32,12 @@ export default function ScrollSahnesi({ children }: { children: ReactNode }) {
         return;
       }
       element.dataset.motion = "ready";
+      element.querySelectorAll<HTMLElement>("[data-stack]").forEach((stack) => {
+        const cards = Array.from(stack.querySelectorAll<HTMLElement>(".yb-stack-card"));
+        // Long service copy must fit below the header before a later card can cover it.
+        stack.dataset.stackReady = String(!short.matches && cards.every((card, index) =>
+          card.offsetHeight + 136 + index * 16 < window.innerHeight));
+      });
       // Every narrative section has its own timeline; React never re-renders
       // on scroll. The upstream engine publishes --sc-p to these sections.
       element.querySelectorAll<HTMLElement>(":scope > section:not(.yb-hero):not([data-report-scene])").forEach((section) => {
@@ -50,16 +56,26 @@ export default function ScrollSahnesi({ children }: { children: ReactNode }) {
     preference.addEventListener("change", sync);
     mobile.addEventListener("change", sync);
     short.addEventListener("change", sync);
+    // Fonts and wrapping change card heights even within the same media range.
+    const observer = new ResizeObserver(() => {
+      element.querySelectorAll<HTMLElement>("[data-stack]").forEach((stack) => {
+        const cards = Array.from(stack.querySelectorAll<HTMLElement>(".yb-stack-card"));
+        stack.dataset.stackReady = String(!short.matches && cards.every((card, index) =>
+          card.offsetHeight + 136 + index * 16 < window.innerHeight));
+      });
+    });
+    element.querySelectorAll<HTMLElement>(".yb-stack-card").forEach((card) => observer.observe(card));
     return () => {
       instance?.destroy();
       preference.removeEventListener("change", sync);
       mobile.removeEventListener("change", sync);
       short.removeEventListener("change", sync);
+      observer.disconnect();
       delete element.dataset.motion;
       delete element.dataset.pin;
     };
   }, [ready]);
-  return <div className="yb-home" ref={root}>
+  return <div className={`yb-home ${className}`.trim()} ref={root}>
     {children}
     <Script src="/vendor/scrollcraft/scrollcraft.js" strategy="afterInteractive" onReady={() => setReady(true)} />
   </div>;

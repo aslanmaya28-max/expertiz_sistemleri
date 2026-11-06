@@ -1,9 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --birincil: #087c72;
-  --birincil-koyu: #0f766e;
-  --birincil-acik: #99f6e4;
+  --yb-green: #00876F;
+  --yb-green-text: #006B58;
+  --yb-brand-band: #00574C;
+  --yb-mint: #5CEBC6;
+  --yb-mint-surface: #D6F5EB;
+  --yb-fair-range: #6EDCC2;
+  --yb-orange: #E8622C;
+  --yb-orange-text: #B4461B;
+  --yb-peach-surface: #FFEDE2;
+  --yb-orange-line: #F7B48E;
+  --birincil: var(--yb-green);
+  --birincil-koyu: var(--yb-brand-band);
+  --birincil-acik: var(--yb-fair-range);
   --metin-birincil: #0F172A;
   --metin-ikincil: #475569;
   --arkaplan-acik: #f6f7f4;

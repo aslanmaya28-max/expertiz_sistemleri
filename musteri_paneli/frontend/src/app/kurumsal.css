@@ -2,8 +2,16 @@
   --yb-ink: #102c36;
   --yb-muted: #536267;
   --yb-paper: #f6f7f2;
-  --yb-mint: #b9efd7;
-  --yb-green: #087c65;
+  --yb-mint: #5CEBC6;
+  --yb-green: #00876F;
+  --yb-green-text: #006B58;
+  --yb-brand-band: #00574C;
+  --yb-mint-surface: #D6F5EB;
+  --yb-fair-range: #6EDCC2;
+  --yb-orange: #E8622C;
+  --yb-orange-text: #B4461B;
+  --yb-peach-surface: #FFEDE2;
+  --yb-orange-line: #F7B48E;
   --yb-line: #dce2db;
 }
 
@@ -13,7 +21,7 @@ html {
 }
 
 *:focus-visible {
-  outline: 3px solid #087c72;
+  outline: 3px solid var(--yb-green-text);
   outline-offset: 5px;
 }
 
@@ -114,7 +122,7 @@ button:disabled {
   font-size: 14px;
   font-weight: 650;
   line-height: 1.4;
-  border-radius: 6px;
+  border-radius: 999px;
   transition: background .2s,transform .2s;
   flex-shrink: 0;
   text-align: center;
@@ -131,12 +139,12 @@ button:disabled {
 }
 
 .yb-button-dark {
-  background: var(--yb-ink);
+  background: var(--yb-brand-band);
   color: white;
 }
 
 .yb-button-dark:hover {
-  background: #1c454e;
+  background: var(--yb-green-text);
 }
 
 .yb-button-mint {
