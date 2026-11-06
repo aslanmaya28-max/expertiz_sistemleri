@@ -193,10 +193,21 @@ def decision_summary(
                        )
     # İlan benzer ilan ortalamasının altındaysa satıcı bir kusuru belirtmemiş olabilir (kullanıcı kararı):
     # ağır hasardan sonra en üste yazılır ki 4 maddelik özet kesilince kaybolmasın.
-    from yerimebak_ai_v5.services.negotiation import dusuk_fiyat_uyarisi
-    dusuk_fiyat = dusuk_fiyat_uyarisi(price, reference, degerleme.get("toplamDegerKaybiTutar") or 0)
+    from yerimebak_ai_v5.services.negotiation import (
+        DUSUK_FIYAT_SERT_YUZDE, dusuk_fiyat_uyarisi, dusuk_fiyat_yuzdesi)
+    kayip = degerleme.get("toplamDegerKaybiTutar") or 0
+    dusuk_fiyat = dusuk_fiyat_uyarisi(price, reference, kayip)
     if dusuk_fiyat:
         riskler.insert(1 if degerleme.get("agirHasar") else 0, dusuk_fiyat)
+    # Kullanıcı kararı (6 Kasım 2026, Seat Ibiza denemesi): ilan piyasanın %10 ve daha fazla altındayken
+    # üstte "Alınabilir, avantajlı" yazıp altta dolandırıcılık uyarısı vermek çelişkili. Karar temkinli olur;
+    # hesaplanan eğilim ("AL") bilgi olarak kalır.
+    yuzde = dusuk_fiyat_yuzdesi(price, reference, kayip)
+    if sonuc == "AL" and yuzde is not None and yuzde >= DUSUK_FIYAT_SERT_YUZDE:
+        oran = f"%{yuzde:.0f}"
+        sonuc, aciklama = LOW_CONFIDENCE_VERDICT, (
+            f"İlan fiyatı benzer ilanların {oran} altında. Bu bir fırsat olabilir, ama fiyatın neden bu kadar "
+            "düşük olduğu öğrenilmeden ve araç yerinde incelenmeden alım kararı verilmemeli.")
     riskler.append("Boya, değişen ve tramer bilgileri ilan/müşteri beyanına dayanıyor; uzman tarafından doğrulanmadı.")
 
     gerekceler: List[str] = []
@@ -209,7 +220,7 @@ def decision_summary(
         if (k.get("tutar") or 0) > 0:
             gerekceler.append(f"{_kalem_metni(k)}: yaklaşık {_tl(k.get('tutar'))} değer kaybı.")
 
-    if sonuc == LOW_CONFIDENCE_VERDICT:
+    if level == "dusuk":
         # Az/dağınık veride müşteriye somut bilgi: kaç ilan, kaçı aynı yıl, ne kadar belirsizlik.
         count, same = reference.get("count") or 0, reference.get("same_year_count")
         low, high = aralik.get("min"), aralik.get("max")
@@ -236,7 +247,7 @@ def decision_summary(
     piyasa_kaynagi = reference.get("source")
     return {
         "karar": {"sonuc": sonuc, "aciklama": aciklama, "guvenSeviyesi": level,
-                  "hesaplananEgilim": karar if level == "dusuk" else None},
+                  "hesaplananEgilim": karar if sonuc == LOW_CONFIDENCE_VERDICT else None},
         "ozet": {
             "piyasaKonumu": {"durum": konum, "metin": konum_metni},
             "adilFiyat": {"min": aralik.get("min"), "max": aralik.get("max")},

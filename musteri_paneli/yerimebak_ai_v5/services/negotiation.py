@@ -30,12 +30,8 @@ def _tl(value: Optional[float]) -> str:
 DUSUK_FIYAT_SERT_YUZDE = 10.0
 
 
-def dusuk_fiyat_uyarisi(price: float, reference: Dict[str, Any], deger_kaybi: float = 0.0) -> Optional[str]:
-    """Ilan benzer ilanlarin ortalamasinin altindaysa: satici bir kusuru belirtmemis olabilir (kullanici karari).
-
-    Karsilastirma, BILDIRILEN hasarin etkisi dusulmus ortalamayla yapilir. Chery Tiggo denemesinde (03.11.2026)
-    180.000 TL tramer + 2 degisen kapili ilan hasarsiz ortalamanin %10,9 altinda diye "gizli kusur" uyarisi aliyordu;
-    oysa hasar dusulunce ilan piyasanin %19,7 USTUNDEYDI. Dusuk fiyatin nedeni zaten beyan edilmisse uyari verilmez."""
+def dusuk_fiyat_yuzdesi(price: float, reference: Dict[str, Any], deger_kaybi: float = 0.0) -> Optional[float]:
+    """Ilan, bildirilen hasar dusulmus benzer ilan ortalamasinin yuzde kac altinda; altinda degilse None."""
     ortalama = reference.get("market_avg_price") or reference.get("market_median_price")
     orta = reference.get("market_median_price") or ortalama
     try:
@@ -48,7 +44,19 @@ def dusuk_fiyat_uyarisi(price: float, reference: Dict[str, Any], deger_kaybi: fl
     # (orta fiyata göre "piyasanın üstünde" olan) ilana "ortalamanın altında" denmesin (018 değişmez testi).
     if ortalama <= 0 or beklenen <= 0 or price <= 0 or price >= min(beklenen, orta - kayip):
         return None
-    yuzde = (1 - price / beklenen) * 100
+    return (1 - price / beklenen) * 100
+
+
+def dusuk_fiyat_uyarisi(price: float, reference: Dict[str, Any], deger_kaybi: float = 0.0) -> Optional[str]:
+    """Ilan benzer ilanlarin ortalamasinin altindaysa: satici bir kusuru belirtmemis olabilir (kullanici karari).
+
+    Karsilastirma, BILDIRILEN hasarin etkisi dusulmus ortalamayla yapilir. Chery Tiggo denemesinde (03.11.2026)
+    180.000 TL tramer + 2 degisen kapili ilan hasarsiz ortalamanin %10,9 altinda diye "gizli kusur" uyarisi aliyordu;
+    oysa hasar dusulunce ilan piyasanin %19,7 USTUNDEYDI. Dusuk fiyatin nedeni zaten beyan edilmisse uyari verilmez."""
+    yuzde = dusuk_fiyat_yuzdesi(price, reference, deger_kaybi)
+    if yuzde is None:
+        return None
+    kayip = max(0.0, float(deger_kaybi or 0))
     oran = f"%{yuzde:.1f}".replace(".", ",")
     giris = (f"İlan fiyatı, bildirilen hasarın etkisi düşüldükten sonra bile benzer ilanların ortalamasının {oran} altında."
              if kayip else f"İlan fiyatı benzer ilanların ortalamasının {oran} altında.")
