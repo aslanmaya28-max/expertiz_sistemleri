@@ -166,3 +166,91 @@
   .yb-home[data-motion="ready"] .yb-report { transform: translate3d(0,calc((1 - var(--section-entry)) * var(--move-up)),0); }
   .yb-home[data-motion="ready"] .yb-report:nth-child(even) { transform: translate3d(0,calc((1 - var(--section-entry)) * var(--move-up) * 1.2),0); }
 }
+
+/* 031 — ortak marka tokenları, akıştan çıkmayan girişler ve kart yığını. */
+.yb-header { isolation: isolate; background: transparent; backdrop-filter: none; border-bottom-color: transparent; }
+.yb-header::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background: var(--yb-paper); border-bottom: 1px solid var(--yb-line);
+}
+.yb-header[data-floating="true"]::before {
+  inset: 8px 12px; border: 1px solid var(--yb-line); border-radius: 40px;
+  background: var(--background); box-shadow: 0 8px 30px color-mix(in srgb, var(--yb-brand-band) 12%, transparent);
+}
+.yb-header .yb-nav { position: relative; }
+.yb-header .yb-mobile-nav { max-height: calc(100dvh - 96px); overflow-y: auto; overscroll-behavior: contain; }
+.yb-button-dark > svg, .yb-button-mint > svg {
+  width: 34px; height: 34px; padding: 8px; border-radius: 50%;
+  background: var(--background); color: var(--yb-brand-band);
+  transition: transform 180ms ease;
+}
+.yb-button-dark:hover > svg, .yb-button-dark:focus-visible > svg,
+.yb-button-mint:hover > svg, .yb-button-mint:focus-visible > svg { transform: translate(2px,-2px); }
+.yb-button-small { padding-block: 7px; }
+.yb-text-link, a.text-birincil { color: var(--yb-green-text); }
+a.bg-birincil.text-white, button.bg-birincil.text-white { background: var(--yb-brand-band); }
+.yb-hero h1 em, .yb-section h2 em { color: var(--yb-green-text); }
+.yb-pilot, .yb-icon-circle { background: var(--yb-mint-surface); color: var(--yb-green-text); }
+.yb-benefit:nth-child(2) .yb-icon-circle { background: var(--yb-peach-surface); color: var(--yb-orange-text); }
+.yb-step-no { color: var(--yb-orange-text); }
+.yb-home[data-motion="ready"] [data-sc-in] {
+  transition: transform 650ms cubic-bezier(.23,1,.32,1), opacity 650ms ease;
+  transition-delay: var(--yb-entry-delay, 50ms);
+}
+.yb-home[data-motion="ready"] .yb-benefits > .yb-benefit {
+  transition: transform 650ms cubic-bezier(.23,1,.32,1);
+}
+.yb-report-grid { display: grid; grid-template-columns: 1fr; gap: 28px; border: 0; padding-bottom: 32px; }
+.yb-report.yb-stack-card, .yb-report.yb-stack-card + .yb-report {
+  padding: 40px; border: 1px solid var(--yb-line); border-radius: 24px;
+  min-height: 260px; box-shadow: 0 10px 24px color-mix(in srgb, var(--yb-brand-band) 6%, transparent);
+}
+.yb-stack-card { position: relative; background: var(--yb-mint-surface); }
+.yb-stack-card:nth-child(even) { background: var(--yb-peach-surface); border-color: var(--yb-orange-line); }
+.yb-report.yb-stack-card h3 { max-width: none; min-height: 0; font-size: clamp(24px,3vw,36px); }
+.yb-report.yb-stack-card p { max-width: 65ch; font-size: 15px; }
+.yb-report.yb-stack-card .yb-report-top { margin-bottom: 24px; }
+.yb-report.yb-stack-card:nth-child(even) .yb-report-top { color: var(--yb-orange-text); }
+.yb-report.yb-stack-card .yb-report-scope { font-size: 11px; color: var(--yb-muted); }
+.yb-home[data-motion="ready"] .yb-stack-card[data-sc-in] { transform: translate3d(0,24px,0); }
+.yb-home[data-motion="ready"] .yb-stack-card[data-sc-in].sc-in { transform: none; }
+@media(min-height:800px) {
+  .yb-home[data-motion="ready"] [data-stack-ready="true"] > .yb-stack-card {
+    position: sticky; top: calc(120px + var(--yb-stack-index, 0) * 16px);
+  }
+}
+.yb-service-stack { display: grid; gap: 24px; padding-bottom: 28px; }
+.yb-service-page .yb-stack-card { border-radius: 24px; }
+.yb-service-page .yb-service-section { background: var(--background); }
+.yb-service-page .yb-service-hero { border-top: 4px solid var(--yb-green); }
+.yb-service-page h2 { letter-spacing: -.025em; }
+.yb-service-page nav a { min-height: 44px; display: inline-flex; align-items: center; color: var(--yb-green-text); }
+.yb-final-cta {
+  background: linear-gradient(110deg, var(--yb-brand-band) 0%, var(--yb-brand-band) 75%, var(--yb-orange) 100%);
+  border-radius: 28px;
+}
+.yb-final-cta p { color: var(--background); }
+.yb-final-cta .yb-eyebrow, .yb-final-cta h2 em { color: var(--yb-mint); }
+.yb-final-cta .yb-cta-watermark { color: color-mix(in srgb, var(--yb-mint) 12%, transparent); }
+@media(max-width:760px) {
+  .yb-report.yb-stack-card, .yb-report.yb-stack-card + .yb-report { padding: 28px 24px; min-height: 300px; }
+  .yb-report-grid { gap: 24px; }
+  .yb-header[data-floating="true"]::before { inset: 6px 8px; border-radius: 28px; }
+  .yb-final-cta { padding: 36px 24px; background: linear-gradient(165deg, var(--yb-brand-band) 0%, var(--yb-brand-band) 85%, var(--yb-orange) 100%); }
+  .yb-service-page .yb-button { gap: 12px; padding: 12px 18px; font-size: 13px; }
+}
+@media(max-height:799px) {
+  .yb-home [data-stack] > .yb-stack-card { position: relative; top: auto; }
+}
+/* Keep this after narrative effects: preference changes must cancel existing motion too. */
+@media(prefers-reduced-motion:reduce) {
+  .yb-home .yb-stack-card { position: relative; top: auto; }
+  .yb-home [data-sc-in], .yb-home [data-sc-reveal], .yb-home [data-page-motion] * {
+    transform: none !important; opacity: 1 !important; transition: none !important;
+    animation: none !important; clip-path: none !important;
+  }
+  .yb-home [data-sc-parallax], .yb-home .yb-report-paper, .yb-home .yb-final-cta,
+  .yb-button > svg { transform: none !important; transition: none !important; }
+  .yb-home [data-sc-act] { height: auto !important; }
+  .yb-home .yb-dossier-stage { position: relative !important; height: auto !important; }
+}

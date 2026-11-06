@@ -80,7 +80,7 @@ class ScrollExperience(unittest.TestCase):
     def test_missing_javascript_or_engine_keeps_content(self):
         for javascript,blocked in [(False,False),(True,True)]:
             page=self.open(javascript=javascript,block_engine=blocked)
-            expect(page.get_by_role('heading',level=1)).to_contain_text('Siz gitmeden')
+            expect(page.get_by_role('heading',level=1)).to_contain_text('doğru bilgiye')
             expect(page.get_by_role('link',name='İnceleme talebi oluştur',exact=True).first).to_be_visible()
             scene=page.locator('[data-report-scene]')
             expect(scene).to_contain_text('Müşteri paneliniz')
