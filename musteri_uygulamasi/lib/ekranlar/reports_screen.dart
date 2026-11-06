@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/providers.dart';
 import '../api/report_list_controller.dart';
 import '../bilesenler/ortak.dart';
+import '../tema/olculer.dart';
 import '../api/models.dart';
 import '../bilesenler/alt_eylem_cubugu.dart';
 import '../bilesenler/pazarlik_plani.dart';
@@ -37,10 +38,16 @@ class ReportsScreen extends ConsumerWidget {
                         Text('Henüz değerleme raporunuz yok.'),
                       ]),
                     for (final report in list.reports)
-                      Card(
-                        child: Padding(
-                          padding: EdgeInsets.zero,
-                          child: ReportTile(report),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: Olcu.kartArasi),
+                        child: Card(
+                          clipBehavior: Clip.antiAlias,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: Olcu.kartIci,
+                            ),
+                            child: ReportTile(report),
+                          ),
                         ),
                       ),
                     if (list.hasMore)

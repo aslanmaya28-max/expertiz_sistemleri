@@ -37,7 +37,19 @@ class YbRenkler extends ThemeExtension<YbRenkler> {
   Color get degisenMetin => _values['degisenMetin']!;
   Color get cam => _values['cam']!;
   Color get beyaz => _values['beyaz']!;
+  // Turuncu vurgu (kullanıcı kararı, 6 Kasım 2026): ana renk yeşil kalır;
+  // turuncu yalnız küçük dokunuşlarda (kredi, Yakında, hizmet simgesi, ilan çizgisi).
+  Color get vurgu => _values['vurgu']!;
+  Color get vurguMetin => _values['vurguMetin']!;
+  Color get vurguYuzey => _values['vurguYuzey']!;
+  Color get vurguKenar => _values['vurguKenar']!;
+  Color get vurguBant => _values['vurguBant']!;
   static const acik = YbRenkler._({
+    'vurgu': Color(0xFFC6613F),
+    'vurguMetin': Color(0xFFA84E2F),
+    'vurguYuzey': Color(0xFFFBEDE6),
+    'vurguKenar': Color(0xFFEBB8A2),
+    'vurguBant': Color(0xFFF2A07B),
     'lokalYuzey': Color(0xFFFDF1E2),
     'lokalKenar': Color(0xFFF2C894),
     'boyaliYuzey': Color(0xFFF2C894),
@@ -73,6 +85,11 @@ class YbRenkler extends ThemeExtension<YbRenkler> {
     'bilgiYuzey': Color(0xFFE8F0FB),
   });
   static const koyu = YbRenkler._({
+    'vurgu': Color(0xFFE08A68),
+    'vurguMetin': Color(0xFFEBA587),
+    'vurguYuzey': Color(0xFF3A241B),
+    'vurguKenar': Color(0xFF7A4433),
+    'vurguBant': Color(0xFFE08A68),
     'lokalYuzey': Color(0xFF241A0B),
     'lokalKenar': Color(0xFF6B4A16),
     'boyaliYuzey': Color(0xFF6B4A16),
@@ -107,6 +124,7 @@ class YbRenkler extends ThemeExtension<YbRenkler> {
     'bilgi': Color(0xFF8FB8F0),
     'bilgiYuzey': Color(0xFF14202F),
   });
+
   @override
   YbRenkler copyWith({Map<String, Color>? values}) =>
       YbRenkler._({..._values, ...?values});

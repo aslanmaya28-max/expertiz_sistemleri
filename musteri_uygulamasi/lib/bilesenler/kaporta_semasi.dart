@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../tema/kaporta_geometri.dart';
 import '../tema/olculer.dart';
@@ -97,113 +96,62 @@ class KaportaSemasi extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('ÖN', textAlign: TextAlign.center, style: Yazilar.kucuk),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: const [
             Text('SOL', style: Yazilar.kucuk),
+            Text('ÖN', style: Yazilar.kucuk),
             Text('SAĞ', style: Yazilar.kucuk),
           ],
         ),
+        const SizedBox(height: Olcu.s8),
         LayoutBuilder(
           builder: (context, c) {
-            final scale = c.maxWidth / Olcu.kaportaGenislik;
+            final scale = c.maxWidth / KaportaGeometri.genislik;
             return SizedBox(
-              height: Olcu.kaportaYukseklik * scale,
+              height: KaportaGeometri.yukseklik * scale,
               child: Stack(
                 children: [
-                  Positioned.fromRect(
-                    rect: Rect.fromLTWH(
-                      KaportaGeometri.govde.left * scale,
-                      KaportaGeometri.govde.top * scale,
-                      KaportaGeometri.govde.width * scale,
-                      KaportaGeometri.govde.height * scale,
-                    ),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: r.kenarlik),
-                        borderRadius: BorderRadius.circular(
-                          KaportaGeometri.govdeKose * scale,
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _KaportaCizimi(
+                          renkler: r,
+                          durum: _durum,
+                          dolgu: fill,
+                          kenar: border,
+                          harf: letter,
                         ),
                       ),
                     ),
                   ),
-                  for (final rect in KaportaGeometri.camlar)
-                    Positioned.fromRect(
-                      rect: Rect.fromLTWH(
-                        rect.left * scale,
-                        rect.top * scale,
-                        rect.width * scale,
-                        rect.height * scale,
-                      ),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: r.cam,
-                          borderRadius: BorderRadius.circular(Olcu.rozetKose),
-                        ),
-                      ),
-                    ),
                   for (final part in KaportaGeometri.parcalar.entries)
                     Builder(
                       builder: (context) {
-                        final s = _durum(part.key), rect = part.value;
-                        final w = math.max(Olcu.dokunma, rect.width * scale),
-                            h = math.max(Olcu.dokunma, rect.height * scale);
+                        final s = _durum(part.key), rect = part.value.isabet;
+                        void dongu() => _sec(
+                          part.key,
+                          durumlar.keys.elementAt(
+                            (durumlar.keys.toList().indexOf(s) + 1) %
+                                durumlar.length,
+                          ),
+                        );
                         return Positioned(
-                          left: rect.center.dx * scale - w / 2,
-                          top: rect.center.dy * scale - h / 2,
-                          width: w,
-                          height: h,
+                          left: rect.left * scale,
+                          top: rect.top * scale,
+                          width: rect.width * scale,
+                          height: rect.height * scale,
                           child: Semantics(
                             label: '${parcalar[part.key]}, ${durumlar[s]}',
                             button: true,
-                            onTap: () => _sec(
-                              part.key,
-                              durumlar.keys.elementAt(
-                                (durumlar.keys.toList().indexOf(s) + 1) %
-                                    durumlar.length,
-                              ),
-                            ),
+                            onTap: dongu,
                             child: Tooltip(
                               message: '${parcalar[part.key]}: ${durumlar[s]}',
                               child: GestureDetector(
                                 key: ValueKey('kaporta-${part.key}'),
                                 behavior: HitTestBehavior.opaque,
-                                onTap: () => _sec(
-                                  part.key,
-                                  durumlar.keys.elementAt(
-                                    (durumlar.keys.toList().indexOf(s) + 1) %
-                                        durumlar.length,
-                                  ),
-                                ),
+                                onTap: dongu,
                                 onLongPress: () => _menu(context, part.key),
-                                child: Center(
-                                  child: Container(
-                                    width: rect.width * scale,
-                                    height: rect.height * scale,
-                                    alignment: Alignment.center,
-                                    decoration: BoxDecoration(
-                                      color: fill(s),
-                                      border: Border.all(
-                                        color: border(s),
-                                        width: Olcu.odakKenar,
-                                      ),
-                                      borderRadius: BorderRadius.circular(
-                                        Olcu.rozetKose,
-                                      ),
-                                    ),
-                                    child: ExcludeSemantics(
-                                      child: Text(
-                                        letter(s),
-                                        style: Yazilar.kucuk.copyWith(
-                                          color: s == 'degisen'
-                                              ? r.degisenMetin
-                                              : r.metin,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
                               ),
                             ),
                           ),
@@ -215,6 +163,7 @@ class KaportaSemasi extends StatelessWidget {
             );
           },
         ),
+        const SizedBox(height: Olcu.s12),
         Wrap(
           spacing: Olcu.s12,
           runSpacing: Olcu.s8,
@@ -257,4 +206,70 @@ class KaportaSemasi extends StatelessWidget {
       ],
     );
   }
+}
+
+class _KaportaCizimi extends CustomPainter {
+  final YbRenkler renkler;
+  final String Function(String) durum;
+  final Color Function(String) dolgu, kenar;
+  final String Function(String) harf;
+  _KaportaCizimi({
+    required this.renkler,
+    required this.durum,
+    required this.dolgu,
+    required this.kenar,
+    required this.harf,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = renkler;
+    canvas.scale(size.width / KaportaGeometri.genislik);
+    final cizgi = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = Olcu.odakKenar
+      ..strokeJoin = StrokeJoin.round
+      ..color = r.ikonPasif.withValues(alpha: .55);
+    final dolu = Paint()..style = PaintingStyle.fill;
+    canvas.drawPath(KaportaGeometri.govdeler, dolu..color = r.yuzey);
+    canvas.drawPath(KaportaGeometri.govdeler, cizgi);
+    for (final e in KaportaGeometri.parcalar.entries) {
+      final s = durum(e.key);
+      canvas.drawPath(e.value.sekil, dolu..color = dolgu(s));
+      canvas.drawPath(
+        e.value.sekil,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = s == 'orijinal' ? Olcu.kenar : Olcu.vurguluKenar
+          ..color = s == 'orijinal'
+              ? r.ikonPasif.withValues(alpha: .6)
+              : kenar(s),
+      );
+    }
+    canvas.drawPath(KaportaGeometri.camlar, dolu..color = r.cam);
+    canvas.drawPath(KaportaGeometri.camlar, cizgi);
+    canvas.drawPath(KaportaGeometri.detaylar, cizgi);
+    canvas.drawPath(KaportaGeometri.lastikler, dolu..color = r.metinIkincil);
+    canvas.drawPath(KaportaGeometri.jantlar, dolu..color = r.yuzeyIkincil);
+    canvas.drawPath(KaportaGeometri.jantlar, cizgi);
+    for (final e in KaportaGeometri.parcalar.entries) {
+      final s = durum(e.key), h = harf(s);
+      if (h.isEmpty) continue;
+      final tp = TextPainter(
+        text: TextSpan(
+          text: h,
+          style: Yazilar.kucuk.copyWith(
+            fontSize: Olcu.kaportaHarf,
+            fontWeight: FontWeight.w700,
+            color: s == 'degisen' ? r.degisenMetin : r.metin,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, e.value.etiket - Offset(tp.width / 2, tp.height / 2));
+    }
+  }
+
+  @override
+  bool shouldRepaint(_KaportaCizimi old) => true;
 }

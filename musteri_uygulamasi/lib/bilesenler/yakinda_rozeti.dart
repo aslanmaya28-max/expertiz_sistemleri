@@ -8,8 +8,7 @@ class YakindaRozeti extends StatelessWidget {
   const YakindaRozeti({super.key, this.simdi = false});
   @override
   Widget build(BuildContext context) {
-    final r = YbRenkler.of(context),
-        dark = Theme.of(context).brightness == Brightness.dark;
+    final r = YbRenkler.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(
         vertical: Olcu.rozetDikey,
@@ -17,17 +16,13 @@ class YakindaRozeti extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: simdi ? r.birincil : null,
-        border: Border.all(color: dark ? r.uyariKenar : r.birincilAcik),
+        border: Border.all(color: r.vurguKenar),
         borderRadius: BorderRadius.circular(Olcu.rozetKose),
       ),
       child: Text(
         simdi ? 'Şimdi' : 'Yakında',
         style: Yazilar.kucuk.copyWith(
-          color: simdi
-              ? r.birincilUstu
-              : dark
-              ? r.uyari
-              : r.birincilMetin,
+          color: simdi ? r.birincilUstu : r.vurguMetin,
         ),
       ),
     );

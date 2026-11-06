@@ -103,9 +103,7 @@ class FiyatAraligi extends StatelessWidget {
                         child: Container(
                           width: Olcu.ilanCizgi,
                           height: Olcu.s24,
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? r.uyari
-                              : r.metin,
+                          color: r.vurgu,
                         ),
                       ),
                   ],
@@ -113,12 +111,15 @@ class FiyatAraligi extends StatelessWidget {
               );
             },
           ),
-          Wrap(
-            spacing: Olcu.s12,
-            runSpacing: Olcu.s4,
+          // Sınır etiketleri çubuğun iki ucunun altında durur.
+          Stack(
             children: [
-              Text(money(alt), style: Yazilar.etiket),
-              Text(money(ust), style: Yazilar.etiket),
+              for (final v in [alt!, ust!])
+                Align(
+                  alignment: Alignment(position(v) * 2 - 1, 0),
+                  heightFactor: 1,
+                  child: Text(money(v), style: Yazilar.etiket),
+                ),
             ],
           ),
           const SizedBox(height: Olcu.s8),

@@ -113,7 +113,7 @@ class _HizmetKarti extends StatelessWidget {
                 Icon(
                   ikon,
                   size: Olcu.ikonInce,
-                  color: YbRenkler.of(context).birincil,
+                  color: YbRenkler.of(context).vurgu,
                 ),
                 const Spacer(),
                 if (yakinda) const YakindaRozeti(),

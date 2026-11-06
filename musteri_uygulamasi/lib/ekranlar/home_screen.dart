@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../api/models.dart';
 import '../api/providers.dart';
+import '../bilesenler/ikincil_buton.dart';
 import '../bilesenler/ortak.dart';
 import '../tema/olculer.dart';
 import '../tema/yazi.dart';
@@ -31,67 +33,90 @@ class HomeScreen extends ConsumerWidget {
       ]);
     }
 
-    return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: refresh,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: [
-            _AnaBaslik(balance: balance),
-            PageBody(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+    final r = YbRenkler.of(context);
+    // Kaydırılan içerik durum çubuğunun altına girmesin; çubuk alanı başlık
+    // rengiyle sabit kalır.
+    // Bant koyu olduğundan durum çubuğu simgeleri açık renk olur.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: Theme.of(context).brightness == Brightness.light
+            ? r.markaBandi
+            : r.zemin,
+        body: SafeArea(
+          bottom: false,
+          child: ColoredBox(
+            color: r.zemin,
+            child: RefreshIndicator(
+              onRefresh: refresh,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 children: [
-                  if (session.user?.emailVerified == false)
-                    Panel('E-posta adresinizi doğrulayın', [
-                      Text(
-                        '${session.user!.email} adresini henüz doğrulamadınız. E-postanızdaki bağlantıya tıklayın.',
-                      ),
-                      ActionButton('Tekrar gönder', () async {
-                        final message = await ref
-                            .read(accountRepositoryProvider)
-                            .resendVerification();
-                        await ref.read(sessionProvider).refreshProfile();
-                        if (context.mounted) showMessage(context, message);
-                      }),
-                    ]),
-                  Kart(
-                    analiz: true,
+                  _AnaBaslik(balance: balance),
+                  PageBody(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text('Yeni araç analizi', style: Yazilar.baslik2),
-                        const SizedBox(height: Olcu.s8),
-                        const Text(
-                          'İlanı ve araç bilgilerini birlikte değerlendirin.',
+                        if (session.user?.emailVerified == false)
+                          Panel('E-posta adresinizi doğrulayın', [
+                            Text(
+                              '${session.user!.email} adresini henüz doğrulamadınız. E-postanızdaki bağlantıya tıklayın.',
+                            ),
+                            const SizedBox(height: Olcu.s12),
+                            IkincilButon('Tekrar gönder', () async {
+                              final message = await ref
+                                  .read(accountRepositoryProvider)
+                                  .resendVerification();
+                              await ref.read(sessionProvider).refreshProfile();
+                              if (context.mounted) {
+                                showMessage(context, message);
+                              }
+                            }),
+                          ]),
+                        Kart(
+                          analiz: true,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Text(
+                                'Yeni araç analizi',
+                                style: Yazilar.baslik2,
+                              ),
+                              const SizedBox(height: Olcu.s8),
+                              const Text(
+                                'İlanı ve araç bilgilerini birlikte değerlendirin.',
+                              ),
+                              const SizedBox(height: Olcu.s16),
+                              const IlanLinkKutusu(sade: true),
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: Olcu.s16),
-                        const IlanLinkKutusu(sade: true),
+                        const SizedBox(height: Olcu.s24),
+                        recent.when(
+                          data: (page) => Panel('Son raporlar', [
+                            if (page.reports.isEmpty)
+                              const Text('Henüz değerleme raporunuz yok.'),
+                            for (final report in page.reports)
+                              ReportTile(report),
+                            TextButton(
+                              onPressed: () => context.go('/raporlar'),
+                              child: const Text('Tüm raporlarım'),
+                            ),
+                          ]),
+                          error: (e, _) => FailureView(
+                            e,
+                            () => ref.invalidate(recentReportsProvider),
+                          ),
+                          loading: () => const LoadingView(),
+                        ),
+                        const HizmetKartlari(),
                       ],
                     ),
                   ),
-                  const SizedBox(height: Olcu.s24),
-                  recent.when(
-                    data: (page) => Panel('Son raporlar', [
-                      if (page.reports.isEmpty)
-                        const Text('Henüz değerleme raporunuz yok.'),
-                      for (final report in page.reports) ReportTile(report),
-                      TextButton(
-                        onPressed: () => context.go('/raporlar'),
-                        child: const Text('Tüm raporlarım'),
-                      ),
-                    ]),
-                    error: (e, _) => FailureView(
-                      e,
-                      () => ref.invalidate(recentReportsProvider),
-                    ),
-                    loading: () => const LoadingView(),
-                  ),
-                  const HizmetKartlari(),
                 ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -169,6 +194,7 @@ class _AnaBaslik extends StatelessWidget {
                       data: (v) => TextButton.icon(
                         style: TextButton.styleFrom(
                           backgroundColor: r.yuzeyIkincil,
+                          foregroundColor: r.vurguMetin,
                         ),
                         onPressed: () => context.go('/kredi'),
                         icon: const Icon(
@@ -200,7 +226,7 @@ class _AnaBaslik extends StatelessWidget {
                       Text(
                         '$v kredi',
                         style: Yazilar.bolumBaslik.copyWith(
-                          color: r.markaBandiVurgu,
+                          color: r.vurguBant,
                         ),
                       ),
                       TextButton(

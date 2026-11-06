@@ -46,6 +46,12 @@ Tüm metin/zemin çiftleri WCAG AA'yı geçer (en düşük 5,08:1). Yeni çift e
 | `markaBandi` | `#0B4A45` | — | Ana ekran üst bandı (yalnız açık tema) |
 | `markaBandiMetin` | `#B8D4D0` | — | Bant içi ikincil yazı |
 | `markaBandiVurgu` | `#8FE0D3` | — | Logodaki "Bak", "Yakında" rozeti zemini (bantta) |
+| `vurgu` | `#C6613F` | `#E08A68` | Turuncu dokunuş: hizmet kartı simgesi, fiyat çubuğunda ilan çizgisi |
+| `vurguMetin` / `vurguKenar` | `#A84E2F` / `#EBB8A2` | `#EBA587` / `#7A4433` | "Yakında" rozeti yazı/kenar, koyu temada kredi düğmesi |
+| `vurguBant` | `#F2A07B` | — | Açık temada yeşil bantta kredi sayısı |
+
+> **Turuncu kuralı (kullanıcı kararı, 6 Kasım 2026):** ana renk yeşil kalır. Turuncu yalnız yukarıdaki küçük
+> dokunuşlarda kullanılır; düğme, karar rozeti, bağlantı ve seçili menü yeşildir. Kaporta durum renkleri ayrıdır.
 | `uyari` | `#8A4B00` | `#F0B458` | "Pazarlık yapın" yazısı, ilan işareti (koyu) |
 | `uyariYuzey` | `#FDF1E2` | `#241A0B` | "Pazarlık yapın" rozet zemini |
 | `uyariKenar` | `#F2C894` | `#6B4A16` | Uyarı rozet kenarı |
@@ -118,8 +124,8 @@ Her bileşen `lib/bilesenler/` altında tek dosya, ekranlar bunları kullanır.
 | **Kart** | `yuzey`, köşe 16–18, kenarlık yok (açık) / yok (koyu, yüzey tonu yeter). |
 | **ListeSatiri** | 42'lik ikon kutusu (`yuzeyIkincil`), başlık 15/600, alt bilgi 13 `metinIkincil`, sağda rozet + rakam. Satırlar arası `ayirici`. |
 | **KararRozeti** | Bölüm 4. Köşe 6, iç boşluk 3×8, 12/600. Rapor başında büyük hâli 12/700 büyük harf. |
-| **YakindaRozeti** | "Yakında" 11/600; açık temada `birincilMetin` yazı + `birincilAcik` kenar, koyu temada `uyari` yazı + `uyariKenar` kenar. "Şimdi" rozeti dolu `birincil`. |
-| **FiyatAraligi** (imza bileşeni) | Yatay çubuk: gri iz (`ayirici`/`yuzeyIkincil`), üstünde adil aralık (`birincilAcik`), hesaplanan değer = `birincil` dolu nokta (beyaz/yüzey halkalı), ilan fiyatı = ince dikey çizgi (açık: `metin`, koyu: `uyari`) ve üstünde/altında "İlan 1.730.000". Uçlarda alt/üst sınır rakamları. Ölçek, aralığın iki yanına pay bırakacak şekilde sunucu rakamlarından hesaplanır; ilan aralık dışındaysa çizgi çubuğun dışına taşmaz, uca yapışır ve etiket "aralığın üstünde" der. Ekran okuyucu etiketi: "Adil fiyat aralığı X ile Y TL arası; ilan fiyatı Z TL". |
+| **YakindaRozeti** | "Yakında" 11/600; iki temada `vurguMetin` yazı + `vurguKenar` kenar. "Şimdi" rozeti dolu `birincil`. |
+| **FiyatAraligi** (imza bileşeni) | Yatay çubuk: gri iz (`ayirici`/`yuzeyIkincil`), üstünde adil aralık (`birincilAcik`), hesaplanan değer = `birincil` dolu nokta (beyaz/yüzey halkalı), ilan fiyatı = ince dikey turuncu çizgi (`vurgu`) ve üstünde/altında "İlan 1.730.000". Alt/üst sınır rakamları çubuğun iki ucunun altında. Ölçek, aralığın iki yanına pay bırakacak şekilde sunucu rakamlarından hesaplanır; ilan aralık dışındaysa çizgi çubuğun dışına taşmaz, uca yapışır ve etiket "aralığın üstünde" der. Ekran okuyucu etiketi: "Adil fiyat aralığı X ile Y TL arası; ilan fiyatı Z TL". |
 | **PazarlikUclusu** | Üç eşit kutu: Açılış · **Hedef** (vurgulu: `birincilYuzey`) · Üst sınırınız. Altında tasarruf cümlesi. Hedef ile üst sınır sunucuda eşit gelirse yine olduğu gibi gösterilir (kural sunucunun işi). |
 | **KaportaSemasi** (imza bileşeni) | Üstten görünüş araç şeması, 13 parça (`/valuation/parts` sırası ve adlarıyla), önü yukarıda, solda "SOL" sağda "SAĞ". Dokununca durum sırayla değişir: Orijinal → Lokal boyalı → Boyalı → Değişen → Orijinal; uzun basınca seçim listesi. Durumlar yalnız renk tonuyla değil açıklıkla da ayrılır ve parçada harf yazar (L/B/D). Açık: orijinal `yuzey` + `girdiKenarlik`, lokal `#FDF1E2`/`#F2C894`, boyalı `#F2C894`/`#C98A3A`, değişen `#A3580A` + beyaz harf. Koyu: orijinal `yuzey` + `girdiKenarlik`, lokal `#241A0B`/`#6B4A16`, boyalı `#6B4A16`/`#B8812F`, değişen `#E9A23B` + `#04201C` harf. Camlar `#E9EEED` / `#253230`. Altında açıklama (lejant) ve yazılı özet ("Değişen: Sol ön kapı, Sol arka kapı · Diğer 11 parça orijinal"). Her parça ekran okuyucuda "Sol ön kapı, değişen" diye okunur. |
 | **AltEylemCubugu** | Ekranın altına sabit, `yuzey` + üst `kenarlik`; iki buton yan yana (ikincil + ana) ya da tek ana buton; alt güvenli alan payı. |

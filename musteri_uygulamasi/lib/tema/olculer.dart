@@ -33,6 +33,5 @@ abstract final class Olcu {
   static const izYukseklik = 8.0, fiyatNokta = 18.0, ilanCizgi = 2.0;
   static const fiyatGrafikYukseklik = 44.0, fiyatIzUst = 16.0;
   static const fiyatOlcekPayi = .2, buyukMetinEsik = 1.15;
-  static const kaportaGenislik = 400.0, kaportaYukseklik = 550.0;
   static const kaportaHarf = 14.0, girisBantYukseklik = 176.0;
 }
