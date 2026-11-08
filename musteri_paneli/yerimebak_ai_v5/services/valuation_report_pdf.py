@@ -15,11 +15,17 @@ DISCLAIMER = 'Bu rapor ilan/müşteri beyanına ve internetteki ilanlara dayanı
 
 TITLE = 'Araç değerleme raporu'
 SEAL_TITLE = 'YERİMEBAK DEĞERLEME'
-BRAND = (14, 74, 120)
-INK = (27, 45, 61)
-MUTED = (88, 105, 121)
-LIGHT = (245, 248, 251)
-RULE = (217, 227, 235)
+# Sitedeki rapor ve uygulamayla aynı yeşil/nane palet (032, 08.11.2026). Eski mavi palet kaldırıldı.
+BRAND = (0, 107, 88)        # başlık ve vurgu metni (--yb-green-text)
+BAND = (0, 87, 76)          # koyu yeşil bant ve kartlar (--yb-brand-band)
+MINT = (92, 235, 198)       # koyu zeminde vurgu (--yb-mint)
+INK = (16, 44, 54)
+MUTED = (83, 98, 103)
+LIGHT = (214, 245, 235)     # nane yüzey (--yb-mint-surface)
+RULE = (220, 226, 219)
+PEACH = (255, 237, 226)     # şeftali yüzey (--yb-peach-surface)
+ORANGE = (180, 70, 27)      # turuncu metin (--yb-orange-text)
+WHITE = (255, 255, 255)
 ISSUE_GROUPS = (('motor', 'Motor'), ('sanziman', 'Şanzıman'), ('kaporta', 'Kaporta'),
                 ('alt_takim', 'Alt takım'), ('elektronik', 'Elektronik'), ('diger', 'Diğer'))
 LEGACY_ISSUE_GROUPS = (('mekanik_motor', 'Mekanik ve motor'),
@@ -113,10 +119,12 @@ def build_pdf(report, ornek=False):
 
     def heading(label):
         ensure(48)
-        pdf.ln(5)
-        text(label, True, 12, BRAND, line_height=6)
-        pdf.set_draw_color(*RULE)
-        pdf.line(pdf.l_margin, pdf.get_y()+1, pdf.w-pdf.r_margin, pdf.get_y()+1)
+        pdf.ln(6)
+        top = pdf.get_y()
+        # Sitedeki kart başlıkları gibi: solda nane şerit, yeşil başlık.
+        pdf.set_fill_color(*MINT)
+        pdf.rect(pdf.l_margin, top+.5, 1.6, 5.5, style='F', round_corners=True, corner_radius=.8)
+        text(label, True, 12.5, BAND, x=pdf.l_margin+4, width=pdf.epw-4, line_height=6.5)
         pdf.ln(3)
 
     def bullet(value, index=None):
@@ -141,9 +149,9 @@ def build_pdf(report, ornek=False):
             height = 18+5*len(chunk)
             top = pdf.get_y()
             pdf.set_fill_color(*fill)
-            pdf.rect(pdf.l_margin, top, pdf.epw, height, style='F')
+            pdf.rect(pdf.l_margin, top, pdf.epw, height, style='F', round_corners=True, corner_radius=3)
             pdf.set_fill_color(*accent)
-            pdf.rect(pdf.l_margin, top, 1, height, style='F')
+            pdf.rect(pdf.l_margin, top+3, 1.4, height-6, style='F', round_corners=True, corner_radius=.7)
             pdf.set_y(top+4)
             if badge and first:
                 pdf.set_font('Report', 'B', size=9)
@@ -159,26 +167,29 @@ def build_pdf(report, ornek=False):
             if lines:
                 pdf.add_page()
 
-    def cards(items, note=None, sizes=None):
-        gap, height = 4, 34 if note else 27
+    def cards(items, note=None, sizes=None, dark=None, highlight=None):
+        """Fiyat kartları. Köşeli dikdörtgen kalır: PDF–web eşlik testi kartı dikdörtgeninden bulur.
+        dark: koyu yeşil kart (ilan fiyatı); highlight: nane kenarlı vurgulu kart (hedef fiyat)."""
+        gap, height = 4, 36 if note else 27
         width = (pdf.epw-gap*(len(items)-1))/len(items)
         ensure(height+6)
         top, left = pdf.get_y(), pdf.l_margin
         for index, (label, value) in enumerate(items):
             x = left+index*(width+gap)
-            pdf.set_fill_color(*LIGHT)
-            pdf.set_draw_color(*RULE)
+            koyu = index == dark
+            pdf.set_fill_color(*(BAND if koyu else LIGHT))
+            pdf.set_draw_color(*(MINT if index == highlight else BAND if koyu else LIGHT))
+            pdf.set_line_width(.6 if index == highlight else .2)
             pdf.rect(x, top, width, height, style='DF')
-            pdf.set_fill_color(*BRAND)
-            pdf.rect(x, top, width, .8, style='F')
-            pdf.set_y(top+4)
-            text(label, True, 8, MUTED, width=width-8, x=x+4, line_height=4)
+            pdf.set_line_width(.2)
+            pdf.set_y(top+4.5)
+            text(label, True, 8, MINT if koyu else MUTED, width=width-8, x=x+4.5, line_height=4)
             pdf.set_y(top+13)
             size = sizes[index] if sizes else 15
-            text(value, True, size, BRAND, width=width-8, x=x+4, line_height=6)
+            text(value, True, size, WHITE if koyu else BAND, width=width-8, x=x+4.5, line_height=6)
             if note and index == len(items)-1:
-                pdf.set_y(top+24)
-                text(note, size=7.5, color=MUTED, width=width-8, x=x+4, line_height=3.5)
+                pdf.set_y(top+25)
+                text(note, size=7.5, color=WHITE if koyu else MUTED, width=width-8, x=x+4.5, line_height=3.5)
         pdf.set_y(top+height+4)
 
     def table(headers, rows, widths, align):
@@ -190,7 +201,7 @@ def build_pdf(report, ornek=False):
         pdf.set_fill_color(255, 255, 255)
         with pdf.table(col_widths=widths, line_height=5, padding=2,
                        text_align=align, align='LEFT', borders_layout='HORIZONTAL_LINES',
-                       headings_style=FontFace(emphasis='BOLD', color=(255, 255, 255), fill_color=BRAND),
+                       headings_style=FontFace(emphasis='BOLD', color=(255, 255, 255), fill_color=BAND),
                        cell_fill_color=LIGHT, cell_fill_mode='ROWS') as grid:
             for values in [headers]+rows:
                 row = grid.row()
@@ -288,15 +299,51 @@ def build_pdf(report, ornek=False):
                 and value in (message, message+'.'))
     identity = report['rapor']
     date = datetime.fromisoformat(identity['created_at'].replace('Z', '+00:00')).astimezone(ZoneInfo('Europe/Istanbul')).strftime('%d.%m.%Y')
-    top = pdf.get_y()
+    # Kapak: sitedeki rapor başlığı gibi koyu yeşil bant (032 referansı, 08.11.2026).
+    band_height = 64
+    pdf.set_fill_color(*BAND)
+    pdf.rect(0, 0, pdf.w, band_height, style='F')
+    # Süs dairesi yalnız bandın içinde görünür; beyaz zemine taşmaz.
+    with pdf.rect_clip(0, 0, pdf.w, band_height), pdf.local_context(fill_opacity=0.10):
+        pdf.set_fill_color(*MINT)
+        pdf.circle(pdf.w-12, band_height+4, 52, style='F')
     logo = Path(__file__).resolve().parents[1]/'assets'/'yerimebak_mark.png'
-    pdf.image(str(logo), x=pdf.l_margin, y=top, w=12, h=12)
-    text('YERİMEBAK', True, 9, BRAND, width=pdf.epw-18, x=pdf.l_margin+18, line_height=4)
-    text(TITLE, True, 19, width=pdf.epw-18, x=pdf.l_margin+18, line_height=8)
-    pdf.set_y(max(pdf.get_y(), top+14)+5)
-    text(f'{vehicle["marka"]} {vehicle["model"]} {vehicle["yil"]}' + (f' • {vehicle["paket"]}' if vehicle.get('paket') else ''), True, 15, line_height=7)
+    pdf.set_fill_color(*WHITE)
+    pdf.rect(pdf.l_margin, 12, 15, 15, style='F', round_corners=True, corner_radius=3.5)
+    pdf.image(str(logo), x=pdf.l_margin+1.75, y=13.75, w=11.5, h=11.5)
+    pdf.set_y(12.5)
+    text('YERİMEBAK', True, 9, MINT, width=pdf.epw-80, x=pdf.l_margin+20, line_height=4.5)
+    text(TITLE, True, 17, WHITE, width=pdf.epw-80, x=pdf.l_margin+20, line_height=8)
+    # Sağ üst: rapor kimliği (örnekte "ÖRNEK").
+    pdf.set_font('Report', 'B', size=9.5)
+    pdf.set_text_color(*WHITE)
+    pdf.set_xy(pdf.w-pdf.r_margin-70, 13)
+    pdf.cell(70, 5, 'ÖRNEK' if ornek else identity['report_no'], align='R')
+    pdf.set_font('Report', size=8.5)
+    pdf.set_text_color(*MINT)
+    pdf.set_xy(pdf.w-pdf.r_margin-70, 19)
+    pdf.cell(70, 5, date, align='R')
+    pdf.set_y(33)
+    text(f'{vehicle["marka"]} {vehicle["model"]} {vehicle["yil"]}', True, 19, WHITE, line_height=8.5)
+    if vehicle.get('paket'):
+        text(vehicle['paket'], True, 12.5, MINT, line_height=6.5)
+    pdf.set_y(band_height+5)
+    # Bilgi çipleri: yıl, km, yakıt, vites (sitedeki 2×2 / 4 sütun çipleri).
+    chips = (('Model yılı', str(vehicle.get('yil') or '—')), ('Kilometre', f'{_num(vehicle.get("km"))} km'),
+             ('Yakıt', vehicle.get('yakit') or '—'), ('Vites', vehicle.get('vites') or '—'))
+    gap = 3
+    chip_width = (pdf.epw-gap*3)/4
+    chip_top = pdf.get_y()
+    for index, (label, value) in enumerate(chips):
+        x = pdf.l_margin+index*(chip_width+gap)
+        pdf.set_fill_color(*LIGHT)
+        pdf.rect(x, chip_top, chip_width, 14, style='F', round_corners=True, corner_radius=3)
+        pdf.set_y(chip_top+2.5)
+        text(label, size=7.5, color=MUTED, width=chip_width-6, x=x+4, line_height=3.5)
+        text(value, True, 10.5, INK, width=chip_width-6, x=x+4, line_height=5)
+    pdf.set_y(chip_top+18)
     text(f'{date} • {_num(vehicle.get("km"))} km • {vehicle.get("yakit") or "—"} • {vehicle.get("vites") or "—"}'
-         + (f' • İlan fiyatı {_money(vehicle.get("ilanFiyati"))}' if vehicle.get('ilanFiyati') else ''))
+         + (f' • İlan fiyatı {_money(vehicle.get("ilanFiyati"))}' if vehicle.get('ilanFiyati') else ''), size=8.5, color=MUTED)
     text('YerimeBak uzman incelemesi içermez. Müşterinin sunduğu ekspertiz raporu ve beyanına dayalı hesaplama.'
          if report.get('ekspertizRaporu') else 'Uzman incelemesi içermez. İlan/müşteri beyanına dayalı hesaplama.', size=8.5, color=MUTED)
     inspection = report.get('ekspertizRaporu')
@@ -312,7 +359,7 @@ def build_pdf(report, ornek=False):
     cards([('Adil fiyat aralığı', _money(fair.get('min'))+' -\n'+_money(fair.get('max'))),
            ('Tavsiye alım fiyatı', _money(valuation.get('tavsiyeFiyat'))),
            ('İlan fiyatı', _money(vehicle.get('ilanFiyati')))],
-          note=(summary.get('piyasaKonumu') or {}).get('metin'), sizes=[12, 16, 16])
+          note=(summary.get('piyasaKonumu') or {}).get('metin'), sizes=[12, 16, 16], dark=2)
     text('Hasarsız piyasa değeri: '+_money(valuation.get('temizPiyasaDegeri')), size=9, color=MUTED)
     heading('Özet — beş cevap')
     fair = summary.get('adilFiyat') or {}
@@ -340,7 +387,7 @@ def build_pdf(report, ornek=False):
         heading('Pazarlık planı')
         cards([('Açılış teklifi:', _money(plan.get('acilisTeklifi'))),
                ('Hedef fiyat:', _money(plan.get('hedefFiyat'))),
-               ('Üst sınır:', _money(plan.get('ustSinir')))])
+               ('Üst sınır:', _money(plan.get('ustSinir')))], highlight=1)
         text('Potansiyel kazanç: '+_money(plan.get('potansiyelKazanc')), True)
         if plan.get('uyari'):
             text(plan['uyari'])
@@ -365,7 +412,7 @@ def build_pdf(report, ornek=False):
         panel('Bu araçta en çok dikkat etmeniz gerekenler',
               '\n'.join(f'{index}. {item.get("baslik") or "Kontrol başlığı"}'
                         for index, item in enumerate(critical, 1)),
-              fill=(253, 245, 245), accent=ISSUE_IMPORTANCE['yuksek'][1])
+              fill=PEACH, accent=ISSUE_IMPORTANCE['yuksek'][1])
     if 'modelRiskleri' in report:
         heading('Bu araçta dikkat edilecekler' if risks.get('gorunumSurumu') == 2 else 'Modelin bilinen sorunları')
         text('Bu başlıklar arıza teşhisi değildir; araç sürümü, şasi numarası ve servis kayıtlarıyla doğrulayın.')
@@ -390,9 +437,19 @@ def build_pdf(report, ornek=False):
         heading('Satıcıya sorulacak sorular')
         for index, question in enumerate(report.get('saticiSorulari') or [], 1):
             bullet(question, index)
-    heading('Bu aracı YerimeBak ile yerinde inceletin')
-    text('Satın almadan önce ilan beyanlarını ve bakım geçmişini yerinde uzman incelemesiyle doğrulatın. Ekspertiz talebi oluşturun:')
-    text('https://www.yerimebak.com.tr/ekspertiz-talebi')
+    # Sitedeki son çağrı bandı gibi koyu yeşil kutu (032).
+    ensure(40)
+    pdf.ln(6)
+    cta_top = pdf.get_y()
+    pdf.set_fill_color(*BAND)
+    pdf.rect(pdf.l_margin, cta_top, pdf.epw, 34, style='F', round_corners=True, corner_radius=4)
+    pdf.set_y(cta_top+5)
+    text('Bu aracı YerimeBak ile yerinde inceletin', True, 12.5, WHITE, x=pdf.l_margin+6, width=pdf.epw-12, line_height=6)
+    text('Satın almadan önce ilan beyanlarını ve bakım geçmişini yerinde uzman incelemesiyle doğrulatın. Ekspertiz talebi oluşturun:',
+         size=9, color=WHITE, x=pdf.l_margin+6, width=pdf.epw-12, line_height=4.5)
+    text('https://www.yerimebak.com.tr/ekspertiz-talebi', True, 9.5, MINT, x=pdf.l_margin+6, width=pdf.epw-12,
+         line_height=5, link='https://www.yerimebak.com.tr/ekspertiz-talebi')
+    pdf.set_y(cta_top+38)
     heading('Değer kaybı tablosu')
     table(('Kalem', 'Durum', 'Yüzde', 'Tutar'), [
             (str(k.get('baslik') or '—'), str(k.get('durum') or '—'), _pct(k.get('yuzde', 0), 2), _money(k.get('tutar')))
