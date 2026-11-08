@@ -78,6 +78,11 @@ class ReportRepository {
   Future<ReportSnapshot> detail(String id) async => ReportSnapshot.fromJson(
     await api.get('/valuation/reports/${Uri.encodeComponent(id)}'),
   );
+  /// Raporu müşterinin listesinden siler; kayıt ve doğrulama kodu sunucuda korunur.
+  Future<void> delete(String id) async {
+    await api.delete('/valuation/reports/${Uri.encodeComponent(id)}');
+  }
+
   Future<List<CreditHistoryEntry>> history() async => objects(
     (await api.get('/credits/history'))['history'],
   ).map(CreditHistoryEntry.fromJson).toList();

@@ -62,6 +62,16 @@ class ReportListController extends ChangeNotifier {
     }
   }
 
+  /// Raporu siler ve listeden çıkarır. Hata çağırana iletilir (ekran mesaj gösterir).
+  Future<void> remove(String id) async {
+    await repository.delete(id);
+    if (_disposed) return;
+    final before = reports.length;
+    reports = reports.where((r) => r.id != id).toList();
+    if (reports.length < before && total > 0) total--;
+    _notify();
+  }
+
   @override
   void dispose() {
     _disposed = true;

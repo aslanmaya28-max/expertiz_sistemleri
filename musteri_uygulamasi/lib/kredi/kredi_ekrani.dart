@@ -12,6 +12,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../tema/olculer.dart';
 import '../tema/renkler.dart';
 import 'satin_alma.dart';
+import 'rapor_icerigi.dart';
 
 const _playSimulasyonu =
     bool.fromEnvironment('PLAY_SIMULASYON') &&
@@ -117,6 +118,8 @@ class _KrediEkraniState extends ConsumerState<KrediEkrani> {
               ],
             ),
           ),
+          const SizedBox(height: Olcu.s16),
+          const RaporIcerigiKarti(),
           const SizedBox(height: Olcu.s16),
           if (yonetici.mesaj != null)
             Card(

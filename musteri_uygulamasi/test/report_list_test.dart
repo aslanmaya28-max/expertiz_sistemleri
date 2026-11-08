@@ -44,4 +44,42 @@ void main() {
       expect(offsets, ['0', '1', '0']);
     },
   );
+
+  test(
+    'silinen rapor DELETE ile gider ve listeden çıkar (09.11.2026)',
+    () async {
+      final calls = <String>[];
+      final api = ApiClient(
+        store: MemoryTokens('valid'),
+        client: MockClient((r) async {
+          calls.add('${r.method} ${r.url.path}');
+          if (r.method == 'DELETE') {
+            return http.Response(jsonEncode({'success': true}), 200);
+          }
+          return http.Response(
+            jsonEncode({
+              'total': 2,
+              'reports': [
+                {
+                  'id': 'a1',
+                  'arac': {'marka': 'Skoda'},
+                },
+                {
+                  'id': 'b2',
+                  'arac': {'marka': 'Fiat'},
+                },
+              ],
+            }),
+            200,
+          );
+        }),
+      );
+      final list = ReportListController(ReportRepository(api));
+      await list.refresh();
+      await list.remove('a1');
+      expect(list.reports.map((r) => r.id), ['b2']);
+      expect(list.total, 1);
+      expect(calls.last, endsWith('DELETE /api/v1/valuation/reports/a1'));
+    },
+  );
 }

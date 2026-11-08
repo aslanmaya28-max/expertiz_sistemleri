@@ -247,6 +247,8 @@ class ApiClient {
   }) => _json('POST', path, body, authenticated, timeout: timeout);
   Future<Map<String, dynamic>> put(String path, Object body) =>
       _json('PUT', path, body, true);
+  Future<Map<String, dynamic>> delete(String path) =>
+      _json('DELETE', path, null, true);
   Future<Uint8List> getPdf(String path) async {
     final response = await request('GET', path);
     if (!(response.headers['content-type'] ?? '').contains('application/pdf') ||
