@@ -2,6 +2,20 @@ import 'package:flutter/material.dart';
 
 /// Inter değişken fontu uygulamaya gömülüdür; tüm rakamlar tablo genişliğinde.
 abstract final class Yazilar {
+  static const raporBaslik = TextStyle(
+    fontFamily: 'Inter',
+    fontFeatures: [FontFeature.tabularFigures()],
+    fontSize: 30,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -.8,
+  );
+  static const raporGovde = TextStyle(
+    fontFamily: 'Inter',
+    fontFeatures: [FontFeature.tabularFigures()],
+    fontSize: 16,
+    fontWeight: FontWeight.w400,
+    height: 1.5,
+  );
   static const rakamBuyuk = TextStyle(
     fontFamily: 'Inter',
     fontFeatures: [FontFeature.tabularFigures()],

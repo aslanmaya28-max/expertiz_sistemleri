@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../api/models.dart';
 import 'ortak.dart';
+import 'rapor_karti.dart';
 import 'rapor_ozet.dart';
 import 'rapor_kaynaklar.dart';
 
@@ -12,7 +13,7 @@ class MarketSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final count = integer(data['emsalSayisi']),
         correction = object(data['duzeltme']);
-    return Panel('Benzer ilanlar', [
+    return ReportCard('Benzer ilanlar', [
       if ([3, 4].contains(count))
         Text(
           '$count benzer ilan bulundu; 5’ten az olduğu için fiyatlar yön göstericidir.',
@@ -55,7 +56,7 @@ class GenerationSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (data.isEmpty) return const SizedBox.shrink();
-    return Panel('${data['yil'] ?? 'Bu yıl'} bu model için kasa geçiş yılı', [
+    return ReportCard('${data['yil'] ?? 'Bu yıl'} bu model için kasa geçiş yılı', [
       const Text(
         'O yıl iki farklı kasa satıldı ve fiyatları farklıdır. Fiyatlar bu araca (yıl ve km) göre düzeltilmiştir.',
       ),

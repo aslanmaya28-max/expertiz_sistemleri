@@ -44,7 +44,13 @@ class YbRenkler extends ThemeExtension<YbRenkler> {
   Color get vurguYuzey => _values['vurguYuzey']!;
   Color get vurguKenar => _values['vurguKenar']!;
   Color get vurguBant => _values['vurguBant']!;
+  Color get raporYuzey => _values['raporYuzey']!;
+  Color get raporKenar => _values['raporKenar']!;
+  Color get raporKoyu => _values['raporKoyu']!;
   static const acik = YbRenkler._({
+    'raporYuzey': Color(0xFFF0F7F1),
+    'raporKenar': Color(0xFFCEE3D6),
+    'raporKoyu': Color(0xFF002C25),
     'vurgu': Color(0xFFE8622C),
     'vurguMetin': Color(0xFFB4461B),
     'vurguYuzey': Color(0xFFFFEDE2),
@@ -85,6 +91,9 @@ class YbRenkler extends ThemeExtension<YbRenkler> {
     'bilgiYuzey': Color(0xFFE8F0FB),
   });
   static const koyu = YbRenkler._({
+    'raporYuzey': Color(0xFF142923),
+    'raporKenar': Color(0xFF325448),
+    'raporKoyu': Color(0xFF073B2F),
     'vurgu': Color(0xFFFF8A57),
     'vurguMetin': Color(0xFFFFA57D),
     'vurguYuzey': Color(0xFF3B2016),

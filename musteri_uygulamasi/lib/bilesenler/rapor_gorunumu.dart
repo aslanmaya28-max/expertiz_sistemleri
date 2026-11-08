@@ -7,11 +7,14 @@ import 'model_bulgulari.dart';
 import 'deger_kaybi.dart';
 import 'piyasa_bolumu.dart';
 import 'rapor_kaynaklar.dart';
-import 'fiyat_araligi.dart';
+import 'rapor_basligi.dart';
+import 'rapor_karti.dart';
+import 'enflasyon_karti.dart';
 import '../tema/olculer.dart';
+import '../tema/renkler.dart';
 import '../tema/yazi.dart';
 
-/// Yalnızca müşteriye açık rapor alanlarını sunar.
+/// Yalnız müşteriye açık alanlar; sıralama sitedeki raporla aynıdır.
 class ReportView extends StatelessWidget {
   final ReportSnapshot snapshot;
   final LinkAction onLink;
@@ -24,99 +27,82 @@ class ReportView extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
-    final vehicle = snapshot.vehicle,
-        meta = snapshot.report,
-        income = object(snapshot.raw['getiri']);
     if (snapshot.summaryOnly) {
       return Panel('Özet kayıt', [
         const Text('Tam rapor bulunmuyor. Bu eski kaydın PDF raporu yok.'),
         Text(text(snapshot.raw['report_no'])),
       ]);
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Panel(
-          [
-            vehicle['marka'],
-            vehicle['model'],
-            vehicle['yil'],
-          ].where((e) => e != null).join(' '),
-          [
-            // Müşteriye karar verisi (karar.sonuc / aciklama) gösterilmez; sitedeki kuralla aynı (09.11.2026).
-            const Text('Hesaplanan değer', style: Yazilar.etiket),
-            Text(
-              money(snapshot.valuation['aiDegeri']),
-              style: Yazilar.rakamBuyuk,
-            ),
-            FiyatAraligi(
-              alt:
-                  object(snapshot.valuation['adilFiyatAraligi'])['min'] as num?,
-              ust:
-                  object(snapshot.valuation['adilFiyatAraligi'])['max'] as num?,
-              hesaplanan: snapshot.valuation['aiDegeri'] as num?,
-              ilan: vehicle['ilanFiyati'] as num?,
-            ),
-            const SizedBox(height: Olcu.s8),
-            Text(
-              'Adil fiyat aralığı · ${integer(snapshot.market['emsalSayisi'])} benzer ilan',
-            ),
-            const SizedBox(height: Olcu.s16),
-            if (text(vehicle['paket']).isNotEmpty) Text(text(vehicle['paket'])),
-            Text('${number(vehicle['km'])} km'),
-            if (meta.isNotEmpty) ...[
-              Text(text(meta['report_no'])),
-              Text(dateText(DateTime.tryParse(text(meta['created_at'])))),
-              Text('Doğrulama kodu: ${text(meta['verification_code'])}'),
-              SourceLinks([text(meta['verification_url'])], onLink),
-            ],
-            const Text('Kredili değerleme raporu — uzman incelemesi içermez.'),
-          ],
-        ),
-        ReportSummarySection(snapshot),
-        NegotiationSection(snapshot.plan, onLink),
-        LossSection(snapshot.valuation),
-        ReportPrices(snapshot),
-        MarketSection(snapshot.market, onLink),
-        ModelFindings(snapshot, onLink),
-        GenerationSection(object(snapshot.market['gecisYili'])),
-        if (income.isNotEmpty)
-          Panel('Getiri tahmini (araç enflasyonu)', [
-            Text(
-              'Aylık ${percent(income['aylikEnflasyonYuzde'])} (yıllık ≈ ${percent(income['yillikEnflasyonYuzde'])})',
-            ),
-            if (text(income['kaynak']).isNotEmpty) Text(text(income['kaynak'])),
-            if (text(income['gecerlilikTarihi']).isNotEmpty)
-              Text(text(income['gecerlilikTarihi'])),
-            ValueLine('Alış fiyatı', money(income['alisFiyati'])),
-            for (final key in ['altiAy', 'birYil'])
-              if (object(income[key]).isNotEmpty) ...[
+    final r = YbRenkler.of(context);
+    return DefaultTextStyle.merge(
+      style: Yazilar.raporGovde.copyWith(color: r.metin),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ReportHeader(snapshot, onLink),
+          VehicleChips(snapshot),
+          FairPriceSection(snapshot),
+          ReportPrices(snapshot),
+          ReportSummarySection(snapshot),
+          NegotiationSection(snapshot.plan, onLink),
+          if (text(snapshot.plan['saticiMesaji']).isNotEmpty)
+            SaticiMesaji(text(snapshot.plan['saticiMesaji']), onLink: onLink),
+          InflationSection(object(snapshot.raw['getiri'])),
+          NextActionSection(snapshot.summary),
+          ModelFindings(snapshot, onLink),
+          MarketSection(snapshot.market, onLink),
+          LossSection(snapshot.valuation),
+          GenerationSection(object(snapshot.market['gecisYili'])),
+          if (objects(snapshot.raw['bilgiKaynaklari']).isNotEmpty)
+            ReportCard('Bu rapordaki bilgiler nereden geliyor?', [
+              for (final source in objects(snapshot.raw['bilgiKaynaklari']))
                 ValueLine(
-                  key == 'altiAy' ? '6 ay sonra' : '1 yıl sonra',
-                  money(object(income[key])['tahminiDeger']),
+                  text(source['alan']),
+                  '${_sourceLabel(text(source['kaynak']))}: ${text(source['aciklama'])}',
                 ),
-                ValueLine(
-                  'Getiri',
-                  '${money(object(income[key])['getiriTl'])} (${percent(object(income[key])['getiriYuzde'])})',
+            ], icon: Icons.info_outline),
+          if (object(snapshot.raw['kredi']).isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: Olcu.s16),
+              child: Text(
+                '${integer(object(snapshot.raw['kredi'])['dusulen'])} kredi kullanıldı • Rapor anındaki kalan: ${integer(object(snapshot.raw['kredi'])['kalan'])}',
+                style: Yazilar.etiket.copyWith(color: r.metinIkincil),
+              ),
+            ),
+          if (sonrakiAdim != null)
+            ReportCard(
+              'Güvenli alım için son adım',
+              [
+                Theme(
+                  data: Theme.of(context).copyWith(
+                    textTheme: Theme.of(context).textTheme.apply(
+                      bodyColor: r.beyaz,
+                      displayColor: r.beyaz,
+                    ),
+                    extensions: [
+                      for (final extension in Theme.of(
+                        context,
+                      ).extensions.values)
+                        if (extension is YbRenkler)
+                          r.copyWith(
+                            values: {
+                              'yuzey': r.raporKoyu,
+                              'metin': r.beyaz,
+                              'metinIkincil': r.markaBandiMetin,
+                            },
+                          )
+                        else
+                          extension,
+                    ],
+                  ),
+                  child: sonrakiAdim!,
                 ),
               ],
-            if (text(income['aciklama']).isNotEmpty)
-              Text(text(income['aciklama'])),
-          ]),
-        ?sonrakiAdim,
-        if (objects(snapshot.raw['bilgiKaynaklari']).isNotEmpty)
-          Panel('Bu rapordaki bilgiler nereden geliyor?', [
-            for (final source in objects(snapshot.raw['bilgiKaynaklari']))
-              ValueLine(
-                text(source['alan']),
-                '${_sourceLabel(text(source['kaynak']))}: ${text(source['aciklama'])}',
-              ),
-          ]),
-        if (object(snapshot.raw['kredi']).isNotEmpty)
-          Text(
-            '${integer(object(snapshot.raw['kredi'])['dusulen'])} kredi kullanıldı • Rapor anındaki kalan: ${integer(object(snapshot.raw['kredi'])['kalan'])}',
-          ),
-      ],
+              icon: Icons.verified_user_outlined,
+              dark: true,
+            ),
+        ],
+      ),
     );
   }
 

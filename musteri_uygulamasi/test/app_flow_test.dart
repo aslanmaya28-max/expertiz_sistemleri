@@ -152,7 +152,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Seat Ibiza 2024'));
     await tester.pumpAndSettle();
-    expect(find.text('Özet'), findsOneWidget);
+    expect(find.text('En önemli riskler'), findsOneWidget);
     await tester.tap(find.text('PDF rapor'));
     await tester.pumpAndSettle();
     expect(app.platform.opened, ['report20']);
