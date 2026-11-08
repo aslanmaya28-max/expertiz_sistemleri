@@ -5,6 +5,7 @@ sınırları sahtedir; API, değerleme, pazarlık, kredi düşümü ve arşiv ge
 ``SENARYOLAR`` ve ``rapor_uret`` PDF eşliği testlerinin de ortak arayüzüdür.
 """
 from copy import deepcopy
+from datetime import date
 import json
 import re
 from statistics import mean, median
@@ -136,7 +137,7 @@ def rapor_uret(client, customer_token, monkeypatch):
         else:
             sql("""INSERT INTO system_settings (key,value) VALUES ('vehicle_inflation', %s::jsonb)
                    ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value""",
-                (json.dumps({"monthly_pct": 1.1, "note": "Sentetik test varsayımı", "effective_date": "2026-01-01"}),))
+                (json.dumps({"monthly_pct": 1.1, "note": "Sentetik test varsayımı", "effective_date": date.today().isoformat()}),))
         price = {"hasarsiz_biraz_ucuz": 970000, "hasarsiz_yuzde15_ucuz": 850000,
                  "hasar_sonrasi_pahali_chery": 900000}.get(senaryo, 1100000)
         payload = {"brand": "Sentetik", "model": "Senaryo", "package": "1.0 Test",

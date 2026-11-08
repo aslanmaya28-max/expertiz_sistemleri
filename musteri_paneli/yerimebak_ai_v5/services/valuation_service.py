@@ -26,6 +26,8 @@ from yerimebak_ai_v5.services import pricing_service, web_market_reference
 logger = logging.getLogger(__name__)
 
 ANALYSIS_COST = 1
+# Araç enflasyonu oranı aylık rutinle yenilenir; bundan eskiyse getiri bölümü gösterilmez.
+INFLATION_MAX_AGE_DAYS = 62
 PART_STATUSES = ("orijinal", "lokal_boyali", "boyali", "degisen")
 VERDICTS = {
     "AVANTAJLI": ("AL", "Fiyat, aracın bulgulara göre değerinin altında; alım için avantajlı."),
@@ -512,6 +514,13 @@ def inflation_projection(ai_value: float, purchase_price: float) -> Optional[Dic
     settings = pricing_service.get_pricing_settings().get("vehicle_inflation")
     if not settings:
         return None
+    # Oran her ay rutinle yenilenir (09.11.2026). Güncelleme aksarsa eski oranla "kazanç" gösterilmez.
+    effective = str(settings.get("effective_date") or "")[:10]
+    try:
+        if (datetime.now().date() - datetime.strptime(effective, "%Y-%m-%d").date()).days > INFLATION_MAX_AGE_DAYS:
+            return None
+    except ValueError:
+        pass  # tarihsiz eski kayıt: yönetim panelinden girilmiş oran kullanılmaya devam eder
     monthly = float(settings["monthly_pct"]) / 100.0
 
     def horizon(months: int) -> Dict[str, Any]:

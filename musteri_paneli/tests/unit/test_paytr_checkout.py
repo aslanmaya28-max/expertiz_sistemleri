@@ -4,6 +4,7 @@ import hmac
 import json
 import os
 import unittest
+from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
 from yerimebak_ai_v5.services import checkout_service, paytr_service, valuation_service
@@ -93,13 +94,25 @@ class ProductionSafetyTests(unittest.TestCase):
 
 class InflationProjectionTests(unittest.TestCase):
     def test_six_and_twelve_month_projection(self):
-        settings = {"vehicle_inflation": {"monthly_pct": 2.0, "note": "test", "effective_date": "2026-10-01"}}
+        settings = {"vehicle_inflation": {"monthly_pct": 2.0, "note": "test", "effective_date": date.today().isoformat()}}
         with patch.object(valuation_service.pricing_service, "get_pricing_settings", return_value=settings):
             p = valuation_service.inflation_projection(1_000_000, 970_000)
         self.assertEqual(p["altiAy"]["tahminiDeger"], round(1_000_000 * 1.02 ** 6, -3))
         self.assertEqual(p["birYil"]["tahminiDeger"], round(1_000_000 * 1.02 ** 12, -3))
         self.assertEqual(p["yillikEnflasyonYuzde"], round((1.02 ** 12 - 1) * 100, 1))
         self.assertGreater(p["birYil"]["getiriTl"], p["altiAy"]["getiriTl"])
+
+    def test_stale_rate_is_not_shown(self):
+        # Oran aylık rutinle yenilenir (09.11.2026); 62 günden eski oranla kazanç gösterilmez.
+        eski = (date.today() - timedelta(days=63)).isoformat()
+        settings = {"vehicle_inflation": {"monthly_pct": 0.58, "note": "eski", "effective_date": eski}}
+        with patch.object(valuation_service.pricing_service, "get_pricing_settings", return_value=settings):
+            self.assertIsNone(valuation_service.inflation_projection(1_000_000, 970_000))
+        settings["vehicle_inflation"]["effective_date"] = (date.today() - timedelta(days=40)).isoformat()
+        with patch.object(valuation_service.pricing_service, "get_pricing_settings", return_value=settings):
+            p = valuation_service.inflation_projection(1_000_000, 970_000)
+        self.assertEqual(p["altiAylikEnflasyonYuzde"], round((1.0058 ** 6 - 1) * 100, 1))
+        self.assertEqual(p["birYil"]["alimKazanciTl"], 30_000)
 
     def test_no_projection_until_admin_sets_rate(self):
         with patch.object(valuation_service.pricing_service, "get_pricing_settings", return_value={"vehicle_inflation": None}):
