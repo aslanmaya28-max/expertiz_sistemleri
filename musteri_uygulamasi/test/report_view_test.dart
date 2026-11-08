@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:yerimebak/api/models.dart';
@@ -47,6 +48,7 @@ Future<void> showReport(
   WidgetTester tester,
   Json data, {
   bool dark = false,
+  Future<void> Function(String)? onLink,
 }) async {
   await initializeDateFormatting('tr_TR');
   await tester.pumpWidget(
@@ -56,7 +58,7 @@ Future<void> showReport(
         body: SingleChildScrollView(
           child: ReportView(
             ReportSnapshot.fromJson(data),
-            onLink: (_) async {},
+            onLink: onLink ?? (_) async {},
           ),
         ),
       ),
@@ -66,15 +68,125 @@ Future<void> showReport(
 }
 
 void main() {
+  testWidgets('mesaj bağımsız bölümde paragraflarıyla kopyalanır', (
+    tester,
+  ) async {
+    const message =
+        'Merhaba, araçla ilgileniyorum.\n\nBelgeleri paylaşır mısınız?';
+    final data = fixture()
+      ..['pazarlikPlani'] = {
+        'acilisTeklifi': 900000,
+        'hedefFiyat': 930000,
+        'ustSinir': 940000,
+        'saticiMesaji': message,
+      };
+    String? copied;
+    String? shared;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await showReport(
+      tester,
+      data,
+      onLink: (url) async {
+        shared = url;
+      },
+    );
+    expect(find.text("WhatsApp'ta paylaş"), findsOneWidget);
+    expect(find.text('Satıcıya gönderilecek mesaj'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Satıcıya gönderilecek mesaj')).dy,
+      greaterThan(tester.getTopLeft(find.text('Pazarlık planı')).dy),
+    );
+    await tester.ensureVisible(find.text('Kopyala'));
+    await tester.tap(find.text('Kopyala'));
+    await tester.pumpAndSettle();
+    expect(copied, message);
+    await tester.ensureVisible(find.text("WhatsApp'ta paylaş"));
+    await tester.tap(find.text("WhatsApp'ta paylaş"));
+    await tester.pumpAndSettle();
+    expect(Uri.parse(shared!).host, 'wa.me');
+    expect(Uri.parse(shared!).queryParameters['text'], message);
+  });
+
+  testWidgets('enflasyon oranları ve kazançları sunucudan, tarih Türkçe', (
+    tester,
+  ) async {
+    final data = fixture()
+      ..['getiri'] = {
+        'aylikEnflasyonYuzde': 2,
+        'altiAylikEnflasyonYuzde': 12.9,
+        'yillikEnflasyonYuzde': 26,
+        'kaynak': 'TÜİK',
+        'gecerlilikTarihi': '2026-11-01',
+        'aciklama': 'Tahmindir.',
+        'altiAy': {
+          'tahminiDeger': 1060000,
+          'getiriTl': 130000,
+          'getiriYuzde': 14,
+          'alimKazanciTl': 15000,
+          'enflasyonKazanciTl': 115000,
+        },
+        'birYil': {
+          'tahminiDeger': 1190000,
+          'getiriTl': 260000,
+          'getiriYuzde': 28,
+        },
+      };
+    await showReport(tester, data);
+    expect(find.text('Enflasyona göre kazanç tahmini'), findsOneWidget);
+    expect(find.textContaining('%12,9'), findsWidgets);
+    expect(find.textContaining('130.000 TL'), findsWidgets);
+    expect(find.textContaining('260.000 TL'), findsWidgets);
+    expect(find.textContaining('01.11.2026'), findsOneWidget);
+    expect(find.textContaining('15.000 TL'), findsWidgets);
+    expect(find.text('Getiri tahmini (araç enflasyonu)'), findsNothing);
+    expect(tester.takeException(), isNull);
+    await showReport(tester, fixture());
+    expect(find.text('Enflasyona göre kazanç tahmini'), findsNothing);
+  });
+
+  testWidgets('eski getiri raporunda altı aylık oran aylıktan türetilir', (
+    tester,
+  ) async {
+    await showReport(
+      tester,
+      fixture()
+        ..['getiri'] = {
+          'aylikEnflasyonYuzde': 2,
+          'yillikEnflasyonYuzde': 26,
+          'altiAy': {
+            'tahminiDeger': 1060000,
+            'getiriTl': 130000,
+            'getiriYuzde': 14,
+          },
+        },
+    );
+    expect(find.textContaining('%12,6'), findsWidgets);
+    expect(find.text('6 ay sonra'), findsOneWidget);
+    expect(find.text('1 yıl sonra'), findsNothing);
+  });
   testWidgets(
     'boş ve eksik bölümler gizlenir, rakamlar sunucudaki gibi gösterilir',
     (tester) async {
       await showReport(tester, fixture());
-      expect(find.text('Özet'), findsOneWidget);
+      expect(find.text('En önemli riskler'), findsOneWidget);
       // Karar verisi müşteriye gösterilmez (sitedeki kuralla aynı, 09.11.2026).
       expect(find.text('ÖNERİLMEZ'), findsNothing);
       expect(find.text('Ek inceleme yaptırın.'), findsNothing);
-      expect(find.text('945.000 TL'), findsOneWidget);
+      expect(find.text('945.000 TL'), findsNWidgets(2));
       expect(find.text('930.000 TL'), findsOneWidget);
       for (final label in [
         'Pazarlık planı',
@@ -126,7 +238,7 @@ void main() {
         });
       await showReport(tester, data, dark: true);
       expect(find.text('Pazarlık planı'), findsOneWidget);
-      expect(find.text('930.000 TL'), findsNWidgets(3));
+      expect(find.text('930.000 TL'), findsNWidgets(4));
       expect(find.text('Gizli düşük güven'), findsNothing);
       expect(find.text('Doğrulanmış bakım'), findsOneWidget);
       expect(

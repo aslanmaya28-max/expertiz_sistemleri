@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../api/models.dart';
 import '../tema/olculer.dart';
+import '../tema/renkler.dart';
+import '../tema/yazi.dart';
 import 'ortak.dart';
+import 'rapor_karti.dart';
 import 'acilir_liste.dart';
 import 'rapor_kaynaklar.dart';
 
@@ -18,7 +21,25 @@ List<Widget> _grouped(List<Json> entries, Widget Function(Json) child) {
   return [
     for (final key in _groups.keys)
       if (entries.any((e) => e['kategori'] == key)) ...[
-        Text(_groups[key]!),
+        Semantics(
+          header: true,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: Olcu.s12),
+            child: Row(
+              children: [
+                Icon(switch (key) {
+                  'mekanik_motor' => Icons.settings_outlined,
+                  'elektronik' => Icons.sensors_outlined,
+                  _ => Icons.directions_car_outlined,
+                }),
+                const SizedBox(width: Olcu.s8),
+                Expanded(
+                  child: Text(_groups[key]!, style: Yazilar.bolumBaslik),
+                ),
+              ],
+            ),
+          ),
+        ),
         ...(entries.where((r) => r['kategori'] == key).toList()..sort(
               (a, b) => (_priority[a['onem']] ?? 3).compareTo(
                 _priority[b['onem']] ?? 3,
@@ -51,11 +72,11 @@ class ModelFindings extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (critical.isNotEmpty)
-          Panel('Bu araçta en çok dikkat etmeniz gerekenler', [
+          ReportCard('Bu araçta en çok dikkat etmeniz gerekenler', [
             BulletList(critical.map((r) => text(r['baslik'])).toList()),
           ]),
         if (raw['modelRiskleri'] is Map)
-          Panel('Modelin bilinen sorunları', [
+          ReportCard('Modelin bilinen sorunları', [
             const Text(
               'Arıza teşhisi değildir; araç sürümü, şasi numarası ve servis kayıtlarıyla doğrulayın.',
             ),
@@ -73,12 +94,8 @@ class ModelFindings extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        text(r['baslik']),
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      if (r['onem'] != null)
-                        Text('Önem: ${_importance(r['onem'])}'),
+                      _FindingTitle(r),
+                      if (r['onem'] != null) _ImportanceBadge(r['onem']),
                       if (r['guven'] == 'yuksek') const Text('Resmî kaynak'),
                       if (text(r['aciklama']).isNotEmpty)
                         Text(text(r['aciklama'])),
@@ -104,7 +121,7 @@ class ModelFindings extends StatelessWidget {
             ),
           ]),
         if (raw.containsKey('kullaniciSikayetleri'))
-          Panel('Kullanıcıların en sık şikâyet ettiği konular', [
+          ReportCard('Kullanıcıların en sık şikâyet ettiği konular', [
             const Text(
               'Forum ve kullanıcı yorumlarından derlenmiştir; kullanıcı beyanıdır, arıza teşhisi değildir.',
             ),
@@ -118,12 +135,8 @@ class ModelFindings extends StatelessWidget {
                 (r) => Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      text(r['baslik']),
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    if (r['onem'] != null)
-                      Text('Önem: ${_importance(r['onem'])}'),
+                    _FindingTitle(r),
+                    if (r['onem'] != null) _ImportanceBadge(r['onem']),
                     Text(text(r['aciklama'])),
                     Text(
                       '${integer(r['kaynakSayisi'])} farklı kaynakta geçiyor',
@@ -135,7 +148,7 @@ class ModelFindings extends StatelessWidget {
             ),
           ]),
         if (objects(raw['bakim']).isNotEmpty)
-          Panel('Bu kilometrede doğrulanacak bakımlar', [
+          ReportCard('Bu kilometrede doğrulanacak bakımlar', [
             Text(
               '${number(snapshot.vehicle['km'])} km ve ${snapshot.vehicle['yil'] ?? '—'} model araç için işlemlerin son yapıldığı tarih ve kilometreyi servis faturalarından kontrol edin; üreticinin araç sürümüne özel bakım planını esas alın.',
             ),
@@ -149,14 +162,74 @@ class ModelFindings extends StatelessWidget {
             ),
           ]),
         if (strings(raw['saticiSorulari']).isNotEmpty)
-          Panel('Satıcıya sorulacak sorular', [
+          ReportCard('Satıcıya sorulacak sorular', [
             BulletList(strings(raw['saticiSorulari'])),
           ]),
       ],
     );
   }
+}
 
-  String _importance(dynamic value) =>
-      const {'yuksek': 'Yüksek', 'orta': 'Orta', 'dusuk': 'Düşük'}[value] ??
-      text(value);
+class _ImportanceBadge extends StatelessWidget {
+  final dynamic value;
+  const _ImportanceBadge(this.value);
+  @override
+  Widget build(BuildContext context) {
+    final r = YbRenkler.of(context),
+        high = value == 'yuksek',
+        medium = value == 'orta';
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: Olcu.s8),
+        padding: const EdgeInsets.symmetric(
+          horizontal: Olcu.s12,
+          vertical: Olcu.s4,
+        ),
+        decoration: BoxDecoration(
+          color: high || medium ? r.uyariYuzey : r.birincilYuzey,
+          borderRadius: BorderRadius.circular(Olcu.hapKose),
+        ),
+        child: Text(
+          high
+              ? 'Yüksek masraf'
+              : medium
+              ? 'Orta'
+              : value == 'dusuk'
+              ? 'Küçük'
+              : text(value),
+          style: Yazilar.etiket.copyWith(
+            color: high || medium ? r.uyari : r.birincilMetin,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FindingTitle extends StatelessWidget {
+  final Json finding;
+  const _FindingTitle(this.finding);
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(
+        switch (finding['kategori']) {
+          'motor' || 'mekanik_motor' => Icons.settings_outlined,
+          'elektronik' => Icons.sensors_outlined,
+          'trim_kasa' => Icons.directions_car_outlined,
+          'klima' => Icons.air_outlined,
+          'yakit' => Icons.local_gas_station_outlined,
+          _ => Icons.build_outlined,
+        },
+        color: YbRenkler.of(context).birincilMetin,
+        size: Olcu.ikonInce,
+      ),
+      const SizedBox(width: Olcu.s8),
+      Expanded(
+        child: Text(text(finding['baslik']), style: Yazilar.bolumBaslik),
+      ),
+    ],
+  );
 }
