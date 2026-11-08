@@ -103,7 +103,7 @@ class CorporateExperience(unittest.TestCase):
 
     def test_home_explains_service_and_real_coverage(self):
         self.page.goto(BASE,wait_until='networkidle')
-        expect(self.page.get_by_role('heading',level=1)).to_contain_text('Siz gitmeden')
+        expect(self.page.get_by_role('heading',level=1)).to_contain_text('doğru bilgiye')  # Başlık metni değişti; 'Siz gitmeden' artık üstteki etikette.
         for label in ['İç ekspertiz raporu','Dış ekspertiz raporu','Yapay zekâ değerleme raporu','Kurumsal ekspertiz raporu']:
             expect(self.page.get_by_role('heading',name=label,exact=True)).to_be_visible()
         expect(self.page.get_by_text('İstanbul’da pilot hizmet',exact=True).first).to_be_visible()
