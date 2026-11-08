@@ -33,7 +33,13 @@ class CanliGecisler(unittest.TestCase):
             for width, height in [(1440, 900), (390, 844), (390, 700)]:
                 page = self.open(route, width, height)
                 card = page.locator('.yb-stack-card').first
-                expect(card).to_have_css('position', 'relative' if height < 800 else 'sticky')
+                # Kural (ScrollSahnesi): yığın yalnız bütün kartlar ekrana sığıyorsa yapışır. 033 ile iç sayfalarda
+                # yazı 17 px oldu; mobilde uzun hizmet kartları sığmaz ve okunabilirlik için normal akar (09.11.2026).
+                sigar = page.evaluate('''() => [...document.querySelector('[data-stack]').querySelectorAll('.yb-stack-card')]
+                    .every((c, i) => c.offsetHeight + 136 + i * 16 < innerHeight)''')
+                expect(card).to_have_css('position', 'sticky' if height >= 800 and sigar else 'relative')
+                if route == '/' or width > 1000:
+                    self.assertTrue(height < 800 or sigar, f'{route} {width}x{height}: yığın yapışmalı')
                 card.scroll_into_view_if_needed()
                 self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
                 expect(card).to_be_visible()

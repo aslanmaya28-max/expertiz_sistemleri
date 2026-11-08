@@ -1,11 +1,12 @@
 """033: yerel tasarım ve etkileşim denetimi; bütün API/oturum yanıtları sahte."""
 import base64
+import os
 import json
 from pathlib import Path
 import unittest
 from playwright.sync_api import sync_playwright, expect
 
-BASE = 'http://localhost:3033'
+BASE = os.environ.get('YERIMEBAK_PREVIEW_URL', 'http://localhost:3033')
 
 
 def reply(route):

@@ -300,3 +300,8 @@
   .yb-inner-page .yb-card-dark .yb-big-number,
   .yb-dashboard .yb-card-dark .yb-big-number { color: var(--yb-ink-strong); }
 }
+/* 031 kayan kart efekti hizmet sayfalarında geri (09.11.2026): yığın kartları kendi kart rengini korur,
+   scroll-deneyimi.css'teki nane/şeftali sırası uygulanmaz; kartlar yapışkanken opak kalır. */
+.yb-service-page .yb-service-section-card.yb-stack-card { background: #fff; border-color: var(--yb-card-line); }
+.yb-service-page .yb-service-section-card.yb-stack-card.yb-card-mint { background: linear-gradient(150deg, #fff, var(--yb-mint-surface)); }
+.yb-service-page .yb-service-section-card.yb-stack-card.yb-card-accent { background: linear-gradient(120deg, #fff, var(--yb-mint-surface)); border-left: 4px solid var(--yb-green); }

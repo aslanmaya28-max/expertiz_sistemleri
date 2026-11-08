@@ -76,7 +76,7 @@ export default function HizmetSayfasi({
         {bolumler.map((b, index) => (
           <section key={b.id} id={b.id} aria-labelledby={`${b.id}-baslik`}
             data-sc-in style={{ "--yb-stack-index": index, "--yb-entry-delay": `${50 + Math.min(index, 5) * 50}ms` } as React.CSSProperties}
-            className={`yb-card yb-service-section-card yb-service-${b.id} ${b.id === "kimler-icin" ? "yb-card-mint" : b.id === "teslim" ? "yb-card-accent" : b.id === "ucret" ? "yb-card-mint" : ""} scroll-mt-24`}>
+            className={`yb-card yb-service-section-card ${index < 4 ? "yb-stack-card" : ""} yb-service-${b.id} ${b.id === "kimler-icin" ? "yb-card-mint" : b.id === "teslim" ? "yb-card-accent" : b.id === "ucret" ? "yb-card-mint" : ""} scroll-mt-24`}>
             <h2 id={`${b.id}-baslik`}><Ikon ad={b.id === "kimler-icin" ? "kisi" : b.id === "nasil-isler" ? "yol" : b.id === "ucret" ? "etiket" : b.id === "bolge" ? "konum" : "belge"} />{b.baslik}</h2>
             {bolumIcerigi(b.icerik, b.id)}
           </section>
