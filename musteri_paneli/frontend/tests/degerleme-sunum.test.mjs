@@ -22,6 +22,7 @@ function load(relative) {
   const require = (name) => {
     if (name === 'next/link') return { default: ({ children, ...props }) => React.createElement('a', props, children) };
     if (name === './AkilliAliciBolumleri') return load('bilesenler/AkilliAliciBolumleri.tsx');
+    if (['./Ikon', './Marka', './RaporBasligi', './FiyatOzeti'].includes(name)) return load(`bilesenler/${name.slice(2)}.tsx`);
     if (name === '@/lib/ekspertizOnDoldurma') return load('lib/ekspertizOnDoldurma.ts');
     return dependency(name);
   };
@@ -99,9 +100,10 @@ test('iki listede gruplar ve önem sırası korunur, girdi değişmez', () => {
     const part = section(html, title);
     const ordered = ['Mekanik ve motor', 'Motor yüksek', 'Motor orta', 'Motor düşük', 'Elektronik ve sensör', 'Elektronik orta', 'Trim, şasi ve kasa', 'Kasa düşük'];
     ordered.forEach((text, i) => { assert.ok(part.includes(text), text); if (i) assert.ok(part.indexOf(ordered[i - 1]) < part.indexOf(text), text); });
-    assert.match(part, /bg-red-100[^>]*>Yüksek masraf/);
-    assert.match(part, /bg-orange-100[^>]*>Orta/);
-    assert.match(part, /bg-gray-100[^>]*>Küçük \/ konfor/);
+    // 032: semantik rozet sınıfları ortak marka tokenlarını kullanır; önem/metin değişmez.
+    assert.match(part, /yb-risk-high[^>]*>Yüksek masraf/);
+    assert.match(part, /yb-risk-medium[^>]*>Orta/);
+    assert.match(part, /yb-risk-small[^>]*>Küçük \/ konfor/);
   }
   assert.equal(JSON.stringify(sonuc), original);
 });
@@ -188,4 +190,45 @@ test('şikâyet bölümü eski kayıtta gizli, boş listede açıklamalı, dolu 
   assert.ok(html.includes('href="https://forum.example/tucson"'));
   assert.ok(html.includes('rel="noopener noreferrer nofollow"'));
   assert.ok(!html.includes('javascript:'));
+});
+
+const designed = { ...result,
+  rapor: { id: '42', report_no: 'YD 2026-000042', verification_code: 'KOD42', created_at: '2026-11-08T12:00:00Z' },
+  arac: { ...result.arac, paket: '1.6 CRDi', yakit: 'Dizel', vites: 'Otomatik' },
+  degerleme: { ...result.degerleme, aiDegeri: 1810000, adilFiyatAraligi: { min: 1645000, max: 1970000 }, tavsiyeFiyat: 1750000 },
+  ozet: { piyasaKonumu: { durum: 'uyumlu', metin: 'Piyasayla uyumlu' }, adilFiyat: { min: 1645000, max: 1970000 }, riskler: ['Boya beyanını doğrulayın.'], pazarlikGerekceleri: [], simdiNeYapmali: 'Servis geçmişini doğrulayın.' },
+  pazarlikPlani: { acilisTeklifi: 1705000, hedefFiyat: 1750000, ustSinir: 1785000, potansiyelKazanc: 0, adimlar: [], gerekceler: [], kanitIlanlar: [], saticiMesaji: 'Servis kayıtlarını paylaşır mısınız?' },
+};
+
+test('rapor başlığında kimlik, araç ve piyasa konumu var; karar verisi yok', () => {
+  const html = render(DegerlemeSonucu, designed);
+  const header = html.match(/<header[^>]*aria-label="Değerleme raporu başlığı"[^>]*>([\s\S]*?)<\/header>/)?.[1];
+  assert.ok(header);
+  for (const text of ['YD 2026-000042', 'Hyundai Tucson', '1.6 CRDi', 'Piyasayla uyumlu', '/dogrula/KOD42']) assert.ok(header.includes(text), text);
+  for (const hidden of ['EK DOĞRULAMA', 'YALNIZ ADMIN', 'Veri güveni', 'ALMA']) assert.ok(!html.includes(hidden));
+});
+
+test('tavsiye alım hedefi tek tutardır; üst sınır ayrı alanda kalır', () => {
+  const html = render(DegerlemeSonucu, designed);
+  assert.match(html, /data-price="target"[^>]*>1\.750\.000 ₺</);
+  assert.match(html, /data-price="ceiling"[^>]*>1\.785\.000 ₺</);
+  assert.ok(!html.includes('1.750.000 ₺ – 1.785.000 ₺'));
+});
+
+test('örnek rapor kimliği görünür ama gerçek doğrulama bağlantısı sunulmaz', () => {
+  const html = renderToStaticMarkup(React.createElement(DegerlemeSonucu, { sonuc: designed, ornek: true }));
+  assert.ok(html.includes('YD 2026-000042'));
+  assert.ok(!html.includes('/dogrula/KOD42'));
+  assert.ok(html.includes('Örnek rapordur, doğrulanamaz.'));
+});
+
+test('ilan ve hesaplanan değer ölçeğin uçlarından dışarı taşmaz', () => {
+  for (const price of [1, 9000000]) {
+    const html = render(DegerlemeSonucu, { ...designed, arac: { ...designed.arac, ilanFiyati: price } });
+    const marker = html.match(/data-marker="listing"[^>]*style="([^"]+)"/);
+    assert.ok(marker);
+    const left = Number(marker[1].match(/left:([\d.]+)%/)[1]);
+    assert.ok(left >= 0 && left <= 100);
+    assert.ok(html.includes('Adil fiyat ölçeği'));
+  }
 });

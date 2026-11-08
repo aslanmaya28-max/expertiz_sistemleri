@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import type { ValuationResult } from "@/lib/api";
+import RaporBasligi from "./RaporBasligi";
+import FiyatOzeti from "./FiyatOzeti";
+import Ikon from "./Ikon";
 import { AkilliAliciBolumleri, GecisYiliKutusu, SonrakiAdim } from "./AkilliAliciBolumleri";
 
 /** Türkçe yüzde: %25,1 (eskiden "25.1%" ve "-%14.0" görünüyordu). */
@@ -32,13 +35,22 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
   );
   const piyasaUyarilari = (piyasa.uyarilar || []).filter((uyari) => !eskiEmsalUyarisi(uyari));
   return (
-    <div className="mt-8 space-y-6">
-      {!ornek && sonuc.rapor && <div className="rounded-lg border border-kenarlik-acik bg-white p-4 text-sm">
-        <Link href={`/panel/degerlemeler/${encodeURIComponent(sonuc.rapor.id)}`} className="font-semibold text-birincil underline">Rapor kaydedildi — Raporlarım&apos;da</Link>
-        <p className="mt-2">{sonuc.rapor.report_no} • {new Date(sonuc.rapor.created_at).toLocaleString("tr-TR")}</p>
-        <Link href={`/dogrula/${sonuc.rapor.verification_code}`} className="text-birincil underline">Doğrulama kodu: {sonuc.rapor.verification_code}</Link>
-        <p className="mt-2 text-metin-ikincil">Kredili değerleme raporu — uzman incelemesi içermez.</p>
-      </div>}
+    <div className="yb-valuation mt-8">
+      <RaporBasligi sonuc={sonuc} ornek={ornek} />
+      <div className="yb-price-overview">
+        <FiyatOzeti sonuc={sonuc} />
+        {ozet && <section className="yb-report-card yb-summary-risks" aria-label="Özet">
+          <h2><Ikon ad="uyari" />En önemli riskler</h2>
+          <ul className="list-disc space-y-1 pl-5">{ozet.riskler.filter((r) => !eskiEmsalUyarisi(r)).map((r) => <li key={r}>{r}</li>)}</ul>
+        </section>}
+      </div>
+      <div className="yb-plan-overview">
+        <AkilliAliciBolumleri sonuc={sonuc} bolum="plan" />
+        {ozet && <section className="yb-report-card yb-next-action" aria-label="Şimdi ne yapmalı?">
+          <h2><Ikon ad="ampul" />Şimdi ne yapmalı?</h2><p>{ozet.simdiNeYapmali}</p>
+          {ozet.pazarlikGerekceleri.length > 0 && <><h3>Pazarlık gerekçeleri</h3><ul className="list-disc space-y-1 pl-5">{ozet.pazarlikGerekceleri.map((g) => <li key={g}>{g}</li>)}</ul></>}
+        </section>}
+      </div>
       {sonuc.ekspertizRaporu && <section className="rounded-xl border border-kenarlik-acik bg-white p-6" aria-label="Ekspertiz raporundan okunan bulgular">
         <h2 className="text-lg font-semibold">Ekspertiz raporundan okunan bulgular</h2>
         <p className="mt-2 text-sm text-metin-ikincil">{sonuc.ekspertizRaporu.aciklama}</p>
@@ -46,73 +58,9 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
           {item.ciddiyet === "ciddi" ? "Yerinde doğrulatın" : item.ciddiyet === "pazarlik" ? "Kozmetik / küçük onarım" : "Bilgi"}: {item.metin}
         </li>)}</ul>
       </section>}
-      {ozet && (
-        <section className="bg-white rounded-xl border border-kenarlik-acik p-6" aria-label="Özet">
-          <h2 className="text-lg font-semibold text-metin-birincil">Özet</h2>
-          <dl className="mt-3 divide-y divide-kenarlik-acik text-sm">
-            <div className="grid gap-1 py-3 sm:grid-cols-[220px_1fr]">
-              <dt className="font-medium text-metin-birincil">Piyasaya göre fiyatı</dt>
-              <dd className="text-metin-ikincil">{ozet.piyasaKonumu.metin}</dd>
-            </div>
-            <div className="grid gap-1 py-3 sm:grid-cols-[220px_1fr]">
-              <dt className="font-medium text-metin-birincil">Adil fiyat</dt>
-              <dd className="text-metin-ikincil">{tl(ozet.adilFiyat.min)} – {tl(ozet.adilFiyat.max)}</dd>
-            </div>
-            <div className="grid gap-1 py-3 sm:grid-cols-[220px_1fr]">
-              <dt className="font-medium text-metin-birincil">En önemli riskler</dt>
-              <dd><ul className="list-disc space-y-1 pl-5 text-metin-ikincil">{ozet.riskler.filter((r) => !eskiEmsalUyarisi(r)).map((r) => <li key={r}>{r}</li>)}</ul></dd>
-            </div>
-            {ozet.pazarlikGerekceleri.length > 0 && (
-              <div className="grid gap-1 py-3 sm:grid-cols-[220px_1fr]">
-                <dt className="font-medium text-metin-birincil">Pazarlık gerekçeleri</dt>
-                <dd><ul className="list-disc space-y-1 pl-5 text-metin-ikincil">{ozet.pazarlikGerekceleri.map((g) => <li key={g}>{g}</li>)}</ul></dd>
-              </div>
-            )}
-            <div className="grid gap-1 py-3 sm:grid-cols-[220px_1fr]">
-              <dt className="font-medium text-metin-birincil">Şimdi ne yapmalı?</dt>
-              <dd className="font-medium text-metin-birincil">{ozet.simdiNeYapmali}</dd>
-            </div>
-          </dl>
-        </section>
-      )}
-
-      <AkilliAliciBolumleri sonuc={sonuc} />
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <Kutu baslik="İlan fiyatı" deger={tl(arac.ilanFiyati)} />
-        {piyasa.ortalama > 0 && (
-          <Kutu baslik={`Benzer ${piyasa.emsalSayisi} ilanın ortalaması${piyasa.duzeltme ? " (bu araca göre)" : ""}`} deger={tl(piyasa.ortalama)} />
-        )}
-        <Kutu baslik="Tavsiye alım fiyatı" deger={tl(degerleme.tavsiyeFiyat)} vurgu />
-        <Kutu baslik="Adil fiyat aralığı" deger={`${tl(degerleme.adilFiyatAraligi?.min)} – ${tl(degerleme.adilFiyatAraligi?.max)}`} />
-        <Kutu baslik="Hasarsız piyasa değeri" deger={tl(degerleme.temizPiyasaDegeri)} />
-      </div>
-
-      <section className="bg-white rounded-xl border border-kenarlik-acik p-6">
-        <h2 className="text-lg font-semibold text-metin-birincil">Değer kaybı ({yuzde(degerleme.toplamDegerKaybiYuzde)} • {tl(degerleme.toplamDegerKaybiTutar)})</h2>
-        {degerleme.kalemler.length === 0 ? (
-          <p className="mt-2 text-sm text-metin-ikincil">Bildirilen boya, değişen veya hasar kaydı yok.</p>
-        ) : (
-          <table className="mt-3 w-full text-sm">
-            <tbody>
-              {degerleme.kalemler.map((k) => (
-                <tr key={`${k.kategori}-${k.anahtar}`} className="border-t border-kenarlik-acik">
-                  <td className="py-2 text-metin-birincil">{k.baslik}</td>
-                  <td className="py-2 text-metin-ikincil">{k.durum}</td>
-                  <td className="py-2 text-right text-metin-ikincil">-{yuzde(k.yuzde)}</td>
-                  <td className="py-2 text-right font-semibold text-metin-birincil">-{tl(k.tutar)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        {degerleme.ozet && <p className="mt-3 text-sm text-metin-ikincil">{degerleme.ozet}</p>}
-      </section>
-
-      {piyasa.gecisYili && <GecisYiliKutusu gecis={piyasa.gecisYili} />}
-
-      <section className="bg-white rounded-xl border border-kenarlik-acik p-6">
-        <h2 className="text-lg font-semibold text-metin-birincil">Benzer ilanlar</h2>
+      <div className="yb-analysis-overview"><div className="yb-analysis-risks"><AkilliAliciBolumleri sonuc={sonuc} bolum="model" /></div>
+      <section className="yb-report-card">
+        <h2 className="text-lg font-semibold text-metin-birincil"><Ikon ad="grafik" />Benzer ilanlar</h2>
         {[3, 4].includes(piyasa.emsalSayisi) && (
           <p className="mt-2 text-sm text-metin-ikincil">{piyasa.emsalSayisi} benzer ilan bulundu; 5&apos;ten az olduğu için fiyatlar yön göstericidir.</p>
         )}
@@ -138,7 +86,7 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
           </div>
         )}
         {(piyasa.kaynaklar || []).some((k) => k.url && /^https?:\/\//i.test(k.url)) && (
-          <ul className="mt-3 space-y-2 text-sm">
+          <ul className="yb-comparable-grid mt-3 text-sm">
             {piyasa.kaynaklar.filter((k) => k.url && /^https?:\/\//i.test(k.url)).map((k, i) => (
               <li key={`${k.url}-${i}`}>
                 <a href={k.url!} target="_blank" rel="noopener noreferrer nofollow" className="text-birincil underline">
@@ -149,10 +97,50 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
             ))}
           </ul>
         )}
+        <dl className="yb-market-summary">
+          <div><dt><Ikon ad="grafik" />Ortalama fiyat</dt><dd>{tl(piyasa.ortalama)}</dd></div>
+          <div><dt><Ikon ad="terazi" />Adil fiyat aralığı</dt><dd>{tl(degerleme.adilFiyatAraligi?.min)} – {tl(degerleme.adilFiyatAraligi?.max)}</dd></div>
+        </dl>
       </section>
 
+      </div>
+      <AkilliAliciBolumleri sonuc={sonuc} bolum="yardimci" />
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <Kutu baslik="İlan fiyatı" deger={tl(arac.ilanFiyati)} />
+        {piyasa.ortalama > 0 && (
+          <Kutu baslik={`Benzer ${piyasa.emsalSayisi} ilanın ortalaması${piyasa.duzeltme ? " (bu araca göre)" : ""}`} deger={tl(piyasa.ortalama)} />
+        )}
+        <Kutu baslik="Tavsiye alım fiyatı" deger={tl(degerleme.tavsiyeFiyat)} vurgu />
+        <Kutu baslik="Adil fiyat aralığı" deger={`${tl(degerleme.adilFiyatAraligi?.min)} – ${tl(degerleme.adilFiyatAraligi?.max)}`} />
+        <Kutu baslik="Hasarsız piyasa değeri" deger={tl(degerleme.temizPiyasaDegeri)} />
+      </div>
+
+      <section className="yb-report-card">
+        <h2 className="text-lg font-semibold text-metin-birincil">Değer kaybı ({yuzde(degerleme.toplamDegerKaybiYuzde)} • {tl(degerleme.toplamDegerKaybiTutar)})</h2>
+        {degerleme.kalemler.length === 0 ? (
+          <p className="mt-2 text-sm text-metin-ikincil">Bildirilen boya, değişen veya hasar kaydı yok.</p>
+        ) : (
+          <table className="mt-3 w-full text-sm">
+            <tbody>
+              {degerleme.kalemler.map((k) => (
+                <tr key={`${k.kategori}-${k.anahtar}`} className="border-t border-kenarlik-acik">
+                  <td className="py-2 text-metin-birincil">{k.baslik}</td>
+                  <td className="py-2 text-metin-ikincil">{k.durum}</td>
+                  <td className="py-2 text-right text-metin-ikincil">-{yuzde(k.yuzde)}</td>
+                  <td className="py-2 text-right font-semibold text-metin-birincil">-{tl(k.tutar)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {degerleme.ozet && <p className="mt-3 text-sm text-metin-ikincil">{degerleme.ozet}</p>}
+      </section>
+
+      {piyasa.gecisYili && <GecisYiliKutusu gecis={piyasa.gecisYili} />}
+
       {getiri && (
-      <section className="bg-white rounded-xl border border-kenarlik-acik p-6">
+      <section className="yb-report-card">
         <h2 className="text-lg font-semibold text-metin-birincil">Getiri tahmini (araç enflasyonu)</h2>
           <>
             <p className="mt-1 text-sm text-metin-ikincil">
@@ -176,7 +164,7 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
       )}
 
       {bilgiKaynaklari && bilgiKaynaklari.length > 0 && (
-        <section className="bg-white rounded-xl border border-kenarlik-acik p-6">
+        <section className="yb-report-card">
           <h2 className="text-lg font-semibold text-metin-birincil">Bu rapordaki bilgiler nereden geliyor?</h2>
           <ul className="mt-3 space-y-2 text-sm">
             {bilgiKaynaklari.map((k) => (
