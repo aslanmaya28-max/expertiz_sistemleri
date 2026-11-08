@@ -219,10 +219,10 @@ function EkspertizTalebiIcerigi() {
   const lbl = "text-sm text-metin-ikincil";
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-3xl font-bold text-metin-birincil">Ekspertiz ve Raporlama Talebi</h1>
+    <div className="yb-inner-page yb-inspection-page max-w-6xl mx-auto px-4 sm:px-6 py-10">
+      <header className="yb-band yb-form-band"><h1>Ekspertiz ve Raporlama Talebi</h1></header>
 
-      <ol className="mt-6 grid grid-cols-4 gap-2">
+      <ol className="yb-inspection-progress mt-6 grid grid-cols-4 gap-2">
         {ADIMLAR.map((ad, i) => (
           <li key={ad} className={`rounded-lg border px-3 py-2 text-center text-xs font-semibold sm:text-sm ${
             i === adim ? "border-birincil bg-birincil/10 text-birincil-koyu" : i < adim ? "border-green-200 bg-green-50 text-basarili" : "border-kenarlik-acik text-metin-ikincil"
@@ -235,7 +235,7 @@ function EkspertizTalebiIcerigi() {
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_340px]">
         <div className="space-y-6">
           {adim === 0 && (
-            <section className="bg-white border border-kenarlik-acik rounded-lg p-5 space-y-4">
+            <section className="yb-card yb-inspection-step space-y-4">
               <div>
                 <h2 className="text-lg font-semibold text-metin-birincil">Araç ilan linki</h2>
                 <p className="text-sm text-metin-ikincil">Marka, model, il ve ilçeyi aşağıya girin. İlan bağlantısını da ekleyebilirsiniz; yönetici talebinizden ilanı açıp inceleyebilir.</p>
@@ -285,7 +285,7 @@ function EkspertizTalebiIcerigi() {
           )}
 
           {adim === 1 && (
-            <section className="bg-white border border-kenarlik-acik rounded-lg p-5">
+            <section className="yb-card yb-inspection-step">
               <h2 className="text-lg font-semibold text-metin-birincil">YerimeBak hizmet bedeli</h2>
               <div className="mt-3 text-3xl font-bold text-metin-birincil">{tl(serviceFee)}</div>
               <p className="mt-1 text-xs text-metin-ikincil">KDV hariç · KDV dahil {tl(serviceFee * (1 + vatRate))}</p>
@@ -299,7 +299,7 @@ function EkspertizTalebiIcerigi() {
           )}
 
           {adim === 2 && (
-            <section className="bg-white border border-kenarlik-acik rounded-lg p-5">
+            <section className="yb-card yb-inspection-step">
               <h2 className="text-lg font-semibold text-metin-birincil">Kurumsal ekspertiz firması ve paketi</h2>
               {firms.length === 0 && <p className="mt-3 text-sm text-metin-ikincil">Şu an seçilebilir firma yok.</p>}
               <div className="mt-4 space-y-4">
@@ -333,7 +333,7 @@ function EkspertizTalebiIcerigi() {
           )}
 
           {adim === 3 && (
-            <section className="bg-white border border-kenarlik-acik rounded-lg p-5">
+            <section className="yb-card yb-inspection-step">
               <h2 className="text-lg font-semibold text-metin-birincil">Talep onayı</h2>
                 <>
                   <p className="mt-1 text-sm text-metin-ikincil">

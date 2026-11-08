@@ -192,18 +192,18 @@ export default function MusteriPaneli() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="yb-panel-heading flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div className="yb-dashboard max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="yb-panel-heading yb-band flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <span className="yb-eyebrow !text-[#b9efd7]">HER ADIMDA YANINIZDAYIZ</span>
+          <span className="yb-band-label">HER ADIMDA YANINIZDAYIZ</span>
           <h1 className="text-3xl font-semibold tracking-tight">Araç dosyanız, elinizin altında.</h1>
           <p className="mt-3 text-sm">{user.email} · İnceleme sürecinizi ve onaylanan raporlarınızı buradan takip edin.</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Link href="/arac-analiz" className="yb-button yb-button-outline yb-button-small">
+          <Link href="/arac-analiz" className="yb-btn yb-btn-ghost">
             Araç değerleme
           </Link>
-          <Link href="/ekspertiz-talebi" className="yb-button yb-button-mint yb-button-small">
+          <Link href="/ekspertiz-talebi" className="yb-btn yb-btn-mint">
             Yeni inceleme talebi <Ikon ad="capraz-ok" />
           </Link>
         </div>
@@ -224,8 +224,8 @@ export default function MusteriPaneli() {
         <SummaryCard label="Kredi bakiyesi" value={String(creditCount)} hint="Kullanılabilir bakiye" />
       </div>
 
-      <div className="mt-6 overflow-x-auto border-b border-kenarlik-acik">
-        <div className="flex min-w-max gap-2">
+      <div className="yb-dashboard-tabs mt-6">
+        <div className="flex flex-wrap gap-2">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -293,9 +293,9 @@ export default function MusteriPaneli() {
 
 function SummaryCard({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="rounded-lg border border-kenarlik-acik bg-white p-5">
+    <div className={`yb-card yb-dashboard-summary ${label === "Kredi bakiyesi" ? "yb-card-dark" : "yb-card-mint"}`}>
       <div className="text-sm text-metin-ikincil">{label}</div>
-      <div className="mt-2 text-3xl font-bold text-metin-birincil">{value}</div>
+      <div className="yb-big-number mt-2">{value}</div>
       <div className="mt-2 text-xs text-metin-ikincil">{hint}</div>
     </div>
   );
@@ -303,10 +303,10 @@ function SummaryCard({ label, value, hint }: { label: string; value: string; hin
 
 function PanelSection({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border border-kenarlik-acik bg-white p-5">
+    <section className="yb-card yb-dashboard-section">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-metin-birincil">{title}</h2>
-        {typeof count === "number" && <span className="text-xs text-metin-ikincil">{count} kayit</span>}
+        {typeof count === "number" && <span className="yb-badge">{count} kayit</span>}
       </div>
       <div className="mt-4 space-y-3">{children}</div>
     </section>
@@ -314,7 +314,7 @@ function PanelSection({ title, count, children }: { title: string; count?: numbe
 }
 
 function EmptyState({ text }: { text: string }) {
-  return <div className="rounded-lg bg-gray-50 px-4 py-8 text-center text-sm text-metin-ikincil">{text}</div>;
+  return <div className="yb-dashboard-empty">{text}</div>;
 }
 
 function AnalysisRow({ item, onSil }: { item: AnalysisHistoryItem; onSil?: (item: AnalysisHistoryItem, ad: string) => void }) {
@@ -330,7 +330,7 @@ function AnalysisRow({ item, onSil }: { item: AnalysisHistoryItem; onSil?: (item
   const score = typeof valuation.opportunity_score === "number" ? Math.round(valuation.opportunity_score) : null;
 
   return (
-    <div className="rounded-lg border border-kenarlik-acik p-4">
+    <div className="yb-dashboard-row">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <Link href={`/panel/degerlemeler/${encodeURIComponent(item.id)}`} className="font-semibold text-birincil underline">{title}</Link>
@@ -338,11 +338,11 @@ function AnalysisRow({ item, onSil }: { item: AnalysisHistoryItem; onSil?: (item
           <div className="mt-1 text-sm text-metin-ikincil">{textValue(vehicle.source, "panel")} / {formatDate(item.created_at)}</div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="w-fit rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">{decision}{score !== null ? ` / ${score}` : ""}</span>
+          <span className="yb-badge">{decision}{score !== null ? ` / ${score}` : ""}</span>
           {onSil && <button type="button" onClick={() => onSil(item, title)} className="yb-report-delete yb-report-delete-inline" aria-label={`${title} raporunu sil`}>Sil</button>}
         </div>
       </div>
-      <div className="mt-3 grid gap-2 text-xs text-metin-ikincil sm:grid-cols-3">
+      <div className="yb-dashboard-facts mt-3 grid gap-2 sm:grid-cols-3">
         <span>Fiyat: {formatPrice(listedPrice)}</span>
         <span>Piyasa: {formatPrice(marketPrice)}</span>
         <span>Kredi: {credits}</span>
@@ -385,15 +385,15 @@ function RequestRow({ request }: { request: ExpertizRequestSummary }) {
     ? { text: request.progress.label, cls: "bg-blue-100 text-blue-700" }
     : statusLabel(request.status);
   return (
-    <div className="rounded-lg border border-kenarlik-acik p-4">
+    <div className="yb-dashboard-row">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="font-semibold text-metin-birincil">{request.plate || "Plaka bekleniyor"}</div>
           <div className="mt-1 text-sm text-metin-ikincil">{request.firm_name || "-"} / {request.package_name || "-"}</div>
         </div>
-        <span className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${status.cls}`}>{status.text}</span>
+        <span className={`yb-badge yb-dashboard-status ${status.cls}`}>{status.text}</span>
       </div>
-      <div className="mt-3 grid gap-2 text-xs text-metin-ikincil sm:grid-cols-2">
+      <div className="yb-dashboard-facts mt-3 grid gap-2 sm:grid-cols-2">
         <span>Konum: {[request.city, request.district].filter(Boolean).join(" / ") || "-"}</span>
         <span>Tutar: {formatPrice(request.total_tl)}</span>
         <span>Odeme: {({ paid: "Odendi", paid_simulation: "Odendi (test)", pending: "Bekliyor", failed: "Basarisiz" } as Record<string, string>)[request.payment_status || ""] || request.payment_status || "-"}</span>
@@ -406,17 +406,17 @@ function RequestRow({ request }: { request: ExpertizRequestSummary }) {
 
 function ReportRow({ report }: { report: ExpertizReportSummary }) {
   return (
-    <div className="rounded-lg border border-kenarlik-acik p-4">
+    <div className="yb-dashboard-row">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="font-semibold text-metin-birincil">{report.plate || "Rapor"}</div>
           <div className="mt-1 text-sm text-metin-ikincil">{report.firm_name || "-"}</div>
         </div>
-        <Link href={`/panel/raporlar/${report.id}`} className="whitespace-nowrap rounded-lg border border-kenarlik-acik px-3 py-1.5 text-xs font-semibold text-metin-birincil">
+        <Link href={`/panel/raporlar/${report.id}`} className="yb-btn yb-btn-outline">
           Incele
         </Link>
       </div>
-      <div className="mt-3 grid gap-2 text-xs text-metin-ikincil sm:grid-cols-2">
+      <div className="yb-dashboard-facts mt-3 grid gap-2 sm:grid-cols-2">
         <span>Yayin: {formatDate(report.published_at)}</span>
         <span>Tutar: {formatPrice(report.summary?.total_tl)}</span>
         <span>AI degeri: {formatPrice(report.summary?.market_value)}</span>
@@ -435,13 +435,13 @@ function QuickActions({ credits }: { credits: number }) {
   return (
     <PanelSection title="Hizli Islemler">
       <div className="grid gap-3 sm:grid-cols-2">
-        <Link href="/arac-analiz" className="rounded-lg border border-kenarlik-acik p-4 text-sm font-semibold text-metin-birincil hover:border-birincil">
+        <Link href="/arac-analiz" className="yb-card yb-card-mint yb-dashboard-action">
           Link veya arac analizi yap
         </Link>
-        <Link href="/ekspertiz-talebi" className="rounded-lg border border-kenarlik-acik p-4 text-sm font-semibold text-metin-birincil hover:border-birincil">
+        <Link href="/ekspertiz-talebi" className="yb-card yb-card-mint yb-dashboard-action">
           Ekspertiz talebi olustur
         </Link>
-        <Link href="/fiyatlar" className="rounded-lg border border-kenarlik-acik p-4 text-sm font-semibold text-metin-birincil hover:border-birincil">
+        <Link href="/fiyatlar" className="yb-card yb-card-mint yb-dashboard-action">
           Kredi yukle ({credits} mevcut)
         </Link>
       </div>
@@ -477,12 +477,12 @@ function CreditPanel({ balance, historyCount }: { balance: CreditBalanceResponse
   return (
     <div className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
       <PanelSection title="Kredi Durumu">
-        <div className="rounded-lg bg-gray-50 p-5">
+        <div className="yb-card yb-card-dark yb-dashboard-credit">
           <div className="text-sm text-metin-ikincil">Kullanılabilir kredi</div>
-          <div className="mt-2 text-4xl font-bold text-metin-birincil">{result?.balance ?? balance?.credits ?? 0}</div>
+          <div className="yb-big-number mt-2">{result?.balance ?? balance?.credits ?? 0}</div>
         </div>
         <SummaryCard label="Toplam analiz" value={String(historyCount)} hint="Krediyle yapılan analizler" />
-        <Link href="/fiyatlar" className="inline-flex w-full justify-center rounded-lg bg-birincil px-4 py-2 text-sm font-semibold text-white">
+        <Link href="/fiyatlar" className="yb-btn yb-btn-green w-full">
           Kredi paketlerini gör
         </Link>
       </PanelSection>
@@ -586,7 +586,7 @@ function ProfilePanel({
           />
         </label>
         <div className="md:col-span-2 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <button type="submit" disabled={saving} className="rounded-lg bg-birincil px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+          <button type="submit" disabled={saving} className="yb-btn yb-btn-green disabled:opacity-60">
             {saving ? "Kaydediliyor..." : "Profil bilgilerini kaydet"}
           </button>
           {message && <span className="text-sm text-metin-ikincil">{message}</span>}
@@ -611,7 +611,7 @@ function ProfileInput({ label, value, onChange }: { label: string; value: string
 
 function InfoLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-kenarlik-acik p-4">
+    <div className="yb-dashboard-row">
       <div className="text-xs text-metin-ikincil">{label}</div>
       <div className="mt-1 font-semibold text-metin-birincil">{value}</div>
     </div>

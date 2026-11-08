@@ -15,32 +15,32 @@ export const metadata: Metadata = {
 
 export default function FiyatlarSayfasi() {
   return (
-    <div>
-      <div className="max-w-7xl mx-auto px-4 py-8 text-center">
-        <h1 className="text-3xl font-bold text-metin-birincil">Fiyatlar</h1>
-        <p className="text-metin-ikincil mt-2">
+    <div className="yb-inner-page yb-pricing-page max-w-6xl mx-auto px-4 sm:px-6 py-10">
+      <header className="yb-band">
+        <h1>Fiyatlar</h1>
+        <p>
           Araç değerleme raporu için kredi paketleri. 1 kredi = 1 rapor; yeterli benzer ilan bulunamazsa kredi düşülmez.
         </p>
-      </div>
-      <section aria-label="100 TL'ye neler alırsınız?" className="max-w-5xl mx-auto px-4 pb-4">
+      </header>
+      <section aria-label="100 TL'ye neler alırsınız?" className="yb-pricing-lead">
         <div className="yb-card"><DegerlemeKapsami kisa /></div>
       </section>
       <FiyatKartlari />
 
-      <section aria-labelledby="yerinde-ucret" className="max-w-3xl mx-auto px-4 pb-12">
-        <div className="rounded-xl bg-white border border-kenarlik-acik p-6 sm:p-8 text-[15px] leading-relaxed text-metin-birincil">
-          <h2 id="yerinde-ucret" className="mb-3 text-xl font-semibold">Yerinde araç inceleme ücreti</h2>
-          <p className="text-3xl font-bold">{tl(HIZMET_BEDELI_TL)}</p>
-          <p className="mb-4 text-xs text-metin-ikincil">KDV hariç · KDV dahil {tl(HIZMET_BEDELI_TL * (1 + KDV_ORANI))}</p>
+      <section aria-labelledby="yerinde-ucret" className="yb-inspection-price">
+        <div className="yb-card yb-card-mint">
+          <h2 id="yerinde-ucret" className="mb-3">Yerinde araç inceleme ücreti</h2>
+          <p className="yb-big-number">{tl(HIZMET_BEDELI_TL)}</p>
+          <p className="yb-badge mt-3 mb-4">KDV hariç · KDV dahil {tl(HIZMET_BEDELI_TL * (1 + KDV_ORANI))}</p>
           <p className="mb-3">
             Yerinde inceleme kredi ile değil, talep başına ücretlendirilir. YerimeBak hizmet bedelinin KDV&apos;si ödeme
             adımında ayrı satır olarak eklenir. Seçtiğiniz kurumsal ekspertiz firmasının paket ücreti, firmanın KDV dahil
             fiyatıyla eklenir; pakete ayrıca KDV eklenmez. KDV dahil toplam tutar ödeme adımından önce açıkça gösterilir.
           </p>
           <p className="mb-4 text-metin-ikincil">Hizmet bölgesi: {BOLGE_YERINDE}.</p>
-          <div className="flex flex-wrap gap-3">
-            <Link href="/ekspertiz-talebi" className="rounded-lg bg-birincil px-5 py-3 font-semibold text-white">Aracı yerinde incelet</Link>
-            <Link href="/yerinde-inceleme" className="rounded-lg border border-kenarlik-acik px-5 py-3 font-semibold text-metin-birincil">Hizmet ayrıntıları</Link>
+          <div className="yb-btn-row">
+            <Link href="/ekspertiz-talebi" className="yb-btn yb-btn-green">Aracı yerinde incelet</Link>
+            <Link href="/yerinde-inceleme" className="yb-btn yb-btn-outline">Hizmet ayrıntıları</Link>
           </div>
         </div>
       </section>
