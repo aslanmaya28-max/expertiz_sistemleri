@@ -326,8 +326,7 @@ function AnalysisRow({ item, onSil }: { item: AnalysisHistoryItem; onSil?: (item
   const credits = typeof valuation.credits_deducted === "number" ? valuation.credits_deducted : 1;
   const listedPrice = typeof vehicle.ilanFiyati === "number" ? vehicle.ilanFiyati : typeof vehicle.listed_price === "number" ? vehicle.listed_price : undefined;
   const marketPrice = typeof valuation.piyasa_ortalama === "number" ? valuation.piyasa_ortalama : typeof vehicle.market_price_avg === "number" ? vehicle.market_price_avg : undefined;
-  const decision = textValue(valuation.karar || valuation.decision, "Analiz");
-  const score = typeof valuation.opportunity_score === "number" ? Math.round(valuation.opportunity_score) : null;
+  // Karar (AL/ALMA/EK DOĞRULAMA…) ve fırsat puanı müşteriye gösterilmez (09.11.2026).
 
   return (
     <div className="yb-dashboard-row">
@@ -338,7 +337,7 @@ function AnalysisRow({ item, onSil }: { item: AnalysisHistoryItem; onSil?: (item
           <div className="mt-1 text-sm text-metin-ikincil">{textValue(vehicle.source, "panel")} / {formatDate(item.created_at)}</div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="yb-badge">{decision}{score !== null ? ` / ${score}` : ""}</span>
+          <span className="yb-badge">Değerleme raporu</span>
           {onSil && <button type="button" onClick={() => onSil(item, title)} className="yb-report-delete yb-report-delete-inline" aria-label={`${title} raporunu sil`}>Sil</button>}
         </div>
       </div>

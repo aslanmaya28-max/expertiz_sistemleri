@@ -54,7 +54,7 @@ export default function DegerlemeDetayi() {
       {report && ("ozet_kayit" in report ? <section className="yb-card yb-card-mint mt-6">
         <h2 className="text-xl font-semibold">Özet kayıt</h2>
         <p className="mt-2">{[report.arac.marka, report.arac.model, report.arac.yil].filter(Boolean).join(" ")}</p>
-        <p className="mt-2">{new Date(report.created_at).toLocaleString("tr-TR")} • {report.karar || "Analiz"} • {report.kredi} kredi</p>
+        <p className="mt-2">{new Date(report.created_at).toLocaleString("tr-TR")} • Değerleme raporu • {report.kredi} kredi</p>
         <p className="mt-2 text-metin-ikincil">Bu eski analiz için yalnızca özet kaydedilmiş; tam rapor ve PDF bulunmuyor.</p>
       </section> : <>
         <button onClick={download} disabled={downloading} className="yb-btn yb-btn-green mt-6 disabled:opacity-50">{downloading ? "PDF hazırlanıyor…" : "PDF indir"}</button>

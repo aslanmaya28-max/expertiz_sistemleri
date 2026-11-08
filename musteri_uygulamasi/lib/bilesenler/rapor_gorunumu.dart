@@ -7,7 +7,6 @@ import 'model_bulgulari.dart';
 import 'deger_kaybi.dart';
 import 'piyasa_bolumu.dart';
 import 'rapor_kaynaklar.dart';
-import 'karar_rozeti.dart';
 import 'fiyat_araligi.dart';
 import '../tema/olculer.dart';
 import '../tema/yazi.dart';
@@ -44,15 +43,7 @@ class ReportView extends StatelessWidget {
             vehicle['yil'],
           ].where((e) => e != null).join(' '),
           [
-            if (object(snapshot.raw['karar']).isNotEmpty) ...[
-              KararRozeti(
-                text(object(snapshot.raw['karar'])['sonuc']),
-                buyuk: true,
-              ),
-              const SizedBox(height: Olcu.s8),
-              Text(text(object(snapshot.raw['karar'])['aciklama'])),
-              const SizedBox(height: Olcu.s24),
-            ],
+            // Müşteriye karar verisi (karar.sonuc / aciklama) gösterilmez; sitedeki kuralla aynı (09.11.2026).
             const Text('Hesaplanan değer', style: Yazilar.etiket),
             Text(
               money(snapshot.valuation['aiDegeri']),

@@ -12,7 +12,6 @@ import '../hizmetler/hizmet_tanitim.dart';
 import '../tema/renkler.dart';
 import '../bilesenler/marka.dart';
 import '../bilesenler/kart.dart';
-import '../bilesenler/karar_rozeti.dart';
 import '../analiz/analiz_ekranlari.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -158,10 +157,6 @@ class ReportTile extends StatelessWidget {
               color: YbRenkler.of(context).metinIkincil,
             ),
           ),
-          if (report.decision.isNotEmpty) ...[
-            const SizedBox(height: Olcu.s8),
-            KararRozeti(report.decision),
-          ],
         ],
       ),
     ),

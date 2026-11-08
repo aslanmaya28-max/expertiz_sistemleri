@@ -113,7 +113,8 @@ def summary(row):
     return {'id': row['id'], 'created_at': row['created_at'].isoformat()+'Z',
             'arac': {'marka': vehicle.get('marka') or vehicle.get('brand'), 'model': vehicle.get('model'),
                      'yil': vehicle.get('yil') or vehicle.get('year')},
-            'karar': valuation.get('karar') or valuation.get('decision'),
+            # Müşteriye karar verisi (AL/ALMA/EK DOĞRULAMA…) gösterilmez; liste özetinde de gönderilmez (09.11.2026).
+            'karar': None,
             'kredi': valuation.get('credits_deducted', 1), 'report_no': row['report_no'],
             'verification_code': row['verification_code'], 'ozet_kayit': not row['has_report']}
 

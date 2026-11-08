@@ -71,8 +71,9 @@ void main() {
     (tester) async {
       await showReport(tester, fixture());
       expect(find.text('Özet'), findsOneWidget);
-      expect(find.text('ÖNERİLMEZ'), findsOneWidget);
-      expect(find.text('Ek inceleme yaptırın.'), findsOneWidget);
+      // Karar verisi müşteriye gösterilmez (sitedeki kuralla aynı, 09.11.2026).
+      expect(find.text('ÖNERİLMEZ'), findsNothing);
+      expect(find.text('Ek inceleme yaptırın.'), findsNothing);
       expect(find.text('945.000 TL'), findsOneWidget);
       expect(find.text('930.000 TL'), findsOneWidget);
       for (final label in [

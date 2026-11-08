@@ -63,7 +63,7 @@ export default function DegerlemeRaporlari() {
           </button>
           <Link href={`/panel/degerlemeler/${encodeURIComponent(report.id)}`} className="yb-card yb-saved-card block pr-24">
             <span className="font-semibold">{[report.arac.marka, report.arac.model, report.arac.yil].filter(Boolean).join(" ") || "Araç analizi"}</span>
-            <p className="mt-2 text-sm text-metin-ikincil">{new Date(report.created_at).toLocaleString("tr-TR")} • {report.karar || "Analiz"} • {report.kredi} kredi</p>
+            <p className="mt-2 text-sm text-metin-ikincil">{new Date(report.created_at).toLocaleString("tr-TR")} • Değerleme raporu • {report.kredi} kredi</p>
             <p className="mt-1 text-sm">{report.ozet_kayit ? "Özet kayıt — tam rapor bulunmuyor" : report.report_no}</p>
           </Link>
         </li>)}</ul>
