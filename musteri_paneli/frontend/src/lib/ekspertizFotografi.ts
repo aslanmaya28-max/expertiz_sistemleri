@@ -3,7 +3,7 @@ import type { InspectionPhotoResult, PrefillField } from "./api";
 export function raporFotografiHatasi(files: Pick<File, "size" | "name" | "type">[]): string | null {
   if (files.length < 1 || files.length > 4) return "Bir rapor için 1–4 fotoğraf seçin.";
   if (files.some((file) => !file.size || file.size > 8 * 1024 * 1024)) return "Her fotoğraf boş olmamalı ve en fazla 8 MB olmalıdır.";
-  if (files.some((file) => !/\.(jpe?g|png|heic|heif)$/i.test(file.name))) return "JPEG, PNG veya HEIC fotoğraf seçin.";
+  if (files.some((file) => !/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name))) return "JPEG, PNG, WEBP veya HEIC fotoğraf seçin.";
   return null;
 }
 

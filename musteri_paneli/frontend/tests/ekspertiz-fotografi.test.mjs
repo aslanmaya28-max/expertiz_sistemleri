@@ -17,6 +17,8 @@ test('fotoğraf sınırları ve belirsiz parçalar korunur', () => {
   const lib = load('../src/lib/ekspertizFotografi.ts');
   const image = { name: 'rapor.heic', size: 100, type: '' };
   assert.equal(lib.raporFotografiHatasi([image]), null);
+  // WhatsApp/telefon ekran görüntüsü WEBP olabilir (08.11.2026).
+  assert.equal(lib.raporFotografiHatasi([{ ...image, name: 'ekran.webp' }]), null);
   assert.match(lib.raporFotografiHatasi([]), /1–4/);
   assert.match(lib.raporFotografiHatasi(Array(5).fill(image)), /1–4/);
   assert.match(lib.raporFotografiHatasi([{ ...image, size: 8 * 1024 * 1024 + 1 }]), /8 MB/);

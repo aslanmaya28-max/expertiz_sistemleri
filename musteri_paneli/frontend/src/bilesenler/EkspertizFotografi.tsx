@@ -37,9 +37,9 @@ export default function EkspertizFotografi({ disabled, onBusy, onApply, onReset,
   }
   return <section className="rounded-xl border border-kenarlik-acik bg-white p-6" aria-label="Ekspertiz raporu fotoğrafı">
     <h2 className="text-lg font-semibold text-metin-birincil">Ekspertiz raporunuz var mı? Fotoğrafını yükleyin</h2>
-    <p className="mt-2 text-sm text-metin-ikincil">1–4 JPEG, PNG veya HEIC; her biri en fazla 8 MB. Plaka, ad, telefon ve imzayı yüklemeden önce kapatın. Görüntüler kalıcı kaydedilmez; okuma için yapay zekâ hizmetine iletilir.</p>
+    <p className="mt-2 text-sm text-metin-ikincil">1–4 JPEG, PNG, WEBP veya HEIC; her biri en fazla 8 MB. Plaka, ad, telefon ve imzayı yüklemeden önce kapatın. Görüntüler kalıcı kaydedilmez; okuma için yapay zekâ hizmetine iletilir.</p>
     <label className="mt-3 block text-sm font-medium">Rapor fotoğrafları
-      <input type="file" accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif" multiple disabled={disabled || reading}
+      <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.webp,.heic,.heif" multiple disabled={disabled || reading}
         className="mt-2 block w-full text-sm" onChange={(event) => {
           const next = Array.from(event.target.files || []);
           setFiles(next); setResult(null); setConsent(false); setError(raporFotografiHatasi(next)); onReset();

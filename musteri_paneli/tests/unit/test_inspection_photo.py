@@ -128,3 +128,23 @@ def test_responses_model_request_and_usage_cost(monkeypatch):
     result = photo.read([image_bytes((50, 50))])
     assert result['parts'] == {'kaput': 'boyali'}
     assert result['scope'] == {'model': 'fake/vision', 'cost_usd': 0.0017}
+
+
+@pytest.mark.parametrize('belge,mesaj', [('ilan', 'Ekran görüntüsü yükle'), ('diger', 'ekspertiz raporu bulunamadı')])
+def test_ekspertiz_alanina_ilan_ya_da_baska_gorsel_yuklenirse_reddedilir(monkeypatch, belge, mesaj):
+    # Kullanıcı denemesi (08.11.2026): ilan görüntüsü bu alana yüklenince satıcı beyanı uzman bulgusu gibi görünmesin.
+    monkeypatch.setattr(photo, '_model', lambda images: ({'belge_turu': belge, 'parts': {'kaput': 'boyali'}},
+                                                         {'model': 'sahte', 'cost_usd': 0}))
+    with pytest.raises(photo.PhotoError, match=mesaj):
+        photo.read([image_bytes()])
+
+
+def test_ekspertiz_raporu_ve_turu_bilinmeyen_yanit_kabul_edilir(monkeypatch):
+    for veri in ({'belge_turu': 'ekspertiz_raporu', 'parts': {'kaput': 'boyali'}}, {'parts': {'kaput': 'boyali'}}):
+        monkeypatch.setattr(photo, '_model', lambda images, v=veri: (v, {'model': 'sahte', 'cost_usd': 0}))
+        assert photo.read([image_bytes()])['parts'] == {'kaput': 'boyali'}
+
+
+def test_webp_ekran_goruntusu_kabul_edilir():
+    with Image.open(io.BytesIO(photo.prepare(image_bytes(fmt='WEBP')))) as image:
+        assert image.format == 'JPEG'
