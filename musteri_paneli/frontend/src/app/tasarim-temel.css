@@ -49,7 +49,7 @@
 .yb-btn-green:hover { background: var(--yb-deep); }
 .yb-btn-ghost { border: 1px solid color-mix(in srgb, var(--yb-mint) 55%, transparent); color: #fff; }
 .yb-btn-outline { border: 1px solid var(--yb-card-line); color: var(--yb-ink-strong); background: #fff; }
-.yb-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
+.yb-btn-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
 
 /* Bilgi çipleri: ikon + küçük etiket + kalın değer (rapordaki model yılı/km satırı). */
 .yb-chips {
