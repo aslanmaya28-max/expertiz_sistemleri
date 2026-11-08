@@ -101,7 +101,7 @@ def test_prefill_site_short_link_asks_paste(catalog, monkeypatch):
     res = valuation_service.prefill_from_link("https://shbd.io/s/JxlAmKg0")
     assert res["found"] is False and res["source"] == "sahibinden"
     assert res["vehicle"] == {} and res["paste_text"] is True
-    assert "açıklamayı kopyalayıp" in res["message"]
+    assert "ekran görüntüsünü" in res["message"] and "kopyalayıp" in res["message"]
 
 
 def test_sahibinden_link_skips_paid_search(catalog, monkeypatch):

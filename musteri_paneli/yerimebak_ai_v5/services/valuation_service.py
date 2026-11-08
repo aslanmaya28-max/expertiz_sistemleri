@@ -471,8 +471,8 @@ def _legacy_prefill_from_link(url: str) -> Dict[str, Any]:
 
 
 SAHIBINDEN_PASTE_MESSAGE = (
-    "Sahibinden ilanını otomatik okuyamıyoruz. İlan sayfasındaki fiyatı, özellikler listesini ve "
-    "açıklamayı kopyalayıp aşağıdaki kutuya yapıştırın."
+    "Sahibinden ilanını linkten okuyamıyoruz. Telefondaysanız ilanın fiyat ve özellikler kısmının ekran "
+    "görüntüsünü yükleyin; bilgisayardaysanız ilan metnini kopyalayıp aşağıdaki kutuya yapıştırın."
 )
 
 

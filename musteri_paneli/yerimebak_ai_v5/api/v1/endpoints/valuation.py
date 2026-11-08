@@ -111,6 +111,20 @@ async def inspection_photo(request: Request, user: Dict[str, Any] = Depends(get_
         raise HTTPException(exc.status, str(exc)) from None
 
 
+@router.post('/prefill-screenshot')
+async def prefill_screenshot(request: Request, user: Dict[str, Any] = Depends(get_current_user)):
+    """Telefondaki müşteri: ilan ekran görüntüsünden araç bilgisi (Sahibinden metni kopyalanamıyor)."""
+    from yerimebak_ai_v5.services import listing_screenshot
+    from yerimebak_ai_v5.services.inspection_photo import PhotoError
+    from yerimebak_ai_v5.services.inspection_photo_upload import files_from_request
+    await _consume_daily(user)
+    try:
+        files = await files_from_request(request)
+        return await asyncio.get_running_loop().run_in_executor(None, listing_screenshot.read, files)
+    except PhotoError as exc:
+        raise HTTPException(exc.status, str(exc)) from None
+
+
 @router.get("/generation")
 async def generation(brand: str = Query(..., max_length=60), model: str = Query(..., max_length=60),
                      year: int = Query(..., ge=1980, le=2100),

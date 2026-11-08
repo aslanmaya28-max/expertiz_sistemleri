@@ -173,7 +173,7 @@ _LABEL_LINES = (
     ("brand", r"Marka"), ("model", r"Seri"), ("package", r"Model(?!\s*Yılı)"),
     ("year", r"(?:Yıl|YIL|Model Yılı)"), ("km", r"(?:KM|Km|Kilometre)"),
     ("fuel", r"(?:Yakıt\s*/\s*Motor Tipi|Yakıt Tipi|Yakıt)"), ("transmission", r"(?:Vites Tipi|Vites)"),
-    ("hp", r"Motor Gücü"),
+    ("hp", r"Motor Gücü"), ("price", r"(?:Fiyat|Fiyatı|İlan Fiyatı)"),
 )
 
 
@@ -191,6 +191,13 @@ def labeled_fields(text):
         return {}
     out = {}
     for key, value in found.items():
+        if key == "price":
+            # Ekran görüntüsü okuyucusu fiyatı "Fiyat: 1.589.000 TL" satırına yazar (08.11.2026).
+            match = re.fullmatch(r"([\d.]{4,15})\s*(?:TL|₺)?", value.strip())
+            number = int(match.group(1).replace(".", "")) if match else 0
+            if 10_000 <= number <= 200_000_000:
+                out[key] = field(number, "ilan_metni")
+            continue
         if key in ("year", "km", "hp"):
             digits = re.sub(r"\D", "", value)
             if not digits:

@@ -730,6 +730,13 @@ export function prefillValuation(url: string): Promise<ValuationPrefill> {
   return fetchAPI<ValuationPrefill>(`/valuation/prefill?url=${encodeURIComponent(url)}`);
 }
 
+/** Telefondaki müşteri: ilan ekran görüntüsünden bilgi (Sahibinden metni telefonda kopyalanamıyor). */
+export function prefillValuationScreenshot(files: File[]): Promise<ValuationPrefill & { metin?: string }> {
+  const data = new FormData();
+  files.forEach((file) => data.append("files", file));
+  return fetchAPI("/valuation/prefill-screenshot", { method: "POST", body: data });
+}
+
 export function prefillValuationText(text: string): Promise<ValuationPrefill> {
   return fetchAPI<ValuationPrefill>("/valuation/prefill-text", { method: "POST", body: JSON.stringify({ text }) });
 }

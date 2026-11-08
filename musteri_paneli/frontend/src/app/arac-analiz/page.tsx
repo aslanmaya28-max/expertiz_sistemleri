@@ -19,6 +19,7 @@ import {
   type KasaBilgisi,
   prefillValuation,
   prefillValuationText,
+  prefillValuationScreenshot,
   type PrefillField,
   type ValuationPrefill,
   type PartStatus,
@@ -56,6 +57,7 @@ export default function AracAnalizSayfasi() {
   const [textOpen, setTextOpen] = useState(false);
   const [yapistirUyarisi, setYapistirUyarisi] = useState(false);
   const metinKutusu = useRef<HTMLTextAreaElement>(null);
+  const ekranGirdisi = useRef<HTMLInputElement>(null);
   const [panoVar, setPanoVar] = useState(false);
   useEffect(() => {
     setPanoVar(typeof navigator !== "undefined" && !!navigator.clipboard?.readText);
@@ -197,6 +199,24 @@ export default function AracAnalizSayfasi() {
     }
   }
 
+  // Telefonda Sahibinden metni kopyalanamıyor (kullanıcı denemesi, 08.11.2026): ekran görüntüsünden okunur.
+  async function ekrandanDoldur(e: React.ChangeEvent<HTMLInputElement>) {
+    const dosyalar = Array.from(e.target.files || []).slice(0, 4);
+    e.target.value = "";
+    if (!dosyalar.length) return;
+    setBusy("prefill");
+    setHata(null);
+    try {
+      const res = await prefillValuationScreenshot(dosyalar);
+      if (res.metin) setListingText(res.metin.slice(0, 8000));
+      applyPrefill(res);
+    } catch (err) {
+      setHata({ message: err instanceof Error ? err.message : "Ekran görüntüsü okunamadı" });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function metindenDoldur() {
     setBusy("prefill");
     setHata(null);
@@ -319,6 +339,17 @@ export default function AracAnalizSayfasi() {
                 {busy === "prefill" ? "Okunuyor..." : "Bilgileri getir"}
               </button>
             </div>
+            <div className="mt-3 rounded-lg border border-dashed border-birincil/40 bg-birincil/5 p-3">
+              <p className="text-sm text-metin-birincil">
+                <span className="font-semibold">Telefondan mı bakıyorsunuz?</span> İlanın fiyat ve özellikler kısmının
+                ekran görüntüsünü alın (1–4 adet), buradan yükleyin; bilgileri biz okuyalım.
+              </p>
+              <input ref={ekranGirdisi} type="file" accept="image/*" multiple hidden onChange={ekrandanDoldur} />
+              <button type="button" onClick={() => ekranGirdisi.current?.click()} disabled={busy !== null}
+                className="mt-2 w-full rounded-lg bg-birincil px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto">
+                {busy === "prefill" ? "Okunuyor..." : "Ekran görüntüsü yükle"}
+              </button>
+            </div>
             {prefillMsg && (
               <p className={yapistirUyarisi ? "mt-3 rounded-lg bg-yellow-50 p-3 text-sm font-medium text-yellow-900" : "mt-2 text-sm text-metin-ikincil"}>
                 {prefillMsg}
@@ -328,7 +359,7 @@ export default function AracAnalizSayfasi() {
               <summary className="cursor-pointer font-medium text-birincil">İlan metnini yapıştırın</summary>
               {yapistirUyarisi && (
                 <p className="mt-2 text-xs text-metin-ikincil">
-                  Telefonda: ilanı tarayıcıda açın, fiyattan açıklamanın sonuna kadar metne uzun basıp seçin ve Kopyala&apos;ya dokunun; sonra buraya dönüp yapıştırın.
+                  Telefonda metin seçilemiyorsa yukarıdaki &quot;Ekran görüntüsü yükle&quot; ile devam edin. Bilgisayarda: ilandaki fiyattan açıklamanın sonuna kadar seçip kopyalayın, buraya yapıştırın.
                 </p>
               )}
               <textarea ref={metinKutusu} aria-label="İlan metni" maxLength={8000} rows={6} value={listingText}
