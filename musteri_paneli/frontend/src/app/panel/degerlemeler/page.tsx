@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/kancalar/yetkiKullan";
-import { getValuationReports, type ValuationReportSummary } from "@/lib/api";
+import { deleteValuationReport, getValuationReports, type ValuationReportSummary } from "@/lib/api";
 
 const PAGE_SIZE = 20;
 
@@ -14,7 +14,24 @@ export default function DegerlemeRaporlari() {
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [siliniyor, setSiliniyor] = useState<string | null>(null);
   const userId = user?.id;
+
+  const sil = async (report: ValuationReportSummary) => {
+    const ad = [report.arac.marka, report.arac.model, report.arac.yil].filter(Boolean).join(" ") || "Bu rapor";
+    if (!window.confirm(`${ad} raporu listenizden kalıcı olarak silinsin mi? Bu işlem geri alınamaz.`)) return;
+    setSiliniyor(report.id);
+    setError("");
+    try {
+      await deleteValuationReport(report.id);
+      setReports((list) => list.filter((r) => r.id !== report.id));
+      setTotal((n) => Math.max(0, n - 1));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Rapor silinemedi");
+    } finally {
+      setSiliniyor(null);
+    }
+  };
 
   useEffect(() => {
     if (!userId) return;
@@ -39,8 +56,12 @@ export default function DegerlemeRaporlari() {
       {error && <p role="alert" className="mt-6 text-red-700">{error}</p>}
       {loading ? <p role="status" className="mt-6">Raporlar yükleniyor…</p> : !error && <>
         {reports.length === 0 && <p className="mt-6">Henüz değerleme raporunuz yok. <Link href="/arac-analiz" className="text-birincil underline">Yeni analiz</Link></p>}
-        <ul className="mt-6 space-y-3">{reports.map((report) => <li key={report.id}>
-          <Link href={`/panel/degerlemeler/${encodeURIComponent(report.id)}`} className="block rounded-lg border border-kenarlik-acik bg-white p-5 hover:border-birincil">
+        <ul className="mt-6 space-y-3">{reports.map((report) => <li key={report.id} className="yb-saved-report">
+          <button type="button" onClick={() => sil(report)} disabled={siliniyor === report.id} className="yb-report-delete"
+            aria-label={`${[report.arac.marka, report.arac.model, report.arac.yil].filter(Boolean).join(" ") || "Araç analizi"} raporunu sil`}>
+            {siliniyor === report.id ? "Siliniyor…" : "Sil"}
+          </button>
+          <Link href={`/panel/degerlemeler/${encodeURIComponent(report.id)}`} className="block rounded-lg border border-kenarlik-acik bg-white p-5 pr-24 hover:border-birincil">
             <span className="font-semibold">{[report.arac.marka, report.arac.model, report.arac.yil].filter(Boolean).join(" ") || "Araç analizi"}</span>
             <p className="mt-2 text-sm text-metin-ikincil">{new Date(report.created_at).toLocaleString("tr-TR")} • {report.karar || "Analiz"} • {report.kredi} kredi</p>
             <p className="mt-1 text-sm">{report.ozet_kayit ? "Özet kayıt — tam rapor bulunmuyor" : report.report_no}</p>

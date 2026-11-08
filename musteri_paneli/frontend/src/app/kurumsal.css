@@ -2245,3 +2245,13 @@ button:disabled {
 @media (min-width: 640px) { .yb-inflation-horizons { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 599px) { .yb-inflation-rates dd { font-size: 18px; } .yb-inflation-rates > div { padding-inline: 8px; } }
 @media print { .yb-inflation-horizons > div[data-horizon="12"] { background: #fff !important; color: var(--yb-ink) !important; border: 1px solid var(--yb-line); } }
+/* Raporlarım: sil düğmesi (09.11.2026). Bağlantının içinde değil, kartın sağ üst köşesinde. */
+.yb-saved-report { position: relative; }
+.yb-report-delete {
+  position: absolute; top: 14px; right: 14px; z-index: 1; min-height: 36px; padding: 6px 14px; border-radius: 999px;
+  border: 1px solid var(--yb-orange-line); background: #fff; color: var(--yb-orange-text); font-size: 13px; font-weight: 700;
+}
+.yb-report-delete:hover { background: var(--yb-peach-surface); }
+.yb-report-delete:focus-visible { outline: 3px solid var(--yb-orange); outline-offset: 2px; }
+.yb-report-delete:disabled { opacity: .6; cursor: progress; }
+.yb-report-delete-inline { position: static; }

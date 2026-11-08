@@ -774,6 +774,11 @@ export function getValuationReport(id: string, signal?: AbortSignal): Promise<Va
   return fetchAPI(`/valuation/reports/${encodeURIComponent(id)}`, { signal, cache: "no-store" });
 }
 
+/** Müşteri raporunu listesinden siler (kayıt ve doğrulama kodu sunucuda korunur). */
+export function deleteValuationReport(id: string): Promise<{ success: boolean }> {
+  return fetchAPI(`/valuation/reports/${encodeURIComponent(id)}`, { method: "DELETE", cache: "no-store" });
+}
+
 export function downloadValuationPdf(id: string): Promise<Blob> {
   return fetchAPI(`/valuation/reports/${encodeURIComponent(id)}/pdf`, { cache: "no-store" }, "blob");
 }

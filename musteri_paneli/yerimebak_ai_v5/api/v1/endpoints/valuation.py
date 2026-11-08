@@ -154,6 +154,13 @@ def report(report_id: str, user: Dict[str, Any] = Depends(get_current_user)):
     return _raise_if_error(get_report(user['id'], report_id))
 
 
+@router.delete('/reports/{report_id}')
+def delete_report(report_id: str, user: Dict[str, Any] = Depends(get_current_user)):
+    """Müşteri kendi değerleme raporunu listesinden siler (kayıt ve doğrulama korunur)."""
+    from yerimebak_ai_v5.services.valuation_reports import hide_report
+    return _raise_if_error(hide_report(user['id'], report_id))
+
+
 @router.get('/reports/{report_id}/pdf')
 def report_pdf(report_id: str, user: Dict[str, Any] = Depends(get_current_user)):
     from fastapi.responses import Response

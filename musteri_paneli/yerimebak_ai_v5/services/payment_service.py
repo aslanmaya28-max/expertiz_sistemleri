@@ -368,9 +368,10 @@ class PaymentService:
             cursor.execute(f"""
                 SELECT * FROM analysis_history
                 WHERE user_id = {self._p}
+                  AND id::text NOT IN (SELECT report_id FROM valuation_report_hidden WHERE user_id = {self._p})
                 ORDER BY created_at DESC
                 LIMIT {self._p}
-            """, (user_id, limit))
+            """, (user_id, user_id, limit))
             return [dict(row) for row in cursor.fetchall()]
         finally:
             DatabaseConfig.return_connection(conn)

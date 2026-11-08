@@ -213,3 +213,27 @@ def test_sunucu_acilisindaki_sema_kontrolu_suren_degerlemeyi_kilitlemez(client, 
             assert time.monotonic() - start < 5
         finally:
             DatabaseConfig.return_connection(conn)
+
+
+def test_musteri_raporunu_siler_kayit_ve_dogrulama_korunur(client, admin_token, scenario):
+    # Kullanıcı isteği (09.11.2026): "Raporlarım" bölümünde sil düğmesi. Rapor satırı değişmez; yalnız gizlenir.
+    uid, headers, payload, _ = scenario
+    report = client.post('/api/v1/valuation/analyze', headers=headers, json=payload).json()
+    identity = report['rapor']
+    path = '/api/v1/valuation/reports/' + identity['id']
+    assert client.get('/api/v1/valuation/reports', headers=headers).json()['total'] >= 1
+    # Başkası silemez; giriş yapılmadan silinemez.
+    assert client.delete(path, headers=_auth(admin_token)).status_code == 404
+    assert client.delete(path).status_code == 401
+    assert client.delete(path, headers=headers).json() == {'success': True}
+    assert client.delete(path, headers=headers).json() == {'success': True}  # tekrar çağrı zararsız
+    listed = client.get('/api/v1/valuation/reports', headers=headers).json()
+    assert identity['id'] not in [r['id'] for r in listed['reports']]
+    assert client.get(path, headers=headers).status_code == 404
+    assert client.get(path + '/pdf', headers=headers).status_code == 404
+    history = client.get('/api/v1/credits/history', headers=headers)
+    if history.status_code == 200:
+        assert identity['id'] not in json.dumps(history.json())
+    # Arşiv satırı ve doğrulama yerinde (rapor gerçekten düzenlenmişti).
+    assert sql('SELECT report_json FROM analysis_history WHERE id=%s', (identity['id'],), True)[0]['report_json'] == report
+    assert client.get('/api/v1/expertiz/verify/' + identity['verification_code']).json()['gecerli'] is True

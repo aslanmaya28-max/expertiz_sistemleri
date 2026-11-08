@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import {
+  deleteValuationReport,
   getAnalysisHistory,
   getCreditBalance,
   getCreditMovements,
@@ -156,6 +157,15 @@ export default function MusteriPaneli() {
   const latestRequests = requests.slice(0, 4);
   const latestReports = reports.slice(0, 4);
   const latestHistory = history.slice(0, 5);
+  const analiziSil = async (item: AnalysisHistoryItem, ad: string) => {
+    if (!window.confirm(`${ad} raporu listenizden kalıcı olarak silinsin mi? Bu işlem geri alınamaz.`)) return;
+    try {
+      await deleteValuationReport(item.id);
+      setHistory((list) => list.filter((h) => h.id !== item.id));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Rapor silinemedi");
+    }
+  };
   const creditCount = balance?.credits ?? user?.credits ?? 0;
 
   if (loading) {
@@ -240,7 +250,7 @@ export default function MusteriPaneli() {
           {activeTab === "ozet" && (
             <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
               <PanelSection title="Son Analizler" count={latestHistory.length}>
-                {latestHistory.length === 0 ? <EmptyState text="Henuz arac analizi yok." /> : latestHistory.map((item) => <AnalysisRow key={item.id} item={item} />)}
+                {latestHistory.length === 0 ? <EmptyState text="Henuz arac analizi yok." /> : latestHistory.map((item) => <AnalysisRow key={item.id} item={item} onSil={analiziSil} />)}
               </PanelSection>
               <PanelSection title="Aktif Ekspertiz Talepleri" count={latestRequests.length}>
                 {latestRequests.length === 0 ? <EmptyState text="Aktif ekspertiz talebiniz yok." /> : latestRequests.map((request) => <RequestRow key={request.id} request={request} />)}
@@ -255,7 +265,7 @@ export default function MusteriPaneli() {
           {activeTab === "analizler" && (
             <PanelSection title="Analizlerim" count={history.length}>
               <Link href="/panel/degerlemeler" className="text-sm font-semibold text-birincil underline">Tüm değerleme raporlarım</Link>
-              {history.length === 0 ? <EmptyState text="Araç değerlemeleriniz burada listelenecek." /> : history.map((item) => <AnalysisRow key={item.id} item={item} />)}
+              {history.length === 0 ? <EmptyState text="Araç değerlemeleriniz burada listelenecek." /> : history.map((item) => <AnalysisRow key={item.id} item={item} onSil={analiziSil} />)}
             </PanelSection>
           )}
 
@@ -307,7 +317,7 @@ function EmptyState({ text }: { text: string }) {
   return <div className="rounded-lg bg-gray-50 px-4 py-8 text-center text-sm text-metin-ikincil">{text}</div>;
 }
 
-function AnalysisRow({ item }: { item: AnalysisHistoryItem }) {
+function AnalysisRow({ item, onSil }: { item: AnalysisHistoryItem; onSil?: (item: AnalysisHistoryItem, ad: string) => void }) {
   const vehicle = parseJsonField(item.vehicle_json);
   const valuation = parseJsonField(item.valuation_json);
   const vehicleName = [vehicle.marka || vehicle.brand, vehicle.model, vehicle.yil || vehicle.year].filter(Boolean).join(" ");
@@ -327,7 +337,10 @@ function AnalysisRow({ item }: { item: AnalysisHistoryItem }) {
           {!item.report_no && <p className="mt-1 text-xs text-metin-ikincil">Özet kayıt</p>}
           <div className="mt-1 text-sm text-metin-ikincil">{textValue(vehicle.source, "panel")} / {formatDate(item.created_at)}</div>
         </div>
-        <span className="w-fit rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">{decision}{score !== null ? ` / ${score}` : ""}</span>
+        <div className="flex items-center gap-2">
+          <span className="w-fit rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">{decision}{score !== null ? ` / ${score}` : ""}</span>
+          {onSil && <button type="button" onClick={() => onSil(item, title)} className="yb-report-delete yb-report-delete-inline" aria-label={`${title} raporunu sil`}>Sil</button>}
+        </div>
       </div>
       <div className="mt-3 grid gap-2 text-xs text-metin-ikincil sm:grid-cols-3">
         <span>Fiyat: {formatPrice(listedPrice)}</span>

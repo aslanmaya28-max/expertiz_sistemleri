@@ -39,6 +39,14 @@ def ensure_schema(cursor):
             ('idx_valuation_owner_date', 'CREATE INDEX IF NOT EXISTS idx_valuation_owner_date ON analysis_history(user_id,created_at DESC,id DESC)')):
         if name not in indexes:
             cursor.execute(sql)
+    # Müşterinin sildiği raporlar (09.11.2026). Rapor satırı değişmez (tetikleyici korur); silme, raporu
+    # müşterinin listesinden/detayından/PDF'inden kaldıran ayrı bir işarettir. Kredi kaydı ve doğrulama korunur.
+    tables = _names(cursor, "SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema()")
+    if 'valuation_report_hidden' not in tables:
+        cursor.execute('''CREATE TABLE IF NOT EXISTS valuation_report_hidden (
+            report_id TEXT PRIMARY KEY, user_id INTEGER NOT NULL, hidden_at TIMESTAMPTZ NOT NULL DEFAULT NOW())''')
+        # Supabase: tablo dışarıya (anon/authenticated) kapalı kalsın; sunucu sahibi rolle erişir.
+        cursor.execute('ALTER TABLE valuation_report_hidden ENABLE ROW LEVEL SECURITY')
     cursor.execute('''CREATE OR REPLACE FUNCTION protect_valuation_snapshot() RETURNS trigger AS $$
         BEGIN
             IF OLD.report_json IS NOT NULL THEN
@@ -110,18 +118,38 @@ def summary(row):
             'verification_code': row['verification_code'], 'ozet_kayit': not row['has_report']}
 
 
+HIDDEN_FILTER = 'id::text NOT IN (SELECT report_id FROM valuation_report_hidden WHERE user_id=%s)'
+
+
 def list_reports(user_id, limit=20, offset=0):
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*) AS total FROM analysis_history WHERE user_id=%s', (user_id,))
+        cursor.execute(f'SELECT COUNT(*) AS total FROM analysis_history WHERE user_id=%s AND {HIDDEN_FILTER}',
+                       (user_id, user_id))
         total = cursor.fetchone()['total']
-        cursor.execute('''SELECT id,created_at,vehicle_json,valuation_json,report_no,verification_code,
+        cursor.execute(f'''SELECT id,created_at,vehicle_json,valuation_json,report_no,verification_code,
                           report_json IS NOT NULL AS has_report FROM analysis_history
-                          WHERE user_id=%s ORDER BY created_at DESC,id DESC LIMIT %s OFFSET %s''',
-                       (user_id, limit, offset))
+                          WHERE user_id=%s AND {HIDDEN_FILTER} ORDER BY created_at DESC,id DESC LIMIT %s OFFSET %s''',
+                       (user_id, user_id, limit, offset))
         return {'reports': [summary(dict(row)) for row in cursor.fetchall()], 'total': total,
                 'limit': limit, 'offset': offset}
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
+def hide_report(user_id, report_id):
+    """Müşteri raporunu siler: yalnız kendi raporu; tekrar çağrı zararsızdır."""
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT 1 FROM analysis_history WHERE user_id=%s AND id::text=%s', (user_id, str(report_id)))
+        if not cursor.fetchone():
+            return {'error': 'Rapor bulunamadı', 'http_status': 404}
+        cursor.execute('''INSERT INTO valuation_report_hidden (report_id, user_id) VALUES (%s, %s)
+                          ON CONFLICT (report_id) DO NOTHING''', (str(report_id), user_id))
+        conn.commit()
+        return {'success': True}
     finally:
         DatabaseConfig.return_connection(conn)
 
@@ -130,8 +158,9 @@ def get_report(user_id, report_id):
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute('SELECT *, report_json IS NOT NULL AS has_report FROM analysis_history WHERE user_id=%s AND id=%s',
-                       (user_id, report_id))
+        cursor.execute(f'SELECT *, report_json IS NOT NULL AS has_report FROM analysis_history '
+                       f'WHERE user_id=%s AND id=%s AND {HIDDEN_FILTER}',
+                       (user_id, report_id, user_id))
         row = cursor.fetchone()
         if not row:
             return {'error': 'Rapor bulunamadı', 'http_status': 404}
