@@ -214,3 +214,28 @@
   .yb-hero-expert { display: none; }
   .yb-hero-photo-credit { display: none; }
 }
+
+/* Hero: "Araç değerleme raporu al" pasif çerçeve yerine dolu beyaz düğme + turuncu fiyat rozeti (09.11.2026). */
+.yb-hero .yb-hero-valuation {
+  background: #fff; color: var(--yb-deep); border-color: #fff; padding-left: 8px; gap: 10px;
+  box-shadow: 0 10px 26px color-mix(in srgb, #fff 18%, transparent);
+}
+.yb-hero .yb-hero-valuation:hover { background: var(--yb-mint-surface); color: var(--yb-deep); border-color: var(--yb-mint-surface); }
+.yb-hero-valuation-icon {
+  display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  background: var(--yb-mint-surface); color: var(--yb-green-text);
+}
+.yb-hero-valuation-icon svg { width: 19px; height: 19px; }
+.yb-hero-price {
+  padding: 3px 9px; border-radius: 999px; background: var(--yb-peach-surface); color: var(--yb-orange-text);
+  font-size: 12px; font-weight: 800; letter-spacing: 0; white-space: nowrap;
+}
+.yb-hero .yb-hero-valuation > svg:last-child { color: var(--yb-orange-text); }
+@media (max-width: 760px) {
+  .yb-hero .yb-actions .yb-hero-valuation { justify-content: flex-start; padding-left: 8px; }
+  .yb-hero .yb-hero-valuation > svg:last-child { margin-left: auto; }
+}
+@media (max-width: 760px) {
+  .yb-hero .yb-actions .yb-hero-valuation { white-space: nowrap; font-size: 14px; gap: 8px; text-align: left; }
+}
+@media (max-width: 360px) { .yb-hero-price { display: none; } }

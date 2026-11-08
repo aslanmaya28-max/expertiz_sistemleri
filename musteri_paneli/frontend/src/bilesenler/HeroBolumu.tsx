@@ -13,7 +13,7 @@ export default function HeroBolumu() {
           <p className="yb-hero-description">İki yolu var: almayı düşündüğünüz aracı uzman personelimiz yerinde incelesin ya da ilan fiyatının doğru olup olmadığını telefonunuzdan, aracı görmeden öğrenin.</p>
           <div className="yb-actions">
             <IncelemeBaglantisi className="yb-button yb-button-dark">Aracı yerinde incelet <Ikon ad="capraz-ok" /></IncelemeBaglantisi>
-            <Link href="/arac-analiz" className="yb-button yb-button-outline">Araç değerleme raporu al <Ikon ad="ok" /></Link>
+            <Link href="/arac-analiz" className="yb-button yb-button-outline yb-hero-valuation"><span className="yb-hero-valuation-icon"><Ikon ad="grafik" /></span>Araç değerleme raporu al <span className="yb-hero-price">100 TL</span><Ikon ad="ok" /></Link>
           </div>
           <p className="yb-hero-choice">
             <Link href="/yerinde-inceleme">Yerinde inceleme</Link>: İstanbul, Avrupa ve Anadolu yakası ·{" "}
