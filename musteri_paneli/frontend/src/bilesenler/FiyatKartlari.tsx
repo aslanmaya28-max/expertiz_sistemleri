@@ -35,56 +35,53 @@ export default function FiyatKartlari() {
   }, []);
 
   return (
-    <section className="py-16 bg-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-4">
+    <section className="yb-inner-page yb-pricing-section">
+      <div className="yb-pricing-content">
+        <div className="yb-heading text-center mb-4">
           <h2 className="text-3xl font-bold text-metin-birincil">Araç Değerleme Paketleri</h2>
           <p className="mt-3 text-metin-ikincil">Her analiz 1 kredi. Tüm kullanıcılar için aynı kredi paketleri, KDV dahil fiyatlarla sunulur. Ödeme onaylanınca krediler hemen hesabınıza yüklenir.</p>
         </div>
         <div className="text-center mb-12">
-          <Link href="/ornek-rapor" className="inline-flex items-center gap-2 px-4 py-2 bg-birincil/10 text-birincil rounded-full text-sm font-medium">
+          <Link href="/ornek-rapor" className="yb-btn yb-btn-outline">
             Satın almadan önce örnek raporu inceleyin
           </Link>
         </div>
 
         {hata && <p className="text-center text-sm text-tehlike">{hata}</p>}
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="yb-grid-3 yb-package-grid">
           {paketler.map((paket) => (
             <div
               key={paket.key}
-              className={`relative rounded-2xl border p-6 flex flex-col ${
-                paket.popular ? "border-birincil shadow-lg shadow-birincil/10" : "border-kenarlik-acik"
+              className={`yb-card yb-package-card ${
+                paket.popular ? "yb-card-dark" : "yb-card-mint"
               }`}
             >
               {paket.popular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-birincil text-white text-xs font-medium rounded-full">
+                <div className="yb-badge yb-badge-on-dark yb-package-popular">
                   En Popüler
                 </div>
               )}
-              <h3 className="text-lg font-bold text-metin-birincil">{paket.name}</h3>
+              <h3>{paket.name}</h3>
               <div className="mt-3">
-                <span className="text-3xl font-bold text-metin-birincil">{tl(paket.price)}</span>
-                <div className="text-sm text-metin-ikincil mt-1">
+                <span className="yb-big-number">{tl(paket.price)}</span>
+                <div className="yb-package-unit yb-badge mt-3">
                   {paket.credits} analiz • {tl(paket.price / paket.credits)}/analiz
                 </div>
               </div>
-              <ul className="mt-5 space-y-2.5 flex-1">
+              <ul className="yb-check-list mt-5 flex-1">
                 {ozellikler.map((oz) => (
-                  <li key={oz} className="flex items-start gap-2 text-sm text-metin-ikincil">
-                    <svg className="w-4 h-4 text-birincil flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
+                  <li key={oz}>
                     {oz}
                   </li>
                 ))}
               </ul>
               <Link
                 href={`/kredi-yukle?paket=${encodeURIComponent(paket.key)}`}
-                className={`mt-6 block text-center py-2.5 rounded-lg font-medium text-sm transition-colors ${
+                className={`yb-btn mt-6 ${
                   paket.popular
-                    ? "bg-birincil text-white hover:bg-birincil-koyu"
-                    : "border border-kenarlik-acik text-metin-birincil hover:border-birincil hover:text-birincil"
+                    ? "yb-btn-mint"
+                    : "yb-btn-green"
                 }`}
               >
                 Satın Al

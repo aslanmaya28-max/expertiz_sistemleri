@@ -41,18 +41,20 @@ export default function RaporDogrulama({ initialCode = "" }: { initialCode?: str
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
-      <h1 className="text-3xl font-bold text-metin-birincil">Rapor doğrula</h1>
+    <div className="yb-info-page yb-verification-page">
+      <header className="yb-band yb-info-band">
+      <h1>Rapor doğrula</h1>
       <p className="mt-3 text-metin-ikincil">Raporun üzerindeki doğrulama kodunu girerek YerimeBak kaydını kontrol edin.</p>
-      <form onSubmit={submit} className="mt-6 rounded-lg border border-kenarlik-acik bg-white p-6">
+      </header>
+      <form onSubmit={submit} className="yb-card yb-verification-card">
         <label htmlFor="verification-code" className="block text-sm font-semibold text-metin-birincil">Doğrulama kodu</label>
         <div className="mt-2 flex flex-wrap gap-3">
-          <input id="verification-code" value={input} onChange={(e) => setInput(e.target.value)} required maxLength={32} autoCapitalize="characters" autoComplete="off" spellCheck={false} placeholder="YB-XXXX-XXXX" className="min-w-0 flex-1 rounded-lg border border-kenarlik-acik px-3 py-2 uppercase text-metin-birincil" />
-          <button type="submit" disabled={loading} className="rounded-lg bg-birincil px-5 py-2 font-semibold text-white disabled:opacity-50">{loading ? "Kontrol ediliyor…" : "Doğrula"}</button>
+          <input id="verification-code" value={input} onChange={(e) => setInput(e.target.value)} required maxLength={32} autoCapitalize="characters" autoComplete="off" spellCheck={false} placeholder="YB-XXXX-XXXX" className="yb-verification-input" />
+          <button type="submit" disabled={loading} className="yb-btn yb-btn-green disabled:opacity-50">{loading ? "Kontrol ediliyor…" : "Doğrula"}</button>
         </div>
       </form>
       {(error || (code && !isVerificationCode(code))) && <p role="alert" className="mt-4 rounded-lg bg-red-50 p-4 text-red-700">{error || "Doğrulama kodu YB-XXXX-XXXX veya YD-XXXX-XXXX biçiminde olmalıdır."}</p>}
-      {result && <section aria-live="polite" className="mt-6 rounded-lg border border-kenarlik-acik bg-white p-6">
+      {result && <section aria-live="polite" className="yb-card yb-verification-card">
         {result.gecerli ? <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={expertizSealUrl(code)} width={180} height={180} alt="YerimeBak dijital doğrulama mührü" className="mx-auto" />

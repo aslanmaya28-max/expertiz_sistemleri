@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import HesapCercevesi from "@/bilesenler/HesapCercevesi";
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { resetPassword } from "@/lib/api";
@@ -42,14 +43,14 @@ function SifreSifirlaIcerigi() {
     );
   }
   return (
-    <form onSubmit={gonder} className="space-y-4">
+    <form onSubmit={gonder} className="yb-form space-y-4">
       <input required type="password" value={sifre} onChange={(e) => setSifre(e.target.value)} placeholder="Yeni şifre"
         className="w-full px-4 py-3 border border-kenarlik-acik rounded-lg text-sm" autoComplete="new-password" />
       <input required type="password" value={tekrar} onChange={(e) => setTekrar(e.target.value)} placeholder="Yeni şifre (tekrar)"
         className="w-full px-4 py-3 border border-kenarlik-acik rounded-lg text-sm" autoComplete="new-password" />
       <p className="text-xs text-metin-ikincil">{SIFRE_KURALI}</p>
       {hata && <p className="text-sm text-tehlike">{hata}</p>}
-      <button type="submit" disabled={busy} className="w-full py-3 bg-birincil text-white font-medium rounded-lg disabled:opacity-50">
+      <button type="submit" disabled={busy} className="yb-btn yb-btn-green w-full disabled:opacity-50">
         {busy ? "Kaydediliyor..." : "Şifremi Değiştir"}
       </button>
     </form>
@@ -58,11 +59,11 @@ function SifreSifirlaIcerigi() {
 
 export default function SifreSifirlaSayfasi() {
   return (
-    <div className="min-h-[70vh] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
+    <HesapCercevesi>
+      <div className="yb-account-recovery">
         <h1 className="mb-8 text-2xl font-bold text-metin-birincil text-center">Yeni Şifre Belirle</h1>
         <Suspense fallback={null}><SifreSifirlaIcerigi /></Suspense>
       </div>
-    </div>
+    </HesapCercevesi>
   );
 }

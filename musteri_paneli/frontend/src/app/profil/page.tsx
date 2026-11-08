@@ -17,10 +17,10 @@ export default function ProfilSayfasi() {
   if (!user) return null;
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-12">
-      <h1 className="text-3xl font-bold text-metin-birincil mb-8">Profilim</h1>
+    <div className="yb-profile yb-dashboard max-w-3xl mx-auto px-4 py-12">
+      <div className="yb-band mb-8"><h1>Profilim</h1></div>
 
-      <div className="bg-white rounded-xl border border-kenarlik-acik p-6 space-y-4">
+      <div className="yb-card space-y-4">
         <div className="flex items-center justify-between">
           <span className="text-sm text-metin-ikincil">E-posta</span>
           <span className="font-medium">{user.email}</span>
@@ -28,7 +28,7 @@ export default function ProfilSayfasi() {
         <hr className="border-kenarlik-acik" />
         <div className="flex items-center justify-between">
           <span className="text-sm text-metin-ikincil">Kredi Bakiyesi</span>
-          <span className="text-xl font-bold text-birincil">{credits}</span>
+          <span className="yb-big-number">{credits}</span>
         </div>
         <hr className="border-kenarlik-acik" />
         <div className="flex items-center justify-between">
@@ -46,12 +46,12 @@ export default function ProfilSayfasi() {
         )}
       </div>
 
-      <div className="mt-6 flex gap-4">
-        <a href="/hesap-silme" className="px-4 py-2 text-sm font-medium text-tehlike underline">Hesabımı sil</a>
-        <a href="/fiyatlar" className="px-4 py-2 bg-birincil text-white text-sm font-medium rounded-lg hover:bg-birincil-koyu transition-colors">Kredi Satın Al</a>
+      <div className="yb-btn-row">
+        <a href="/hesap-silme" className="yb-btn text-tehlike underline">Hesabımı sil</a>
+        <a href="/fiyatlar" className="yb-btn yb-btn-green">Kredi Satın Al</a>
         <button
           onClick={() => { logout(); window.location.href = "/"; }}
-          className="px-4 py-2 border border-kenarlik-acik text-sm font-medium rounded-lg hover:border-tehlike hover:text-tehlike transition-colors"
+          className="yb-btn yb-btn-outline"
         >
           Çıkış Yap
         </button>

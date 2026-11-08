@@ -31,11 +31,11 @@ function GirisFormu() {
       <fieldset disabled={yukleniyor}><div className="yb-form-field"><label htmlFor="giris-email">E-posta</label><input id="giris-email" required type="email" autoComplete="email" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="ornek@eposta.com" /></div><div className="yb-form-field"><label htmlFor="giris-sifre">Şifre</label><input id="giris-sifre" required type="password" autoComplete="current-password" value={password} onChange={(e)=>setPassword(e.target.value)} placeholder="Şifreniz" /></div></fieldset>
       <div className="yb-forgot"><Link href="/sifremi-unuttum">Şifremi unuttum</Link></div>
       {hata && <p role="alert" className="yb-form-error">{hata}</p>}
-      <button type="submit" disabled={yukleniyor} className="yb-button yb-button-dark">{yukleniyor ? "Giriş yapılıyor…" : "Giriş yap"}<Ikon ad="ok" /></button>
+      <button type="submit" disabled={yukleniyor} className="yb-btn yb-btn-green">{yukleniyor ? "Giriş yapılıyor…" : "Giriş yap"}<Ikon ad="ok" /></button>
     </form>
     <p className="yb-account-switch">Henüz hesabınız yok mu? <Link href={uyelikAdresi(siteIciDonus(params.get("donus")))}>Kayıt olun</Link></p>
   </>;
 }
 export default function GirisSayfasi() {
-  return <HesapCercevesi><span className="yb-eyebrow">YERİMEBAK MÜŞTERİ PANELİ</span><h1>Yeniden hoş geldiniz.</h1><p className="yb-account-intro">İnceleme süreciniz ve raporlarınız sizi bekliyor. Hesabınıza giriş yaparak kaldığınız yerden devam edin.</p><Suspense fallback={<p role="status">Giriş formu yükleniyor…</p>}><GirisFormu /></Suspense></HesapCercevesi>;
+  return <HesapCercevesi><span className="yb-badge">YERİMEBAK MÜŞTERİ PANELİ</span><h1>Yeniden hoş geldiniz.</h1><p className="yb-account-intro">İnceleme süreciniz ve raporlarınız sizi bekliyor. Hesabınıza giriş yaparak kaldığınız yerden devam edin.</p><Suspense fallback={<p role="status">Giriş formu yükleniyor…</p>}><GirisFormu /></Suspense></HesapCercevesi>;
 }

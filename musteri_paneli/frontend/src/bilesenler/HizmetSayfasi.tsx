@@ -1,6 +1,6 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
-import { SITE_URL, sssJsonLd, type SSS } from "@/lib/hizmetBilgisi";
+import { Children, cloneElement, isValidElement, type ReactNode } from "react";
+import { SITE_URL, sssJsonLd, HIZMET_BEDELI_TL, KREDI_PAKETLERI, type SSS } from "@/lib/hizmetBilgisi";
 import ScrollSahnesi from "./ScrollSahnesi";
 import Ikon from "./Ikon";
 
@@ -26,8 +26,17 @@ export default function HizmetSayfasi({
   /** Başlığın hemen altında, kart yığınının dışında gösterilen bölüm (uzun içerik yığını bozmasın). */
   onBolum?: { id: string; baslik: string; icerik: React.ReactNode };
 }) {
+  const cevrimIci = hizmetJsonLd.url === `${SITE_URL}/arac-degerleme`;
+  const chips = cevrimIci ? [
+    ["etiket", "1 rapor", `${KREDI_PAKETLERI[0].fiyat} TL`], ["konum", "Hizmet bölgesi", "Türkiye geneli"],
+    ["saat", "Rapor süresi", "1 dakikadan kısa"], ["belge", "Teslim", "PDF + doğrulama kodu"],
+  ] : [
+    ["etiket", "Hizmet bedeli", `${HIZMET_BEDELI_TL.toLocaleString("tr-TR")} TL + KDV`],
+    ["konum", "Hizmet bölgesi", "İstanbul (iki yaka)"], ["kisi", "İnceleme", "Uzman personel"], ["belge", "Teslim", "Müşteri panelinde rapor"],
+  ];
+  const split = baslik.includes("? ") ? baslik.indexOf("? ") + 1 : baslik.includes(", ") ? baslik.indexOf(", ") + 1 : -1;
   return (
-    <ScrollSahnesi className="yb-service-page max-w-5xl mx-auto px-4 sm:px-6 py-10">
+    <ScrollSahnesi className="yb-service-page yb-inner-page max-w-6xl mx-auto px-4 sm:px-6 py-10">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ "@context": "https://schema.org", ...hizmetJsonLd }) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(sssJsonLd(sorular)) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
@@ -38,21 +47,22 @@ export default function HizmetSayfasi({
         ],
       }) }} />
 
-      <header data-sc-in className="yb-service-hero rounded-2xl bg-white border border-kenarlik-acik p-6 sm:p-10">
-        <p className="text-xs font-semibold tracking-widest text-birincil">{ust}</p>
-        <h1 className="mt-2 text-3xl sm:text-4xl font-bold text-metin-birincil">{baslik}</h1>
-        <p className="mt-4 max-w-3xl text-lg text-metin-ikincil">{ozet}</p>
-        <p className="mt-3 text-sm font-medium text-metin-birincil">Hizmet bölgesi: {bolge}</p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Link href={birincil.href} className="yb-button yb-button-dark">{birincil.etiket}<Ikon ad="capraz-ok" /></Link>
-          {ikincil && <Link href={ikincil.href} className="rounded-lg border border-kenarlik-acik px-5 py-3 font-semibold text-metin-birincil">{ikincil.etiket}</Link>}
+      <header data-sc-in className="yb-band yb-service-band">
+        <span className="yb-band-label"><Ikon ad={cevrimIci ? "grafik" : "kalkan"} />{ust}</span>
+        <h1>{split > 0 ? <>{baslik.slice(0, split)}<span className="yb-band-accent">{baslik.slice(split)}</span></> : baslik}</h1>
+        <p>{ozet}</p>
+        <div className="yb-btn-row">
+          <Link href={birincil.href} className="yb-btn yb-btn-mint">{birincil.etiket}<Ikon ad="capraz-ok" /></Link>
+          {ikincil && <Link href={ikincil.href} className="yb-btn yb-btn-ghost">{ikincil.etiket}</Link>}
         </div>
-        <nav aria-label="Sayfa içeriği" className="mt-6 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+      </header>
+      <dl className="yb-chips yb-service-chips" aria-label="Hizmet özeti">{chips.map(([icon, label, value]) => <div key={label}><Ikon ad={icon as Parameters<typeof Ikon>[0]["ad"]} /><div><dt>{label}</dt><dd>{value}</dd></div></div>)}</dl>
+      <p className="yb-service-region">Hizmet bölgesi: {bolge}</p>
+        <nav aria-label="Sayfa içeriği" className="yb-service-links">
           {onBolum && <a href={`#${onBolum.id}`} className="text-birincil underline">{onBolum.baslik}</a>}
           {bolumler.map((b) => <a key={b.id} href={`#${b.id}`} className="text-birincil underline">{b.baslik}</a>)}
           <a href="#sorular" className="text-birincil underline">Sık sorulan sorular</a>
         </nav>
-      </header>
 
       <div className="mt-8 space-y-6">
         {onBolum && (
@@ -66,15 +76,15 @@ export default function HizmetSayfasi({
         {bolumler.map((b, index) => (
           <section key={b.id} id={b.id} aria-labelledby={`${b.id}-baslik`}
             data-sc-in style={{ "--yb-stack-index": index, "--yb-entry-delay": `${50 + Math.min(index, 5) * 50}ms` } as React.CSSProperties}
-            className={`${index < 4 ? "yb-stack-card" : "yb-service-section"} scroll-mt-24 rounded-xl bg-white border border-kenarlik-acik p-6 sm:p-8 text-[15px] leading-relaxed text-metin-birincil [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-1.5 [&_p]:mb-3`}>
-            <h2 id={`${b.id}-baslik`} className="mb-4 text-xl font-semibold">{b.baslik}</h2>
-            {b.icerik}
+            className={`yb-card yb-service-section-card yb-service-${b.id} ${b.id === "kimler-icin" ? "yb-card-mint" : b.id === "teslim" ? "yb-card-accent" : b.id === "ucret" ? "yb-card-mint" : ""} scroll-mt-24`}>
+            <h2 id={`${b.id}-baslik`}><Ikon ad={b.id === "kimler-icin" ? "kisi" : b.id === "nasil-isler" ? "yol" : b.id === "ucret" ? "etiket" : b.id === "bolge" ? "konum" : "belge"} />{b.baslik}</h2>
+            {bolumIcerigi(b.icerik, b.id)}
           </section>
         ))}
         </div>
 
-        <section id="sorular" aria-labelledby="sorular-baslik" className="scroll-mt-24 rounded-xl bg-white border border-kenarlik-acik p-6 sm:p-8">
-          <h2 id="sorular-baslik" className="mb-4 text-xl font-semibold text-metin-birincil">Sık sorulan sorular</h2>
+        <section id="sorular" aria-labelledby="sorular-baslik" className="yb-card yb-service-faq scroll-mt-24">
+          <h2 id="sorular-baslik">Sık sorulan sorular</h2>
           <div className="divide-y divide-kenarlik-acik">
             {sorular.map((s) => (
               <details key={s.soru} className="py-3">
@@ -85,14 +95,29 @@ export default function HizmetSayfasi({
           </div>
         </section>
 
-        <section className="rounded-xl bg-birincil/5 border border-birincil/30 p-6 sm:p-8 text-center">
-          <p className="text-lg font-semibold text-metin-birincil">Karar sizin. Bilgiyi bir araya getirmek bizim işimiz.</p>
-          <div className="mt-4 flex flex-wrap justify-center gap-3">
-            <Link href={birincil.href} className="yb-button yb-button-dark">{birincil.etiket}<Ikon ad="capraz-ok" /></Link>
-            {ikincil && <Link href={ikincil.href} className="rounded-lg border border-kenarlik-acik bg-white px-5 py-3 font-semibold text-metin-birincil">{ikincil.etiket}</Link>}
+        <section className="yb-band yb-cta-band yb-service-cta">
+          <h2>Karar sizin. Bilgiyi bir araya getirmek bizim işimiz.</h2>
+          <div className="yb-btn-row">
+            <Link href={birincil.href} className="yb-btn yb-btn-mint">{birincil.etiket}<Ikon ad="capraz-ok" /></Link>
+            {ikincil && <Link href={ikincil.href} className="yb-btn yb-btn-ghost">{ikincil.etiket}</Link>}
           </div>
         </section>
       </div>
     </ScrollSahnesi>
   );
+}
+
+/** Mevcut bölüm metnini aynen koruyarak yalnız liste sunumunu değiştirir. */
+function bolumIcerigi(content: ReactNode, id: string): ReactNode {
+  return Children.map(content, (child) => {
+    if (!isValidElement<{ children?: ReactNode; className?: string }>(child)) return child;
+    if (child.type === "ul" || child.type === "ol") {
+      const className = id === "nasil-isler" ? "yb-step-list" : id === "kapsam" ? "yb-service-features yb-grid-2" : "yb-check-list";
+      const children = id === "nasil-isler" || id === "kapsam" ? Children.map(child.props.children, (item) =>
+        isValidElement<{ children?: ReactNode }>(item) && item.type === "li"
+          ? cloneElement(item, {}, <>{id === "kapsam" && <Ikon ad="kontrol" />}<div>{item.props.children}</div></>) : item) : child.props.children;
+      return cloneElement(child, { className: `${child.props.className || ""} ${className}`.trim() }, children);
+    }
+    return child.props.children ? cloneElement(child, {}, bolumIcerigi(child.props.children, id)) : child;
+  });
 }

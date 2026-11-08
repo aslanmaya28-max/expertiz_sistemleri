@@ -51,47 +51,47 @@ export default function RehberSayfasi({
   };
 
   return (
-    <article className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
+    <article className="yb-info-page yb-guide-page">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(article) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(sssJsonLd(sorular)) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbs) }} />
 
-      <nav aria-label="İçerik yolu" className="mb-4 flex flex-wrap gap-2 text-sm text-metin-ikincil">
+      <nav aria-label="İçerik yolu" className="yb-info-breadcrumbs">
         <Link href="/" className="text-birincil underline">YerimeBak</Link>
         <span aria-hidden="true">/</span>
         <Link href="/rehber" className="text-birincil underline">Rehber</Link>
         <span aria-hidden="true">/</span>
         <span aria-current="page">{baslik}</span>
       </nav>
-      <header className="rounded-2xl bg-white border border-kenarlik-acik p-6 sm:p-10">
-        <p className="text-xs font-semibold tracking-widest text-birincil">ARAÇ ALIM REHBERİ</p>
-        <h1 className="mt-2 text-3xl sm:text-4xl font-bold text-metin-birincil">{baslik}</h1>
-        <p className="mt-4 max-w-3xl text-lg text-metin-ikincil">{ozet}</p>
-        <p className="mt-3 text-sm text-metin-ikincil">
+      <header className="yb-band yb-info-band">
+        <p className="yb-band-label">ARAÇ ALIM REHBERİ</p>
+        <h1 className="yb-info-title">{baslik}</h1>
+        <p className="yb-info-intro">{ozet}</p>
+        <p className="yb-info-date">
           Güncelleme: <time dateTime={guncellemeTarihi}>{guncellemeTarihi.split("-").reverse().join(".")}</time>
         </p>
-        <nav aria-label="Sayfa içeriği" className="mt-6 flex flex-wrap gap-x-4 gap-y-2 text-sm">
+        <nav aria-label="Sayfa içeriği" className="yb-guide-toc">
           <a href="#kisaca" className="text-birincil underline">Kısaca</a>
           {bolumler.map((bolum) => <a key={bolum.id} href={`#${bolum.id}`} className="text-birincil underline">{bolum.baslik}</a>)}
           <a href="#sorular" className="text-birincil underline">Sık sorulan sorular</a>
         </nav>
       </header>
 
-      <div className="mt-8 space-y-6">
-        <section id="kisaca" aria-label="Kısaca" className="scroll-mt-24 rounded-xl bg-birincil/5 border border-birincil/30 p-6 sm:p-8">
+      <div className="yb-guide-sections">
+        <section id="kisaca" aria-label="Kısaca" className="yb-card yb-card-mint yb-info-prose">
           <h2 className="mb-4 text-xl font-semibold text-metin-birincil">Kısaca</h2>
-          <ul className="list-disc space-y-2 pl-6 text-metin-birincil">
+          <ul className="yb-check-list yb-guide-short">
             {kisaca.map((madde) => <li key={madde}>{madde}</li>)}
           </ul>
         </section>
         {bolumler.map((bolum) => (
           <section key={bolum.id} id={bolum.id} aria-labelledby={`${bolum.id}-baslik`}
-            className="scroll-mt-24 rounded-xl bg-white border border-kenarlik-acik p-6 sm:p-8 text-[15px] leading-relaxed text-metin-birincil [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-2 [&_p]:mb-3 [&_a]:text-birincil [&_a]:underline">
+            className="yb-card yb-info-prose">
             <h2 id={`${bolum.id}-baslik`} className="mb-4 text-xl font-semibold">{bolum.baslik}</h2>
             {bolum.icerik}
           </section>
         ))}
-        <section id="sorular" aria-labelledby="sorular-baslik" className="scroll-mt-24 rounded-xl bg-white border border-kenarlik-acik p-6 sm:p-8">
+        <section id="sorular" aria-labelledby="sorular-baslik" className="yb-card yb-info-prose yb-guide-faq">
           <h2 id="sorular-baslik" className="mb-4 text-xl font-semibold text-metin-birincil">Sık sorulan sorular</h2>
           <div className="divide-y divide-kenarlik-acik">
             {sorular.map((soru) => (
@@ -103,7 +103,7 @@ export default function RehberSayfasi({
           </div>
         </section>
         {kaynaklar.length > 0 && (
-          <section aria-labelledby="kaynaklar-baslik" className="rounded-xl bg-white border border-kenarlik-acik p-6 sm:p-8">
+          <section aria-labelledby="kaynaklar-baslik" className="yb-card yb-info-prose">
             <h2 id="kaynaklar-baslik" className="mb-3 text-xl font-semibold text-metin-birincil">Resmî kaynaklar</h2>
             <p className="mb-3 text-sm text-metin-ikincil">İşlem öncesinde hizmetin kapsamını ve güncel koşulları ilgili kurumdan kontrol edin.</p>
             <ul className="list-disc space-y-2 pl-6">
@@ -111,10 +111,10 @@ export default function RehberSayfasi({
             </ul>
           </section>
         )}
-        <section aria-label="İlgili hizmet" className="rounded-xl bg-birincil/5 border border-birincil/30 p-6 sm:p-8 text-center">
-          <h2 className="text-xl font-semibold text-metin-birincil">Bir sonraki adımı bilgiyle atın</h2>
+        <section aria-label="İlgili hizmet" className="yb-band yb-info-cta">
+          <h2 className="yb-info-cta-title">Bir sonraki adımı bilgiyle atın</h2>
           <p className="mt-3 text-metin-ikincil">{cta.aciklama}</p>
-          <Link href={cta.href} className="mt-5 inline-block rounded-lg bg-birincil px-5 py-3 font-semibold text-white">{cta.etiket}</Link>
+          <Link href={cta.href} className="yb-btn yb-btn-mint">{cta.etiket}</Link>
         </section>
       </div>
     </article>

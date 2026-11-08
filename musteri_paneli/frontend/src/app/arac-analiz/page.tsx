@@ -302,8 +302,8 @@ export default function AracAnalizSayfasi() {
   const label = "block text-sm font-medium text-metin-birincil mb-1";
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-10">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="yb-inner-page yb-analysis-page max-w-6xl mx-auto px-4 sm:px-6 py-10">
+      <div className="yb-band yb-form-band flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold text-metin-birincil">Araç Değerleme</h1>
           <p className="text-metin-ikincil mt-1">
@@ -329,8 +329,8 @@ export default function AracAnalizSayfasi() {
 
       {!sonuc && (
         <form onSubmit={analizEt} className="mt-8 space-y-6">
-          <section className="bg-white rounded-xl border border-kenarlik-acik p-6">
-            <h2 className="text-lg font-semibold text-metin-birincil">1. İlan linki (isteğe bağlı)</h2>
+          <section className="yb-card yb-analysis-step">
+            <h2 className="text-lg font-semibold text-metin-birincil"><span className="yb-form-step-badge">1.</span>{" "}İlan linki (isteğe bağlı)</h2>
             <p className="text-sm text-metin-ikincil mt-1">Linki yapıştırın, bilgileri otomatik dolduralım; ya da aşağıya elle girin.</p>
             <div className="mt-3 flex gap-2">
               <input value={form.link} onChange={set("link")} className={input} placeholder="https://www.arabam.com/ilan/..." />
@@ -375,8 +375,8 @@ export default function AracAnalizSayfasi() {
             </details>
           </section>
 
-          <section className="bg-white rounded-xl border border-kenarlik-acik p-6">
-            <h2 className="text-lg font-semibold text-metin-birincil">2. Araç bilgileri</h2>
+          <section className="yb-card yb-analysis-step">
+            <h2 className="text-lg font-semibold text-metin-birincil"><span className="yb-form-step-badge">2.</span>{" "}Araç bilgileri</h2>
             <div className="mt-4 grid grid-cols-2 gap-4">
               <div><label className={label}>Paket / motor{badge("package")}</label><input value={form.package} onChange={set("package")} className={input} /></div>
               <div><label className={label}>Motor gücü (hp, isteğe bağlı){badge("hp")}</label><SayiAlani ariaLabel="Motor gücü" binlik={false} enFazlaHane={3} value={form.hp} onChange={setValue("hp")} className={input} placeholder="ör. 170" /></div>
@@ -420,8 +420,8 @@ export default function AracAnalizSayfasi() {
 
           <EkspertizFotografi key={user?.id} disabled={busy !== null || !meta} onBusy={(value) => setBusy(value ? "photo" : null)} onApply={applyPhoto} onReset={resetPhoto}
             labels={Object.fromEntries((meta?.parts || []).map((part) => [part.key, part.label]))} />
-          <section className="bg-white rounded-xl border border-kenarlik-acik p-6">
-            <h2 className="text-lg font-semibold text-metin-birincil">3. Boya / değişen ve hasar kaydı</h2>
+          <section className="yb-card yb-analysis-step">
+            <h2 className="text-lg font-semibold text-metin-birincil"><span className="yb-form-step-badge">3.</span>{" "}Boya / değişen ve hasar kaydı</h2>
             <p className="text-sm text-metin-ikincil mt-1">{photo ? "Okunmayan parçalar belirtilmedi olarak kalır. Her eksik parçanın durumunu kendiniz doğrulayın ve şemada işaretleyin." : "İlandaki ekspertiz bilgisine göre parçaları araç üzerinde işaretleyin. İşaretlemedikleriniz orijinal sayılır."}</p>
             {(["painted_count", "changed_count"] as const).map((key) => origins[key] && (
               <p className="mt-2 text-sm" key={key}>{key === "painted_count" ? "Boyalı" : "Değişen"} parça sayısı: {origins[key].deger}{badge(key)}. Hangi parçalar olduğunu aşağıdan kontrol edin.</p>
@@ -451,7 +451,7 @@ export default function AracAnalizSayfasi() {
           </section>
 
           <button type="submit" disabled={busy !== null}
-            className="w-full py-3 bg-birincil text-white font-medium rounded-lg hover:bg-birincil-koyu transition-colors disabled:opacity-50">
+            className="yb-btn yb-btn-green yb-analysis-submit disabled:opacity-50">
             {busy === "analyze" ? "Analiz ediliyor..." : `Analiz Et (${meta?.cost_credits ?? 1} kredi)`}
           </button>
           {busy === "analyze" && <AnalizBekleme />}

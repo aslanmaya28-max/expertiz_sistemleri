@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import HesapCercevesi from "@/bilesenler/HesapCercevesi";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { verifyEmail } from "@/lib/api";
@@ -46,11 +47,11 @@ function DogrulaIcerigi() {
 
 export default function EpostaDogrulaSayfasi() {
   return (
-    <div className="min-h-[70vh] flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
+    <HesapCercevesi>
+      <div className="yb-account-recovery">
         <h1 className="mb-8 text-2xl font-bold text-metin-birincil text-center">E-posta Doğrulama</h1>
         <Suspense fallback={null}><DogrulaIcerigi /></Suspense>
       </div>
-    </div>
+    </HesapCercevesi>
   );
 }

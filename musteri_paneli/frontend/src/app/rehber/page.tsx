@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Ikon from "@/bilesenler/Ikon";
 import { SITE_URL } from "@/lib/hizmetBilgisi";
 
 export const metadata: Metadata = {
@@ -33,17 +34,18 @@ const REHBERLER = [
 
 export default function RehberListesiSayfasi() {
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
-      <header className="rounded-2xl bg-white border border-kenarlik-acik p-6 sm:p-10">
-        <p className="text-xs font-semibold tracking-widest text-birincil">REHBER</p>
-        <h1 className="mt-2 text-3xl sm:text-4xl font-bold text-metin-birincil">İkinci el araç alım rehberi</h1>
-        <p className="mt-4 max-w-3xl text-lg text-metin-ikincil">İlanı ilk gördüğünüz andan satın alma kararına kadar hangi bilgileri toplamanız ve doğrulatmanız gerektiğini bu rehberlerle değerlendirin.</p>
+    <div className="yb-info-page yb-guide-list">
+      <header className="yb-band yb-info-band">
+        <p className="yb-band-label">REHBER</p>
+        <h1 className="yb-info-title">İkinci el araç alım rehberi</h1>
+        <p className="yb-info-intro">İlanı ilk gördüğünüz andan satın alma kararına kadar hangi bilgileri toplamanız ve doğrulatmanız gerektiğini bu rehberlerle değerlendirin.</p>
       </header>
-      <ul className="mt-8 grid gap-6 sm:grid-cols-2">
+      <ul className="yb-grid-2 yb-guide-cards">
         {REHBERLER.map((rehber) => (
-          <li key={rehber.slug} className="rounded-xl bg-white border border-kenarlik-acik p-6 sm:p-8">
-            <h2 className="text-xl font-semibold text-metin-birincil"><Link href={`/rehber/${rehber.slug}`} className="text-birincil underline">{rehber.baslik}</Link></h2>
-            <p className="mt-3 text-[15px] leading-relaxed text-metin-ikincil">{rehber.ozet}</p>
+          <li key={rehber.slug} className="yb-card yb-guide-card">
+            <span className="yb-guide-icon"><Ikon ad="belge" /></span>
+            <h2><Link href={`/rehber/${rehber.slug}`} className="yb-guide-link">{rehber.baslik}</Link></h2>
+            <p className="yb-guide-summary">{rehber.ozet}</p>
           </li>
         ))}
       </ul>
