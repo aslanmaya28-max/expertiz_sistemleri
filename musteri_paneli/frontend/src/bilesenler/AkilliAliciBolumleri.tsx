@@ -101,7 +101,7 @@ function Kaynaklar({ urller }: { urller?: string[] }) {
 }
 
 /** Pazarlık planı, model riskleri, bakım ve satıcı soruları (eski raporlarda bu alanlar olmayabilir). */
-export function AkilliAliciBolumleri({ sonuc, bolum = "hepsi" }: { sonuc: ValuationResult; bolum?: "hepsi" | "plan" | "diger" | "model" | "yardimci" }) {
+export function AkilliAliciBolumleri({ sonuc, bolum = "hepsi" }: { sonuc: ValuationResult; bolum?: "hepsi" | "plan" | "mesaj" | "diger" | "model" | "yardimci" }) {
   const { pazarlikPlani: plan, modelRiskleri, kullaniciSikayetleri, bakim, saticiSorulari } = sonuc;
   const riskler = (modelRiskleri?.riskler || []).filter((r) => GOSTERILEN_GUVEN.has(r.guven));
   const modern = modelRiskleri?.gorunumSurumu === 2;
@@ -159,27 +159,30 @@ export function AkilliAliciBolumleri({ sonuc, bolum = "hepsi" }: { sonuc: Valuat
               </ul>
             </>
           )}
-          <div className="mt-4 rounded-lg border border-kenarlik-acik p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-metin-birincil">Satıcıya gönderebileceğiniz mesaj</h3>
-              <div className="flex gap-2">
-                <KopyalaButonu metin={plan.saticiMesaji} />
-                <a
-                  href={`https://wa.me/?text=${encodeURIComponent(plan.saticiMesaji)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="yb-report-share rounded-lg px-3 py-1.5 text-xs font-semibold"
-                >
-                  WhatsApp&apos;ta paylaş
-                </a>
-              </div>
-            </div>
-            <p className="mt-2 whitespace-pre-line text-sm text-metin-ikincil">{plan.saticiMesaji}</p>
+        </section>
+      )}
+
+      {/* Satıcıya gönderilecek mesaj ayrı bölüm (09.11.2026): pazarlık kartının içinde gözden kaçıyordu. */}
+      {(bolum === "hepsi" || bolum === "mesaj") && plan?.saticiMesaji && (
+        <section className="yb-report-card yb-seller-message" aria-label="Satıcıya gönderilecek mesaj">
+          <h2 className="text-lg font-semibold text-metin-birincil"><Ikon ad="mesaj" />Satıcıya gönderilecek mesaj</h2>
+          <p className="yb-seller-message-hint">Kopyalayıp ilan sahibine gönderin; rakam pazarlık planındaki açılış teklifinizdir.</p>
+          <div className="yb-seller-bubble"><p className="whitespace-pre-line">{plan.saticiMesaji}</p></div>
+          <div className="yb-seller-actions">
+            <KopyalaButonu metin={plan.saticiMesaji} />
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(plan.saticiMesaji)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="yb-report-share rounded-lg px-3 py-1.5 text-xs font-semibold"
+            >
+              WhatsApp&apos;ta paylaş
+            </a>
           </div>
         </section>
       )}
 
-      {bolum !== "plan" && bolum !== "yardimci" && <>
+      {bolum !== "plan" && bolum !== "mesaj" && bolum !== "yardimci" && <>
       {kritik.length > 0 && (
         <section className="yb-report-card yb-critical-risks" aria-label="Bu araçta en çok dikkat etmeniz gerekenler">
           <h2 className="text-lg font-semibold text-metin-birincil">Bu araçta en çok dikkat etmeniz gerekenler</h2>
@@ -249,7 +252,7 @@ export function AkilliAliciBolumleri({ sonuc, bolum = "hepsi" }: { sonuc: Valuat
       )}
 
       </>}
-      {bolum !== "plan" && bolum !== "model" && <>
+      {bolum !== "plan" && bolum !== "mesaj" && bolum !== "model" && <>
       {bakim && bakim.length > 0 && (
         <section className="yb-report-card" aria-label="Bakım">
           <h2 className="text-lg font-semibold text-metin-birincil">Bu kilometrede doğrulanacak bakımlar</h2>

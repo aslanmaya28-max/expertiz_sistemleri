@@ -2212,3 +2212,36 @@ button:disabled {
   .yb-price-overview, .yb-plan-overview, .yb-analysis-overview { display: block; }
   .yb-valuation button, .yb-report-share { display: none; }
 }
+/* Satıcıya gönderilecek mesaj (ayrı bölüm) ve enflasyona göre kazanç kartı (09.11.2026). */
+.yb-seller-message { background: linear-gradient(150deg, var(--yb-report-white), var(--yb-mint-surface)); }
+.yb-seller-message h2 > svg { color: var(--yb-green-text); }
+.yb-seller-message-hint { margin-top: 8px; font-size: 13px; color: var(--yb-muted); }
+.yb-seller-bubble { position: relative; margin-top: 16px; padding: 18px 20px; border-radius: 18px 18px 18px 4px; background: var(--yb-report-white); border: 1px solid var(--yb-fair-range); box-shadow: 0 6px 18px color-mix(in srgb, var(--yb-brand-band) 6%, transparent); }
+.yb-seller-bubble p { font-size: 15px; line-height: 1.7; color: var(--yb-ink); }
+.yb-seller-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.yb-seller-actions > * { min-height: 44px; display: inline-flex; align-items: center; padding-inline: 16px !important; font-size: 14px !important; }
+.yb-inflation-hint { margin-top: 8px; font-size: 13px; color: var(--yb-muted); }
+.yb-inflation-rates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 16px; padding: 14px 6px; border-radius: 16px; background: var(--yb-mint-surface); border: 1px solid var(--yb-line); }
+.yb-inflation-rates > div { padding-inline: 12px; }
+.yb-inflation-rates > div + div { border-left: 1px solid var(--yb-fair-range); }
+.yb-inflation-rates dt { font-size: 12px; color: var(--yb-green-text); }
+.yb-inflation-rates dd { margin-top: 2px; font-size: 22px; font-weight: 750; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.yb-inflation-rates > div:last-child dd { font-size: 16px; font-weight: 650; color: var(--yb-muted); }
+.yb-inflation-horizons { display: grid; gap: 14px; margin-top: 16px; }
+.yb-inflation-horizons > div { padding: 18px; border-radius: 16px; border: 1px solid var(--yb-line); background: var(--yb-report-white); }
+.yb-inflation-horizons > div[data-horizon="12"] { background: linear-gradient(130deg, var(--yb-brand-band), var(--yb-report-deep)); color: var(--yb-report-white); border-color: transparent; }
+.yb-inflation-when { font-size: 13px; font-weight: 700; color: var(--yb-green-text); }
+.yb-inflation-horizons > div[data-horizon="12"] .yb-inflation-when { color: var(--yb-mint); }
+.yb-inflation-horizons dl { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+.yb-inflation-horizons dt { font-size: 12px; color: var(--yb-muted); }
+.yb-inflation-horizons > div[data-horizon="12"] dt, .yb-inflation-horizons > div[data-horizon="12"] .yb-inflation-split { color: var(--yb-report-soft-ink); }
+.yb-inflation-value { margin-top: 4px; font-size: clamp(20px, 2.2vw, 26px); font-weight: 750; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.yb-inflation-gain, .yb-inflation-loss { margin-top: 4px; font-size: clamp(18px, 2vw, 22px); font-weight: 750; font-variant-numeric: tabular-nums; color: var(--yb-green-text); }
+.yb-inflation-gain span, .yb-inflation-loss span { font-size: 13px; font-weight: 650; }
+.yb-inflation-horizons > div[data-horizon="12"] .yb-inflation-gain { color: var(--yb-mint); }
+.yb-inflation-loss { color: var(--yb-orange-text); }
+.yb-inflation-split { margin-top: 10px; font-size: 12px; color: var(--yb-muted); }
+.yb-inflation-note { margin-top: 14px; font-size: 12px; color: var(--yb-muted); }
+@media (min-width: 640px) { .yb-inflation-horizons { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 599px) { .yb-inflation-rates dd { font-size: 18px; } .yb-inflation-rates > div { padding-inline: 8px; } }
+@media print { .yb-inflation-horizons > div[data-horizon="12"] { background: #fff !important; color: var(--yb-ink) !important; border: 1px solid var(--yb-line); } }

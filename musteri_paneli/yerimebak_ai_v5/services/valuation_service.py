@@ -522,10 +522,15 @@ def inflation_projection(ai_value: float, purchase_price: float) -> Optional[Dic
             "tahminiDeger": int(round(future, -3)),
             "getiriTl": int(round(gain, -3)),
             "getiriYuzde": round(gain / purchase_price * 100, 1) if purchase_price else None,
+            # Kazancın iki kaynağı (09.11.2026): araç enflasyonuyla değer artışı + değerinin altında alım.
+            "enflasyonKazanciTl": int(round(future - ai_value, -3)),
+            "alimKazanciTl": int(round(ai_value - purchase_price, -3)),
+            "enflasyonYuzde": round(((1 + monthly) ** months - 1) * 100, 1),
         }
 
     return {
         "aylikEnflasyonYuzde": float(settings["monthly_pct"]),
+        "altiAylikEnflasyonYuzde": round(((1 + monthly) ** 6 - 1) * 100, 1),
         "yillikEnflasyonYuzde": round(((1 + monthly) ** 12 - 1) * 100, 1),
         "kaynak": settings.get("note") or "",
         "gecerlilikTarihi": settings.get("effective_date"),

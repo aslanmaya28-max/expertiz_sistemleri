@@ -51,7 +51,9 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
           {ozet.pazarlikGerekceleri.length > 0 && <><h3>Pazarlık gerekçeleri</h3><ul className="list-disc space-y-1 pl-5">{ozet.pazarlikGerekceleri.map((g) => <li key={g}>{g}</li>)}</ul></>}
         </section>}
       </div>
-      {sonuc.ekspertizRaporu && <section className="rounded-xl border border-kenarlik-acik bg-white p-6" aria-label="Ekspertiz raporundan okunan bulgular">
+      <AkilliAliciBolumleri sonuc={sonuc} bolum="mesaj" />
+      {getiri && <GetiriKarti getiri={getiri} />}
+      {sonuc.ekspertizRaporu &&<section className="rounded-xl border border-kenarlik-acik bg-white p-6" aria-label="Ekspertiz raporundan okunan bulgular">
         <h2 className="text-lg font-semibold">Ekspertiz raporundan okunan bulgular</h2>
         <p className="mt-2 text-sm text-metin-ikincil">{sonuc.ekspertizRaporu.aciklama}</p>
         <ul className="mt-3 space-y-2 text-sm">{sonuc.ekspertizRaporu.bulgular.map((item, index) => <li key={index} className={item.ciddiyet === "ciddi" ? "font-medium text-tehlike" : "text-metin-ikincil"}>
@@ -137,30 +139,6 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
 
       {piyasa.gecisYili && <GecisYiliKutusu gecis={piyasa.gecisYili} />}
 
-      {getiri && (
-      <section className="yb-report-card">
-        <h2 className="text-lg font-semibold text-metin-birincil">Getiri tahmini (araç enflasyonu)</h2>
-          <>
-            <p className="mt-1 text-sm text-metin-ikincil">
-              Aylık %{getiri.aylikEnflasyonYuzde} (yıllık ≈ %{getiri.yillikEnflasyonYuzde}){getiri.kaynak ? ` • ${getiri.kaynak}` : ""}
-              {getiri.gecerlilikTarihi ? ` • ${getiri.gecerlilikTarihi}` : ""}. Alış fiyatı: {tl(getiri.alisFiyati)}
-            </p>
-            <div className="mt-3 grid gap-4 sm:grid-cols-2">
-              {[getiri.altiAy, getiri.birYil].map((h) => (
-                <div key={h.ay} className="rounded-lg bg-arkaplan-acik p-4">
-                  <div className="text-sm text-metin-ikincil">{h.ay === 6 ? "6 ay sonra" : "1 yıl sonra"}</div>
-                  <div className="text-xl font-bold text-metin-birincil">{tl(h.tahminiDeger)}</div>
-                  <div className={`text-sm font-semibold ${h.getiriTl >= 0 ? "text-basarili" : "text-tehlike"}`}>
-                    {h.getiriTl >= 0 ? "+" : ""}{tl(h.getiriTl)} {h.getiriYuzde != null && `(%${h.getiriYuzde})`}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <p className="mt-3 text-xs text-metin-ikincil">{getiri.aciklama}</p>
-          </>
-      </section>
-      )}
-
       {bilgiKaynaklari && bilgiKaynaklari.length > 0 && (
         <section className="yb-report-card">
           <h2 className="text-lg font-semibold text-metin-birincil">Bu rapordaki bilgiler nereden geliyor?</h2>
@@ -185,5 +163,44 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
         </div>
       </div>}
     </div>
+  );
+}
+
+type Getiri = NonNullable<ValuationResult["getiri"]>;
+
+/** Araç enflasyonuna göre 6 aylık ve yıllık değer ve kazanç (09.11.2026). Oran girilmemişse hiç gösterilmez. */
+function GetiriKarti({ getiri }: { getiri: Getiri }) {
+  const aylik = getiri.aylikEnflasyonYuzde;
+  const altiAylik = getiri.altiAylikEnflasyonYuzde ?? Math.round(((1 + aylik / 100) ** 6 - 1) * 1000) / 10;
+  const isaretli = (n: number) => (n >= 0 ? "+" : "−") + tl(Math.abs(n));
+  return (
+    <section className="yb-report-card yb-inflation" aria-label="Enflasyona göre kazanç tahmini">
+      <h2><Ikon ad="yukselis" />Enflasyona göre kazanç tahmini</h2>
+      <p className="yb-inflation-hint">Aracı tavsiye alım fiyatından ({tl(getiri.alisFiyati)}) alırsanız araç enflasyonuna göre tahmini değeri ve kazancınız.</p>
+      <dl className="yb-inflation-rates">
+        <div><dt>6 aylık araç enflasyonu</dt><dd>{yuzde(altiAylik)}</dd></div>
+        <div><dt>Yıllık araç enflasyonu</dt><dd>{yuzde(getiri.yillikEnflasyonYuzde)}</dd></div>
+        <div><dt>Aylık</dt><dd>{yuzde(aylik)}</dd></div>
+      </dl>
+      <div className="yb-inflation-horizons">
+        {[getiri.altiAy, getiri.birYil].map((h) => (
+          <div key={h.ay} data-horizon={h.ay}>
+            <p className="yb-inflation-when">{h.ay === 6 ? "6 ay sonra" : "1 yıl sonra"}</p>
+            <dl>
+              <div><dt>Tahmini değer</dt><dd className="yb-inflation-value">{tl(h.tahminiDeger)}</dd></div>
+              <div><dt>Sağladığı kazanç</dt><dd className={h.getiriTl >= 0 ? "yb-inflation-gain" : "yb-inflation-loss"}>
+                {isaretli(h.getiriTl)}{h.getiriYuzde != null && <span> ({yuzde(h.getiriYuzde)})</span>}
+              </dd></div>
+            </dl>
+            {h.alimKazanciTl != null && h.enflasyonKazanciTl != null && (
+              <p className="yb-inflation-split">Uygun alım {isaretli(h.alimKazanciTl)} · Değer artışı {isaretli(h.enflasyonKazanciTl)}</p>
+            )}
+          </div>
+        ))}
+      </div>
+      <p className="yb-inflation-note">
+        {[getiri.kaynak, getiri.gecerlilikTarihi?.split("T")[0].split("-").reverse().join(".")].filter(Boolean).join(" · ")}{getiri.kaynak || getiri.gecerlilikTarihi ? ". " : ""}{getiri.aciklama}
+      </p>
+    </section>
   );
 }

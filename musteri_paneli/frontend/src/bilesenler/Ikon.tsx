@@ -1,6 +1,6 @@
 import type { ReactNode, SVGProps } from "react";
 
-export type IkonAdi = "ok" | "capraz-ok" | "kontrol" | "kalkan" | "arac" | "konum" | "belge" | "kamera" | "grafik" | "kisi" | "saat" | "takvim" | "yol" | "yakit" | "vites" | "terazi" | "etiket" | "uyari" | "ampul" | "motor" | "anahtar";
+export type IkonAdi = "mesaj" | "yukselis" | "ok" | "capraz-ok" | "kontrol" | "kalkan" | "arac" | "konum" | "belge" | "kamera" | "grafik" | "kisi" | "saat" | "takvim" | "yol" | "yakit" | "vites" | "terazi" | "etiket" | "uyari" | "ampul" | "motor" | "anahtar";
 const yollar: Record<IkonAdi, ReactNode> = {
   ok: <path d="M4 12h15M13 5l7 7-7 7" />,
   "capraz-ok": <path d="M5 19 19 5M5 5h14v14" />,
@@ -11,6 +11,8 @@ const yollar: Record<IkonAdi, ReactNode> = {
   belge: <path d="M14 3H5v18h14V8l-5-5Zm0 0v5h5M8 12h8m-8 4h6" />,
   kamera: <><path d="m8 6 2-3h4l2 3h5v14H3V6h5Z" /><circle cx="12" cy="13" r="4" /></>,
   grafik: <path d="M4 3v18h17M8 16l4-5 4 2 5-8" />,
+  mesaj: <><path d="M4 5h16v11H10l-4 4v-4H4Z" /><path d="M8 9h8M8 12h5" /></>,
+  yukselis: <><path d="m3 17 6-6 4 4 8-8" /><path d="M15 7h6v6" /></>,
   kisi: <><circle cx="12" cy="7" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></>,
   saat: <><circle cx="12" cy="12" r="9" /><path d="M12 6v6l4 2" /></>,
   takvim: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 3v4m10-4v4M3 11h18M7 15h2m4 0h2m-8 3h2" /></>,

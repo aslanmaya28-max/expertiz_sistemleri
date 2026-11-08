@@ -98,9 +98,11 @@ def test_pdf_uyari_ve_getiri_bolumleri_web_raporuyla_eslesir(pdf_raporu):
     if not rapor.get("getiri"):
         # Başlık ve bilgi kaynaklarındaki alan aynı koşulla kaybolmalıdır.
         assert "gelecek değer" not in metin.casefold()
-        assert "Getiri tahmini" not in metin
-        assert "Tahmini getiri:" not in metin
+        assert "Enflasyona göre kazanç tahmini" not in metin
+        assert "sağladığı kazanç" not in metin
         assert "Aylık araç enflasyonu:" not in metin
     else:
-        assert "Gelecek değer — tahmin" in metin
-        assert "Aylık araç enflasyonu:" in metin
+        # Bölüm sitedeki kartla aynı adı ve 6 aylık/yıllık oranları taşır (09.11.2026).
+        assert "Enflasyona göre kazanç tahmini" in metin
+        assert "6 aylık araç enflasyonu:" in metin and "Yıllık araç enflasyonu:" in metin
+        assert "1 yıl sonra sağladığı kazanç:" in metin

@@ -497,6 +497,10 @@ export interface ValuationHorizon {
   tahminiDeger: number;
   getiriTl: number;
   getiriYuzde: number | null;
+  /** Araç enflasyonuyla değer artışı ve değerinin altında alımdan gelen kısım (09.11.2026; eski raporlarda yok). */
+  enflasyonKazanciTl?: number;
+  alimKazanciTl?: number;
+  enflasyonYuzde?: number;
 }
 
 export interface PazarlikPlani {
@@ -607,6 +611,7 @@ export interface ValuationResult {
   saticiSorulari?: string[];
   getiri: null | {
     aylikEnflasyonYuzde: number;
+    altiAylikEnflasyonYuzde?: number;
     yillikEnflasyonYuzde: number;
     kaynak?: string;
     gecerlilikTarihi?: string;

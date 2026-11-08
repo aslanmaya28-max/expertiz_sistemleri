@@ -35,7 +35,9 @@ def test_turkish_pdf_long_content_and_complete_sections():
         assert 'Örnek Çığ Şişli 2024' in text
         assert '02.11.2026' in text  # İstanbul tarihi
         assert 'Türkçe kalem 54' in text
-        assert '12 ay: 1.200.000 TL' in text
+        # Enflasyon bölümü kartlı (09.11.2026): 1 yıl sonraki değer, kazanç ve 6 aylık/yıllık oran görünür.
+        assert '1 yıl sonra tahmini değer:' in text and '1.200.000 TL' in text and '+250.000 TL' in text
+        assert '6 aylık araç enflasyonu:' in text and '%12,6' in text and '%26,8' in text
         assert 'https://www.yerimebak.com.tr/dogrula/YD-ABCD-2345' in text
         assert DISCLAIMER in text
         for page in document.pages:

@@ -398,8 +398,45 @@ def build_pdf(report, ornek=False):
         for reason in plan.get('gerekceler') or []:
             bullet(reason)
         text('Benzer ilanlar tablosuna bakın.', size=8.5, color=MUTED)
-        if plan.get('saticiMesaji'):
-            panel('Satıcıya mesaj', plan['saticiMesaji'])
+    # Satıcıya gönderilecek mesaj ayrı bölüm (09.11.2026; sitedeki kartla aynı).
+    if plan and plan.get('saticiMesaji'):
+        ensure(55)
+        heading('Satıcıya gönderilecek mesaj')
+        text('Kopyalayıp ilan sahibine gönderin; rakam pazarlık planındaki açılış teklifinizdir.', size=8.5, color=MUTED)
+        pdf.ln(1)
+        panel('Mesajınız', plan['saticiMesaji'])
+    projection = report.get('getiri')
+    if projection:  # oran girilmemişse bölüm hiç gösterilmez
+        aylik = projection.get('aylikEnflasyonYuzde')
+        oran = (lambda ay: round(((1+aylik/100)**ay-1)*100, 1)) if isinstance(aylik, (int, float)) else (lambda ay: None)
+        alti = projection.get('altiAylikEnflasyonYuzde', oran(6))
+        yillik = projection.get('yillikEnflasyonYuzde', oran(12))
+        ensure(110)
+        heading('Enflasyona göre kazanç tahmini')
+        text(f'Aracı tavsiye alım fiyatından ({_money(projection.get("alisFiyati"))}) alırsanız araç enflasyonuna '
+             'göre tahmini değeri ve kazancınız.', size=8.5, color=MUTED)
+        pdf.ln(1)
+        cards([('6 aylık araç enflasyonu:', _pct(alti)), ('Yıllık araç enflasyonu:', _pct(yillik)),
+               ('Aylık araç enflasyonu:', _pct(aylik))], sizes=[15, 15, 12])
+
+        def isaretli(value):
+            return ('+' if value >= 0 else '−') + _money(abs(value)) if isinstance(value, (int, float)) else '—'
+        for key, label in (('altiAy', '6 ay sonra'), ('birYil', '1 yıl sonra')):
+            horizon = projection.get(key) or {}
+            kazanc = isaretli(horizon.get('getiriTl'))
+            if horizon.get('getiriYuzde') is not None:
+                kazanc += f' ({_pct(horizon.get("getiriYuzde"))})'
+            ayrim = None
+            if horizon.get('alimKazanciTl') is not None and horizon.get('enflasyonKazanciTl') is not None:
+                ayrim = (f'Uygun alım {isaretli(horizon["alimKazanciTl"])} · '
+                         f'Değer artışı {isaretli(horizon["enflasyonKazanciTl"])}')
+            cards([(f'{label} tahmini değer:', _money(horizon.get('tahminiDeger'))),
+                   (f'{label} sağladığı kazanç:', kazanc)], note=ayrim, sizes=[15, 13],
+                  dark=1 if key == 'birYil' else None)
+        tarih = str(projection.get('gecerlilikTarihi') or '').split('T')[0]
+        tarih = '.'.join(reversed(tarih.split('-'))) if tarih.count('-') == 2 else tarih
+        note = ' · '.join(str(v) for v in (projection.get('kaynak'), tarih) if v)
+        text(((note + '. ') if note else '') + str(projection.get('aciklama') or ''), size=8.5, color=MUTED)
     risks = report.get('modelRiskleri') or {}
     # Eski kayıtlarda düşük güvenli maddeler olabilir; müşteriye gösterilmez.
     shown = [r for r in risks.get('riskler') or [] if r.get('guven') in ('yuksek', 'orta')]
@@ -528,14 +565,6 @@ def build_pdf(report, ornek=False):
         heading('Bilgi kaynakları')
         for source in sources:
             text(f'{source.get("alan")}: {source.get("aciklama")}')
-    projection = report.get('getiri')
-    if projection:  # oran girilmemişse bölüm hiç gösterilmez
-        heading('Gelecek değer — tahmin')
-        text(f'Aylık araç enflasyonu: {_pct(projection.get("aylikEnflasyonYuzde"))} • {projection.get("kaynak") or ""}')
-        for key in ('altiAy', 'birYil'):
-            horizon = projection.get(key) or {}
-            text(f'{horizon.get("ay")} ay: {_money(horizon.get("tahminiDeger"))} • Tahmini getiri: {_money(horizon.get("getiriTl"))} ({_pct(horizon.get("getiriYuzde"))})')
-        text(projection.get('aciklama'))
     if ornek:
         ensure(20)
         pdf.ln(5)
