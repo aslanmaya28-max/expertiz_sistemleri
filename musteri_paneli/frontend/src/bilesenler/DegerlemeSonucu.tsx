@@ -106,18 +106,16 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
       </div>
       <AkilliAliciBolumleri sonuc={sonuc} bolum="yardimci" />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <Kutu baslik="İlan fiyatı" deger={tl(arac.ilanFiyati)} />
-        {piyasa.ortalama > 0 && (
-          <Kutu baslik={`Benzer ${piyasa.emsalSayisi} ilanın ortalaması${piyasa.duzeltme ? " (bu araca göre)" : ""}`} deger={tl(piyasa.ortalama)} />
-        )}
-        <Kutu baslik="Tavsiye alım fiyatı" deger={tl(degerleme.tavsiyeFiyat)} vurgu />
-        <Kutu baslik="Adil fiyat aralığı" deger={`${tl(degerleme.adilFiyatAraligi?.min)} – ${tl(degerleme.adilFiyatAraligi?.max)}`} />
-        <Kutu baslik="Hasarsız piyasa değeri" deger={tl(degerleme.temizPiyasaDegeri)} />
-      </div>
-
       <section className="yb-report-card">
         <h2 className="text-lg font-semibold text-metin-birincil">Değer kaybı ({yuzde(degerleme.toplamDegerKaybiYuzde)} • {tl(degerleme.toplamDegerKaybiTutar)})</h2>
+        {/* Eski tasarımdaki beş tekrar kutusu yerine değerin nasıl bulunduğu (08.11.2026). */}
+        <dl className="yb-value-chain" aria-label="Değer hesabı">
+          <div><dt>Hasarsız piyasa değeri</dt><dd>{tl(degerleme.temizPiyasaDegeri)}</dd></div>
+          <div aria-hidden="true" className="yb-value-op">−</div>
+          <div><dt>Değer kaybı</dt><dd>{tl(degerleme.toplamDegerKaybiTutar)}</dd></div>
+          <div aria-hidden="true" className="yb-value-op">=</div>
+          <div className="yb-value-result"><dt>Hesaplanan değer</dt><dd>{tl(degerleme.aiDegeri)}</dd></div>
+        </dl>
         {degerleme.kalemler.length === 0 ? (
           <p className="mt-2 text-sm text-metin-ikincil">Bildirilen boya, değişen veya hasar kaydı yok.</p>
         ) : (
@@ -186,15 +184,6 @@ export default function DegerlemeSonucu({ sonuc, onYeni, ornek = false }: { sonu
           {onYeni && <button type="button" onClick={onYeni} className="rounded-lg bg-birincil px-4 py-2 text-sm font-semibold text-white">Yeni analiz</button>}
         </div>
       </div>}
-    </div>
-  );
-}
-
-function Kutu({ baslik, deger, vurgu }: { baslik: string; deger: string; vurgu?: boolean }) {
-  return (
-    <div className={`rounded-xl border p-4 ${vurgu ? "border-birincil bg-birincil/5" : "border-kenarlik-acik bg-white"}`}>
-      <div className="text-xs text-metin-ikincil">{baslik}</div>
-      <div className={`mt-1 text-lg font-bold ${vurgu ? "text-birincil-koyu" : "text-metin-birincil"}`}>{deger}</div>
     </div>
   );
 }
