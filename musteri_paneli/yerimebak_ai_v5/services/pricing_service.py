@@ -34,6 +34,8 @@ def expertiz_totals(service_fee: float, package_price: float) -> Dict[str, float
         "package_price_tl": package,
         "vat_tl": vat,
         "total_tl": round(fee + vat + package, 2),
+        # Uygulama tutarı kendisi hesaplamaz (köprü 009, 023): hizmet bedeli + KDV, firma paketi hariç.
+        "service_fee_incl_vat_tl": round(fee + vat, 2),
     }
 SETTING_INFLATION = "vehicle_inflation"
 

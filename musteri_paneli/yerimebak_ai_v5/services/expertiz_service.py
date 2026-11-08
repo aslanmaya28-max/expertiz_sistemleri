@@ -24,6 +24,8 @@ def get_expertiz_packages() -> Dict[str, Any]:
     return {
         "service_fee_tl": settings["service_fee_tl"],
         "vat_rate": settings["vat_rate"],
+        # Firma/paket seçmeden ücret göstermek için sunucuda hesaplanmış KDV dahil hizmet bedeli (köprü 009).
+        "service_fee_incl_vat_tl": pricing_service.expertiz_totals(settings["service_fee_tl"], 0)["service_fee_incl_vat_tl"],
         "firms": pricing_service.list_firms(),
     }
 
