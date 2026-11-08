@@ -23,6 +23,7 @@ function load(relative) {
     if (name.endsWith('.json')) return JSON.parse(readFileSync(resolve(dirname(filename), name), 'utf8'));
     if (name.startsWith('@/')) return load(`${name.slice(2)}.tsx`);
     if (name === './AkilliAliciBolumleri') return load('bilesenler/AkilliAliciBolumleri.tsx');
+    if (['./Ikon', './Marka', './RaporBasligi', './FiyatOzeti'].includes(name)) return load(`bilesenler/${name.slice(2)}.tsx`);
     return dependency(name);
   };
   // The helper has no JSX and is shared by the real report components.

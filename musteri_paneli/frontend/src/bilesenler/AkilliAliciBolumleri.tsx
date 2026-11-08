@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import type { SorunKategorisi, SorunOnemi, ValuationResult } from "@/lib/api";
 import { ekspertizTalepAdresi, guvenliWebAdresi } from "@/lib/ekspertizOnDoldurma";
+import Ikon, { type IkonAdi } from "./Ikon";
 
 /** Sunucudaki vehicle_risk.GENEL_BAKIM_KONTROLU ile aynı: genel kontrol notu her maddede tekrarlanmaz */
 const GENEL_BAKIM_KONTROLU = "Tarih, kilometre ve servis faturalarını karşılaştırın.";
@@ -58,9 +59,9 @@ function GrupluListe<T extends SorunMaddesi>({ gruplar, madde }: {
 }
 
 function OnemEtiketi({ onem, kmUyarisi }: { onem?: SorunOnemi; kmUyarisi?: string }) {
-  if (onem === "yuksek") return <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">{kmUyarisi ? "Öncelikli kontrol" : "Yüksek masraf"}</span>;
-  if (onem === "orta") return <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-800">Orta</span>;
-  if (onem === "dusuk") return <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">Küçük / konfor</span>;
+  if (onem === "yuksek") return <span className="yb-risk-badge yb-risk-high">{kmUyarisi ? "Öncelikli kontrol" : "Yüksek masraf"}</span>;
+  if (onem === "orta") return <span className="yb-risk-badge yb-risk-medium">Orta</span>;
+  if (onem === "dusuk") return <span className="yb-risk-badge yb-risk-small">Küçük / konfor</span>;
   return null;
 }
 
@@ -100,7 +101,7 @@ function Kaynaklar({ urller }: { urller?: string[] }) {
 }
 
 /** Pazarlık planı, model riskleri, bakım ve satıcı soruları (eski raporlarda bu alanlar olmayabilir). */
-export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
+export function AkilliAliciBolumleri({ sonuc, bolum = "hepsi" }: { sonuc: ValuationResult; bolum?: "hepsi" | "plan" | "diger" | "model" | "yardimci" }) {
   const { pazarlikPlani: plan, modelRiskleri, kullaniciSikayetleri, bakim, saticiSorulari } = sonuc;
   const riskler = (modelRiskleri?.riskler || []).filter((r) => GOSTERILEN_GUVEN.has(r.guven));
   const modern = modelRiskleri?.gorunumSurumu === 2;
@@ -122,13 +123,13 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
   );
   return (
     <>
-      {plan && (
-        <section className="bg-white rounded-xl border-2 border-birincil/40 p-6" aria-label="Pazarlık planı">
-          <h2 className="text-lg font-semibold text-metin-birincil">Pazarlık planı</h2>
+      {(bolum === "hepsi" || bolum === "plan") && plan && (
+        <section className="yb-report-card yb-negotiation" aria-label="Pazarlık planı">
+          <h2 className="text-lg font-semibold text-metin-birincil"><Ikon ad="etiket" />Pazarlık planı</h2>
           {plan.uyari && <p className="mt-2 rounded-lg bg-yellow-50 p-3 text-sm text-yellow-900">{plan.uyari}</p>}
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="yb-negotiation-targets mt-4">
             {[["Açılış teklifi", plan.acilisTeklifi], ["Hedef fiyat", plan.hedefFiyat], ["Üst sınırınız", plan.ustSinir]].map(([baslik, deger]) => (
-              <div key={String(baslik)} className="rounded-lg bg-arkaplan-acik p-4 text-center">
+              <div key={String(baslik)} data-target={baslik === "Hedef fiyat" ? "true" : undefined}>
                 <div className="text-xs text-metin-ikincil">{baslik}</div>
                 <div className="mt-1 text-2xl font-extrabold text-metin-birincil">{tl(deger as number)}</div>
               </div>
@@ -167,7 +168,7 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
                   href={`https://wa.me/?text=${encodeURIComponent(plan.saticiMesaji)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white"
+                  className="yb-report-share rounded-lg px-3 py-1.5 text-xs font-semibold"
                 >
                   WhatsApp&apos;ta paylaş
                 </a>
@@ -178,8 +179,9 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
         </section>
       )}
 
+      {bolum !== "plan" && bolum !== "yardimci" && <>
       {kritik.length > 0 && (
-        <section className="rounded-xl border border-red-200 bg-red-50 p-6" aria-label="Bu araçta en çok dikkat etmeniz gerekenler">
+        <section className="yb-report-card yb-critical-risks" aria-label="Bu araçta en çok dikkat etmeniz gerekenler">
           <h2 className="text-lg font-semibold text-metin-birincil">Bu araçta en çok dikkat etmeniz gerekenler</h2>
           <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-metin-birincil">
             {kritik.map((m, i) => <li key={`${m.baslik}-${i}`}>{m.baslik}</li>)}
@@ -188,21 +190,21 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
       )}
 
       {modelRiskleri && (
-        <section className="bg-white rounded-xl border border-kenarlik-acik p-6" aria-label={modern ? "Bu araçta dikkat edilecekler" : "Modelin bilinen sorunları"}>
-          <h2 className="text-lg font-semibold text-metin-birincil">{modern ? "Bu araçta dikkat edilecekler" : "Modelin bilinen sorunları"}</h2>
+        <section className="yb-report-card yb-model-risks" aria-label={modern ? "Bu araçta dikkat edilecekler" : "Modelin bilinen sorunları"}>
+          <h2 className="text-lg font-semibold text-metin-birincil"><Ikon ad="anahtar" />{modern ? "Bu araçta dikkat edilecekler" : "Modelin bilinen sorunları"}</h2>
           <p className="mt-1 text-xs text-metin-ikincil">Arıza teşhisi değildir; araç sürümü, şasi numarası ve servis kayıtlarıyla doğrulayın.</p>
           {riskler.length === 0 ? (
             <p className="mt-3 text-sm text-metin-ikincil">{modelRiskleri.mesaj || "Bu model/motor için kaynağı doğrulanmış bilinen sorun bulunamadı."}</p>
           ) : (
             <GrupluListe gruplar={riskGruplari} madde={(r) => {
                 return (
-                  <li key={r.baslik} className="rounded-lg border border-kenarlik-acik p-4 text-sm">
-                    <div className="flex flex-wrap items-center gap-2">
+                  <li key={r.baslik} className="yb-risk-row text-sm"><details>
+                    <summary className="yb-risk-summary"><Ikon ad={kategoriIkonu(r.kategori)} />
                       <span className="font-semibold text-metin-birincil">{r.baslik}</span>
                       <OnemEtiketi onem={r.onem} kmUyarisi={r.kilometreUyarisi} />
-                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">{r.kanitSeviyesi || (r.guven === "yuksek" ? "Resmî kayıt" : "Teknik kaynak")}</span>
+                      <span className="yb-risk-evidence">{r.kanitSeviyesi || (r.guven === "yuksek" ? "Resmî kayıt" : "Teknik kaynak")}</span>
                       {r.kilometreUyarisi && <span className="font-semibold text-tehlike">{r.kilometreUyarisi}</span>}
-                    </div>
+                    </summary><div className="yb-risk-detail">
                     {r.aciklama && <p className="mt-1 text-metin-ikincil">{r.aciklama}</p>}
                     <dl className="mt-2 grid gap-1 text-metin-ikincil">
                       {r.etkiledigi && <div><dt className="inline font-medium text-metin-birincil">Kimleri etkiler: </dt><dd className="inline">{r.etkiledigi}</dd></div>}
@@ -215,7 +217,7 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
                     {r.kmKaynagi && <div className="mt-1 text-xs text-metin-ikincil">Kilometre kaynağı{r.kmKaynagi.tarih ? ` · Erişim: ${r.kmKaynagi.tarih}` : ""}<Kaynaklar urller={[r.kmKaynagi.url]} /></div>}
                     <Kaynaklar urller={r.kaynaklar} />
                     {uzmanSatiri(r)}
-                  </li>
+                    </div></details></li>
                 );
               }} />
           )}
@@ -223,31 +225,33 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
       )}
 
       {kullaniciSikayetleri !== undefined && (
-        <section className="bg-white rounded-xl border border-kenarlik-acik p-6" aria-label="Kullanıcıların en sık şikâyet ettiği konular">
+        <section className="yb-report-card" aria-label="Kullanıcıların en sık şikâyet ettiği konular">
           <h2 className="text-lg font-semibold text-metin-birincil">Kullanıcıların en sık şikâyet ettiği konular</h2>
           <p className="mt-1 text-xs text-metin-ikincil">Forum ve kullanıcı yorumlarından derlenmiştir; kullanıcı beyanıdır, arıza teşhisi değildir.</p>
           {kullaniciSikayetleri.length === 0 ? (
             <p className="mt-3 text-sm text-metin-ikincil">Birden fazla kaynakta tekrarlanan kullanıcı şikâyeti bulunamadı.</p>
           ) : (
             <GrupluListe gruplar={sikayetGruplari} madde={(s) => (
-                <li key={s.baslik} className="rounded-lg border border-kenarlik-acik p-4 text-sm">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="font-semibold text-metin-birincil">{s.baslik}</h4>
+                <li key={s.baslik} className="yb-risk-row text-sm"><details>
+                  <summary className="yb-risk-summary"><Ikon ad={kategoriIkonu(s.kategori)} />
+                    <span className="font-semibold text-metin-birincil">{s.baslik}</span>
                     <OnemEtiketi onem={s.onem} />
                     <span className="text-xs text-metin-ikincil">Kullanıcı deneyimi</span>
-                  </div>
+                  </summary><div className="yb-risk-detail">
                   <p className="mt-1 text-metin-ikincil">{s.aciklama}</p>
                   <p className="mt-2 text-xs text-metin-ikincil">{s.kaynakSayisi} farklı kaynakta geçiyor</p>
                   <Kaynaklar urller={s.kaynaklar} />
                   {uzmanSatiri(s)}
-                </li>
+                  </div></details></li>
               )} />
           )}
         </section>
       )}
 
+      </>}
+      {bolum !== "plan" && bolum !== "model" && <>
       {bakim && bakim.length > 0 && (
-        <section className="bg-white rounded-xl border border-kenarlik-acik p-6" aria-label="Bakım">
+        <section className="yb-report-card" aria-label="Bakım">
           <h2 className="text-lg font-semibold text-metin-birincil">Bu kilometrede doğrulanacak bakımlar</h2>
           {/* Açıklama her maddede aynı: bir kez yazılır, maddeler kısa liste olur */}
           <p className="mt-2 text-sm text-metin-ikincil">
@@ -266,7 +270,7 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
       )}
 
       {saticiSorulari && saticiSorulari.length > 0 && (
-        <section className="bg-white rounded-xl border border-kenarlik-acik p-6" aria-label="Satıcıya sorular">
+        <section className="yb-report-card" aria-label="Satıcıya sorular">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-semibold text-metin-birincil">Satıcıya sorulacak sorular</h2>
             <KopyalaButonu metin={saticiSorulari.map((s, i) => `${i + 1}. ${s}`).join("\n")} etiket="Soruları kopyala" />
@@ -276,6 +280,7 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
           </ol>
         </section>
       )}
+      </>}
     </>
   );
 }
@@ -283,17 +288,26 @@ export function AkilliAliciBolumleri({ sonuc }: { sonuc: ValuationResult }) {
 /** Raporun sonunda: yerinde ekspertize geçiş (form araç bilgileriyle dolu açılır). */
 export function SonrakiAdim({ sonuc }: { sonuc: ValuationResult }) {
   return (
-    <section className="rounded-xl bg-birincil/5 border border-birincil/30 p-6" aria-label="Sonraki adım">
-      <h2 className="text-lg font-semibold text-metin-birincil">Sonraki adım: aracı yerinde inceletin</h2>
+    <section className="yb-report-final" aria-label="Sonraki adım">
+      <p className="yb-report-final-label">Güvenli alım için son adım</p>
+      <h2 className="text-lg font-semibold"><Ikon ad="kalkan" />Sonraki adım: aracı yerinde inceletin</h2>
       <p className="mt-2 text-sm text-metin-ikincil">
         Bu rapor ilan bilgilerine ve internetteki ilanlara dayanır. Boya, değişen, tramer ve bakım geçmişini YerimeBak
         uzmanının yerinde incelemesiyle doğrulatın; kurumsal ekspertiz raporu ve uzman bulgularıyla değerleme birlikte gelir.
       </p>
-      <Link href={ekspertizTalepAdresi(sonuc.arac)} className="mt-4 inline-block rounded-lg bg-birincil px-5 py-2.5 text-sm font-semibold text-white">
-        Bu aracı yerinde inceletelim
+      <Link href={ekspertizTalepAdresi(sonuc.arac)} className="yb-button yb-button-mint mt-4">
+        Bu aracı yerinde inceletelim <Ikon ad="ok" />
       </Link>
     </section>
   );
+}
+
+function kategoriIkonu(kategori?: SorunKategorisi): IkonAdi {
+  if (kategori === "motor" || kategori === "mekanik_motor") return "motor";
+  if (kategori === "sanziman") return "vites";
+  if (kategori === "kaporta" || kategori === "trim_kasa") return "arac";
+  if (kategori === "elektronik") return "grafik";
+  return "anahtar";
 }
 
 const BEKLEME_ADIMLARI = [
