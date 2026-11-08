@@ -52,7 +52,8 @@ DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash-1017"
 MIN_PRICE, MAX_PRICE = 50_000, 100_000_000
 MIN_SAMPLES = 3          # bunun altinda referans uretilmez
 TARGET_SAMPLES = 5       # bunun altında ikinci tur arama yapılır
-CACHE_VERSION = "generation-transition-v4"
+# v5: emsalde yakıt/vites ailesi uyumu (08.11.2026); dizel emsalli eski benzinli sonuçlar kullanılmaz.
+CACHE_VERSION = "yakit-vites-v5"
 OUTLIER_BAND = 0.25      # medyan +-%25 disi atilir
 DEFAULT_YEARLY_RATE = 0.04   # ilanlardan hesaplanamazsa yıllık değer kaybı
 YEARLY_RATE_LIMITS = (0.02, 0.12)
@@ -344,6 +345,32 @@ def kasa_terms(generation: Optional[Dict[str, Any]], newer: bool, vehicle: Optio
     return tuple(terms) + (("yeni kasa", "yeni nesil", "kelime:yeni") if newer else ("eski kasa", "onceki kasa"))
 
 
+# Motor ailesi ve vites adları (ilan paketinde/adresinde). Fiat Egea 1.4 Fire benzinli raporunda emsallere
+# "1-3-multijet" dizel ve "1.6 e-torq otomatik" ilanları girmişti (08.11.2026).
+DIZEL_ADLARI = (r"\b(dizel|diesel|multijet|mjet|crdi|tdi|dci|hdi|bluehdi|cdti|tdci|cdi|ddis|jtd|d[- ]?4d|"
+                r"i[- ]?dtec|ecoblue|skyactiv[- ]?d)\b")
+BENZIN_ADLARI = (r"\b(benzin|benzinli|fire|t[- ]?jet|e[- ]?torq|tsi|tfsi|tce|ecoboost|puretech|vtec|mpi|"
+                 r"t?[- ]?gdi|vvt[- ]?i|skyactiv[- ]?g)\b")
+OTOMATIK_ADLARI = r"\b(otomatik|automatic|dsg|dct|cvt|edc|eat[- ]?[68]|steptronic|tiptronic|s[- ]?tronic|dualogic|amt)\b"
+MANUEL_ADLARI = r"\b(manuel|manual|duz vites)\b"
+
+
+def aile_uyumsuz(arac: Dict[str, Any], metin: str) -> Optional[str]:
+    """Metin (ilan paketi/adresi) aracın yakıtına ya da vitesine açıkça uymuyorsa red nedeni."""
+    blob, fuel, gear = fold(metin), fold(arac.get("fuel")), fold(arac.get("transmission"))
+    dizel, benzin = re.search(DIZEL_ADLARI, blob), re.search(BENZIN_ADLARI, blob)
+    if ("benzin" in fuel or "lpg" in fuel) and dizel and not benzin:
+        return "yakıt uyumsuz"
+    if ("dizel" in fuel or "diesel" in fuel) and benzin and not dizel:
+        return "yakıt uyumsuz"
+    otomatik, manuel = re.search(OTOMATIK_ADLARI, blob), re.search(MANUEL_ADLARI, blob)
+    if ("manuel" in gear or "manual" in gear) and otomatik and not manuel:
+        return "vites uyumsuz"
+    if ("otomatik" in gear or "automatic" in gear) and manuel and not otomatik:
+        return "vites uyumsuz"
+    return None
+
+
 def verify(listing: Dict[str, Any], sources: Dict[str, str], v: Dict[str, Any], *, year_window: int = 1,
            km_band_scale: int = 1, year_range: Optional[tuple] = None, ambiguous_year: Optional[int] = None,
            terms: tuple = ()) -> Optional[str]:
@@ -383,6 +410,9 @@ def verify(listing: Dict[str, Any], sources: Dict[str, str], v: Dict[str, Any], 
     found = _displacements(f"{listing.get('paket') or ''} {url}")
     if target and found and not (target & found):
         return "motor uyumsuz"
+    aile = aile_uyumsuz(v, f"{listing.get('paket') or ''} {url}")
+    if aile:
+        return aile
     target_hp = _int(v.get("hp"))
     listing_hp = _int(listing.get("beygir")) or horsepower(f"{listing.get('paket') or ''} {url}")
     if target_hp and listing_hp and abs(target_hp - listing_hp) > HP_TOLERANCE:

@@ -250,11 +250,22 @@ def _fuel_incompatible(text, vehicle):
     if fuel in ("elektrik", "elektrikli", "electric", "ev"):
         return bool(re.search(r"\b(motor yagi|engine oil|triger|timing belt|zincir|timing chain|sanziman yagi|transmission oil|egzoz|exhaust)\w*\b", text))
     diesel = "dizel" in fuel or "diesel" in fuel
+    # Yalnız karşı yakıtın motorunu anlatan metin (ör. benzinli Egea'ya "Dizel 1.3 Multijet'te EGR" şikâyeti,
+    # 08.11.2026). İki yakıt birlikte anılıyorsa genel bilgidir, elenmez.
+    dizel_adi, benzin_adi = re.search(wmr.DIZEL_ADLARI, text), re.search(wmr.BENZIN_ADLARI, text)
+    # Aracın kendi paketi karşı yakıtın adını taşıyorsa (form çelişkili: "Dizel" + "1.0 TSI") aile kuralı uygulanmaz.
+    kendi = fold(f"{vehicle.get('engine') or ''} {vehicle.get('package') or ''}")
+    if (diesel and re.search(wmr.BENZIN_ADLARI, kendi)) or (not diesel and re.search(wmr.DIZEL_ADLARI, kendi)):
+        dizel_adi = benzin_adi = None
     if diesel:
+        if benzin_adi and not dizel_adi:
+            return True
         # Kızdırma bujisi dizelde mevcuttur; ateşleme bujisiyle karıştırma.
         without_glow = re.sub(r"\b(kizdirma buj\w*|glow plugs?)\b", "", text)
         return bool(re.search(r"\b(buji\w*|spark plugs?|atesleme bobin\w*|ignition coils?)\b", without_glow))
     if any(term in fuel for term in ("benzin", "petrol", "gasoline", "hibrit", "hybrid", "lpg")):
+        if dizel_adi and not benzin_adi:
+            return True
         return bool(re.search(r"\b(adblue|dpf|dizel partikul)\b", text)
                     or ("dizel" in text and re.search(r"\b(enjektor|yakit) pompa\w*", text)))
     return False
@@ -679,6 +690,12 @@ def get_model_risks(vehicle) -> dict:
         query += " (yurt dışında: " + ", ".join(aliases) + ")"
     complaint_query = " ".join(str(p) for p in (vehicle.get("brand"), vehicle.get("model"),
                                                 vehicle.get("engine") or vehicle.get("package")) if p)
+    # Paket yalnız donanım adıysa ("Urban plus") arama dizel/benzinli ayırmıyordu (Egea 1.4 Fire, 08.11.2026).
+    yakit = fold(vehicle.get("fuel"))
+    if "dizel" in yakit or "diesel" in yakit:
+        complaint_query += " dizel"
+    elif "benzin" in yakit or "lpg" in yakit:
+        complaint_query += " benzinli"
     complaint_query += " kronik sorun şikayet"
     # İki arama bağımsızdır: biri düşer ya da süreyi aşarsa diğerinin sonucu kullanılır.
     # (Ölçüm: geçici bir risk araması hatası, başarılı şikâyetleri de siliyordu.)
@@ -795,6 +812,13 @@ BAKIM_REHBERI = {
     "Debriyaj / çift kütleli volan kontrolü": (
         "Debriyaj setinin değişip değişmediğini sorun.",
         "Rölantide titreşim ya da tıkırtı ve kalkışta debriyajın kaçırması olup olmadığına dikkat edin."),
+    "Debriyaj kontrolü": (
+        "{km} km'deki manuel araçta debriyaj setinin değişip değişmediğini sorun.",
+        "Kalkışta debriyajın kaçırıp kaçırmadığına ve pedalın çok yukarıdan tutup tutmadığına dikkat edin."),
+    "Enjektör ve ateşleme kontrolü": (
+        "{km} km'nin üzerindeki benzinli araçta buji, ateşleme bobini ve enjektörlerle ilgili bakım ya da "
+        "onarım geçmişini sorun.",
+        "Rölantide tekleme, hızlanmada sarsıntı ya da motor arıza lambası olup olmadığına bakın."),
     "DPF / EGR kontrolü": (
         "Dizel araçta partikül filtresi (DPF) ve EGR temizliği ya da değişimi yapılıp yapılmadığını sorun.",
         "Gösterge panelinde DPF uyarısı ve şehir içi kullanımda güç kaybı olup olmadığına bakın."),
@@ -845,10 +869,16 @@ def upcoming_maintenance(vehicle, risks) -> list:
             labels += ["Triger / zincir bakım geçmişi"]
         if km >= 60000:
             labels += ["Şanzıman yağı ve filtre geçmişi"]
+        # Turbo ve çift kütleli volan yalnız dizelde ya da turbolu olduğu bilinen motorda sorulur
+        # (1.4 Fire benzinli Egea'da "turbo" ve "çift kütleli volan" çıkıyordu, 08.11.2026).
+        motor = fold(f"{vehicle.get('engine') or ''} {vehicle.get('package') or ''}")
+        turbolu = ("dizel" in fuel or "diesel" in fuel or bool(re.search(wmr.DIZEL_ADLARI, motor))
+                   or bool(re.search(r"\b(turbo|tsi|tfsi|tce|t[- ]?jet|ecoboost|puretech|t[- ]?gdi|tgdi|"
+                                     r"multiair|thp|e[- ]?thp|bluehdi|\d\.\d\s*t)\b", motor)))
         if km >= 100000:
-            labels += ["Turbo ve enjektör kontrolü"]
+            labels += ["Turbo ve enjektör kontrolü" if turbolu else "Enjektör ve ateşleme kontrolü"]
             if not automatic:
-                labels += ["Debriyaj / çift kütleli volan kontrolü"]
+                labels += ["Debriyaj / çift kütleli volan kontrolü" if turbolu else "Debriyaj kontrolü"]
         if ("dizel" in fuel or "diesel" in fuel) and (km >= 80000 or age >= 5):
             labels += ["DPF / EGR kontrolü"]
     output, seen = [], set()
@@ -883,6 +913,8 @@ BAKIM_SORUSU = {
     "Şanzıman yağı ve filtre geçmişi": "Şanzıman yağı ve filtresi en son kaç km'de değişti? Faturası var mı?",
     "Turbo ve enjektör kontrolü": "Turbo ya da enjektörlerle ilgili bir onarım yapıldı mı?",
     "Debriyaj / çift kütleli volan kontrolü": "Debriyaj seti en son kaç km'de değişti?",
+    "Debriyaj kontrolü": "Debriyaj seti en son kaç km'de değişti?",
+    "Enjektör ve ateşleme kontrolü": "Bujiler ve ateşleme bobinleri en son ne zaman değişti?",
     "DPF / EGR kontrolü": "DPF ve EGR temizliği ya da değişimi yapıldı mı?",
     "Yüksek voltaj batarya sağlığı ve garantisi": ("Yetkili servisten batarya sağlık (SoH) raporu alabilir miyiz? "
                                                     "Batarya garantisi ne zamana kadar ve bana devrediliyor mu?"),
