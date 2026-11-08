@@ -37,10 +37,10 @@ class ReportDesign(unittest.TestCase):
             page = self.open(width)
             self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
             report = page.locator('.yb-valuation')
-            expect(report.get_by_role('heading', name='Fiat Egea', exact=True)).to_be_visible()
+            expect(report.get_by_role('heading', name='Skoda Kamiq', exact=True)).to_be_visible()
             expect(report.get_by_role('link', name='Doğrulama kodu:', exact=False)).to_have_count(0)
-            expect(page.locator('[data-price="target"]')).to_have_text('646.000 ₺')
-            expect(page.locator('[data-price="ceiling"]')).to_have_text('726.000 ₺')
+            expect(page.locator('[data-price="target"]')).to_have_text('1.750.000 ₺')
+            expect(page.locator('[data-price="ceiling"]')).to_have_text('1.785.000 ₺')
             for marker in page.locator('[data-marker]').all():
                 left = float(marker.evaluate('(e)=>e.style.left').rstrip('%'))
                 self.assertGreaterEqual(left, 0)
@@ -66,7 +66,7 @@ class ReportDesign(unittest.TestCase):
         expect(page.get_by_role('button', name='Kopyalandı', exact=True)).to_be_visible()
         self.assertEqual(page.evaluate('window.__copied'), FIXTURE['pazarlikPlani']['saticiMesaji'])
         link = page.locator('.yb-report-final a')
-        self.assertIn('brand=Fiat', link.get_attribute('href'))
+        self.assertIn('brand=Skoda', link.get_attribute('href'))
         page.emulate_media(media='print')
         expect(page.locator('.yb-report-header')).to_have_css('background-color', 'rgb(255, 255, 255)')
         if details.count():

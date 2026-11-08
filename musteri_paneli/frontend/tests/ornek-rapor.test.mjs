@@ -34,7 +34,7 @@ function load(relative) {
 
 test('örnek rapor gerçek alanları korur ve canlı rapor kimliği taşımaz', () => {
   for (const key of ['success', 'arac', 'piyasa', 'degerleme', 'karar', 'kredi', 'getiri']) assert.ok(key in result, key);
-  assert.equal(result.arac.marka, 'Fiat');
+  assert.equal(result.arac.marka, 'Skoda');
   assert.equal(result.arac.ilanLinki, '');
   assert.deepEqual(result.kredi, { dusulen: 1, kalan: 0 });
   assert.equal(result.rapor.id, 'ornek');
@@ -61,7 +61,7 @@ test('örnek sayfa aynı raporu, tarihi, fiyatı ve gerçek hedeflere giden ça�
   const { default: Page, metadata } = load('app/ornek-rapor/page.tsx');
   const html = renderToStaticMarkup(React.createElement(Page));
   assert.equal(metadata.title, 'Örnek araç değerleme raporu | YerimeBak');
-  for (const text of ['Bu, gerçek bir araç için oluşturulmuş örnek değerleme raporudur. 1 kredi (100 TL) ile kendi aracınız için aynısını alırsınız.', 'Örnek tarihi:', '02.11.2026', 'Pazarlık planı', 'pointer-events-none', 'ÖRNEK', 'Kendi aracım için değerleme al (1 kredi)', 'Kredi paketleri', 'PDF örneğini indir']) assert.ok(html.includes(text), text);
+  for (const text of ['Bu, gerçek bir araç için oluşturulmuş örnek değerleme raporudur. 1 kredi (100 TL) ile kendi aracınız için aynısını alırsınız.', 'Örnek tarihi:', '08.11.2026', 'Pazarlık planı', 'pointer-events-none', 'ÖRNEK', 'Kendi aracım için değerleme al (1 kredi)', 'Kredi paketleri', 'PDF örneğini indir']) assert.ok(html.includes(text), text);
   for (const href of ['/arac-analiz', '/fiyatlar', '/ornek-rapor/degerleme-ornek.pdf']) assert.ok(html.includes(`href="${href}"`), href);
   for (const text of ['AI Puanı', 'Tahmini Kâr', 'Likidite', '/dogrula/', 'Rapor kaydedildi', '/valuation/reports/']) assert.ok(!html.includes(text), text);
 });
