@@ -11,10 +11,11 @@ function tl(value: number) {
 }
 
 const ozellikler = [
-  "Güncel piyasa ortalaması (emsal ilanlar)",
-  "Boya / değişen / tramer değer kaybı",
-  "Tavsiye alım fiyatı ve AL / PAZARLIK / ALMA kararı",
-  "Araç enflasyonuna göre 6 aylık ve yıllık getiri",
+  "Adil fiyat aralığı ve tavsiye alım fiyatı",
+  "Boya / değişen / tramer değer kaybı, kalem kalem",
+  "Pazarlık planı ve satıcıya hazır mesaj",
+  "Enflasyona göre 6 aylık ve yıllık kazanç",
+  "Ekranda ve PDF, doğrulama kodlu",
 ];
 
 export default function FiyatKartlari() {

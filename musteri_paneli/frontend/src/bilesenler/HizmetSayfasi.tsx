@@ -12,7 +12,7 @@ export interface HizmetBolumu { id: string; baslik: string; icerik: ReactNode }
  * yapılandırılmış veri (Service + FAQPage).
  */
 export default function HizmetSayfasi({
-  ust, baslik, ozet, bolge, birincil, ikincil, bolumler, sorular, hizmetJsonLd,
+  ust, baslik, ozet, bolge, birincil, ikincil, bolumler, sorular, hizmetJsonLd, onBolum,
 }: {
   ust: string;
   baslik: string;
@@ -23,6 +23,8 @@ export default function HizmetSayfasi({
   bolumler: HizmetBolumu[];
   sorular: SSS[];
   hizmetJsonLd: Record<string, unknown>;
+  /** Başlığın hemen altında, kart yığınının dışında gösterilen bölüm (uzun içerik yığını bozmasın). */
+  onBolum?: { id: string; baslik: string; icerik: React.ReactNode };
 }) {
   return (
     <ScrollSahnesi className="yb-service-page max-w-5xl mx-auto px-4 sm:px-6 py-10">
@@ -46,12 +48,20 @@ export default function HizmetSayfasi({
           {ikincil && <Link href={ikincil.href} className="rounded-lg border border-kenarlik-acik px-5 py-3 font-semibold text-metin-birincil">{ikincil.etiket}</Link>}
         </div>
         <nav aria-label="Sayfa içeriği" className="mt-6 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          {onBolum && <a href={`#${onBolum.id}`} className="text-birincil underline">{onBolum.baslik}</a>}
           {bolumler.map((b) => <a key={b.id} href={`#${b.id}`} className="text-birincil underline">{b.baslik}</a>)}
           <a href="#sorular" className="text-birincil underline">Sık sorulan sorular</a>
         </nav>
       </header>
 
       <div className="mt-8 space-y-6">
+        {onBolum && (
+          <section id={onBolum.id} aria-labelledby={`${onBolum.id}-baslik`} data-sc-in
+            className="yb-service-lead scroll-mt-24 rounded-xl bg-white border border-kenarlik-acik p-6 sm:p-8">
+            <h2 id={`${onBolum.id}-baslik`} className="mb-4 text-2xl font-bold text-metin-birincil">{onBolum.baslik}</h2>
+            {onBolum.icerik}
+          </section>
+        )}
         <div className="yb-service-stack" data-stack>
         {bolumler.map((b, index) => (
           <section key={b.id} id={b.id} aria-labelledby={`${b.id}-baslik`}

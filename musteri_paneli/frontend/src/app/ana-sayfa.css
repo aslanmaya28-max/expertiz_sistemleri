@@ -239,3 +239,39 @@
   .yb-hero .yb-actions .yb-hero-valuation { white-space: nowrap; font-size: 14px; gap: 8px; text-align: left; }
 }
 @media (max-width: 360px) { .yb-hero-price { display: none; } }
+
+/* "100 TL'ye neler alırsınız?" kartı (Fiyatlar ve Araç değerleme sayfaları, 09.11.2026). */
+.yb-kapsam { color: var(--yb-ink); }
+.yb-kapsam-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+.yb-kapsam-title { font-size: clamp(24px, 3vw, 34px); font-weight: 750; letter-spacing: -.035em; line-height: 1.15; }
+.yb-kapsam-lead { margin-top: 8px !important; margin-bottom: 0 !important; max-width: 560px; color: var(--yb-muted); font-size: 15px; }
+.yb-kapsam-price { margin: 0 !important; font-size: clamp(34px, 4vw, 48px); font-weight: 800; letter-spacing: -.045em; color: var(--yb-green-text); font-variant-numeric: tabular-nums; line-height: 1; }
+.yb-kapsam-price small { margin-left: 6px; font-size: 15px; font-weight: 650; letter-spacing: 0; color: var(--yb-muted); }
+.yb-kapsam-grid { display: grid; gap: 14px; margin-top: 22px; }
+@media (min-width: 768px) { .yb-kapsam-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.yb-kapsam-group { padding: 18px 20px; border-radius: 18px; background: linear-gradient(150deg, #fff, var(--yb-mint-surface)); border: 1px solid var(--yb-line); }
+.yb-kapsam-group:first-child { background: linear-gradient(130deg, var(--yb-brand-band), var(--yb-deep)); border-color: transparent; color: #fff; }
+.yb-kapsam-group h3 { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 750; }
+.yb-kapsam-group h3 svg { width: 24px; height: 24px; color: var(--yb-green-text); flex-shrink: 0; }
+.yb-kapsam-group:first-child h3 svg { color: var(--yb-mint); }
+.yb-kapsam .yb-kapsam-list { list-style: none; padding-left: 0; margin-top: 12px; display: grid; gap: 10px; }
+.yb-kapsam .yb-kapsam-list li { position: relative; padding-left: 28px; margin: 0; font-size: 14px; line-height: 1.55; }
+.yb-kapsam .yb-kapsam-list li::before {
+  content: ""; position: absolute; left: 0; top: .15em; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--yb-mint-surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23006B58' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5L20 7'/%3E%3C/svg%3E") center/12px no-repeat;
+}
+.yb-kapsam-group:first-child .yb-kapsam-list li::before { background-color: var(--yb-mint); }
+.yb-kapsam-list strong { display: block; font-weight: 700; }
+.yb-kapsam-list span { display: block; color: var(--yb-muted); }
+.yb-kapsam-group:first-child .yb-kapsam-list span { color: var(--yb-soft-ink); }
+.yb-kapsam-guarantee { display: flex; align-items: center; gap: 8px; margin-top: 16px !important; margin-bottom: 0 !important; font-size: 14px; font-weight: 650; color: var(--yb-green-text); }
+.yb-kapsam-guarantee svg { width: 20px; height: 20px; flex-shrink: 0; }
+.yb-kapsam-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.yb-kapsam-actions .yb-btn { text-decoration: none; }
+/* Genel kart (.yb-card p, li) ve hizmet bölümü kuralları bu kartın yazılarını ezmesin. */
+.yb-kapsam .yb-kapsam-price { font-size: clamp(34px, 4vw, 48px); color: var(--yb-green-text); }
+.yb-kapsam .yb-kapsam-lead { font-size: 15px; }
+.yb-kapsam .yb-kapsam-list li { color: var(--yb-ink); }
+.yb-kapsam .yb-kapsam-group:first-child .yb-kapsam-list li { color: #fff; }
+.yb-kapsam .yb-kapsam-group:first-child h3 { color: #fff; }
+.yb-kapsam .yb-kapsam-guarantee { color: var(--yb-green-text); font-size: 14px; }

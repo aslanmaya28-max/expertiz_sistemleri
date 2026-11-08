@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import FiyatKartlari from "@/bilesenler/FiyatKartlari";
+import DegerlemeKapsami from "@/bilesenler/DegerlemeKapsami";
 import { BOLGE_YERINDE, HIZMET_BEDELI_TL, KDV_ORANI, SITE_URL } from "@/lib/hizmetBilgisi";
 
 const tl = (n: number) => new Intl.NumberFormat("tr-TR").format(n) + " TL";
@@ -21,6 +22,9 @@ export default function FiyatlarSayfasi() {
           Araç değerleme raporu için kredi paketleri. 1 kredi = 1 rapor; yeterli benzer ilan bulunamazsa kredi düşülmez.
         </p>
       </div>
+      <section aria-label="100 TL'ye neler alırsınız?" className="max-w-5xl mx-auto px-4 pb-4">
+        <div className="yb-card"><DegerlemeKapsami kisa /></div>
+      </section>
       <FiyatKartlari />
 
       <section aria-labelledby="yerinde-ucret" className="max-w-3xl mx-auto px-4 pb-12">

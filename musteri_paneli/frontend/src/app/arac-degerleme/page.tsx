@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import HizmetSayfasi from "@/bilesenler/HizmetSayfasi";
+import DegerlemeKapsami from "@/bilesenler/DegerlemeKapsami";
 import { BOLGE_DEGERLEME, ISLETME, KREDI_PAKETLERI, ORTAK_SORULAR, SITE_URL, type SSS } from "@/lib/hizmetBilgisi";
 
 export const metadata: Metadata = {
@@ -48,6 +49,8 @@ export default function AracDegerlemeSayfasi() {
         description: "İlan bilgileri, müşteri beyanı ve internetteki benzer ilanlara dayanan değerleme: adil fiyat aralığı, hasarın fiyat etkisi, pazarlık planı ve satıcıya hazır mesaj, enflasyona göre 6 aylık ve yıllık kazanç tahmini, modelin kullanıcı şikâyetleri.",
         offers: { "@type": "Offer", price: "100", priceCurrency: "TRY", description: "1 değerleme raporu (1 kredi)" },
       }}
+      // Kullanıcı isteği (09.11.2026): 100 TL'ye neler alınacağı sayfanın başında, gruplu kart olarak.
+      onBolum={{ id: "kapsam", baslik: "100 TL'ye neler alırsınız?", icerik: <DegerlemeKapsami baslik={false} /> }}
       bolumler={[
         {
           id: "kimler-icin", baslik: "Kimler için?",
@@ -56,24 +59,6 @@ export default function AracDegerlemeSayfasi() {
               <li>Beğendiği ilanın fiyatının piyasaya uygun olup olmadığını öğrenmek isteyenler</li>
               <li>Satıcıyla pazarlığa hazırlıklı gitmek isteyenler</li>
               <li>Türkiye&apos;nin herhangi bir yerindeki aracı, gitmeden önce elemek isteyenler</li>
-            </ul>
-          ),
-        },
-        {
-          id: "kapsam", baslik: "Neleri kapsar?",
-          icerik: (
-            <ul>
-              <li><strong>Özet:</strong> ilan fiyatının piyasaya göre konumu (altında, uyumlu, üstünde), en önemli riskler ve &quot;Şimdi ne yapmalı?&quot; önerisi.</li>
-              <li><strong>Benzer ilanlar:</strong> internetteki ilan sitelerinde fiyatı kaynak sayfada doğrulanan, aynı model, kasa, yakıt ve vites türündeki ilanlar; her biri aracınızın yılına ve kilometresine göre düzeltilir, bağlantılarıyla gösterilir.</li>
-              <li><strong>Hasarın fiyat etkisi:</strong> bildirdiğiniz boyalı, değişen parçalar ve tramer kaydının değer kaybı, kalem kalem; hasarsız değerden değer kaybı düşülerek aracın hesaplanan değeri.</li>
-              <li><strong>Adil fiyat aralığı ve tavsiye alım fiyatı.</strong></li>
-              <li><strong>Pazarlık planı:</strong> açılış teklifi, hedef fiyat ve üst sınır (her zaman ilan fiyatının altında), adımlar ve gerekçeler.</li>
-              <li><strong>Satıcıya gönderilecek hazır mesaj:</strong> aracınıza ve açılış teklifinize göre yazılır; tek dokunuşla kopyalanır ya da WhatsApp&apos;ta paylaşılır.</li>
-              <li><strong>Enflasyona göre kazanç tahmini:</strong> 6 aylık ve yıllık araç enflasyonu ile aracın 6 ay ve 1 yıl sonraki tahmini değeri ve sağladığı kazanç. Oran her ay güncellenir.</li>
-              <li><strong>Modelin bilinen sorunları ve kullanıcı şikâyetleri:</strong> kaynaklarıyla ve önem derecesiyle birlikte; aracın yakıt ve motor türüne uygun olanlar.</li>
-              <li><strong>Bu kilometrede kontrol edilecek bakımlar</strong> ve <strong>satıcıya sorulacak sorular;</strong> elektrikli ve hibrit araçlarda batarya sağlığı ve şarj kontrolleri.</li>
-              <li><strong>Kasa geçiş yılı uyarısı:</strong> o yıl iki farklı kasa satıldıysa iki kasanın fiyatı ayrı gösterilir.</li>
-              <li><strong>Yerinde inceleme yönlendirmesi:</strong> riskli noktaları uzmanımıza doğrulatmak isterseniz araç bilgileri hazır doldurulmuş inceleme talebi.</li>
             </ul>
           ),
         },
