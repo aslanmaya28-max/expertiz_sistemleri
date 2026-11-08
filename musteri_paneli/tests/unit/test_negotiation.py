@@ -46,7 +46,7 @@ def test_kanitlar_en_ucuz_ve_linkli_ilanlar():
 def test_satici_mesaji_rakam_ve_ekspertiz_icerir():
     p = _plan()
     m = p["saticiMesaji"]
-    assert "2020 Renault Clio" in m and f"{p['acilisTeklifi']:,}".replace(",", ".") in m
+    assert "Renault Clio ilanınızı gördüm" in m and f"{p['acilisTeklifi']:,}".replace(",", ".") in m
     assert "ekspertiz" in m
 
 
@@ -106,7 +106,7 @@ def test_gerekce_yoksa_mesaj_uydurma_gerekce_yazmaz():
                    reference={"count": 5, "market_median_price": 1_050_000, "samples": []}, kalemler=[],
                    confidence_level="yuksek", vehicle_title="2022 Fiat Egea")
     assert p["gerekceler"] == []
-    assert "Ekspertiz sonucu" in p["saticiMesaji"] and "1.050.000" not in p["saticiMesaji"]
+    assert "ekspertizini yaptırırım" in p["saticiMesaji"] and "1.050.000" not in p["saticiMesaji"]
     assert p["hedefFiyat"] < 1_000_000
 
 
@@ -121,3 +121,22 @@ def test_son_fiyat_her_durumda_ilanin_en_az_10_bin_tl_altinda():
         assert p["acilisTeklifi"] < p["hedefFiyat"] <= p["ustSinir"] <= price - 10_000, (price, p)
         assert p["potansiyelKazanc"] >= 10_000
         assert any(f"Üst sınırınız" in a for a in p["adimlar"])
+
+
+def test_satici_mesaji_kullanici_metni_kalibinda():
+    # Kullanıcı metni (09.11.2026): samimi, ciddi alıcı; aracın kendi yılı/km'si, tek net rakam, gerekçe listesi yok.
+    from yerimebak_ai_v5.services.negotiation import _satici_mesaji
+    m = _satici_mesaji("2025 Skoda Kamiq", 2025, 18_000, 1_705_000)
+    assert m.split("\n\n") == [
+        "Merhaba, Skoda Kamiq ilanınızı gördüm. Araç hoşuma gitti, açıkçası ciddi olarak düşünüyorum. "
+        "Özellikle 2025 model ve 18.000 km olması benim aradığım özellikler.",
+        "Piyasaya da biraz baktım, o yüzden size direkt net bir rakam söylemek istedim. 1.705.000 TL civarında "
+        "anlaşabilirsek gelip aracı görürüm, ekspertizini yaptırırım. Her şey söylendiği gibiyse de uzatmadan "
+        "alım tarafında ilerlemek isterim.",
+        "Sizin açınızdan da uygunsa konuşalım, belki ortak bir noktada buluşuruz.",
+    ]
+    tek = _satici_mesaji("2019 Fiat Egea", 2019, None, 627_000, hasarli=True)
+    assert "2019 model olması benim için önemli." in tek and "boya/değişen bilgisine" in tek
+    # Planın mesajı emsal ortalama km'sini aracın km'si gibi yazmaz.
+    p = _plan(vehicle_km=None)
+    assert " km olması" not in p["saticiMesaji"]

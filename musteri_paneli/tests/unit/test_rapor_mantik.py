@@ -91,8 +91,8 @@ def test_hesaplanan_degere_uyumlu_ilanda_piyasa_alti_denmez_ve_tavsiye_hedefe_es
     assert plan["hedefFiyat"] == 2_015_000 and plan["acilisTeklifi"] < plan["hedefFiyat"] <= plan["ustSinir"] <= 2_095_000
     assert plan["acilisTeklifi"] >= 2_095_000 * 0.93 - 5_000
     assert not any("ortasının altında" in a or "hesaplanan değerinin altında" in a for a in plan["adimlar"])
-    # Satıcıya giden metinde tutar yuvarlak.
-    assert "yaklaşık 58.000 TL" in plan["saticiMesaji"] and "57.618" not in plan["saticiMesaji"]
+    # Satıcı mesajı (09.11.2026) gerekçe/tutar listelemez; hasar yalnız "boya/değişen bilgisine baktım" diye anılır.
+    assert "boya/değişen" in plan["saticiMesaji"] and "57.618" not in plan["saticiMesaji"]
 
 
 def test_motor_yazilmis_aracta_paket_girilmemis_denmez():

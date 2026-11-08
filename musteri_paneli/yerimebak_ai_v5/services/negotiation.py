@@ -10,6 +10,7 @@ guven seviyesi. Cikti: acilis teklifi, hedef, ust sinir, adimlar, gerekceler, sa
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List, Optional
 
 from yerimebak_ai_v5.core.ai.inspection_valuation import _round_price
@@ -94,6 +95,31 @@ def _evidence(reference: Dict[str, Any], price: float, year: Optional[int], limi
     samples.sort(key=lambda s: s["price"])
     return [{"site": s.get("site"), "url": s.get("url"), "fiyat": s.get("price"),
              "km": s.get("km"), "yil": s.get("year")} for s in samples[:limit]]
+
+
+def _satici_mesaji(vehicle_title: str, year: Optional[int], km: Optional[int], acilis: float,
+                   hasarli: bool = False) -> str:
+    """Satıcıya gönderilecek mesaj: samimi, ciddi alıcı tonu, tek net rakam (kullanıcı metni, 09.11.2026).
+
+    Gerekçe listesi ve piyasa rakamı yazılmaz; satıcıyı savunmaya iten "şu ilan daha ucuz" dili yerine
+    "piyasaya baktım, net rakamım bu" denir. Yıl/km yalnız aracın kendi bilgisidir (emsal ortalaması değil)."""
+    ad = re.sub(r"^\s*\d{4}\s+", "", vehicle_title or "").strip() or "araç"
+    ozellik = []
+    if year:
+        ozellik.append(f"{int(year)} model")
+    if km:
+        ozellik.append(f"{int(km):,} km".replace(",", "."))
+    giris = f"Merhaba, {ad} ilanınızı gördüm. Araç hoşuma gitti, açıkçası ciddi olarak düşünüyorum."
+    if len(ozellik) == 2:
+        giris += f" Özellikle {' ve '.join(ozellik)} olması benim aradığım özellikler."
+    elif ozellik:
+        giris += f" Özellikle {ozellik[0]} olması benim için önemli."
+    bakis = ("Piyasaya ve ilandaki boya/değişen bilgisine de baktım" if hasarli else "Piyasaya da biraz baktım")
+    teklif = (f"{bakis}, o yüzden size direkt net bir rakam söylemek istedim. {_tl(acilis)} civarında "
+              f"anlaşabilirsek gelip aracı görürüm, ekspertizini yaptırırım. Her şey söylendiği gibiyse de "
+              f"uzatmadan alım tarafında ilerlemek isterim.")
+    kapanis = "Sizin açınızdan da uygunsa konuşalım, belki ortak bir noktada buluşuruz."
+    return "\n\n".join([giris, teklif, kapanis])
 
 
 def build_plan(
@@ -210,19 +236,8 @@ def build_plan(
 
     if median_limited:
         adimlar.append(f"Üst sınırı benzer ilanların orta fiyatı olan {_tl(ust)} belirliyor.")
-    if gerekceler:
-        mesaj = (
-            f"Merhaba, {vehicle_title} ilanınızla ilgileniyorum. {' '.join(gerekceler[:2])} "
-            f"Bu nedenle {_tl(acilis)} teklif etmek istiyorum. Aracı satın almadan önce bağımsız bir "
-            f"ekspertizde inceletmek istiyorum; uygun olursa randevu ayarlayabiliriz. Teşekkürler."
-        )
-    else:
-        # Saticiya gosterilecek gerekce yoksa uydurma gerekce yazilmaz; kibar bir teklif yeterli.
-        mesaj = (
-            f"Merhaba, {vehicle_title} ilanınızla ciddi olarak ilgileniyorum. Aracı satın almadan önce bağımsız bir "
-            f"ekspertizde inceletmek istiyorum. Ekspertiz sonucu beyanla uyumlu çıkarsa {_tl(acilis)} teklif "
-            f"etmek istiyorum; uygun olursa randevu ayarlayabiliriz. Teşekkürler."
-        )
+    mesaj = _satici_mesaji(vehicle_title, vehicle_year, vehicle_km, acilis,
+                           hasarli=any((k.get("tutar") or 0) > 0 for k in kalemler))
 
     uyari = None
     if confidence_level == "dusuk":

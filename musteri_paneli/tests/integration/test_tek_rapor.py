@@ -61,7 +61,8 @@ def test_tek_rapor_tum_bolumler_kayitta_ve_kredi_bir(client, musteri, monkeypatc
     body = r.json()
     plan = body['pazarlikPlani']
     assert plan['acilisTeklifi'] <= plan['hedefFiyat'] <= plan['ustSinir'] <= 1050000
-    assert '2020 Renault Clio' in plan['saticiMesaji']
+    # Satıcı mesajı (09.11.2026): araç adı + aracın kendi yılı; tek net rakam.
+    assert 'Renault Clio ilanınızı gördüm' in plan['saticiMesaji'] and '2020 model' in plan['saticiMesaji']
     assert body['modelRiskleri']['riskler'][0]['baslik'].startswith('Triger')
     assert body['modelRiskleri']['bulunamadi'] is False and body['modelRiskleri']['mesaj'] is None
     assert any('Triger' in b['baslik'] for b in body['bakim'])
