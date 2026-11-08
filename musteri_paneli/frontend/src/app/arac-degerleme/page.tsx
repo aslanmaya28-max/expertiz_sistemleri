@@ -19,7 +19,7 @@ const SORULAR: SSS[] = [
   },
   {
     soru: "Sahibinden ilanını değerletebilir miyim?",
-    yanit: "Evet. İlan sayfasındaki fiyatı, özellikler listesini ve açıklamayı kopyalayıp forma yapıştırmanız yeterli; marka, model, paket, yıl, kilometre ve fiyat otomatik dolar. Boya, değişen ve tramer bilgisi açıklamada yazıyorsa o da okunur; isterseniz kendiniz düzeltebilirsiniz.",
+    yanit: "Evet. İlan sayfasındaki fiyatı, özellikler listesini ve açıklamayı kopyalayıp forma yapıştırmanız yeterli; telefonda metin seçilemiyorsa ilanın ekran görüntüsünü yükleyin. Marka, model, paket, yıl, kilometre ve fiyat otomatik dolar. Boya, değişen ve tramer bilgisi açıklamada yazıyorsa o da okunur; isterseniz kendiniz düzeltebilirsiniz.",
   },
   {
     soru: "Rapor ne kadar sürede hazırlanır?",
@@ -45,7 +45,7 @@ export default function AracDegerlemeSayfasi() {
         provider: ISLETME,
         areaServed: { "@type": "Country", name: "Türkiye" },
         url: `${SITE_URL}/arac-degerleme`,
-        description: "İlan bilgileri, müşteri beyanı ve internetteki benzer ilanlara dayanan değerleme: adil fiyat aralığı, hasarın fiyat etkisi, pazarlık planı, modelin kullanıcı şikâyetleri.",
+        description: "İlan bilgileri, müşteri beyanı ve internetteki benzer ilanlara dayanan değerleme: adil fiyat aralığı, hasarın fiyat etkisi, pazarlık planı ve satıcıya hazır mesaj, enflasyona göre 6 aylık ve yıllık kazanç tahmini, modelin kullanıcı şikâyetleri.",
         offers: { "@type": "Offer", price: "100", priceCurrency: "TRY", description: "1 değerleme raporu (1 kredi)" },
       }}
       bolumler={[
@@ -63,13 +63,17 @@ export default function AracDegerlemeSayfasi() {
           id: "kapsam", baslik: "Neleri kapsar?",
           icerik: (
             <ul>
-              <li><strong>Benzer ilanlar:</strong> internetteki ilan sitelerinde fiyatı kaynak sayfada doğrulanan, aynı model ve kasadaki ilanlar; her biri aracınızın yılına ve kilometresine göre düzeltilir, bağlantılarıyla gösterilir.</li>
-              <li><strong>Hasarın fiyat etkisi:</strong> bildirdiğiniz boyalı, değişen parçalar ve tramer kaydının değer kaybı, kalem kalem.</li>
-              <li><strong>Adil fiyat aralığı ve tavsiye alım fiyatı;</strong> ilanın piyasaya göre konumu.</li>
-              <li><strong>Pazarlık planı:</strong> açılış teklifi, hedef fiyat, üst sınır ve satıcıya gönderebileceğiniz hazır mesaj.</li>
-              <li><strong>Modelin bilinen sorunları ve kullanıcı şikâyetleri:</strong> kaynaklarıyla birlikte.</li>
-              <li><strong>Bu kilometrede kontrol edilecek bakımlar</strong> ve <strong>satıcıya sorulacak sorular.</strong></li>
+              <li><strong>Özet:</strong> ilan fiyatının piyasaya göre konumu (altında, uyumlu, üstünde), en önemli riskler ve &quot;Şimdi ne yapmalı?&quot; önerisi.</li>
+              <li><strong>Benzer ilanlar:</strong> internetteki ilan sitelerinde fiyatı kaynak sayfada doğrulanan, aynı model, kasa, yakıt ve vites türündeki ilanlar; her biri aracınızın yılına ve kilometresine göre düzeltilir, bağlantılarıyla gösterilir.</li>
+              <li><strong>Hasarın fiyat etkisi:</strong> bildirdiğiniz boyalı, değişen parçalar ve tramer kaydının değer kaybı, kalem kalem; hasarsız değerden değer kaybı düşülerek aracın hesaplanan değeri.</li>
+              <li><strong>Adil fiyat aralığı ve tavsiye alım fiyatı.</strong></li>
+              <li><strong>Pazarlık planı:</strong> açılış teklifi, hedef fiyat ve üst sınır (her zaman ilan fiyatının altında), adımlar ve gerekçeler.</li>
+              <li><strong>Satıcıya gönderilecek hazır mesaj:</strong> aracınıza ve açılış teklifinize göre yazılır; tek dokunuşla kopyalanır ya da WhatsApp&apos;ta paylaşılır.</li>
+              <li><strong>Enflasyona göre kazanç tahmini:</strong> 6 aylık ve yıllık araç enflasyonu ile aracın 6 ay ve 1 yıl sonraki tahmini değeri ve sağladığı kazanç. Oran her ay güncellenir.</li>
+              <li><strong>Modelin bilinen sorunları ve kullanıcı şikâyetleri:</strong> kaynaklarıyla ve önem derecesiyle birlikte; aracın yakıt ve motor türüne uygun olanlar.</li>
+              <li><strong>Bu kilometrede kontrol edilecek bakımlar</strong> ve <strong>satıcıya sorulacak sorular;</strong> elektrikli ve hibrit araçlarda batarya sağlığı ve şarj kontrolleri.</li>
               <li><strong>Kasa geçiş yılı uyarısı:</strong> o yıl iki farklı kasa satıldıysa iki kasanın fiyatı ayrı gösterilir.</li>
+              <li><strong>Yerinde inceleme yönlendirmesi:</strong> riskli noktaları uzmanımıza doğrulatmak isterseniz araç bilgileri hazır doldurulmuş inceleme talebi.</li>
             </ul>
           ),
         },
@@ -77,7 +81,7 @@ export default function AracDegerlemeSayfasi() {
           id: "nasil-isler", baslik: "Nasıl işler?",
           icerik: (
             <ol>
-              <li><strong>Bilgileri girin:</strong> ilan bağlantısını ya da ilan metnini yapıştırın veya marka, model, yıl, kilometre ve fiyatı elle girin. Boyalı ve değişen parçaları araç çizimi üzerinde işaretleyin.</li>
+              <li><strong>Bilgileri girin:</strong> ilan bağlantısını ya da ilan metnini yapıştırın, telefondaysanız ilanın ekran görüntüsünü yükleyin veya marka, model, yıl, kilometre ve fiyatı elle girin. Boyalı ve değişen parçaları araç çizimi üzerinde işaretleyin; elinizde ekspertiz raporu varsa fotoğrafını yükleyin, parçalar ve tramer okunup çizime işlenir (siz kontrol edersiniz).</li>
               <li><strong>Kredi:</strong> her rapor 1 kredi kullanır. Yeterli benzer ilan bulunamazsa kredi düşülmez.</li>
               <li><strong>Rapor:</strong> genellikle bir dakikadan kısa sürede hazırlanır; panelinizde saklanır ve PDF olarak indirilebilir.</li>
             </ol>
