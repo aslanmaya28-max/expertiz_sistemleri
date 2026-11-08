@@ -33,6 +33,17 @@ def _yaklasik(value: Optional[float]) -> str:
     return _tl(round(float(value), -3))
 
 
+# Kullanıcı kararı (07.11.2026): müşterinin ödeyeceği son fiyat (üst sınır) ilan fiyatının en az bu kadar altında.
+# Amaç müşteriye her raporda somut bir kazanç bırakmak; açılış ve hedef de bunun altında kalır.
+MIN_KAZANC_TL = 10_000
+
+
+def _asagi_yuvarla(value: float) -> int:
+    """Üst sınır aşağı yuvarlanır: yakına yuvarlama 10.000 TL'lik kazancı eritmesin."""
+    step = 5_000 if value >= 1_000_000 else 1_000 if value >= 100_000 else 500
+    return int(value // step * step)
+
+
 # Ilan hesaplanan degerin bu oranda altindaysa uyari sertlesir (gizli kusur / kapora dolandiriciligi).
 DUSUK_FIYAT_SERT_YUZDE = 10.0
 
@@ -132,6 +143,7 @@ def build_plan(
     # hedef 2.045.000 çıkıyordu).
     hedef = min(hedef, _round_price(recommended))
     ust = min(price, hi, median if median is not None else float("inf"))
+    ust = min(ust, _asagi_yuvarla(price - MIN_KAZANC_TL))
     hedef = min(hedef, ust)
     if hedef >= price:
         hedef = min(ust, _round_price(price * 0.975))
@@ -178,20 +190,21 @@ def build_plan(
         adimlar = [
             "Fiyat zaten adil aralığın altında; pazarlık payı sınırlı.",
             f"Küçük bir indirim isteyin: {_tl(acilis)} ile açın, {_tl(hedef)} civarında anlaşın.",
+            f"Üst sınırınız {_tl(ust)}: ilan fiyatını ({_tl(price)}) ödemeyin, bunun üstüne çıkmayın.",
             "Hızlı davranın ama ödeme yapmadan önce aracı yerinde inceletin.",
         ]
     elif piyasa_alti:
         adimlar = [
             "İlan fiyatı aracın hesaplanan değerinin altında; pazarlık payı sınırlı. Fazla zorlamak aracı kaçırmanıza neden olabilir.",
             f"{_tl(acilis)} ile açın, {_tl(hedef)} civarında anlaşmayı hedefleyin.",
-            f"İlan fiyatı olan {_tl(ust)} üst sınırınız; bunun üstüne çıkmayın.",
+            f"Üst sınırınız {_tl(ust)}: ilan fiyatını ({_tl(price)}) ödemeyin, bunun üstüne çıkmayın.",
             "Son fiyatı ekspertiz sonucuna bağlayın: incelemede beyan dışı hasar çıkarsa fiyat yeniden konuşulur.",
         ]
     else:
         adimlar = [
             f"{_tl(acilis)} teklifiyle açın ve gerekçeleri gösterin.",
             f"Karşı teklif gelirse {_tl(hedef)} hedefine doğru ilerleyin.",
-            f"{_tl(ust)} üst sınırınız; bunun üstüne çıkmayın.",
+            f"Üst sınırınız {_tl(ust)}: ilan fiyatını ({_tl(price)}) ödemeyin, bunun üstüne çıkmayın.",
             "Son fiyatı ekspertiz sonucuna bağlayın: incelemede beyan dışı hasar çıkarsa fiyat yeniden konuşulur.",
         ]
 

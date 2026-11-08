@@ -53,7 +53,8 @@ def test_satici_mesaji_rakam_ve_ekspertiz_icerir():
 def test_fiyat_zaten_uygunsa_kucuk_pay():
     p = _plan(price=880_000)
     assert p["durum"] == "fiyat_uygun"
-    assert p["ustSinir"] == 880_000 and p["hedefFiyat"] < 880_000 and p["acilisTeklifi"] < p["hedefFiyat"]
+    # Kullanıcı kararı (07.11.2026): son fiyat (üst sınır) ilan fiyatının en az 10.000 TL altında.
+    assert p["ustSinir"] == 870_000 and p["hedefFiyat"] < 870_000 and p["acilisTeklifi"] < p["hedefFiyat"]
     assert "sınırlı" in p["adimlar"][0]
 
 
@@ -91,7 +92,7 @@ def test_ilan_piyasanin_altindaysa_hedef_ilan_fiyatina_esit_olmaz_ve_satici_lehi
     p = build_plan(price=2_265_000, fair_min=2_205_000, fair_max=2_485_000, recommended=2_275_000,
                    reference=ref, kalemler=[], confidence_level="yuksek", vehicle_title="2023 Cupra Formentor")
     assert p["durum"] == "kucuk_pay"
-    assert p["acilisTeklifi"] < p["hedefFiyat"] < p["ustSinir"] == 2_265_000
+    assert p["acilisTeklifi"] < p["hedefFiyat"] < p["ustSinir"] == 2_255_000
     assert not any("orta fiyat" in g for g in p["gerekceler"])
     assert "orta fiyat" not in p["saticiMesaji"]
     # Satıcıya yalnız ilandan ucuz ve en az aynı yıldaki ilan gösterilir (2021 ilanı kanıt olmaz).
@@ -107,3 +108,16 @@ def test_gerekce_yoksa_mesaj_uydurma_gerekce_yazmaz():
     assert p["gerekceler"] == []
     assert "Ekspertiz sonucu" in p["saticiMesaji"] and "1.050.000" not in p["saticiMesaji"]
     assert p["hedefFiyat"] < 1_000_000
+
+
+
+def test_son_fiyat_her_durumda_ilanin_en_az_10_bin_tl_altinda():
+    # Kullanıcı kararı (07.11.2026): "amaç müşterimize kâr ettirmek; son fiyat en az 10 bin TL eksik".
+    for price, lo, hi, rec in [(880_000, 900_000, 1_000_000, 950_000), (2_095_000, 1_950_000, 2_200_000, 2_015_000),
+                               (1_730_000, 1_360_000, 1_530_000, 1_400_000), (452_500, 430_000, 470_000, 445_000),
+                               (95_000, 90_000, 110_000, 98_000)]:
+        p = build_plan(price=price, fair_min=lo, fair_max=hi, recommended=rec, reference={}, kalemler=[],
+                       confidence_level="yuksek", vehicle_title="Deneme")
+        assert p["acilisTeklifi"] < p["hedefFiyat"] <= p["ustSinir"] <= price - 10_000, (price, p)
+        assert p["potansiyelKazanc"] >= 10_000
+        assert any(f"Üst sınırınız" in a for a in p["adimlar"])
