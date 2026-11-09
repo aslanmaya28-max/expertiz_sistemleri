@@ -1,7 +1,8 @@
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/constants/yerimebak_colors.dart';
 import '../../models/expertiz/adim1_arac_satici_model.dart';
 import '../../providers/expertiz_provider.dart';
 import 'widgets/adim1_arac_satici_form_widget.dart';
@@ -25,7 +26,7 @@ class _Adim1SayfasiState extends State<Adim1Sayfasi> {
       builder: (context, provider, child) {
         final model = provider.adim1Model;
         if (model == null) {
-          return const Center(child: Text('Model yukleniyor...'));
+          return const Center(child: Text('Model yükleniyor…'));
         }
 
         return SingleChildScrollView(
@@ -56,31 +57,31 @@ class _Adim1SayfasiState extends State<Adim1Sayfasi> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: YerimeBakColors.blue.withValues(alpha: 0.08),
+        color: context.renkler.birincil.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: YerimeBakColors.blue.withValues(alpha: 0.25),
+          color: context.renkler.birincil.withValues(alpha: 0.25),
         ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.inventory_2_outlined, color: YerimeBakColors.blue),
+          Icon(LucideIcons.package, color: context.renkler.birincil),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Paket bilgisi',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: YerimeBakColors.blue,
+                    color: context.renkler.birincil,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   paket == null || paket.isEmpty ? 'Belirtilmedi' : paket,
-                  style: const TextStyle(color: YerimeBakColors.darkGray),
+                  style: TextStyle(color: context.renkler.metinIkincil),
                 ),
               ],
             ),

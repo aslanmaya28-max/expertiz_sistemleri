@@ -8,14 +8,18 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../../tema/renkler.dart';
+import '../../bilesenler/bilesenler.dart';
 import '../../services/yerimebak_expertiz_api_service.dart';
 
 /// Müşteri Yönetimi Module
 class MusteriYonetimiModule extends StatefulWidget {
-  const MusteriYonetimiModule({super.key, this.apiService});
+  const MusteriYonetimiModule({super.key, this.apiService, this.initialFilter});
 
   /// Testlerde sahte servis vermek için.
   final YerimebakExpertizApiService? apiService;
+  final String? initialFilter;
 
   @override
   State<MusteriYonetimiModule> createState() => _MusteriYonetimiModuleState();
@@ -30,10 +34,13 @@ class _MusteriYonetimiModuleState extends State<MusteriYonetimiModule> {
   String? _error;
   List<Map<String, dynamic>> _customers = [];
   int _activeCount = 0;
+  late String _filter;
+  int _page = 0;
 
   @override
   void initState() {
     super.initState();
+    _filter = widget.initialFilter ?? 'all';
     _api = widget.apiService ?? YerimebakExpertizApiService();
     _load();
   }
@@ -43,6 +50,15 @@ class _MusteriYonetimiModuleState extends State<MusteriYonetimiModule> {
     _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant MusteriYonetimiModule oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialFilter != widget.initialFilter) {
+      _filter = widget.initialFilter ?? 'all';
+      _page = 0;
+    }
   }
 
   Future<void> _load() async {
@@ -80,14 +96,14 @@ class _MusteriYonetimiModuleState extends State<MusteriYonetimiModule> {
   void _toast(String message, {bool error = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: error ? Colors.red.shade700 : Colors.green.shade700),
+      SnackBar(content: Text(message), backgroundColor: error ? context.renkler.tehlike : context.renkler.birincil),
     );
   }
 
   static String _tl(num value) {
     final parts = value.toDouble().toStringAsFixed(2).split('.');
     final digits = parts[0].replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => '.');
-    return '$digits,${parts[1]} TL';
+    return parts[1] == '00' ? '$digits TL' : '$digits,${parts[1]} TL';
   }
 
   static String _date(dynamic value) {
@@ -105,126 +121,78 @@ class _MusteriYonetimiModuleState extends State<MusteriYonetimiModule> {
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDarkMode ? Colors.white : const Color(0xFF111827);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text('Müşteri Yönetimi',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: textColor)),
-              ),
-              IconButton(onPressed: _load, icon: const Icon(Icons.refresh), tooltip: 'Yenile'),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: TextField(
-            controller: _searchController,
-            onChanged: _onSearchChanged,
-            decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.search),
-              hintText: 'E-posta, ad veya telefon ara',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              isDense: true,
-            ),
-          ),
-        ),
-        if (!_loading && _error == null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-            child: Text(
-              '${_customers.length} müşteri • $_activeCount aktif',
-              style: TextStyle(color: isDarkMode ? Colors.grey[400] : Colors.grey[600]),
-            ),
-          ),
-        Expanded(child: _buildBody(isDarkMode, textColor)),
-      ],
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text('Müşteriler', style: Theme.of(context).textTheme.headlineSmall)),
+          IconButton(onPressed: _load, icon: const Icon(LucideIcons.refreshCw), tooltip: 'Yenile'),
+        ]),
+        Text('Hesapları, kredi hareketlerini ve ekspertiz taleplerini yönetin.', style: TextStyle(color: context.renkler.metinIkincil)),
+        const SizedBox(height: 16),
+        YbArama(controller: _searchController, onChanged: _onSearchChanged, ipucu: 'E-posta, ad veya telefon ara'),
+        const SizedBox(height: 12),
+        Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+          for (final option in const {'all': 'Tümü', 'active': 'Aktif', 'inactive': 'Pasif', 'test': 'Test'}.entries)
+            FilterChip(label: Text(option.value), selected: _filter == option.key, onSelected: (_) => setState(() { _filter = option.key; _page = 0; })),
+          if (!_loading && _error == null)
+            Text('${_customers.length} müşteri • $_activeCount aktif', style: TextStyle(color: context.renkler.metinIkincil)),
+        ]),
+        const SizedBox(height: 16),
+        Expanded(child: _buildBody()),
+      ]),
     );
   }
 
-  Widget _buildBody(bool isDarkMode, Color textColor) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
-              const SizedBox(height: 12),
-              Text('Müşteriler yüklenemedi',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
-              const SizedBox(height: 8),
-              Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
-              const SizedBox(height: 16),
-              FilledButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('Tekrar Dene')),
-            ],
-          ),
-        ),
-      );
-    }
-    if (_customers.isEmpty) {
-      return Center(
-        child: Text(
-          _searchController.text.trim().isEmpty ? 'Henüz müşteri yok.' : 'Aramaya uyan müşteri yok.',
-          style: TextStyle(color: isDarkMode ? Colors.grey[400] : Colors.grey[600]),
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-        itemCount: _customers.length,
+  Widget _buildBody() {
+    if (_loading) return ListView(children: const [YbIskelet(height: 52), SizedBox(height: 12), YbIskelet(height: 52), SizedBox(height: 12), YbIskelet(height: 52)]);
+    if (_error != null) return YbBosDurum(mesaj: 'Müşteriler yüklenemedi: $_error', eylem: 'Tekrar Dene', onPressed: _load);
+    final visible = _customers.where((c) => switch (_filter) {
+      'active' => c['is_active'] == true,
+      'inactive' => c['is_active'] != true,
+      'test' => c['tester'] == true,
+      _ => true,
+    }).toList();
+    if (visible.isEmpty) return YbBosDurum(mesaj: _searchController.text.trim().isEmpty && _filter == 'all' ? 'Henüz müşteri yok.' : 'Aramaya uyan müşteri yok.');
+    Widget badges(Map<String, dynamic> c) => Wrap(spacing: 4, runSpacing: 4, children: [
+      if (c['tester'] == true) const YbRozet('Test', key: Key('test-rozeti'), tur: YbRozetTuru.bilgi),
+      if (c['is_active'] != true) const YbRozet('Pasif'),
+      if (c['is_active'] == true && c['tester'] != true) const YbRozet('Aktif', tur: YbRozetTuru.basari),
+    ]);
+    return LayoutBuilder(builder: (context, constraints) {
+      if (constraints.maxWidth >= 900) {
+        return SingleChildScrollView(child: YbTablo(
+          sayfa: _page,
+          onPageChanged: (value) => setState(() => _page = value),
+          columns: const [DataColumn(label: Text('Müşteri')), DataColumn(label: Text('E-posta')), DataColumn(label: Text('Kayıt')), DataColumn(label: Text('Kredi'), numeric: true), DataColumn(label: Text('Talepler'), numeric: true), DataColumn(label: Text('Harcama'), numeric: true), DataColumn(label: Text('Durum'))],
+          rows: visible.map((c) => DataRow(onSelectChanged: (_) => _openDetail(c), cells: [
+            DataCell(Text(_name(c))), DataCell(Text((c['email'] ?? '').toString())), DataCell(Text(_date(c['created_at']))),
+            DataCell(Text('${c['credits'] ?? 0} kredi')), DataCell(Text('${c['request_count'] ?? 0} talep')), DataCell(Text(_tl((c['total_spent_tl'] as num?) ?? 0))), DataCell(badges(c)),
+          ])).toList(),
+        ));
+      }
+      return RefreshIndicator(onRefresh: _load, child: ListView.builder(
+        itemCount: visible.length,
         itemBuilder: (context, index) {
-          final c = _customers[index];
-          final aktif = c['is_active'] == true;
-          return Card(
-            color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
-            child: ListTile(
-              onTap: () => _openDetail(c),
-              leading: CircleAvatar(
-                backgroundColor: aktif ? Colors.teal.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.2),
-                child: Icon(Icons.person, color: aktif ? Colors.teal : Colors.grey),
-              ),
-              title: Text(_name(c), style: TextStyle(color: textColor, fontWeight: FontWeight.w600)),
-              subtitle: Text(
-                '${c['email'] ?? ''}\n'
-                '${c['request_count'] ?? 0} talep • ${_tl((c['total_spent_tl'] as num?) ?? 0)} • ${c['credits'] ?? 0} kredi',
-              ),
-              isThreeLine: true,
-              trailing: (!aktif || c['tester'] == true)
-                  ? Wrap(spacing: 4, children: [
-                      if (c['tester'] == true)
-                        const Chip(
-                          key: Key('test-rozeti'),
-                          label: Text('Test'),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      if (!aktif) const Chip(label: Text('Pasif'), visualDensity: VisualDensity.compact),
-                    ])
-                  : null,
-            ),
-          );
+          final c = visible[index];
+          return YbKart(margin: const EdgeInsets.only(bottom: 12), onTap: () => _openDetail(c), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [Expanded(child: Text(_name(c), style: const TextStyle(fontWeight: FontWeight.w600))), badges(c)]),
+            const SizedBox(height: 8),
+            Text('${c['email'] ?? ''}', style: TextStyle(color: context.renkler.metinIkincil)),
+            const SizedBox(height: 8),
+            Text('${c['request_count'] ?? 0} talep · ${_tl((c['total_spent_tl'] as num?) ?? 0)} · ${c['credits'] ?? 0} kredi'),
+            Text('Kayıt: ${_date(c['created_at'])}', style: TextStyle(color: context.renkler.metinIkincil)),
+          ]));
         },
-      ),
-    );
+      ));
+    });
   }
 
   Future<void> _openDetail(Map<String, dynamic> customer) async {
-    final changed = await showModalBottomSheet<bool>(
+    final changed = await showDialog<bool>(
       context: context,
-      isScrollControlled: true,
-      builder: (_) => _MusteriDetay(api: _api, customer: customer, tl: _tl, date: _date, name: _name),
+      builder: (_) => Dialog(alignment: Alignment.centerRight, insetPadding: const EdgeInsets.all(20),
+        child: SizedBox(width: 480, child: _MusteriDetay(api: _api, customer: customer, tl: _tl, date: _date, name: _name))),
     );
     if (changed == true) {
       _toast('Müşteri durumu güncellendi');
@@ -360,57 +328,52 @@ class _MusteriDetayState extends State<_MusteriDetay> {
     final c = _customer;
     final aktif = c['is_active'] == true;
 
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.75,
-      maxChildSize: 0.95,
-      builder: (context, scrollController) => ListView(
-        controller: scrollController,
+    return ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Text(widget.name(c), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
+          Text(widget.name(c), style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          SizedBox(height: 4),
           Text(aktif ? 'Aktif hesap' : 'Pasif hesap',
-              style: TextStyle(color: aktif ? Colors.teal : Colors.redAccent)),
-          const SizedBox(height: 16),
-          _row(Icons.email, 'E-posta', c['email']?.toString() ?? '-'),
-          _row(Icons.phone, 'Telefon', (c['phone'] as String?)?.isNotEmpty == true ? c['phone'] as String : '-'),
-          _row(Icons.credit_card, 'Kredi', '${c['credits'] ?? 0} kredi'),
+              style: TextStyle(color: aktif ? context.renkler.birincil : context.renkler.tehlike)),
+          SizedBox(height: 16),
+          _row(LucideIcons.mail, 'E-posta', c['email']?.toString() ?? '-'),
+          _row(LucideIcons.phone, 'Telefon', (c['phone'] as String?)?.isNotEmpty == true ? c['phone'] as String : '-'),
+          _row(LucideIcons.creditCard, 'Kredi', '${c['credits'] ?? 0} kredi'),
           Wrap(spacing: 8, children: [
             OutlinedButton.icon(
               onPressed: _saving || _loading ? null : _editCredits,
-              icon: const Icon(Icons.add_card), label: const Text('Kredi yükle / düş')),
+              icon: Icon(LucideIcons.walletCards), label: Text('Kredi yükle / düş')),
           ]),
-          _row(Icons.calendar_today, 'Kayıt', widget.date(c['created_at'])),
-          _row(Icons.login, 'Son giriş', widget.date(c['last_login'])),
-          _row(Icons.payments, 'Toplam harcama', widget.tl((c['total_spent_tl'] as num?) ?? 0)),
+          _row(LucideIcons.calendarDays, 'Kayıt', widget.date(c['created_at'])),
+          _row(LucideIcons.logIn, 'Son giriş', widget.date(c['last_login'])),
+          _row(LucideIcons.banknote, 'Toplam harcama', widget.tl((c['total_spent_tl'] as num?) ?? 0)),
           SwitchListTile(
             key: const Key('test-kullanicisi'),
             contentPadding: EdgeInsets.zero,
-            title: const Text('Test kullanıcısı'),
-            subtitle: const Text('Test illerinde ve hizmet genel olarak kapalıyken yerinde ekspertiz talebi '
+            title: Text('Test kullanıcısı'),
+            subtitle: Text('Test illerinde ve hizmet genel olarak kapalıyken yerinde ekspertiz talebi '
                 'açabilir; ödemesiz test talebi seçeneğini görür.'),
             value: c['tester'] == true,
             onChanged: _saving ? null : _toggleTester,
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: aktif
                 ? OutlinedButton.icon(
                     onPressed: _saving ? null : _toggleActive,
-                    icon: const Icon(Icons.block, color: Colors.redAccent),
-                    label: const Text('Pasife Al'),
+                    icon: Icon(LucideIcons.ban, color: context.renkler.tehlike),
+                    label: Text('Pasife Al'),
                   )
                 : FilledButton.icon(
                     onPressed: _saving ? null : _toggleActive,
-                    icon: const Icon(Icons.check_circle),
-                    label: const Text('Aktif Et'),
+                    icon: Icon(LucideIcons.circleCheck),
+                    label: Text('Aktif Et'),
                   ),
           ),
-          const Divider(height: 32),
-          const Text('Son kredi hareketleri', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          if (!_loading && _movements.isEmpty) const Text('Kredi hareketi yok.'),
+          Divider(height: 32),
+          Text('Son kredi hareketleri', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          if (!_loading && _movements.isEmpty) Text('Kredi hareketi yok.'),
           ..._movements.map((m) {
             final delta = -((m['credits_used'] as num?)?.toInt() ?? 0);
             return ListTile(
@@ -420,19 +383,19 @@ class _MusteriDetayState extends State<_MusteriDetay> {
               trailing: Text('${delta > 0 ? '+' : ''}$delta kredi'),
             );
           }),
-          const Divider(height: 32),
-          const Text('Ekspertiz Talepleri', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
+          Divider(height: 32),
+          Text('Ekspertiz Talepleri', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          SizedBox(height: 8),
           if (_loading)
-            const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
+            const YbIskelet(height: 52)
           else if (_error != null)
-            Text('Talepler yüklenemedi: $_error', style: const TextStyle(color: Colors.redAccent))
+            Text('Talepler yüklenemedi: $_error', style: TextStyle(color: context.renkler.tehlike))
           else if (_requests.isEmpty)
-            const Text('Bu müşterinin ekspertiz talebi yok.', style: TextStyle(color: Colors.grey))
+            Text('Bu müşterinin ekspertiz talebi yok.', style: TextStyle(color: context.renkler.metinIkincil))
           else
             ..._requests.map((r) => ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.directions_car),
+                  leading: Icon(LucideIcons.car),
                   title: Text([r['plate'], r['package_name']]
                       .where((v) => v != null && v.toString().isNotEmpty)
                       .join(' • ')),
@@ -443,7 +406,6 @@ class _MusteriDetayState extends State<_MusteriDetay> {
                   trailing: Text(widget.tl((r['total_tl'] as num?) ?? 0)),
                 )),
         ],
-      ),
     );
   }
 
@@ -452,10 +414,10 @@ class _MusteriDetayState extends State<_MusteriDetay> {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: Colors.grey),
-          const SizedBox(width: 12),
-          SizedBox(width: 120, child: Text(label, style: const TextStyle(color: Colors.grey))),
-          Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w600))),
+          Icon(icon, size: 18, color: context.renkler.metinIkincil),
+          SizedBox(width: 12),
+          SizedBox(width: 120, child: Text(label, style: TextStyle(color: context.renkler.metinIkincil))),
+          Expanded(child: Text(value, style: TextStyle(fontWeight: FontWeight.w600))),
         ],
       ),
     );
@@ -482,9 +444,16 @@ class _CreditDialogState extends State<_CreditDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Kredi yükle / düş'),
-    content: SizedBox(width: 520, child: Form(key: _form, child: Column(mainAxisSize: MainAxisSize.min, children: [
+  Widget build(BuildContext context) => YbDiyalog(
+    baslik: 'Kredi yükle / düş',
+    eylemler: [
+      TextButton(onPressed: () => Navigator.pop(context), child: Text('Vazgeç')),
+      FilledButton(onPressed: () {
+        if (!_form.currentState!.validate()) return;
+        Navigator.pop(context, {'amount': int.parse(_amount.text.trim()), 'reason': _reason.text.trim()});
+      }, child: Text('Kaydet')),
+    ],
+    child: SizedBox(width: 520, child: Form(key: _form, child: Column(mainAxisSize: MainAxisSize.min, children: [
       TextFormField(
         controller: _amount,
         keyboardType: const TextInputType.numberWithOptions(signed: true),
@@ -501,14 +470,7 @@ class _CreditDialogState extends State<_CreditDialog> {
         validator: (value) => (value?.trim().isEmpty ?? true) ? 'Neden zorunludur' : null,
       ),
     ]))),
-    actions: [
-      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Vazgeç')),
-      FilledButton(onPressed: () {
-        if (!_form.currentState!.validate()) return;
-        Navigator.pop(context, {'amount': int.parse(_amount.text.trim()), 'reason': _reason.text.trim()});
-      }, child: const Text('Kaydet')),
-    ],
-  );
+);
 }
 
 /// Pasife alma nedeni sorar; controller kapanış animasyonu bitince dispose edilir.
@@ -530,23 +492,23 @@ class _PasifNedeniDialogState extends State<_PasifNedeniDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Müşteriyi pasife al'),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        decoration: const InputDecoration(labelText: 'Neden (zorunlu)'),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Vazgeç')),
+    return YbDiyalog(
+      baslik: 'Müşteriyi pasife al',
+      eylemler: [
+        TextButton(onPressed: () => Navigator.pop(context), child: Text('Vazgeç')),
         FilledButton(
           onPressed: () {
             final text = _controller.text.trim();
             if (text.isNotEmpty) Navigator.pop(context, text);
           },
-          child: const Text('Pasife Al'),
+          child: Text('Pasife Al'),
         ),
       ],
-    );
+      child: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: const InputDecoration(labelText: 'Neden (zorunlu)'),
+      ),
+);
   }
 }

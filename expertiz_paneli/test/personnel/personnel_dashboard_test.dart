@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:yerimebak_sistemleri/personnel/personnel_dashboard.dart';
+import 'package:yerimebak_sistemleri/tema/tema.dart';
 import 'package:yerimebak_sistemleri/services/yerimebak_expertiz_api_service.dart';
 
 http.Response _json(Object body, [int code = 200]) =>
@@ -227,4 +228,45 @@ void main() {
     expect(find.text('Kontrol merkezi numarası henüz girilmedi'), findsWidgets);
     expect(tester.widget<FilledButton>(find.byKey(const Key('kontrol-ara-A'))).onPressed, isNull);
   });
+
+  for (final koyu in [false, true]) {
+    testWidgets('saha mobil alt menüsü ve arama alanı ${koyu ? "koyu" : "açık"} temada korunur', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      final acilan = <Uri>[];
+      final client = MockClient((request) async {
+        if (request.url.path.endsWith('/personnel/me')) {
+          return _json({'personnel': {'full_name': 'Kemal Saha', 'on_duty': true}});
+        }
+        if (request.url.path.endsWith('/personnel/tasks')) {
+          return _json({
+            'kontrol_merkezi': {'telefon': '0850 111 22 33'},
+            'tasks': [_task('mobil', 'active', 'accepted', ['depart'])],
+          });
+        }
+        return _json({'unread': 0, 'notifications': []});
+      });
+      await tester.pumpWidget(MaterialApp(
+        theme: koyu ? YbTema.koyu : YbTema.acik,
+        home: PersonnelDashboard(
+          refreshInterval: const Duration(hours: 1),
+          apiService: YerimebakExpertizApiService(baseUrl: 'http://api.test/api/v1', client: client, accessToken: 'p'),
+          baglantiAc: (uri) async { acilan.add(uri); return true; },
+        ),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.byType(TabBar), findsNothing);
+      final ara = find.byKey(const Key('kontrol-ara-mobil'));
+      await tester.ensureVisible(ara);
+      expect(tester.getSize(ara).height, greaterThanOrEqualTo(44));
+      await tester.tap(ara);
+      await tester.pumpAndSettle();
+      expect(acilan.single.toString(), 'tel:08501112233');
+      await tester.tap(find.text('Beklemede (0)'));
+      await tester.pumpAndSettle();
+      expect(find.text('Admin kontrolünde rapor yok'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
 }

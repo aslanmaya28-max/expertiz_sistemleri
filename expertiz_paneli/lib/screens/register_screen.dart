@@ -5,6 +5,9 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:yerimebak_sistemleri/bilesenler/bilesenler.dart';
+import 'package:yerimebak_sistemleri/core/widgets/yerimebak_logo.dart';
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/user_provider.dart';
@@ -39,7 +42,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (!_termsAccepted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kullanım koşullarını kabul etmelisiniz.')),
+        const SnackBar(
+            content: Text('Kullanım koşullarını kabul etmelisiniz.')),
       );
       return;
     }
@@ -62,9 +66,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Kayıt başarılı! Hoş geldiniz.'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Text('Hesabınız oluşturuldu.'),
+            backgroundColor: context.renkler.birincilMetin,
           ),
         );
         Navigator.pushReplacement(
@@ -75,7 +79,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(userProvider.error ?? 'Giriş yapılamadı'),
-            backgroundColor: Colors.orange,
+            backgroundColor: context.renkler.uyari,
           ),
         );
       }
@@ -85,7 +89,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Kayıt hatası: $e'),
-          backgroundColor: Colors.red,
+          backgroundColor: context.renkler.tehlike,
         ),
       );
     }
@@ -95,36 +99,47 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Kayıt Ol')),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
+      body: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 560), child: Padding(
+        padding: const EdgeInsets.all(24),
         child: Form(
           key: _formKey,
           child: ListView(
             children: [
-              TextFormField(
+              const YerimeBakLogo(height: 40),
+              const SizedBox(height: 24),
+              Text('Müşteri hesabı oluşturun', style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 24),
+              YbGirdi(
                 controller: _adSoyadController,
-                decoration: const InputDecoration(labelText: 'Ad Soyad'),
+                etiket: 'Ad Soyad',
                 validator: (v) => v == null || v.isEmpty ? 'Zorunlu' : null,
               ),
-              TextFormField(
+              const SizedBox(height: 16),
+              YbGirdi(
                 controller: _emailController,
-                decoration: const InputDecoration(labelText: 'E-posta'),
+                etiket: 'E-posta',
                 keyboardType: TextInputType.emailAddress,
-                validator: (v) =>
-                    v == null || !v.contains('@') ? 'Geçerli e-posta girin' : null,
+                validator: (v) => v == null || !v.contains('@')
+                    ? 'Geçerli e-posta girin'
+                    : null,
               ),
-              TextFormField(
+              const SizedBox(height: 16),
+              YbGirdi(
                 controller: _telefonController,
-                decoration: const InputDecoration(labelText: 'Telefon'),
+                etiket: 'Telefon',
                 keyboardType: TextInputType.phone,
               ),
-              TextFormField(
+              const SizedBox(height: 16),
+              YbGirdi(
                 controller: _sifreController,
-                decoration: const InputDecoration(labelText: 'Şifre'),
+                etiket: 'Şifre',
                 obscureText: true,
                 validator: (v) {
-                  if (v == null || v.length < 8 || v.length > 128 ||
-                      !RegExp(r'[A-Z]').hasMatch(v) || !RegExp(r'[a-z]').hasMatch(v) ||
+                  if (v == null ||
+                      v.length < 8 ||
+                      v.length > 128 ||
+                      !RegExp(r'[A-Z]').hasMatch(v) ||
+                      !RegExp(r'[a-z]').hasMatch(v) ||
                       !RegExp(r'[0-9]').hasMatch(v)) {
                     return '8-128 karakter, büyük harf, küçük harf ve rakam gerekli';
                   }
@@ -134,30 +149,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 20),
               CheckboxListTile(
                 value: _termsAccepted,
-                onChanged: _isLoading ? null : (value) => setState(() => _termsAccepted = value ?? false),
-                title: const Text('Kullanım koşullarını okudum ve kabul ediyorum; KVKK aydınlatma metnini okudum.'),
+                onChanged: _isLoading
+                    ? null
+                    : (value) =>
+                        setState(() => _termsAccepted = value ?? false),
+                title: const Text(
+                    'Kullanım koşullarını okudum ve kabul ediyorum; KVKK aydınlatma metnini okudum.'),
                 controlAffinity: ListTileControlAffinity.leading,
               ),
               Wrap(children: [
                 TextButton(
-                  onPressed: () => launchUrl(Uri.parse('https://www.yerimebak.com.tr/kullanim-kosullari'), mode: LaunchMode.externalApplication),
+                  onPressed: () => launchUrl(
+                      Uri.parse(
+                          'https://www.yerimebak.com.tr/kullanim-kosullari'),
+                      mode: LaunchMode.externalApplication),
                   child: const Text('Kullanım Koşulları'),
                 ),
                 TextButton(
-                  onPressed: () => launchUrl(Uri.parse('https://www.yerimebak.com.tr/kvkk'), mode: LaunchMode.externalApplication),
+                  onPressed: () => launchUrl(
+                      Uri.parse('https://www.yerimebak.com.tr/kvkk'),
+                      mode: LaunchMode.externalApplication),
                   child: const Text('KVKK Aydınlatma Metni'),
                 ),
               ]),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _register,
-                child: _isLoading
-                    ? const CircularProgressIndicator()
-                    : const Text('Kayıt Ol'),
-              ),
+              YbButon(metin: 'Kayıt Ol', onPressed: _register, yukleniyor: _isLoading, tamGenislik: true),
             ],
           ),
         ),
-      ),
+      ))),
     );
   }
 }

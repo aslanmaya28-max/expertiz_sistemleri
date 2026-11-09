@@ -2,6 +2,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import '../../tema/renkler.dart';
 
 import '../../services/yerimebak_expertiz_api_service.dart';
 
@@ -102,7 +103,7 @@ class SifreDegistirDialogState extends State<SifreDegistirDialog> {
             ),
             if (_error != null) ...[
               const SizedBox(height: 12),
-              Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+              Text(_error!, style: TextStyle(color: context.renkler.tehlike)),
             ],
           ],
         ),

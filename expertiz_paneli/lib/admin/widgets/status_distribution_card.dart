@@ -1,20 +1,22 @@
 /// STATUS DISTRIBUTION CARD
-/// 
+///
 /// FAZ-4.0 / Phase 4 - Real-time Status Distribution Widget
-/// 
-/// 🎯 PURPOSE:
+///
+///  PURPOSE:
 /// Display the breakdown of reports by status in real-time.
 /// Highlights pending_admin status for immediate admin attention.
-/// 
-/// 🪨 PRINCIPLE:
+///
+///  PRINCIPLE:
 /// "Visual hierarchy directs attention to critical items."
 library;
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
 import '../../models/dashboard_stats.dart';
 
 /// Status Distribution Card
-/// 
+///
 /// Shows the distribution of reports across all FAZ-3.0 statuses.
 /// Emphasizes pending_admin with visual highlighting.
 class StatusDistributionCard extends StatelessWidget {
@@ -32,8 +34,8 @@ class StatusDistributionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 4,
-      color: isDarkMode ? const Color(0xFF1E1E1E) : const Color(0xFFF5F5F5),
+      elevation: 0,
+      color: context.renkler.yuzey,
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -42,18 +44,18 @@ class StatusDistributionCard extends StatelessWidget {
             // Header
             Row(
               children: [
-                const Icon(Icons.pie_chart, color: Colors.blue),
+                Icon(LucideIcons.chartPie, color: context.renkler.birincil),
                 const SizedBox(width: 10),
                 Text(
                   'Rapor Durum Dağılımı',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: isDarkMode ? Colors.white : const Color(0xFF111827),
+                    color: context.renkler.metin,
                   ),
                 ),
                 const Spacer(),
-                _buildTotalBadge(),
+                _buildTotalBadge(context),
               ],
             ),
             const SizedBox(height: 20),
@@ -63,10 +65,10 @@ class StatusDistributionCard extends StatelessWidget {
               builder: (context, constraints) {
                 // Use horizontal layout for wider screens
                 if (constraints.maxWidth > 600) {
-                  return _buildHorizontalLayout();
+                  return _buildHorizontalLayout(context);
                 }
                 // Vertical layout for smaller screens
-                return _buildVerticalLayout();
+                return _buildVerticalLayout(context);
               },
             ),
           ],
@@ -76,18 +78,18 @@ class StatusDistributionCard extends StatelessWidget {
   }
 
   /// Build total badge
-  Widget _buildTotalBadge() {
+  Widget _buildTotalBadge(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.blue.withValues(alpha: 0.1),
+        color: context.renkler.birincil.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.blue, width: 1),
+        border: Border.all(color: context.renkler.birincil, width: 1),
       ),
       child: Text(
         'Toplam: ${distribution.total}',
-        style: const TextStyle(
-          color: Colors.blue,
+        style: TextStyle(
+          color: context.renkler.birincil,
           fontWeight: FontWeight.bold,
           fontSize: 14,
         ),
@@ -96,14 +98,15 @@ class StatusDistributionCard extends StatelessWidget {
   }
 
   /// Build horizontal layout (desktop/tablet)
-  Widget _buildHorizontalLayout() {
+  Widget _buildHorizontalLayout(BuildContext context) {
     return Row(
       children: Status.values.map((status) {
         final count = _getCountForStatus(status);
         final isPendingAdmin = status == Status.pendingAdmin;
-        
+
         return Expanded(
           child: _buildStatusItem(
+            context,
             status: status,
             count: count,
             isHighlighted: isPendingAdmin && count > 0,
@@ -114,15 +117,16 @@ class StatusDistributionCard extends StatelessWidget {
   }
 
   /// Build vertical layout (mobile)
-  Widget _buildVerticalLayout() {
+  Widget _buildVerticalLayout(BuildContext context) {
     return Column(
       children: Status.values.map((status) {
         final count = _getCountForStatus(status);
         final isPendingAdmin = status == Status.pendingAdmin;
-        
+
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: _buildStatusItem(
+            context,
             status: status,
             count: count,
             isHighlighted: isPendingAdmin && count > 0,
@@ -134,14 +138,16 @@ class StatusDistributionCard extends StatelessWidget {
   }
 
   /// Build single status item
-  Widget _buildStatusItem({
+  Widget _buildStatusItem(
+    BuildContext context, {
     required Status status,
     required int count,
     required bool isHighlighted,
     bool isVertical = false,
   }) {
-    final color = _getStatusColor(status);
-    final percentage = distribution.total > 0 ? (count / distribution.total * 100) : 0.0;
+    final color = _getStatusColor(context, status);
+    final percentage =
+        distribution.total > 0 ? (count / distribution.total * 100) : 0.0;
 
     return GestureDetector(
       onTap: () => onStatusTap?.call(),
@@ -150,11 +156,13 @@ class StatusDistributionCard extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: isHighlighted
-              ? Colors.orange.withValues(alpha: 0.1)
+              ? context.renkler.uyari.withValues(alpha: 0.1)
               : color.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isHighlighted ? Colors.orange : color.withValues(alpha: 0.3),
+            color: isHighlighted
+                ? context.renkler.uyari
+                : color.withValues(alpha: 0.3),
             width: isHighlighted ? 2 : 1,
           ),
         ),
@@ -173,16 +181,18 @@ class StatusDistributionCard extends StatelessWidget {
                   child: Text(
                     status.displayName,
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: isHighlighted ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 13,
+                      fontWeight:
+                          isHighlighted ? FontWeight.bold : FontWeight.normal,
                       color: isDarkMode
-                          ? Colors.white
-                          : (isHighlighted ? Colors.orange : const Color(0xFF111827)),
+                          ? context.renkler.metin
+                          : (isHighlighted
+                              ? context.renkler.uyari
+                              : context.renkler.metin),
                     ),
                   ),
                 ),
-                if (isHighlighted && count > 0)
-                  _buildBlinkingDot(),
+                if (isHighlighted && count > 0) _buildBlinkingDot(context),
               ],
             ),
             const SizedBox(height: 8),
@@ -195,15 +205,15 @@ class StatusDistributionCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: isHighlighted ? Colors.orange : color,
+                    color: isHighlighted ? context.renkler.uyari : color,
                   ),
                 ),
                 const SizedBox(width: 8),
                 Text(
                   '(%${percentage.toStringAsFixed(1)})',
                   style: TextStyle(
-                    fontSize: 12,
-                    color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                    fontSize: 13,
+                    color: context.renkler.metinIkincil,
                   ),
                 ),
               ],
@@ -214,10 +224,12 @@ class StatusDistributionCard extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
-                value: distribution.total > 0 ? count / distribution.total : 0.0,
-                backgroundColor: (isHighlighted ? Colors.orange : color).withValues(alpha: 0.2),
+                value:
+                    distribution.total > 0 ? count / distribution.total : 0.0,
+                backgroundColor: (isHighlighted ? context.renkler.uyari : color)
+                    .withValues(alpha: 0.2),
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  isHighlighted ? Colors.orange : color,
+                  isHighlighted ? context.renkler.uyari : color,
                 ),
                 minHeight: 6,
               ),
@@ -229,20 +241,13 @@ class StatusDistributionCard extends StatelessWidget {
   }
 
   /// Build blinking dot for pending admin
-  Widget _buildBlinkingDot() {
+  Widget _buildBlinkingDot(BuildContext context) {
     return Container(
       width: 8,
       height: 8,
       decoration: BoxDecoration(
-        color: Colors.orange,
+        color: context.renkler.uyari,
         shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.orange.withValues(alpha: 0.5),
-            blurRadius: 8,
-            spreadRadius: 2,
-          ),
-        ],
       ),
     );
   }
@@ -264,19 +269,18 @@ class StatusDistributionCard extends StatelessWidget {
   }
 
   /// Get color for status
-  Color _getStatusColor(Status status) {
+  Color _getStatusColor(BuildContext context, Status status) {
     switch (status) {
       case Status.draft:
-        return Colors.grey;
+        return context.renkler.metinIkincil;
       case Status.pendingAi:
-        return Colors.blue;
+        return context.renkler.birincil;
       case Status.pendingAdmin:
-        return Colors.orange;
+        return context.renkler.uyari;
       case Status.published:
-        return Colors.green;
+        return context.renkler.birincilMetin;
       case Status.rejected:
-        return Colors.red;
+        return context.renkler.tehlike;
     }
   }
-
 }

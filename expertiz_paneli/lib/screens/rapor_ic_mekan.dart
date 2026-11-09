@@ -1,3 +1,5 @@
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
@@ -97,26 +99,26 @@ class _RaporIcMekanState extends State<RaporIcMekan> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("İç Mekan Kontrol Raporu"),
-        backgroundColor: Colors.green,
+        backgroundColor: context.renkler.birincilMetin,
       ),
       body: Column(
         children: [
-          // 📋 ÖNCEKİ RAPOR ÖZETİ
+          // ÖNCEKİ RAPOR ÖZETİ
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.grey[100],
-              border: Border.all(color: Colors.green),
+              color: context.renkler.yuzeyIkincil,
+              border: Border.all(color: context.renkler.birincilMetin),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('📋 Mevcut Raporlar', 
+                const Text('Mevcut Raporlar', 
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Text('Plaka: ${widget.aracBilgileri['plaka'] ?? "Belirtilmedi"}'),
                 Text('Marka-Model: ${widget.aracBilgileri['marka'] ?? ""} ${widget.aracBilgileri['model'] ?? ""}'),
-                const Text('Dış Ekspertiz: Tamamlandı ✓'),
+                const Text('Dış Ekspertiz: Tamamlandı '),
               ],
             ),
           ),
@@ -124,10 +126,10 @@ class _RaporIcMekanState extends State<RaporIcMekan> {
           // İlerleme Çubuğu
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: Colors.green[50],
+            color: context.renkler.birincilYuzey,
             child: Row(
               children: [
-                const Icon(Icons.chair, size: 20, color: Colors.green),
+                Icon(LucideIcons.armchair, size: 20, color: context.renkler.birincilMetin),
                 const SizedBox(width: 8),
                 const Text('İç Mekan Kontrol', style: TextStyle(fontWeight: FontWeight.bold)),
                 const Spacer(),
@@ -136,7 +138,7 @@ class _RaporIcMekanState extends State<RaporIcMekan> {
             ),
           ),
 
-          // 📝 İÇ MEKAN MADDELERİ LİSTESİ
+          // İÇ MEKAN MADDELERİ LİSTESİ
           Expanded(
             child: ListView.builder(
               itemCount: raporListesi.length,
@@ -152,10 +154,10 @@ class _RaporIcMekanState extends State<RaporIcMekan> {
                       children: [
                         Text(
                           item['madde'], 
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.bold, 
                             fontSize: 16,
-                            color: Colors.green
+                            color: context.renkler.birincilMetin
                           )
                         ),
                         const SizedBox(height: 8),
@@ -192,11 +194,11 @@ class _RaporIcMekanState extends State<RaporIcMekan> {
                             ),
                             const SizedBox(width: 8),
                             IconButton(
-                              icon: const Icon(Icons.camera_alt, color: Colors.green),
+                              icon: Icon(LucideIcons.camera, color: context.renkler.birincilMetin),
                               onPressed: () => _fotoSec(index),
                             ),
                             if (item['foto'] != null)
-                              const Icon(Icons.check_circle, color: Colors.green),
+                              Icon(LucideIcons.circleCheck, color: context.renkler.birincilMetin),
                           ],
                         ),
                         // Fotoğraf önizleme (varsa)
@@ -209,7 +211,7 @@ class _RaporIcMekanState extends State<RaporIcMekan> {
                                   width: 60,
                                   height: 60,
                                   decoration: BoxDecoration(
-                                    border: Border.all(color: Colors.green),
+                                    border: Border.all(color: context.renkler.birincilMetin),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Image.file(
@@ -218,7 +220,7 @@ class _RaporIcMekanState extends State<RaporIcMekan> {
                                   ),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  icon: Icon(LucideIcons.trash2, color: context.renkler.tehlike),
                                   onPressed: () => _fotoSil(index),
                                 ),
                               ],
@@ -232,14 +234,14 @@ class _RaporIcMekanState extends State<RaporIcMekan> {
             ),
           ),
 
-          // 📝 İÇ MEKAN EK NOTLAR
+          // İÇ MEKAN EK NOTLAR
           Container(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  "📝 İç Mekan Ek Notlar",
+                  "İç Mekan Ek Notlar",
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
@@ -256,18 +258,18 @@ class _RaporIcMekanState extends State<RaporIcMekan> {
             ),
           ),
 
-          // 📱 KAYDET ve İLERLE BUTONU
+          // KAYDET ve İLERLE BUTONU
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.grey[50],
-              border: Border.all(color: Colors.grey[300]!),
+              color: context.renkler.yuzeyIkincil,
+              border: Border.all(color: context.renkler.girdiKenarlik),
             ),
             child: Row(
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    icon: const Icon(Icons.arrow_back),
+                    icon: const Icon(LucideIcons.arrowLeft),
                     label: const Text('Geri (Dış Ekspertiz)'),
                     onPressed: () => Navigator.pop(context),
                   ),
@@ -275,12 +277,12 @@ class _RaporIcMekanState extends State<RaporIcMekan> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
-                    icon: const Icon(Icons.save, color: Colors.white),
-                    label: const Text('Kaydet ve İlerle', 
-                      style: TextStyle(color: Colors.white)),
+                    icon: Icon(LucideIcons.save, color: context.renkler.birincilUstu),
+                    label: Text('Kaydet ve İlerle', 
+                      style: TextStyle(color: context.renkler.birincilUstu)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _tumAlanlarDoldurulduMu() ? Colors.green : Colors.grey,
-                      foregroundColor: Colors.white,
+                      backgroundColor: _tumAlanlarDoldurulduMu() ? context.renkler.birincilMetin : context.renkler.metinIkincil,
+                      foregroundColor: context.renkler.birincilUstu,
                       minimumSize: const Size(0, 48),
                     ),
                     onPressed: _tumAlanlarDoldurulduMu()

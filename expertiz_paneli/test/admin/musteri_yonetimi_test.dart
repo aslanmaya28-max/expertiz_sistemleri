@@ -102,8 +102,8 @@ void main() {
     expect(find.textContaining('3 kredi'), findsOneWidget);
     await tester.tap(find.text('Ali Veli'));
     await tester.pumpAndSettle();
-    expect(find.text('3 kredi'), findsOneWidget);
-    expect(find.text('Kredi'), findsOneWidget);
+    expect(find.descendant(of: find.byType(Dialog), matching: find.text('3 kredi')), findsOneWidget);
+    expect(find.descendant(of: find.byType(Dialog), matching: find.text('Kredi')), findsOneWidget);
     expect(find.textContaining('Seviye'), findsNothing);
     expect(find.textContaining('free'), findsNothing);
     expect(find.byType(DropdownButtonFormField<String>), findsNothing);
@@ -129,7 +129,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Ali Veli'), findsOneWidget);
-    expect(find.textContaining('24.000,00 TL'), findsOneWidget);
+    expect(find.textContaining('24.000 TL'), findsOneWidget);
     expect(find.text('1 müşteri • 1 aktif'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), 'ali');

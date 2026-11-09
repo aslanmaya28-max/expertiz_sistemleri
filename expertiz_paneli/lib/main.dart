@@ -10,7 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'core/theme/futuristic_theme.dart';
+import 'tema/tema.dart';
 import 'core/services/service_orchestrator.dart';
 import 'core/lifecycle/app_lifecycle_observer.dart';
 import 'providers/theme_provider.dart';
@@ -26,13 +26,12 @@ import 'services/central_auth_client.dart';
 import 'repositories/auth_repository.dart';
 import 'routing/app_router.dart';
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SharedPreferencesManager.init();
 
-  const supabaseUrl = String.fromEnvironment('SUPABASE_URL',
-      defaultValue: 'YOUR_SUPABASE_URL');
+  const supabaseUrl =
+      String.fromEnvironment('SUPABASE_URL', defaultValue: 'YOUR_SUPABASE_URL');
   const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY',
       defaultValue: 'YOUR_SUPABASE_ANON_KEY');
 
@@ -45,7 +44,9 @@ void main() async {
       supabaseUrl.isNotEmpty &&
       supabaseAnonKey.isNotEmpty;
   await Supabase.initialize(
-    url: supabaseConfigured ? supabaseUrl : 'https://supabase-devre-disi.invalid',
+    url: supabaseConfigured
+        ? supabaseUrl
+        : 'https://supabase-devre-disi.invalid',
     anonKey: supabaseConfigured ? supabaseAnonKey : 'devre-disi',
   );
   if (supabaseConfigured) {
@@ -55,35 +56,29 @@ void main() async {
   // Onceki oturum (sayfa yenilendiginde / uygulama yeniden acildiginda) geri yuklenir
   await CentralAuthTokenStore.restore();
 
-  final authRepository =
-      AuthRepository(supabase: Supabase.instance.client);
+  final authRepository = AuthRepository(supabase: Supabase.instance.client);
   final orchestrator = ServiceOrchestrator();
 
   orchestrator.registerService(VisionEngineService());
   orchestrator.init(authRepository);
 
-  final lifecycleHandler =
-      AppLifecycleHandler(authRepository: authRepository);
+  final lifecycleHandler = AppLifecycleHandler(authRepository: authRepository);
   WidgetsBinding.instance.addObserver(lifecycleHandler);
 
   runApp(const ProviderScope(child: ExpertizSistemiApp()));
 }
 
 class ExpertizSistemiApp extends StatelessWidget {
-
   const ExpertizSistemiApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final authRepository =
-        AuthRepository(supabase: Supabase.instance.client);
+    final authRepository = AuthRepository(supabase: Supabase.instance.client);
 
     return legacy_provider.MultiProvider(
       providers: [
-        legacy_provider.ChangeNotifierProvider(
-            create: (_) => ThemeProvider()),
-        legacy_provider.ChangeNotifierProvider(
-            create: (_) => ClockProvider()),
+        legacy_provider.ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        legacy_provider.ChangeNotifierProvider(create: (_) => ClockProvider()),
         legacy_provider.ChangeNotifierProvider(
             create: (_) => AppMenuController()),
         legacy_provider.ChangeNotifierProvider(
@@ -102,8 +97,8 @@ class ExpertizSistemiApp extends StatelessWidget {
           return MaterialApp.router(
             title: 'YerimeBak Sistemleri',
             debugShowCheckedModeBanner: false,
-            theme: FuturisticTheme.theme,
-            darkTheme: FuturisticTheme.theme,
+            theme: YbTema.acik,
+            darkTheme: YbTema.koyu,
             themeMode: themeProvider.themeMode,
             routerConfig: createRouter(context),
             localizationsDelegates: const [
@@ -118,7 +113,6 @@ class ExpertizSistemiApp extends StatelessWidget {
           );
         },
       ),
-
     );
   }
 }

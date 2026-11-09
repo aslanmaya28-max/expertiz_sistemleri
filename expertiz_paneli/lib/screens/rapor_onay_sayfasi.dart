@@ -1,3 +1,5 @@
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
@@ -96,7 +98,7 @@ class _RaporOnaySayfasiState extends State<RaporOnaySayfasi> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(mesaj),
-        backgroundColor: Colors.orange,
+        backgroundColor: context.renkler.birincil,
       ),
     );
   }
@@ -134,7 +136,7 @@ class _RaporOnaySayfasiState extends State<RaporOnaySayfasi> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(mesaj),
-        backgroundColor: Colors.green,
+        backgroundColor: context.renkler.birincilMetin,
       ),
     );
   }
@@ -144,46 +146,46 @@ class _RaporOnaySayfasiState extends State<RaporOnaySayfasi> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Kurumsal Expertiz Rapor Onayı'),
-        backgroundColor: Colors.purple,
+        backgroundColor: context.renkler.birincil,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 📋 ARAÇ BİLGİLERİ ÖZETİ
+            // ARAÇ BİLGİLERİ ÖZETİ
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.grey[100],
+                color: context.renkler.yuzeyIkincil,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.purple),
+                border: Border.all(color: context.renkler.birincil),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('📋 Araç Bilgileri Özeti',
+                  const Text('Araç Bilgileri Özeti',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Text('Plaka: ${widget.aracBilgi["plaka"] ?? widget.aracBilgi["Araç Plaka"]}'),
                   Text('Marka: ${widget.aracBilgi["marka"] ?? widget.aracBilgi["Marka"]}'),
                   Text('Model: ${widget.aracBilgi["model"] ?? widget.aracBilgi["Model"]}'),
                   const SizedBox(height: 4),
-                  const Text('✓ Dış Ekspertiz Tamamlandı'),
-                  const Text('✓ İç Mekan Kontrolü Tamamlandı'),
-                  const Text('✓ Kaporta/Boya Kontrolü Tamamlandı'),
+                  const Text('Dış Ekspertiz Tamamlandı'),
+                  const Text('İç Mekan Kontrolü Tamamlandı'),
+                  const Text('Kaporta/Boya Kontrolü Tamamlandı'),
                 ],
               ),
             ),
 
             const SizedBox(height: 20),
 
-            // 📷 FOTOĞRAF YÜKLEME
-            const Text('📷 Fotoğraflar (Maksimum 10)',
+            // FOTOĞRAF YÜKLEME
+            const Text('Fotoğraflar (Maksimum 10)',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Text('${secilenFotolar.length}/10 fotoğraf yüklendi',
-              style: TextStyle(color: Colors.grey[600])),
+              style: TextStyle(color: context.renkler.metinIkincil)),
 
             const SizedBox(height: 10),
 
@@ -192,7 +194,7 @@ class _RaporOnaySayfasiState extends State<RaporOnaySayfasi> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    icon: const Icon(Icons.camera_alt, size: 20),
+                    icon: const Icon(LucideIcons.camera, size: 20),
                     label: const Text('Kamera ile Çek'),
                     onPressed: _fotoSec,
                   ),
@@ -200,7 +202,7 @@ class _RaporOnaySayfasiState extends State<RaporOnaySayfasi> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: ElevatedButton.icon(
-                    icon: const Icon(Icons.photo_library, size: 20),
+                    icon: const Icon(LucideIcons.images, size: 20),
                     label: const Text('Galeriden Seç'),
                     onPressed: _galeridenFotoSec,
                   ),
@@ -241,11 +243,11 @@ class _RaporOnaySayfasiState extends State<RaporOnaySayfasi> {
                           onTap: () => _fotoSil(index),
                           child: Container(
                             padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(
-                              color: Colors.red,
+                            decoration: BoxDecoration(
+                              color: context.renkler.tehlike,
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(Icons.close, size: 16, color: Colors.white),
+                            child: Icon(LucideIcons.x, size: 16, color: context.renkler.birincilUstu),
                           ),
                         ),
                       ),
@@ -255,12 +257,12 @@ class _RaporOnaySayfasiState extends State<RaporOnaySayfasi> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: Colors.black54,
+                            color: context.renkler.metin,
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             '${index + 1}',
-                            style: const TextStyle(color: Colors.white, fontSize: 12),
+                            style: TextStyle(color: context.renkler.birincilUstu, fontSize: 12),
                           ),
                         ),
                       ),
@@ -271,18 +273,18 @@ class _RaporOnaySayfasiState extends State<RaporOnaySayfasi> {
 
             const SizedBox(height: 20),
 
-            // 📁 DOSYA YÜKLEME
-            const Text('📁 Belgeler (Maksimum 5)',
+            // DOSYA YÜKLEME
+            const Text('Belgeler (Maksimum 5)',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Text('${secilenDosyalar.length}/5 dosya yüklendi',
-              style: TextStyle(color: Colors.grey[600])),
+              style: TextStyle(color: context.renkler.metinIkincil)),
 
             const SizedBox(height: 10),
 
             // DOSYA YÜKLEME BUTONU
             ElevatedButton.icon(
-              icon: const Icon(Icons.attach_file, size: 20),
+              icon: const Icon(LucideIcons.paperclip, size: 20),
               label: const Text('Belge Yükle (PDF, Word, Excel, Resim)'),
               onPressed: _dosyaSec,
             ),
@@ -298,14 +300,14 @@ class _RaporOnaySayfasiState extends State<RaporOnaySayfasi> {
                   return Card(
                     margin: const EdgeInsets.symmetric(vertical: 4),
                     child: ListTile(
-                      leading: const Icon(Icons.insert_drive_file, color: Colors.blue),
+                      leading: Icon(LucideIcons.file, color: context.renkler.birincil),
                       title: Text(
                         dosya.path.split('/').last,
                         style: const TextStyle(fontSize: 14),
                         overflow: TextOverflow.ellipsis,
                       ),
                       trailing: IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
+                        icon: Icon(LucideIcons.trash2, color: context.renkler.tehlike),
                         onPressed: () => _dosyaSil(index),
                       ),
                     ),
@@ -315,34 +317,34 @@ class _RaporOnaySayfasiState extends State<RaporOnaySayfasi> {
 
             const SizedBox(height: 30),
 
-            // 🚀 TÜM RAPORLARI GÖNDER BUTONU
+            // TÜM RAPORLARI GÖNDER BUTONU
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey[50],
+                color: context.renkler.yuzeyIkincil,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.purple),
+                border: Border.all(color: context.renkler.birincil),
               ),
               child: Column(
                 children: [
-                  const Text('🚀 Rapor Özeti',
+                  const Text('Rapor Özeti',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  const Text('Araç Bilgileri: Tamamlandı ✓'),
-                  const Text('Dış Ekspertiz: Tamamlandı ✓'),
-                  const Text('İç Mekan: Tamamlandı ✓'),
-                  Text('Kaporta/Boya: ${widget.raporlar.length} madde ✓'),
+                  const Text('Araç Bilgileri: Tamamlandı '),
+                  const Text('Dış Ekspertiz: Tamamlandı '),
+                  const Text('İç Mekan: Tamamlandı '),
+                  Text('Kaporta/Boya: ${widget.raporlar.length} madde '),
                   Text('Fotoğraflar: ${secilenFotolar.length}/10'),
                   Text('Dosyalar: ${secilenDosyalar.length}/5'),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
-                    icon: const Icon(Icons.send, color: Colors.white),
-                    label: const Text('TÜM RAPORLARI ONAYA GÖNDER',
-                      style: TextStyle(color: Colors.white, fontSize: 16)),
+                    icon: Icon(LucideIcons.send, color: context.renkler.birincilUstu),
+                    label: Text('TÜM RAPORLARI ONAYA GÖNDER',
+                      style: TextStyle(color: context.renkler.birincilUstu, fontSize: 16)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple,
-                      foregroundColor: Colors.white,
+                      backgroundColor: context.renkler.birincil,
+                      foregroundColor: context.renkler.birincilUstu,
                       minimumSize: const Size(double.infinity, 55),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),

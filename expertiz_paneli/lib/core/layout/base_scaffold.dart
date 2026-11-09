@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../theme/futuristic_theme.dart';
 import '../widgets/sidebar.dart';
 import '../constants/roles.dart' as roles;
   
@@ -17,19 +16,7 @@ class BaseScaffold extends StatelessWidget {
   
   @override
   Widget build(BuildContext context) {
-    return Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              FuturisticTheme.loginBgStart,
-              FuturisticTheme.loginBgEnd,
-            ],
-          ),
-        ),
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
+    return Scaffold(
           appBar: appBar,
           body: Row(
             children: [
@@ -37,7 +24,6 @@ class BaseScaffold extends StatelessWidget {
               Expanded(child: body),
             ],
           ),
-        ),
     );
   }
 }

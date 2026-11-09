@@ -37,7 +37,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(istekler, containsAll(['/api/v1/expertiz/admin/finance/summary', '/api/v1/payments/admin/orders']));
-    expect(find.text('12.000,00 TL'), findsWidgets); // kart + detay satırı
+    expect(find.text('12.000 TL'), findsWidgets); // kart + detay satırı
     expect(find.text('Ayse Yilmaz'), findsOneWidget);
     expect(find.textContaining('simülasyon'), findsOneWidget);
   });
@@ -79,7 +79,7 @@ void main() {
     await tester.scrollUntilVisible(find.byKey(const Key('firma-hakedis-tablosu')), 200,
         scrollable: find.byType(Scrollable).first);
     expect(find.text('Otorapor'), findsOneWidget);
-    expect(find.text('6.500,00 TL'), findsOneWidget);
+    expect(find.text('6.500 TL'), findsOneWidget);
     expect(find.text('YerimeBak (firmasız)'), findsOneWidget);
   });
 
@@ -90,4 +90,28 @@ void main() {
     expect(find.text('Finans verileri yüklenemedi'), findsOneWidget);
     expect(find.text('Tekrar Dene'), findsOneWidget);
   });
+
+  testWidgets('bekleyen havale bağlantısı siparişleri süzer ve iade eylemi açmaz', (tester) async {
+    final client = MockClient((request) async => _json(
+      request.url.path.endsWith('/payments/admin/orders')
+        ? jsonEncode({'orders': [
+          {'id': 'BEKLEYEN', 'status': 'pending', 'package_name': 'Bekleyen paket', 'amount_tl': 250, 'user_email': 'bekleyen@example.com'},
+          {'id': 'ODENMIS', 'status': 'approved', 'package_name': 'Ödenmiş paket', 'amount_tl': 100},
+        ]})
+        : _ozetJson));
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: FinansYonetimi(
+      initialFilter: 'bekleyen_havale',
+      apiService: YerimebakExpertizApiService(baseUrl: 'http://api.test/api/v1', client: client, accessToken: 'admin-token'),
+    ))));
+    await tester.pumpAndSettle();
+    expect(tester.widget<ChoiceChip>(find.byKey(const Key('bekleyen-havale-suzgeci'))).selected, isTrue);
+    expect(find.byKey(const Key('order-BEKLEYEN')), findsOneWidget);
+    expect(find.byKey(const Key('order-ODENMIS')), findsNothing);
+    expect(find.byKey(const Key('refund-BEKLEYEN')), findsNothing);
+    await tester.tap(find.text('Ödenmiş ve iadeler'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('order-ODENMIS')), findsOneWidget);
+    expect(find.byKey(const Key('order-BEKLEYEN')), findsNothing);
+  });
+
 }

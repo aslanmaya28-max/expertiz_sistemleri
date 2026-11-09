@@ -1,20 +1,17 @@
-// ignore_for_file: use_build_context_synchronously
-
-import 'package:flutter/material.dart';
-import '../core/widgets/yerimebak_logo.dart';
-import 'dart:ui';
+﻿import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
-import 'package:yerimebak_sistemleri/providers/user_provider.dart';
-import 'package:yerimebak_sistemleri/screens/register_screen.dart';
-import '../core/widgets/glass_card.dart';
-import '../core/theme/futuristic_theme.dart';
-import '../core/constants/yerimebak_colors.dart';
-
+import '../providers/user_provider.dart';
+import '../core/widgets/yerimebak_logo.dart';
+import '../bilesenler/bilesenler.dart';
+import '../tema/olculer.dart';
+import '../tema/renkler.dart';
+import '../tema/yazi.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
-
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -23,9 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isLoading = false;
-  bool _obscurePassword = true;
-  bool _rememberMe = false;
+  bool _isLoading = false, _obscurePassword = true, _rememberMe = false;
 
   @override
   void dispose() {
@@ -34,448 +29,170 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // --- PERSONEL / ADMIN GİRİŞİ ---
   Future<void> _handleLogin() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    if (!mounted) return;
+    if (_isLoading || !_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
-
-    // UserProvider Kullanımı - SINGLE SOURCE OF TRUTH
     final userProvider = context.read<UserProvider>();
     final success = await userProvider.login(
-      email: _emailController.text.trim(),
-      password: _passwordController.text.trim(),
-    );
-
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim());
     if (!mounted) return;
     setState(() => _isLoading = false);
-
     if (success) {
-      if (!mounted) return;
-
-      // AuthWrapper'ı tetiklemek için kök dizine (home) dön
       context.go('/');
-      
-      final user = userProvider.currentUser;
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Hoşgeldiniz ${user?.fullName ?? "Kullanıcı"}'),
-          backgroundColor: YerimeBakColors.cyberNeonTurquoise,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      YbBildirim.goster(context, 'Oturum açıldı.', tur: YbRozetTuru.basari);
     } else {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(userProvider.error ?? 'Giriş başarısız'),
-          backgroundColor: YerimeBakColors.red,
-        ),
-      );
+      YbBildirim.goster(context, userProvider.error ?? 'Giriş başarısız',
+          tur: YbRozetTuru.tehlike);
     }
   }
 
-  // --- YENİ TASARIM YAPISI ---
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              FuturisticTheme.loginBgStart,
-              FuturisticTheme.loginBgEnd,
-            ],
-          ),
-        ),
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                // Responsive Logic: Desktop (Row) vs Mobile (Column)
-                if (constraints.maxWidth > 900) {
-                  return Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      // Sol Taraf: Logo + Login Form
-                      SizedBox(
-                        width: 420,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _buildLogo(),
-                                                        const SizedBox(height: 32),
-                            _buildLoginForm(),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 60),
-                      // Sağ Taraf: Bilgi Paneli
-                      SizedBox(
-                        width: 500,
-                        height: 600, // Fixed height to match design balance
-                        child: _buildInfoPanel(),
-                      ),
-                    ],
-                  );
-                } else {
-                  return Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildLogo(),
-                                            const SizedBox(height: 32),
-                      _buildLoginForm(),
-                      const SizedBox(height: 30),
-                      _buildInfoPanel(),
-                    ],
-                  );
-                }
-              },
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // 1. LOGO BİLEŞENİ (Y Harfi)
-  Widget _buildLogo() {
-    return const YerimeBakLogo(height: 84, onDark: true);
-  }
-
-  // 2. LOGIN FORM (SOL)
-  Widget _buildLoginForm() {
-    return GlassCard(
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "Giriş Yap",
-              style: TextStyle(
-                color: FuturisticTheme.textPrimary,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.0,
-              ),
-            ),
-            const SizedBox(height: 24),
-             
-            // 🔒 DÜZELTİLDİ (B12): TextField → FormField/TextFormField
-            // _formKey.currentState!.validate() artık gerçek validasyon yapar.
-            TextFormField(
-              controller: _emailController,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.person_outline),
-                hintText: "Kullanıcı adı veya e-posta",
-              ),
-              style: const TextStyle(color: FuturisticTheme.textPrimary),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'E-posta veya kullanıcı adı gerekli';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            
-            // Password Input
-            TextFormField(
-              controller: _passwordController,
-              obscureText: _obscurePassword,
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.lock_outline),
-                hintText: "•••••••",
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                  ),
-                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                ),
-              ),
-              style: const TextStyle(color: FuturisticTheme.textPrimary),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Şifre gerekli';
-                }
-                return null;
-              },
-            ),
-
-            
-            const SizedBox(height: 16),
-            
-            // Remember Me & Forgot Password
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _rememberMe,
-                      onChanged: (val) => setState(() => _rememberMe = val!),
-                    ),
-                    const Text("Beni Hatırla"),
-                  ],
-                ),
-                TextButton(
-                  onPressed: () {},
-                  child: const Text("Şifremi Unuttum"),
-                )
-              ],
-            ),
-            
-            const SizedBox(height: 24),
-            
-            // Login Button
-            InkWell(
-              onTap: _isLoading ? null : _handleLogin,
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                width: double.infinity,
-                height: 48,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: FuturisticTheme.accentCyan.withValues(alpha: 0.5)),
-                  gradient: LinearGradient(
-                    colors: [
-                      FuturisticTheme.accentCyan.withValues(alpha: 0.2),
-                      FuturisticTheme.accentCyan.withValues(alpha: 0.05),
-                    ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-                  boxShadow: [
-                     BoxShadow(
-                       color: FuturisticTheme.accentCyan.withValues(alpha: 0.15),
-                       blurRadius: 15,
-                       spreadRadius: 0,
-                     )
-                  ]
-                ),
+  Widget build(BuildContext context) =>
+      Scaffold(body: LayoutBuilder(builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 900;
+        if (wide) {
+          return Row(children: [
+            Expanded(flex: 5, child: _brand(wide: true)),
+            Expanded(
+                flex: 6,
                 child: Center(
-                  child: _isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Text(
-                      "Giriş Yap",
-                      style: TextStyle(
-                        color: FuturisticTheme.textPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.0,
-                        shadows: [Shadow(color: FuturisticTheme.accentCyan, blurRadius: 10)]
-                      ),
-                    ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Register Button
-            TextButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const RegisterScreen(),
-                  ),
-                );
-              },
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'Hesabınız yok mu? ',
-                    style: TextStyle(color: FuturisticTheme.textSecondary),
-                  ),
-                  Text(
-                    'Kayıt Ol',
-                    style: TextStyle(
-                      color: Colors.blue[800],
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+                    child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(PanelOlcu.sayfa),
+                        child: _form())))
+          ]);
+        }
+        return SingleChildScrollView(
+            child: Column(children: [
+          _brand(wide: false),
+          Padding(padding: const EdgeInsets.all(Olcu.s24), child: _form())
+        ]));
+      }));
 
-  // 3. INFO PANEL (SAĞ)
-  Widget _buildInfoPanel() {
-    return Container(
-      decoration: BoxDecoration(
-         borderRadius: BorderRadius.circular(20),
-         border: Border.all(
-           color: FuturisticTheme.accentCyan.withValues(alpha: 0.3),
-           width: 1
-         ),
-        color: FuturisticTheme.loginBgStart.withValues(alpha: 0.4),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Padding(
-                 padding: const EdgeInsets.all(20),
-                 child: Row(
-                   children: [
-                     const YerimeBakLogo(height: 36, onDark: true)
-                   ],
-                 ),
-              ),
-              const Divider(color: Colors.white10),
-              
-              // Sections
-              ListView(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(20),
-                  children: [
-                    _buildInfoSection(
-                      title: "YerimeBak Nedir?",
-                      description: [
-                        "Araç alım satımında güvenilir oto ekspertiz çözümü sunar.",
-                        "Profesyonel incelemeyi ileri teknoloji ile bir araya getirir.",
-                        "Hızlı, detaylı ve tarafsız raporlar oluşturur"
-                      ],
-                      icon: Icons.car_repair,
-                    ),
-                    const SizedBox(height: 25),
-                     _buildInfoSection(
-                      title: "Nasıl Çalışır?",
-                      description: [
-                        "1. Ekspertiz talebi oluşturun",
-                        "2. Uzman ekibimiz aracınızı detaylıca incelesin",
-                        "3. Kapsamlı raporu çevrimiçi olarak görüntüleyin.",
-                        "Tüm süreç şeffaf, hızlı ve güvenilirdir."
-                      ],
-                      icon: Icons.search,
-                    ),
-                    const SizedBox(height: 25),
-                     _buildInfoSection(
-                      title: "Neden YerimeBak?",
-                      description: [
-                        "Güvenilirlik ve şeffaflık önceliğimiz",
-                        "Son teknoloji diagnostic cihazlar ve uzman ekibimizle en ince detaylar bile gözden kaçmaz.",
-                        "Raporlarınıza her yerden, her zaman ulaşabilirsiniz"
-                      ],
-                      icon: Icons.verified_user,
-                    ),
-                  ],
-              )
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoSection({
-    required String title,
-    required List<String> description,
-    required IconData icon,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withValues(alpha: 0.05),
-            Colors.transparent
-          ],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight
-        )
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: FuturisticTheme.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ...description.map((text) => Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4, right: 8),
-                        child: Icon(
-                          _getIconForText(text),
-                          color: FuturisticTheme.accentCyan,
-                          size: 14
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          text,
-                          style: TextStyle(
-                            color: FuturisticTheme.textSecondary,
-                            fontSize: 13,
-                            height: 1.4,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                )),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Large Icon on the right
+  Widget _brand({required bool wide}) {
+    final colors = context.renkler;
+    final light = Theme.of(context).brightness == Brightness.light;
+    // Marka bandı iki temada da koyu yeşil: koyu temada rapor yeşili, açık temada marka bandı
+    final band = light ? colors.markaBandi : colors.raporKoyu;
+    final soluk = YbRenkler.acik.markaBandiMetin;
+    Widget madde(IconData icon, String text) => Padding(
+        padding: const EdgeInsets.only(bottom: Olcu.s16),
+        child: Row(children: [
           Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: FuturisticTheme.accentCyan.withValues(alpha: 0.3)),
-              boxShadow: [
-                BoxShadow(color: FuturisticTheme.accentCyan.withValues(alpha: 0.1), blurRadius: 10)
-              ]
-            ),
-            child: Icon(icon, color: FuturisticTheme.accentCyan, size: 32),
-          )
-        ],
-      ),
-    );
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                  color: colors.beyaz.withValues(alpha: .08),
+                  borderRadius: BorderRadius.circular(10)),
+              child: Icon(icon, size: 18, color: YbRenkler.acik.markaBandiVurgu)),
+          const SizedBox(width: Olcu.s12),
+          Expanded(
+              child: Text(text,
+                  style: Yazilar.govdeKucuk.copyWith(color: colors.beyaz))),
+        ]));
+    final content = Padding(
+        padding: EdgeInsets.all(wide ? PanelOlcu.sayfa * 2 : Olcu.s28),
+        child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: wide ? MainAxisSize.max : MainAxisSize.min,
+            children: [
+              const YerimeBakLogo(height: 40, onDark: true),
+              SizedBox(height: wide ? Olcu.s28 * 2 : Olcu.s20),
+              Text('Operasyonun her adımı,\ntek bir yerde.',
+                  style: Yazilar.baslik1.copyWith(
+                      color: colors.beyaz,
+                      height: 1.25,
+                      fontSize: wide ? 34 : 25,
+                      letterSpacing: -0.6)),
+              const SizedBox(height: Olcu.s16),
+              Text(
+                  'Ekspertiz taleplerini, saha ekibini ve müşteri süreçlerini güvenle yönetin.',
+                  style: Yazilar.govdeKucuk.copyWith(color: soluk)),
+              if (wide) ...[
+                const SizedBox(height: Olcu.s28 + Olcu.s12),
+                madde(LucideIcons.headset, 'Kontrol merkezi: randevular ve saha iletişimi tek ekranda'),
+                madde(LucideIcons.carFront, 'Talepler, personel ataması ve rapor onayı'),
+                madde(LucideIcons.chartLine, 'Müşteri, değerleme ve kredi satışı özeti'),
+              ],
+            ]));
+    return Container(width: double.infinity, color: band, child: content);
   }
 
-  IconData _getIconForText(String text) {
-     if (text.startsWith("1") || text.startsWith("2") || text.startsWith("3")) return Icons.arrow_right;
-     if (text.startsWith("Güvenilirlik")) return Icons.star;
-     return Icons.check_circle_outline;
-  }
+  Widget _form() => Center(
+      child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Form(
+              key: _formKey,
+              child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('Yönetim ve saha paneli',
+                        style: Yazilar.baslik2
+                            .copyWith(color: context.renkler.metin)),
+                    const SizedBox(height: Olcu.s8),
+                    Text('Hesabınızla devam edin.',
+                        style: Yazilar.govdeKucuk
+                            .copyWith(color: context.renkler.metinIkincil)),
+                    const SizedBox(height: Olcu.s28),
+                    YbGirdi(
+                        etiket: 'Kullanıcı adı veya e-posta',
+                        controller: _emailController,
+                        prefixIcon: const Icon(LucideIcons.userRound),
+                        keyboardType: TextInputType.emailAddress,
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                                ? 'E-posta veya kullanıcı adı gerekli'
+                                : null),
+                    const SizedBox(height: Olcu.s20),
+                    YbGirdi(
+                        etiket: 'Şifre',
+                        controller: _passwordController,
+                        obscureText: _obscurePassword,
+                        prefixIcon: const Icon(LucideIcons.lockKeyhole),
+                        suffixIcon: IconButton(
+                            tooltip: _obscurePassword
+                                ? 'Şifreyi göster'
+                                : 'Şifreyi gizle',
+                            icon: Icon(_obscurePassword
+                                ? LucideIcons.eyeOff
+                                : LucideIcons.eye),
+                            onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword)),
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                                ? 'Şifre gerekli'
+                                : null),
+                    const SizedBox(height: Olcu.s12),
+                    Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Row(mainAxisSize: MainAxisSize.min, children: [
+                            Checkbox(
+                                value: _rememberMe,
+                                onChanged: (value) => setState(
+                                    () => _rememberMe = value ?? false)),
+                            const Text('Beni hatırla')
+                          ]),
+                          TextButton(
+                              onPressed: () {},
+                              child: const Text('Şifremi unuttum'))
+                        ]),
+                    const SizedBox(height: Olcu.s24),
+                    YbButon(
+                        metin: 'Giriş yap',
+                        onPressed: _handleLogin,
+                        yukleniyor: _isLoading,
+                        tamGenislik: true),
+                    const SizedBox(height: Olcu.s16),
+                    TextButton(
+                        onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(
+                                builder: (_) => const RegisterScreen())),
+                        child: const Text('Hesabınız yok mu? Kayıt ol')),
+                  ]))));
 }
+

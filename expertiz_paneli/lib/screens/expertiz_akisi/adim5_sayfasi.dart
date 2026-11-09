@@ -1,3 +1,6 @@
+import 'package:yerimebak_sistemleri/bilesenler/yb_iskelet.dart';
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -7,7 +10,6 @@ import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/constants/yerimebak_colors.dart';
 import '../../models/expertiz/kontrol_listesi.dart';
 import '../../models/expertiz/rapor_medya.dart';
 import '../../providers/expertiz_provider.dart';
@@ -27,7 +29,7 @@ class Adim5Sayfasi extends StatelessWidget {
     final provider = context.watch<ExpertizProvider>();
     final model = provider.adim5Model;
     if (model == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const Padding(padding: EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [YbIskelet(height: 24), SizedBox(height: 16), YbIskelet(height: 120)]));
     }
     final duzenlenebilir = provider.duzenlenebilir;
 
@@ -80,16 +82,17 @@ class _KurumsalRaporKartiState extends State<_KurumsalRaporKarti> {
   Future<void> _yukle(List<int> bytes, String ad) async {
     final provider = context.read<ExpertizProvider>();
     final messenger = ScaffoldMessenger.of(context);
+    final renk = context.renkler; // await sonrası bağlam kullanılmaz
     try {
       await provider.kurumsalRaporYukle(bytes: bytes, dosyaAdi: ad);
-      messenger.showSnackBar(const SnackBar(
+      messenger.showSnackBar(SnackBar(
         content: Text('Kurumsal rapor dosyaya eklendi'),
-        backgroundColor: YerimeBakColors.green,
+        backgroundColor: renk.birincilMetin,
       ));
     } catch (e) {
       messenger.showSnackBar(SnackBar(
           content: Text('Yüklenemedi: $e'),
-          backgroundColor: YerimeBakColors.red));
+          backgroundColor: renk.tehlike));
     }
   }
 
@@ -170,15 +173,15 @@ class _KurumsalRaporKartiState extends State<_KurumsalRaporKarti> {
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
             color: zorunlu && raporlar.isEmpty
-                ? Colors.red
-                : Colors.grey.shade300),
+                ? context.renkler.tehlike
+                : context.renkler.girdiKenarlik),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('🏢 Kurumsal Ekspertiz Raporu',
+            const Text('Kurumsal Ekspertiz Raporu',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             if (zorunlu) ...[
@@ -201,8 +204,8 @@ class _KurumsalRaporKartiState extends State<_KurumsalRaporKarti> {
             for (final medya in raporlar)
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: Icon(medya.pdfMi ? Icons.picture_as_pdf : Icons.image,
-                    color: Colors.redAccent),
+                leading: Icon(medya.pdfMi ? LucideIcons.fileText : LucideIcons.image,
+                    color: context.renkler.tehlike),
                 title: Text(medya.dosyaAdi ?? 'Kurumsal rapor'),
                 subtitle: Text(
                   medya.olusturulma == null
@@ -213,7 +216,7 @@ class _KurumsalRaporKartiState extends State<_KurumsalRaporKarti> {
                 onTap: () => _ac(medya),
                 trailing: duzenlenebilir
                     ? IconButton(
-                        icon: const Icon(Icons.delete_outline),
+                        icon: const Icon(LucideIcons.trash2),
                         onPressed: () async {
                           final messenger = ScaffoldMessenger.of(context);
                           try {
@@ -238,12 +241,12 @@ class _KurumsalRaporKartiState extends State<_KurumsalRaporKarti> {
                             width: 16,
                             height: 16,
                             child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.upload_file),
+                        : const Icon(LucideIcons.fileUp),
                     label: const Text('PDF / Dosya Ekle'),
                   ),
                   OutlinedButton.icon(
                     onPressed: yukleniyor ? null : _fotografCek,
-                    icon: const Icon(Icons.document_scanner_outlined),
+                    icon: const Icon(LucideIcons.scanLine),
                     label: const Text('Kağıt Raporu Fotoğrafla'),
                   ),
                 ],
@@ -320,7 +323,7 @@ class _BelgeKontrolu extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('📁 Belge Kontrolü',
+            const Text('Belge Kontrolü',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             satir('Ruhsat', m.ruhsatDosyasiVar,
                 (v) => provider.updateAdim5(m.copyWith(ruhsatDosyasiVar: v))),
@@ -391,7 +394,7 @@ class _MekanikOzet extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('⚙️ Mekanik Özet (opsiyonel)',
+            const Text('Mekanik Özet (opsiyonel)',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const Text('Kurumsal rapordaki veya test sürüşündeki sonuçlar.',
                 style: TextStyle(fontSize: 12)),
@@ -409,7 +412,7 @@ class _MekanikOzet extends StatelessWidget {
                         label: Text(KontrolDurumu.etiket(s)),
                         selected: secili,
                         selectedColor:
-                            KontrolDurumu.renk(s).withValues(alpha: .25),
+                            DurumSecenekleri.kontrol.temaRengi(context, s).withValues(alpha: .25),
                         onSelected: duzenlenebilir
                             ? (_) => onChanged(secili ? null : s)
                             : null,
@@ -454,7 +457,7 @@ class _PersonelDegerlendirmesi extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('📝 Personel Değerlendirmesi',
+            const Text('Personel Değerlendirmesi',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Text(
@@ -499,13 +502,13 @@ class _GonderimOzeti extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<ExpertizProvider>();
     return Card(
-      color: YerimeBakColors.lightGray,
+      color: context.renkler.yuzeyIkincil,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('📤 Gönderim Özeti',
+            const Text('Gönderim Özeti',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             for (var step = 1; step <= 5; step++)
@@ -514,10 +517,10 @@ class _GonderimOzeti extends StatelessWidget {
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(
                   provider.adimGecerli(step)
-                      ? Icons.check_circle
-                      : Icons.error_outline,
+                      ? LucideIcons.circleCheck
+                      : LucideIcons.circleAlert,
                   color:
-                      provider.adimGecerli(step) ? Colors.green : Colors.orange,
+                      provider.adimGecerli(step) ? context.renkler.birincilMetin : context.renkler.uyari,
                 ),
                 title: Text('$step. ${ExpertizProvider.stepTitles[step - 1]}'),
                 subtitle: provider.adimGecerli(step)

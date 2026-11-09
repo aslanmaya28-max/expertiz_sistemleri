@@ -5,11 +5,12 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
+import 'package:yerimebak_sistemleri/bilesenler/bilesenler.dart';
 import 'package:provider/provider.dart';
 import '../services/yerimebak_expertiz_api_service.dart';
 import '../providers/user_provider.dart';
-import '../core/theme/futuristic_theme.dart';
-import '../core/widgets/glass_card.dart';
 import '../models/ai_analysis_result.dart';
 
 class AnalysisHistoryScreen extends StatefulWidget {
@@ -49,7 +50,8 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
       }
 
       final response = await YerimebakExpertizApiService().getMyRequests();
-      final rows = (response['requests'] as List? ?? const []).whereType<Map>().map((r) {
+      final rows =
+          (response['requests'] as List? ?? const []).whereType<Map>().map((r) {
         final vehicle = r['vehicle'] is Map ? r['vehicle'] as Map : const {};
         return <String, dynamic>{
           'id': r['report_id'] ?? r['id'],
@@ -84,7 +86,7 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(LucideIcons.refreshCw),
             onPressed: _loadAnalyses,
           ),
         ],
@@ -95,7 +97,7 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Padding(padding: EdgeInsets.all(24), child: Column(children: [YbIskelet(height: 80), SizedBox(height: 16), YbIskelet(height: 80), SizedBox(height: 16), YbIskelet(height: 80)]));
     }
 
     if (_error != null) {
@@ -105,16 +107,19 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              Icon(LucideIcons.circleAlert,
+                  size: 64, color: context.renkler.tehlike),
               const SizedBox(height: 16),
               Text(
                 'Veri yüklenemedi',
-                style: TextStyle(color: Colors.white70, fontSize: 18),
+                style: TextStyle(
+                    color: context.renkler.metinIkincil, fontSize: 18),
               ),
               const SizedBox(height: 8),
               Text(
                 _error!,
-                style: TextStyle(color: Colors.white38, fontSize: 12),
+                style: TextStyle(
+                    color: context.renkler.metinIkincil, fontSize: 13),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
@@ -133,16 +138,19 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.analytics_outlined, size: 80, color: Colors.white.withValues(alpha: 0.15)),
+            Icon(LucideIcons.chartNoAxesCombined,
+                size: 80, color: context.renkler.metin.withValues(alpha: 0.15)),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Henüz analiz bulunmuyor',
-              style: TextStyle(color: Colors.white54, fontSize: 18),
+              style:
+                  TextStyle(color: context.renkler.metinIkincil, fontSize: 18),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Yeni bir ekspertiz talebi oluşturarak\nAI analizinden faydalanabilirsiniz',
-              style: TextStyle(color: Colors.white38, fontSize: 13),
+              style:
+                  TextStyle(color: context.renkler.metinIkincil, fontSize: 13),
               textAlign: TextAlign.center,
             ),
           ],
@@ -170,7 +178,7 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
     final yil = analysis['yil']?.toString() ?? '';
     final status = analysis['status']?.toString() ?? 'Bilinmiyor';
     final createdAt = analysis['created_at']?.toString() ?? '';
-    
+
     // AI analiz sonucu varsa puanı göster
     double? aiScore;
     if (analysis['ai_analysis_result'] != null) {
@@ -182,11 +190,12 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
       } catch (_) {}
     }
 
-    final aracBilgi = [marka, model, yil].where((s) => s.isNotEmpty).join(' - ');
+    final aracBilgi =
+        [marka, model, yil].where((s) => s.isNotEmpty).join(' - ');
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: GlassCard(
+      child: YbKart(
         child: InkWell(
           onTap: () {
             // TODO: Analiz detayına git
@@ -201,12 +210,12 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: FuturisticTheme.neon.withValues(alpha: 0.15),
+                    color: context.renkler.birincil.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
-                    Icons.directions_car,
-                    color: FuturisticTheme.neon,
+                  child: Icon(
+                    LucideIcons.car,
+                    color: context.renkler.birincil,
                     size: 28,
                   ),
                 ),
@@ -218,8 +227,8 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
                     children: [
                       Text(
                         plaka,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: context.renkler.metin,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -227,8 +236,8 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
                       if (aracBilgi.isNotEmpty)
                         Text(
                           aracBilgi,
-                          style: const TextStyle(
-                            color: Colors.white54,
+                          style: TextStyle(
+                            color: context.renkler.metinIkincil,
                             fontSize: 13,
                           ),
                         ),
@@ -240,9 +249,9 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
                           if (createdAt.isNotEmpty)
                             Text(
                               _formatDate(createdAt),
-                              style: const TextStyle(
-                                color: Colors.white38,
-                                fontSize: 11,
+                              style: TextStyle(
+                                color: context.renkler.metinIkincil,
+                                fontSize: 13,
                               ),
                             ),
                         ],
@@ -274,7 +283,7 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
                     ),
                   ),
                 const SizedBox(width: 8),
-                const Icon(Icons.chevron_right, color: Colors.white24),
+                Icon(LucideIcons.chevronRight, color: context.renkler.kenarlik),
               ],
             ),
           ),
@@ -287,19 +296,19 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
     Color color;
     switch (status.toLowerCase()) {
       case 'published':
-        color = Colors.green;
+        color = context.renkler.birincilMetin;
         break;
       case 'pending':
-        color = Colors.orange;
+        color = context.renkler.uyari;
         break;
       case 'in_progress':
-        color = Colors.blue;
+        color = context.renkler.birincil;
         break;
       case 'completed':
-        color = FuturisticTheme.neon;
+        color = context.renkler.birincil;
         break;
       default:
-        color = Colors.grey;
+        color = context.renkler.metinIkincil;
     }
 
     return Container(
@@ -313,7 +322,7 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
         status,
         style: TextStyle(
           color: color,
-          fontSize: 11,
+          fontSize: 13,
           fontWeight: FontWeight.bold,
         ),
       ),
@@ -321,9 +330,9 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
   }
 
   Color _getScoreColor(double score) {
-    if (score >= 71) return Colors.green;
-    if (score >= 41) return Colors.orange;
-    return Colors.red;
+    if (score >= 71) return context.renkler.birincilMetin;
+    if (score >= 41) return context.renkler.uyari;
+    return context.renkler.tehlike;
   }
 
   String _formatDate(String isoDate) {

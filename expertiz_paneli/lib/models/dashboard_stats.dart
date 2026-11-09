@@ -1,37 +1,88 @@
 /// DASHBOARD STATS MODELS
-/// 
+///
 /// FAZ-4.0 / Phase 4 - Real-time Dashboard Data Models
-/// 
+///
 /// 🎯 PURPOSE:
 /// Type-safe data models for dashboard statistics and metrics.
 /// All models are immutable and support JSON serialization.
-/// 
+///
 /// 🪨 PRINCIPLE:
 /// "Type safety prevents runtime errors in critical admin operations."
 library;
 
+/// İstanbul günlerine göre sunucunun hesapladığı yönetim özeti.
+class DashboardOzet {
+  final Map<String, num> musteriler;
+  final Map<String, num> degerlemeler;
+  final Map<String, num> krediSatisi;
+  final Map<String, num> ekspertiz;
+  final List<DashboardGun> gunluk;
+  const DashboardOzet(
+      {required this.musteriler,
+      required this.degerlemeler,
+      required this.krediSatisi,
+      required this.ekspertiz,
+      required this.gunluk});
+
+  static Map<String, num> _sayilar(dynamic raw) => raw is Map
+      ? {
+          for (final e in raw.entries)
+            if (e.value is num) '${e.key}': e.value as num
+        }
+      : {};
+
+  static DashboardOzet? fromResponse(Map<String, dynamic> response) {
+    final raw = response['ozet'];
+    if (raw is! Map) return null;
+    return DashboardOzet(
+        musteriler: _sayilar(raw['musteriler']),
+        degerlemeler: _sayilar(raw['degerlemeler']),
+        krediSatisi: _sayilar(raw['kredi_satisi']),
+        ekspertiz: _sayilar(raw['ekspertiz']),
+        gunluk: [
+          for (final day
+              in raw['gunluk'] is List ? raw['gunluk'] as List : const [])
+            if (day is Map && DateTime.tryParse('${day['tarih']}') != null)
+              DashboardGun(
+                  tarih: DateTime.parse('${day['tarih']}'),
+                  degerleme: (day['degerleme'] as num?)?.toDouble() ?? 0,
+                  yeniMusteri: (day['yeni_musteri'] as num?)?.toDouble() ?? 0),
+        ]);
+  }
+}
+
+class DashboardGun {
+  final DateTime tarih;
+  final double degerleme;
+  final double yeniMusteri;
+  const DashboardGun(
+      {required this.tarih,
+      required this.degerleme,
+      required this.yeniMusteri});
+}
+
 /// Dashboard Statistics
-/// 
+///
 /// Core metrics for the admin dashboard
 class DashboardStats {
   /// Total number of vehicles in the system
   final int totalVehicles;
-  
+
   /// Number of active reports (not archived)
   final int activeReports;
-  
+
   /// Total number of personnel users
   final int personnelCount;
-  
+
   /// Total number of customer users
   final int customerCount;
-  
+
   /// Total number of reports (all statuses)
   final int totalReports;
-  
+
   /// Number of reports published today
   final int todayPublished;
-  
+
   /// Number of reports submitted today
   final int todaySubmitted;
 
@@ -93,17 +144,17 @@ class DashboardStats {
   @override
   String toString() {
     return 'DashboardStats(vehicles: $totalVehicles, reports: $activeReports, '
-           'personnel: $personnelCount, customers: $customerCount)';
+        'personnel: $personnelCount, customers: $customerCount)';
   }
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is DashboardStats &&
-           other.totalVehicles == totalVehicles &&
-           other.activeReports == activeReports &&
-           other.personnelCount == personnelCount &&
-           other.customerCount == customerCount;
+        other.totalVehicles == totalVehicles &&
+        other.activeReports == activeReports &&
+        other.personnelCount == personnelCount &&
+        other.customerCount == customerCount;
   }
 
   @override
@@ -118,21 +169,21 @@ class DashboardStats {
 }
 
 /// Status Distribution
-/// 
+///
 /// Breakdown of reports by their current status
 class StatusDistribution {
   /// Number of draft reports
   final int draft;
-  
+
   /// Number of reports pending AI analysis
   final int pendingAi;
-  
+
   /// Number of reports pending admin approval
   final int pendingAdmin;
-  
+
   /// Number of published reports
   final int published;
-  
+
   /// Number of rejected reports
   final int rejected;
 
@@ -194,18 +245,18 @@ class StatusDistribution {
   @override
   String toString() {
     return 'StatusDistribution(draft: $draft, pendingAI: $pendingAi, '
-           'pendingAdmin: $pendingAdmin, published: $published, rejected: $rejected)';
+        'pendingAdmin: $pendingAdmin, published: $published, rejected: $rejected)';
   }
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is StatusDistribution &&
-           other.draft == draft &&
-           other.pendingAi == pendingAi &&
-           other.pendingAdmin == pendingAdmin &&
-           other.published == published &&
-           other.rejected == rejected;
+        other.draft == draft &&
+        other.pendingAi == pendingAi &&
+        other.pendingAdmin == pendingAdmin &&
+        other.published == published &&
+        other.rejected == rejected;
   }
 
   @override
@@ -215,7 +266,7 @@ class StatusDistribution {
 }
 
 /// Report Status Enum
-/// 
+///
 /// MUST match FAZ-3.0 ReportStatus enum exactly
 enum Status {
   draft,
@@ -266,30 +317,30 @@ enum Status {
 }
 
 /// Recent Activity
-/// 
+///
 /// Represents a single activity in the dashboard timeline
 class RecentActivity {
   /// Unique identifier
   final String id;
-  
+
   /// Activity type (report_created, status_changed, etc.)
   final ActivityType type;
-  
+
   /// Activity title
   final String title;
-  
+
   /// Activity description
   final String description;
-  
+
   /// User who performed the action
   final String? userId;
-  
+
   /// User's display name
   final String? userName;
-  
+
   /// Related report ID (if applicable)
   final String? reportId;
-  
+
   /// Timestamp when activity occurred
   final DateTime timestamp;
 
@@ -314,7 +365,8 @@ class RecentActivity {
       userId: data['user_id'] as String?,
       userName: data['user_name'] as String?,
       reportId: data['report_id'] as String?,
-      timestamp: DateTime.parse(data['timestamp'] as String? ?? DateTime.now().toIso8601String()),
+      timestamp: DateTime.parse(
+          data['timestamp'] as String? ?? DateTime.now().toIso8601String()),
     );
   }
 

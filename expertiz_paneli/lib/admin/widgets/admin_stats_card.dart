@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../core/widgets/glass_card.dart';
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
+import 'package:yerimebak_sistemleri/bilesenler/bilesenler.dart';
 
 /// Admin Dashboard İstatistik Kartı Widget'ı
 /// Dashboard üzerindeki istatistikleri gösteren kompakt kartlar
@@ -21,7 +22,7 @@ class AdminStatsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassCard(
+    return YbKart(
       padding: const EdgeInsets.all(12),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -42,7 +43,9 @@ class AdminStatsCard extends StatelessWidget {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: isDarkMode ? Colors.white : Colors.white.withValues(alpha: 0.9), // Dark text on glass might be hard to read if background is dark. 
+              color: context.renkler.metin.withValues(
+                  alpha:
+                      0.9), // Dark text on glass might be hard to read if background is dark.
               // Since background is Deep Space (Dark), standard text should be White.
               // I will force white text since the background is dark now.
             ),
@@ -51,8 +54,10 @@ class AdminStatsCard extends StatelessWidget {
           Text(
             title,
             style: TextStyle(
-              fontSize: 11,
-              color: isDarkMode ? Colors.grey[400] : Colors.white.withValues(alpha: 0.6),
+              fontSize: 13,
+              color: isDarkMode
+                  ? context.renkler.metinIkincil
+                  : context.renkler.metin.withValues(alpha: 0.6),
             ),
           ),
         ],

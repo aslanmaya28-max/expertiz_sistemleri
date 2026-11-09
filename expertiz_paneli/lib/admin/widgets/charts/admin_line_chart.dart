@@ -1,23 +1,23 @@
 /// ADMIN LINE CHART
-/// 
+///
 /// FAZ-5.0 / Phase 5 - Visual BI & KPI Cockpit
-/// 
-/// 🎯 PURPOSE:
-/// Forensic-themed line chart with gradient fill, anomaly detection,
+///
+///  PURPOSE:
 /// and interactive tooltips for trend visualization.
-/// 
-/// 🪨 PRINCIPLE:
+///
+///  PRINCIPLE:
 /// "Visual hierarchy directs attention to critical deviations."
 library;
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../../models/chart_data.dart';
 
 /// Admin Line Chart Widget
-/// 
+///
 /// Displays line charts with:
-/// - Gradient area fill
 /// - Anomaly detection (red highlight for Y < 70)
 /// - Interactive tooltips
 /// - Dark mode support
@@ -25,7 +25,7 @@ class AdminLineChart extends StatelessWidget {
   final List<ChartData> data;
   final String title;
   final String yAxisLabel;
-  final Color primaryColor;
+  final Color? primaryColor;
   final bool isDarkMode;
   final ChartConfig config;
   final double? anomalyThreshold;
@@ -36,7 +36,7 @@ class AdminLineChart extends StatelessWidget {
     required this.data,
     required this.title,
     this.yAxisLabel = '',
-    this.primaryColor = ForensicChartColors.neonCyan,
+    this.primaryColor,
     this.isDarkMode = true,
     this.config = ChartConfig.defaultConfig,
     this.anomalyThreshold,
@@ -46,35 +46,36 @@ class AdminLineChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (data.isEmpty) {
-      return _buildEmptyState();
+      return _buildEmptyState(context);
     }
 
     final threshold = anomalyThreshold ?? config.anomalyThreshold;
     final hasAnomalies = data.any((d) => d.y < threshold);
 
     return Card(
-      elevation: 4,
-      color: isDarkMode ? ForensicChartColors.backgroundDark : ForensicChartColors.backgroundLight,
+      elevation: 0,
+      color: context.renkler.yuzey,
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
-            _buildHeader(hasAnomalies, threshold),
+            _buildHeader(context, hasAnomalies, threshold),
             const SizedBox(height: 20),
 
             // Chart
             AspectRatio(
               aspectRatio: 2.0,
               child: LineChart(
-                _buildLineChartData(threshold),
-                duration: config.animate ? config.animationDuration : Duration.zero,
+                _buildLineChartData(context, threshold),
+                duration:
+                    config.animate ? config.animationDuration : Duration.zero,
               ),
             ),
 
             // Legend
-            if (hasAnomalies) _buildAnomalyLegend(threshold),
+            if (hasAnomalies) _buildAnomalyLegend(context, threshold),
           ],
         ),
       ),
@@ -82,7 +83,8 @@ class AdminLineChart extends StatelessWidget {
   }
 
   /// Build header
-  Widget _buildHeader(bool hasAnomalies, double threshold) {
+  Widget _buildHeader(
+      BuildContext context, bool hasAnomalies, double threshold) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -95,15 +97,15 @@ class AdminLineChart extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: isDarkMode ? Colors.white : const Color(0xFF111827),
+                  color: context.renkler.metin,
                 ),
               ),
               if (hasAnomalies)
                 Text(
-                  '⚠️ Eşik değerin altında (%${threshold.toStringAsFixed(0)})',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: ForensicChartColors.deepOrange,
+                  ' Eşik değerin altında (%${threshold.toStringAsFixed(0)})',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: context.renkler.vurgu,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -111,16 +113,16 @@ class AdminLineChart extends StatelessWidget {
           ),
         ),
         IconButton(
-          icon: const Icon(Icons.info_outline),
+          icon: const Icon(LucideIcons.info),
           onPressed: onTap,
-          color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
+          color: context.renkler.metinIkincil,
         ),
       ],
     );
   }
 
   /// Build line chart data
-  LineChartData _buildLineChartData(double threshold) {
+  LineChartData _buildLineChartData(BuildContext context, double threshold) {
     final spots = data.asMap().entries.map((entry) {
       return FlSpot(
         entry.key.toDouble(),
@@ -131,16 +133,14 @@ class AdminLineChart extends StatelessWidget {
     final minY = data.map((d) => d.y).reduce((a, b) => a < b ? a : b);
     final maxY = data.map((d) => d.y).reduce((a, b) => a > b ? a : b);
     final yRange = maxY - minY;
-    
+
     return LineChartData(
       gridData: FlGridData(
         show: config.showGridLines,
         drawVerticalLine: false,
         getDrawingHorizontalLine: (value) {
           return FlLine(
-            color: isDarkMode 
-                ? ForensicChartColors.gridLineDark 
-                : ForensicChartColors.gridLineLight,
+            color: isDarkMode ? context.renkler.yuzey : context.renkler.yuzey,
             strokeWidth: 1,
           );
         },
@@ -166,8 +166,8 @@ class AdminLineChart extends StatelessWidget {
                   child: Text(
                     data[index].label,
                     style: TextStyle(
-                      color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
-                      fontSize: 10,
+                      color: context.renkler.metinIkincil,
+                      fontSize: 13,
                     ),
                   ),
                 );
@@ -185,8 +185,8 @@ class AdminLineChart extends StatelessWidget {
               return Text(
                 value.toStringAsFixed(0),
                 style: TextStyle(
-                  color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
-                  fontSize: 10,
+                  color: context.renkler.metinIkincil,
+                  fontSize: 13,
                 ),
               );
             },
@@ -204,12 +204,7 @@ class AdminLineChart extends StatelessWidget {
         LineChartBarData(
           spots: spots,
           isCurved: true,
-          gradient: LinearGradient(
-            colors: [
-              primaryColor.withValues(alpha: 0.8),
-              primaryColor.withValues(alpha: 0.4),
-            ],
-          ),
+          color: context.renkler.birincil,
           barWidth: 3,
           isStrokeCapRound: true,
           dotData: FlDotData(
@@ -220,33 +215,25 @@ class AdminLineChart extends StatelessWidget {
 
               return FlDotCirclePainter(
                 radius: isAnomaly ? 6 : 4,
-                color: isAnomaly 
-                    ? ForensicChartColors.deepOrange 
-                    : primaryColor,
+                color: isAnomaly
+                    ? context.renkler.vurgu
+                    : (primaryColor ?? context.renkler.birincil),
                 strokeWidth: 2,
-                strokeColor: isDarkMode 
-                    ? ForensicChartColors.backgroundDark 
-                    : Colors.white,
+                strokeColor:
+                    isDarkMode ? context.renkler.yuzey : context.renkler.metin,
               );
             },
           ),
           belowBarData: BarAreaData(
             show: true,
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                primaryColor.withValues(alpha: 0.3),
-                primaryColor.withValues(alpha: 0.05),
-              ],
-            ),
+            color: context.renkler.birincil,
           ),
         ),
       ],
       lineTouchData: LineTouchData(
         enabled: config.showTooltips,
         touchTooltipData: LineTouchTooltipData(
-          getTooltipColor: (touchedSpot) => ForensicChartColors.tooltipBackground,
+          getTooltipColor: (touchedSpot) => context.renkler.yuzey,
           getTooltipItems: (touchedSpots) {
             return touchedSpots.map((spot) {
               final index = spot.x.toInt();
@@ -258,13 +245,13 @@ class AdminLineChart extends StatelessWidget {
                 return LineTooltipItem(
                   '${dataPoint.label}\n'
                   'Değer: ${value.toStringAsFixed(1)}\n'
-                  '${isAnomaly ? '⚠️ Anomali!' : ''}',
+                  '${isAnomaly ? ' Anomali!' : ''}',
                   TextStyle(
-                    color: isAnomaly 
-                        ? ForensicChartColors.deepOrange 
-                        : ForensicChartColors.tooltipText,
+                    color: isAnomaly
+                        ? context.renkler.vurgu
+                        : context.renkler.metin,
                     fontWeight: FontWeight.bold,
-                    fontSize: 12,
+                    fontSize: 13,
                   ),
                 );
               }
@@ -286,7 +273,7 @@ class AdminLineChart extends StatelessWidget {
   }
 
   /// Build anomaly legend
-  Widget _buildAnomalyLegend(double threshold) {
+  Widget _buildAnomalyLegend(BuildContext context, double threshold) {
     return Padding(
       padding: const EdgeInsets.only(top: 16),
       child: Row(
@@ -294,8 +281,8 @@ class AdminLineChart extends StatelessWidget {
           Container(
             width: 12,
             height: 12,
-            decoration: const BoxDecoration(
-              color: ForensicChartColors.deepOrange,
+            decoration: BoxDecoration(
+              color: context.renkler.vurgu,
               shape: BoxShape.circle,
             ),
           ),
@@ -303,8 +290,8 @@ class AdminLineChart extends StatelessWidget {
           Text(
             'Anomali (Eşik: %${threshold.toStringAsFixed(0)})',
             style: TextStyle(
-              color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
-              fontSize: 12,
+              color: context.renkler.metinIkincil,
+              fontSize: 13,
             ),
           ),
         ],
@@ -313,25 +300,25 @@ class AdminLineChart extends StatelessWidget {
   }
 
   /// Build empty state
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
     return Card(
-      elevation: 4,
-      color: isDarkMode ? ForensicChartColors.backgroundDark : ForensicChartColors.backgroundLight,
+      elevation: 0,
+      color: context.renkler.yuzey,
       child: Padding(
         padding: const EdgeInsets.all(40),
         child: Center(
           child: Column(
             children: [
               Icon(
-                Icons.show_chart,
+                LucideIcons.chartLine,
                 size: 64,
-                color: isDarkMode ? Colors.grey[600] : Colors.grey[400],
+                color: context.renkler.metinIkincil,
               ),
               const SizedBox(height: 16),
               Text(
                 'Veri bulunamadı',
                 style: TextStyle(
-                  color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                  color: context.renkler.metinIkincil,
                   fontSize: 16,
                 ),
               ),

@@ -5,11 +5,12 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
+import 'package:yerimebak_sistemleri/bilesenler/bilesenler.dart';
 import 'package:provider/provider.dart';
 import '../services/yerimebak_expertiz_api_service.dart';
 import '../providers/user_provider.dart';
-import '../core/theme/futuristic_theme.dart';
-import '../core/widgets/glass_card.dart';
 import '../core/mappers/location_mapper.dart';
 import '../core/constants/location_data.dart';
 
@@ -29,7 +30,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   final _vergiDaireController = TextEditingController();
   final _vergiNoController = TextEditingController();
   final _adresController = TextEditingController();
-  
+
   int _selectedIlId = 0;
   String _selectedIlce = '';
   bool _isSaving = false;
@@ -54,7 +55,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     _adresController.text = user.address ?? '';
     // Fatura bilgileri merkezi profilden
     _api.getMyProfile().then((response) {
-      final profile = response['profile'] is Map ? Map<String, dynamic>.from(response['profile'] as Map) : const <String, dynamic>{};
+      final profile = response['profile'] is Map
+          ? Map<String, dynamic>.from(response['profile'] as Map)
+          : const <String, dynamic>{};
       if (!mounted) return;
       setState(() {
         _firmaController.text = profile['company_name']?.toString() ?? '';
@@ -83,7 +86,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       final userId = userProvider.userId;
       if (userId == null) throw Exception('Oturum bulunamadı');
 
-      final il = LocationData.cities.where((c) => c.plakaKodu == _selectedIlId).map((c) => c.ilAdi).firstOrNull;
+      final il = LocationData.cities
+          .where((c) => c.plakaKodu == _selectedIlId)
+          .map((c) => c.ilAdi)
+          .firstOrNull;
       await _api.updateMyProfile({
         'full_name': _adSoyadController.text.trim(),
         'phone': _telefonController.text.trim(),
@@ -99,9 +105,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Profil başarıyla güncellendi'),
-          backgroundColor: Colors.green,
+          backgroundColor: context.renkler.birincilMetin,
         ),
       );
       Navigator.pop(context);
@@ -111,7 +117,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Kayıt hatası: $e'),
-          backgroundColor: Colors.red,
+          backgroundColor: context.renkler.tehlike,
         ),
       );
     } finally {
@@ -158,16 +164,16 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // KİŞİSEL BİLGİLER
-              GlassCard(
+              YbKart(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Kişisel Bilgiler',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: context.renkler.metin,
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -175,16 +181,17 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       controller: _adSoyadController,
                       decoration: const InputDecoration(
                         labelText: 'Ad Soyad',
-                        prefixIcon: Icon(Icons.person),
+                        prefixIcon: Icon(LucideIcons.user),
                       ),
-                      validator: (v) => v == null || v.isEmpty ? 'Zorunlu' : null,
+                      validator: (v) =>
+                          v == null || v.isEmpty ? 'Zorunlu' : null,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _telefonController,
                       decoration: const InputDecoration(
                         labelText: 'Telefon',
-                        prefixIcon: Icon(Icons.phone),
+                        prefixIcon: Icon(LucideIcons.phone),
                       ),
                       keyboardType: TextInputType.phone,
                     ),
@@ -193,7 +200,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       controller: _adresController,
                       decoration: const InputDecoration(
                         labelText: 'Adres',
-                        prefixIcon: Icon(Icons.location_on),
+                        prefixIcon: Icon(LucideIcons.mapPin),
                       ),
                       maxLines: 3,
                     ),
@@ -203,16 +210,16 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               const SizedBox(height: 20),
 
               // KONUM BİLGİLERİ
-              GlassCard(
+              YbKart(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Konum Bilgileri',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: context.renkler.metin,
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -221,7 +228,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       initialValue: _selectedIlId > 0 ? _selectedIlId : null,
                       decoration: const InputDecoration(
                         labelText: 'İl',
-                        prefixIcon: Icon(Icons.location_city),
+                        prefixIcon: Icon(LucideIcons.building2),
                       ),
                       items: LocationData.cities.map((city) {
                         return DropdownMenuItem<int>(
@@ -239,10 +246,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     const SizedBox(height: 16),
                     // İlçe Seçimi - Dropdown
                     DropdownButtonFormField<String>(
-                      initialValue: _selectedIlce.isNotEmpty ? _selectedIlce : null,
+                      initialValue:
+                          _selectedIlce.isNotEmpty ? _selectedIlce : null,
                       decoration: const InputDecoration(
                         labelText: 'İlçe',
-                        prefixIcon: Icon(Icons.map),
+                        prefixIcon: Icon(LucideIcons.map),
                       ),
                       items: _getIlceler().map((ilce) {
                         return DropdownMenuItem<String>(
@@ -260,16 +268,16 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               const SizedBox(height: 20),
 
               // FİRMA BİLGİLERİ (Kurumsal Müşteri)
-              GlassCard(
+              YbKart(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Firma Bilgileri (Opsiyonel)',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: context.renkler.metin,
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -277,7 +285,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       controller: _firmaController,
                       decoration: const InputDecoration(
                         labelText: 'Firma Adı',
-                        prefixIcon: Icon(Icons.business),
+                        prefixIcon: Icon(LucideIcons.building2),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -285,7 +293,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       controller: _vergiDaireController,
                       decoration: const InputDecoration(
                         labelText: 'Vergi Dairesi',
-                        prefixIcon: Icon(Icons.receipt),
+                        prefixIcon: Icon(LucideIcons.receipt),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -293,7 +301,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       controller: _vergiNoController,
                       decoration: const InputDecoration(
                         labelText: 'Vergi Numarası',
-                        prefixIcon: Icon(Icons.numbers),
+                        prefixIcon: Icon(LucideIcons.hash),
                       ),
                       keyboardType: TextInputType.number,
                     ),
@@ -307,7 +315,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Text(
                     'Hata: $_error',
-                    style: const TextStyle(color: Colors.red),
+                    style: TextStyle(color: context.renkler.tehlike),
                   ),
                 ),
 
@@ -318,12 +326,13 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 child: ElevatedButton(
                   onPressed: _isSaving ? null : _saveProfile,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: FuturisticTheme.neon,
-                    foregroundColor: Colors.white,
+                    backgroundColor: context.renkler.birincil,
+                    foregroundColor: context.renkler.metin,
                   ),
                   child: _isSaving
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Profili Kaydet', style: TextStyle(fontSize: 16)),
+                      ? CircularProgressIndicator(color: context.renkler.metin)
+                      : const Text('Profili Kaydet',
+                          style: TextStyle(fontSize: 16)),
                 ),
               ),
             ],

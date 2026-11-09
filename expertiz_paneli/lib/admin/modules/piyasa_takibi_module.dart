@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:yerimebak_sistemleri/bilesenler/bilesenler.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intl/intl.dart';
 
 import '../../services/yerimebak_expertiz_api_service.dart';
@@ -209,7 +211,7 @@ class _PiyasaTakibiModuleState extends State<PiyasaTakibiModule> {
                 DataCell(IconButton(
                   key: Key('removeMarketRow-$i'),
                   tooltip: 'Satırı çıkar',
-                  icon: const Icon(Icons.remove_circle_outline),
+                  icon: const Icon(LucideIcons.circleMinus),
                   onPressed:
                       _busy ? null : () => setState(() => _rows.removeAt(i)),
                 )),
@@ -230,7 +232,7 @@ class _PiyasaTakibiModuleState extends State<PiyasaTakibiModule> {
             'Yalnız rakamlar saklanır; ilan başlığı, açıklama, fotoğraf, satıcı ve link kaydedilmez. '
             'Bu veriler müşteriye tek tek gösterilmez.'),
         const SizedBox(height: 16),
-        Card(
+        YbKart(padding: EdgeInsets.zero,
             child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -243,7 +245,7 @@ class _PiyasaTakibiModuleState extends State<PiyasaTakibiModule> {
                         'arayıp sonuç listesini aşağıya yapıştırın.'),
                     TextButton.icon(
                         onPressed: _loading || _busy ? null : _loadGaps,
-                        icon: const Icon(Icons.refresh),
+                        icon: const Icon(LucideIcons.refreshCw),
                         label: const Text('Yenile')),
                     if (_loading) const LinearProgressIndicator(),
                     if (_gapsError != null) _errorText(_gapsError!),
@@ -253,7 +255,7 @@ class _PiyasaTakibiModuleState extends State<PiyasaTakibiModule> {
                   ],
                 ))),
         const SizedBox(height: 16),
-        Card(
+        YbKart(padding: EdgeInsets.zero,
             child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(

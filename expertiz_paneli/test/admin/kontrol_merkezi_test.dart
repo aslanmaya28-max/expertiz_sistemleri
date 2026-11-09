@@ -71,10 +71,15 @@ void main() {
     expect(find.text('10.11.2026 10:30'), findsOneWidget);
     expect(find.text('10.11.2026 15:00'), findsOneWidget);
     // 'a' randevuya 30 dk kala hâlâ 'atandı' → uyarı; 'b' yolda ve 5 saat var → uyarı yok
-    expect(find.text('Randevuya 1 saatten az kaldı, personel yola çıkmadı'), findsOneWidget);
+    expect(find.byTooltip('Randevuya 1 saatten az kaldı, personel yola çıkmadı'), findsOneWidget);
     // Numarası olmayan düğmeler pasif (b'nin satıcı telefonu, personel telefonu boş)
     expect(tester.widget<ButtonStyleButton>(find.byKey(const Key('ara-satici-b'))).onPressed, isNull);
     expect(tester.widget<ButtonStyleButton>(find.byKey(const Key('ara-personel-a'))).onPressed, isNull);
+
+    await tester.tap(find.widgetWithText(FilterChip, '1 saatten az kaldı'));
+    await tester.pumpAndSettle();
+    expect(find.text('10.11.2026 10:30'), findsOneWidget);
+    expect(find.text('10.11.2026 15:00'), findsNothing);
 
     await tester.tap(find.byKey(const Key('ara-musteri-a')));
     await tester.pumpAndSettle();

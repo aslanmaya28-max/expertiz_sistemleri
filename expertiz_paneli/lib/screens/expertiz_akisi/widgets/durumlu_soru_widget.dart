@@ -1,3 +1,5 @@
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -83,16 +85,16 @@ class _DurumluSoruWidgetState extends State<DurumluSoruWidget> {
                   children: Durum.values.map((status) {
                     final selected = widget.soru.durum == status;
                     final color = switch (status) {
-                      Durum.mukemmel || Durum.iyi => const Color(0xFF2E7D32),
-                      Durum.orta || Durum.sorunlu => const Color(0xFF9A3412),
-                      Durum.kotu || Durum.agirHasar => const Color(0xFFB91C1C),
+                      Durum.mukemmel || Durum.iyi => context.renkler.birincilMetin,
+                      Durum.orta || Durum.sorunlu => context.renkler.uyari,
+                      Durum.kotu || Durum.agirHasar => context.renkler.tehlike,
                     };
                     return ChoiceChip(
                       label: Text(status.displayName),
                       selected: selected,
                       selectedColor: color.withValues(alpha: .14),
                       side: BorderSide(
-                          color: selected ? color : const Color(0xFF64748B)),
+                          color: selected ? color : context.renkler.girdiKenarlik),
                       labelStyle: TextStyle(
                           color: scheme.onSurface,
                           fontWeight:
@@ -132,16 +134,16 @@ class _DurumluSoruWidgetState extends State<DurumluSoruWidget> {
                                         fit: BoxFit.cover,
                                         errorBuilder: (_, __, ___) =>
                                             const Icon(
-                                                Icons.broken_image_outlined))
+                                                LucideIcons.imageOff))
                                     : Image.file(File(photo),
                                         fit: BoxFit.cover,
                                         errorBuilder: (_, __, ___) =>
                                             const Icon(
-                                                Icons.broken_image_outlined)))),
+                                                LucideIcons.imageOff)))),
                       if (widget.enabled)
                         OutlinedButton.icon(
                             onPressed: _secFoto,
-                            icon: const Icon(Icons.photo_library_outlined),
+                            icon: const Icon(LucideIcons.images),
                             label: Text(photo == null
                                 ? 'Fotoğraf ekle'
                                 : 'Fotoğrafı değiştir')),
