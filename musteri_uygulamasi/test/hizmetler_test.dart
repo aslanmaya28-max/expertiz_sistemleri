@@ -11,7 +11,7 @@ import 'package:yerimebak/hizmetler/hizmet_dosyalari.dart';
 import 'api_client_test.dart' show MemoryTokens;
 
 void main() {
-  test('kapalı sunucu ayarı doğrudan talep göndermeyi de engeller', () async {
+  test('kapalı hizmet bölgesi doğrudan talep göndermeyi de engeller', () async {
     final calls = <String>[];
     final api = ApiClient(
       store: MemoryTokens()..token = 'valid',
@@ -25,7 +25,7 @@ void main() {
       HizmetRepository(api).talep({'firm_id': 'firma'}),
       throwsA(isA<ApiFailure>()),
     );
-    expect(calls, ['/api/v1/app/config']);
+    expect(calls, ['/api/v1/expertiz/service-area']);
   });
   test('eksik fiyat özeti ödeme adımına uygun teklif sayılmaz', () async {
     final api = ApiClient(
@@ -48,8 +48,12 @@ void main() {
         calls.add(r);
         return http.Response(
           jsonEncode(
-            r.url.path.endsWith('/config')
-                ? {'expertiz_enabled': true}
+            r.url.path.endsWith('/service-area')
+                ? {
+                    'cities': [
+                      {'il': 'İstanbul', 'talep_acabilir': true},
+                    ],
+                  }
                 : {
                     'order_id': 'order1',
                     'request_id': 'request1',
@@ -58,13 +62,16 @@ void main() {
                   },
           ),
           200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
         );
       }),
     );
     addTearDown(api.close);
-    final result = await HizmetRepository(
-      api,
-    ).talep({'firm_id': 'firma', 'contract_accepted': true});
+    final result = await HizmetRepository(api).talep({
+      'firm_id': 'firma',
+      'city': 'İstanbul',
+      'contract_accepted': true,
+    });
     expect(result['request_id'], 'request1');
     expect(calls.last.headers['authorization'], 'Bearer valid');
     expect(jsonDecode(calls.last.body)['contract_accepted'], true);

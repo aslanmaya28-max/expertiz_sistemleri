@@ -18,6 +18,7 @@ import 'oturum/session_controller.dart';
 import 'tema/tema.dart';
 import 'api/models.dart';
 import 'hizmetler/hizmet_tanitim.dart';
+import 'hizmetler/hizmet_api.dart';
 import 'hizmetler/talep_ekrani.dart';
 import 'hizmetler/odeme_ekrani.dart';
 import 'hizmetler/kayit_ekranlari.dart';
@@ -30,6 +31,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   final refresh = _RouterRefresh();
   ref.listen(sessionProvider, (_, _) => refresh.refresh());
   ref.listen(configProvider, (_, _) => refresh.refresh());
+  ref.listen(hizmetBolgesiProvider, (_, _) => refresh.refresh());
   ref.listen(versionProvider, (_, _) => refresh.refresh());
   final router = GoRouter(
     refreshListenable: refresh,
@@ -60,7 +62,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
       if ((path == '/ekspertiz/talep' ||
               path.startsWith('/ekspertiz/odeme/')) &&
-          !config.requireValue.expertizEnabled) {
+          !ref.read(hizmetBolgesiProvider).isLoading &&
+          !ref.read(hizmetBolgesiProvider).hasError &&
+          !ref.read(ekspertizAcikProvider)) {
         return '/yerinde-inceleme';
       }
       if (public || path == '/durum' || path == '/guncelle') return '/';

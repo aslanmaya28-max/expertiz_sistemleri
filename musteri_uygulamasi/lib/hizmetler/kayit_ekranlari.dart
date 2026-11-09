@@ -10,10 +10,12 @@ import '../bilesenler/ikincil_buton.dart';
 import '../bilesenler/ortak.dart';
 import '../tema/olculer.dart';
 import '../tema/yazi.dart';
+import '../tema/renkler.dart';
 import '../api/providers.dart';
 import 'hizmet_api.dart';
 import 'hizmet_dosyalari.dart';
 import 'hizmet_tanitim.dart';
+import 'randevu.dart';
 
 String _tarih(dynamic value) => dateText(DateTime.tryParse(text(value)));
 String _arac(Json value) => [
@@ -36,6 +38,7 @@ String _durum(dynamic value) =>
       'published': 'Rapor hazır',
       'completed': 'Tamamlandı',
       'cancelled': 'İptal edildi',
+      'vehicle_not_found': 'Araç adreste bulunamadı',
     }[value] ??
     'Güncel durum: ${text(value)}';
 
@@ -90,8 +93,51 @@ class HizmetKayitlariEkrani extends ConsumerWidget {
                                     : _durum(row['status']),
                                 style: Yazilar.bolumBaslik,
                               ),
-                              if (!raporlar)
+                              if (!raporlar) ...[
+                                if ((row['durum_kodu'] ?? row['status']) ==
+                                    'vehicle_not_found')
+                                  _BulunamamaRozeti(
+                                    iadeEdildi: [
+                                      'partially_refunded',
+                                      'refunded',
+                                    ].contains(row['payment_status']),
+                                  ),
                                 _TalepIlerlemesi(object(row['progress'])),
+                                if (object(row['randevu']).isNotEmpty) ...[
+                                  ValueLine(
+                                    'Randevu',
+                                    randevuMetni(
+                                      text(
+                                        object(row['randevu'])['tarih_saat'],
+                                      ),
+                                    ),
+                                  ),
+                                  ValueLine(
+                                    'Adres / buluşma noktası',
+                                    text(object(row['randevu'])['adres']),
+                                  ),
+                                  if (text(
+                                    object(row['randevu'])['satici_adi'],
+                                  ).isNotEmpty)
+                                    ValueLine(
+                                      'Satıcı',
+                                      text(
+                                        object(row['randevu'])['satici_adi'],
+                                      ),
+                                    ),
+                                  if (text(
+                                    object(row['randevu'])['satici_telefon'],
+                                  ).isNotEmpty)
+                                    ValueLine(
+                                      'Satıcı telefonu',
+                                      text(
+                                        object(
+                                          row['randevu'],
+                                        )['satici_telefon'],
+                                      ),
+                                    ),
+                                ],
+                              ],
                               ValueLine(
                                 'Tarih',
                                 _tarih(
@@ -130,6 +176,32 @@ class HizmetKayitlariEkrani extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _BulunamamaRozeti extends StatelessWidget {
+  final bool iadeEdildi;
+  const _BulunamamaRozeti({required this.iadeEdildi});
+  @override
+  Widget build(BuildContext context) {
+    final renkler = YbRenkler.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        vertical: Olcu.s8,
+        horizontal: Olcu.s12,
+      ),
+      margin: const EdgeInsets.symmetric(vertical: Olcu.s8),
+      decoration: BoxDecoration(
+        color: renkler.uyariYuzey,
+        borderRadius: BorderRadius.circular(Olcu.rozetKose),
+      ),
+      child: Text(
+        iadeEdildi
+            ? 'Araç adreste bulunamadı — paket ücreti iade edildi'
+            : 'Araç adreste bulunamadı — paket ücreti iade sürecinde',
+        style: Yazilar.etiket.copyWith(color: renkler.uyari),
       ),
     );
   }

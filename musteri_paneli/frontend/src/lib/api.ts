@@ -63,7 +63,28 @@ export interface ExpertizPackagesResponse {
   firms: ExpertizFirm[];
 }
 
+export interface ExpertizCity {
+  il: string;
+  durum: "acik" | "test" | "kapali";
+  talep_acabilir: boolean;
+}
+
+export interface ExpertizServiceArea {
+  pilot: string;
+  tester: boolean;
+  cities: ExpertizCity[];
+}
+
+export interface ExpertizAppointment {
+  tarih_saat?: string;
+  adres?: string;
+  satici_adi?: string;
+  satici_telefon?: string;
+}
+
 export interface ExpertizRequestSummary {
+  randevu?: ExpertizAppointment | null;
+  durum_kodu?: string;
   id: string;
   report_id: string;
   status: string;
@@ -348,6 +369,12 @@ export interface VehicleInput {
 }
 
 export interface CreateExpertizRequestPayload {
+  appointment_at: string;
+  address: string;
+  seller_name?: string;
+  seller_phone: string;
+  not_found_accepted: boolean;
+  contract_accepted: boolean;
   firm_id: string;
   package_id: string;
   listing_id?: number;
@@ -631,8 +658,17 @@ export function getExpertizQuote(firmId: string, packageId: string): Promise<{ s
   return fetchAPI(`/expertiz/quote?firm_id=${encodeURIComponent(firmId)}&package_id=${encodeURIComponent(packageId)}`);
 }
 
-/** Tahsilat yapmadan talebi yonetici kuyruguna iletir. */
-export function createExpertizRequest(payload: CreateExpertizRequestPayload): Promise<{ success: boolean; request_id: string; payment_status: string }> {
+export function getExpertizServiceArea(options?: RequestInit): Promise<ExpertizServiceArea> {
+  return fetchAPI("/expertiz/service-area", options);
+}
+
+/** PayTR ödeme sürecini başlatır. */
+export function createExpertizRequest(payload: CreateExpertizRequestPayload): Promise<CheckoutStart> {
+  return fetchAPI("/expertiz/requests", { method: "POST", body: JSON.stringify(payload) });
+}
+
+/** Yalnız sunucunun izin verdiği test kullanıcıları içindir. */
+export function createUnpaidExpertizRequest(payload: CreateExpertizRequestPayload): Promise<{ success: boolean; request_id: string; payment_status: string }> {
   return fetchAPI<{ success: boolean; request_id: string; payment_status: string }>("/expertiz/requests/unpaid", {
     method: "POST",
     body: JSON.stringify(payload),

@@ -23,6 +23,7 @@ import { useAuth } from "@/kancalar/yetkiKullan";
 import { BILDIRIM_EVENT } from "@/bilesenler/BildirimZili";
 import EpostaDogrulamaUyarisi from "@/bilesenler/EpostaDogrulamaUyarisi";
 import Ikon from "@/bilesenler/Ikon";
+import TalepRandevusu from "@/bilesenler/TalepRandevusu";
 
 type PanelTab = "ozet" | "analizler" | "ekspertiz" | "raporlar" | "krediler" | "profil";
 
@@ -398,7 +399,8 @@ function RequestRow({ request }: { request: ExpertizRequestSummary }) {
         <span>Odeme: {({ paid: "Odendi", paid_simulation: "Odendi (test)", pending: "Bekliyor", failed: "Basarisiz" } as Record<string, string>)[request.payment_status || ""] || request.payment_status || "-"}</span>
         <span>Tarih: {formatDate(request.created_at)}</span>
       </div>
-      {request.progress && !["published", "cancelled"].includes(request.status) ? <CanliDurum progress={request.progress} /> : null}
+      <TalepRandevusu randevu={request.randevu} durumKodu={request.durum_kodu} paymentStatus={request.payment_status} />
+      {request.progress && request.durum_kodu !== "vehicle_not_found" && !["published", "cancelled"].includes(request.status) ? <CanliDurum progress={request.progress} /> : null}
     </div>
   );
 }

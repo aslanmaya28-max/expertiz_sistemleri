@@ -4,13 +4,19 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/kancalar/yetkiKullan";
-import { ILLER } from "@/lib/iller";
+import { BULUNAMAMA_ONAYI, randevuDogrula, randevuHataAlani, randevuMetni, randevuSinirlari, type RandevuHatalari } from "@/lib/ekspertizRandevu";
+import OdemeAlani, { SON_SIPARIS_KEY } from "@/bilesenler/OdemeAlani";
 import { ekspertizOnDoldurma } from "@/lib/ekspertizOnDoldurma";
 import { AramaliSecim, SayiAlani } from "@/bilesenler/AracFormAlanlari";
 import { MARKALAR, modelleri } from "@/lib/aracFormu";
 import { uyelikAdresi } from "@/lib/uyelikYonlendirme";
 import {
   createExpertizRequest,
+  createUnpaidExpertizRequest,
+  getExpertizServiceArea,
+  ApiError,
+  type ExpertizServiceArea,
+  type CheckoutStart,
   getExpertizPackages,
   type ExpertizFirm,
   type ExpertizPackage,
@@ -49,6 +55,17 @@ function EkspertizTalebiIcerigi() {
   const router = useRouter();
   const donus = `/ekspertiz-talebi${params.toString() ? `?${params.toString()}` : ""}`;
 
+  const [area, setArea] = useState<ExpertizServiceArea | null>(null);
+  const [appointment, setAppointment] = useState({ appointment_at: "", address: "", seller_name: "", seller_phone: "", not_found_accepted: false });
+  const [fieldErrors, setFieldErrors] = useState<RandevuHatalari>({});
+  const [contractAccepted, setContractAccepted] = useState(false);
+  const [unpaid, setUnpaid] = useState(false);
+  const [checkout, setCheckout] = useState<CheckoutStart | null>(null);
+  const [bounds, setBounds] = useState(() => randevuSinirlari());
+  useEffect(() => {
+    const timer = window.setInterval(() => setBounds(randevuSinirlari()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
   const [adim, setAdim] = useState(0);
   // Değerleme raporundan gelindiyse araç bilgileri doğrulanarak formu doldurur (müşteri değiştirebilir)
   const [arac, setArac] = useState<Arac>(() => ({ ...BOS_ARAC, ...ekspertizOnDoldurma(new URLSearchParams(params.toString())) }));
@@ -77,6 +94,10 @@ function EkspertizTalebiIcerigi() {
       setLoading(true);
       setLoadError(null);
       try {
+        const serviceArea = await getExpertizServiceArea({ signal: controller.signal });
+        if (!active) return;
+        setArea(serviceArea);
+        if (!serviceArea.cities.some((city) => city.talep_acabilir)) return;
         const packages = await getExpertizPackages({ signal: controller.signal });
         if (!active) return;
         if (!packages.firms?.some((firm) => firm.packages?.length)) {
@@ -122,6 +143,10 @@ function EkspertizTalebiIcerigi() {
         setError("Araç marka ve modelini girin.");
         return;
       }
+      const errors = randevuDogrula({ ...appointment, city: arac.city }, area?.cities || []);
+      delete errors.not_found_accepted;
+      setFieldErrors(errors);
+      if (Object.keys(errors).length) return;
       if (!arac.city.trim() || !arac.district.trim()) {
         setError("Aracın bulunduğu il ve ilçeyi girin; talebiniz bölgedeki uzmana yönlendirilir.");
         return;
@@ -140,11 +165,20 @@ function EkspertizTalebiIcerigi() {
       return;
     }
     if (!selectedFirm || !selectedPackage) return;
+    const errors = randevuDogrula({ ...appointment, city: arac.city }, area?.cities || []);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) {
+      if (Object.keys(errors).some((key) => key !== "not_found_accepted")) setAdim(0);
+      return;
+    }
+    if (!contractAccepted) { setError("Mesafeli satış sözleşmesini onaylayın."); return; }
     setBusy(true);
     setError(null);
     try {
       const num = (v: string) => (v ? Number(v) : undefined);
-      const result = await createExpertizRequest({
+      const payload = {
+          ...appointment,
+          contract_accepted: contractAccepted,
           firm_id: selectedFirm.id,
           package_id: selectedPackage.id,
           listing_url: arac.link.trim() || undefined,
@@ -165,10 +199,22 @@ function EkspertizTalebiIcerigi() {
             fuel: arac.fuel || undefined,
             transmission: arac.gear || undefined,
           },
-        });
-      setTalepNo(result.request_id);
+        };
+      if (area?.tester && unpaid) {
+        const result = await createUnpaidExpertizRequest(payload);
+        setTalepNo(result.request_id);
+      } else {
+        const result = await createExpertizRequest(payload);
+        try { sessionStorage.setItem(SON_SIPARIS_KEY, result.order_id); } catch { /* Depolama kapalı olabilir. */ }
+        if (result.provider === "paytr" && result.iframe_url) window.location.assign(result.iframe_url);
+        else setCheckout(result);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Talep oluşturulamadı");
+      const field = err instanceof ApiError ? randevuHataAlani(err.code) : undefined;
+      if (field) {
+        setFieldErrors({ [field]: err instanceof Error ? err.message : "Bu alanı kontrol edin." });
+        if (field !== "not_found_accepted") setAdim(0);
+      } else setError(err instanceof Error ? err.message : "Talep oluşturulamadı");
     } finally {
       setBusy(false);
     }
@@ -200,6 +246,14 @@ function EkspertizTalebiIcerigi() {
           className="mt-4 rounded-lg bg-birincil px-5 py-2.5 font-semibold text-white">Yeniden dene</button>
       </div>
     );
+  }
+
+  if (!area?.cities.some((city) => city.talep_acabilir)) {
+    return <div className="yb-inner-page max-w-3xl mx-auto px-4 py-16"><section className="yb-card space-y-4"><h1 className="text-2xl font-bold">Yerinde inceleme yakında</h1><p>Şu anda talep açılabilen bir il bulunmuyor.</p><Link className="yb-btn yb-btn-green" href="/arac-degerleme">Ön değerleme raporu al</Link></section></div>;
+  }
+
+  if (checkout) {
+    return <div className="yb-inner-page max-w-3xl mx-auto px-4 py-10"><h1 className="text-2xl font-bold mb-6">Güvenli ödeme</h1><OdemeAlani checkout={checkout} onPaid={() => router.replace(`/odeme/sonuc?order_id=${encodeURIComponent(checkout.order_id)}`)} /></div>;
   }
 
   if (talepNo) {
@@ -262,8 +316,10 @@ function EkspertizTalebiIcerigi() {
                 <label className="block"><span className={lbl}>Aracın bulunduğu il (zorunlu)</span>
                   <select value={arac.city} onChange={set("city")} className={input}>
                     <option value="">İl seçiniz</option>
-                    {ILLER.map((il) => <option key={il}>{il}</option>)}
+                    {area.cities.map((city) => <option key={city.il} value={city.il} disabled={!city.talep_acabilir}>{city.il}{city.durum === "test" ? " (test)" : !city.talep_acabilir ? " (yakında)" : ""}</option>)}
                   </select>
+                  {fieldErrors.city && <span role="alert" className="mt-1 block text-sm text-tehlike">{fieldErrors.city}</span>}
+                  {arac.city && !area.cities.some((city) => city.il === arac.city && city.talep_acabilir) && !fieldErrors.city && <span role="alert" className="mt-1 block text-sm text-tehlike">Bu ilde henüz hizmet yok</span>}
                 </label>
                 <label className="block"><span className={lbl}>İlçe (zorunlu)</span><input required value={arac.district} onChange={set("district")} className={input} placeholder="Kadıköy" /></label>
               </div>
@@ -278,7 +334,26 @@ function EkspertizTalebiIcerigi() {
                   <label className="block"><span className={lbl}>Tramer tutarı (₺)</span><SayiAlani enFazlaHane={9} value={arac.declaredTramer} onChange={setDeger("declaredTramer")} className={input} placeholder="0" /></label>
                 </div>
               </fieldset>
-              <label className="block"><span className={lbl}>Not (satıcı randevusu, özel talep)</span>
+              <fieldset className="rounded-lg border border-kenarlik-acik p-4 space-y-4">
+                <legend className="px-1 font-semibold">Randevu ve satıcı bilgileri</legend>
+                <p className="text-sm text-metin-ikincil">Randevuyu satıcıyla siz ayarlayın; firmamız gelmeden önce satıcıyı arar.</p>
+                <label className="block"><span className={lbl}>Randevu tarihi ve saati (İstanbul saati, zorunlu)</span>
+                  <input required type="datetime-local" value={appointment.appointment_at} min={bounds.min} max={bounds.max} onChange={(e) => setAppointment((a) => ({ ...a, appointment_at: e.target.value }))} className={input} aria-invalid={!!fieldErrors.appointment_at} />
+                  <span className="block text-xs text-metin-ikincil mt-1">En erken 2 saat, en geç 30 gün sonrası. Tüm saatler İstanbul saatidir.</span>
+                  {fieldErrors.appointment_at && <span role="alert" className="block text-sm text-tehlike">{fieldErrors.appointment_at}</span>}
+                </label>
+                <label className="block"><span className={lbl}>Açık adres / buluşma noktası (zorunlu)</span>
+                  <textarea required minLength={10} maxLength={300} value={appointment.address} onChange={(e) => setAppointment((a) => ({ ...a, address: e.target.value }))} className={input} rows={3} aria-invalid={!!fieldErrors.address} />
+                  {fieldErrors.address && <span role="alert" className="block text-sm text-tehlike">{fieldErrors.address}</span>}
+                </label>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block"><span className={lbl}>Satıcı adı (isteğe bağlı)</span><input maxLength={80} value={appointment.seller_name} onChange={(e) => setAppointment((a) => ({ ...a, seller_name: e.target.value }))} className={input} autoComplete="off" /></label>
+                  <label className="block"><span className={lbl}>Satıcı telefonu (zorunlu)</span><input required type="tel" value={appointment.seller_phone} onChange={(e) => setAppointment((a) => ({ ...a, seller_phone: e.target.value }))} className={input} placeholder="05xx xxx xx xx" aria-invalid={!!fieldErrors.seller_phone} autoComplete="off" />
+                  {fieldErrors.seller_phone && <span role="alert" className="block text-sm text-tehlike">{fieldErrors.seller_phone}</span>}
+                  </label>
+                </div>
+              </fieldset>
+              <label className="block"><span className={lbl}>Özel talep / not</span>
                 <textarea value={arac.note} onChange={set("note")} className={input} rows={3} />
               </label>
             </section>
@@ -291,7 +366,7 @@ function EkspertizTalebiIcerigi() {
               <p className="mt-1 text-xs text-metin-ikincil">KDV hariç · KDV dahil {tl(serviceFee * (1 + vatRate))}</p>
               <ul className="mt-4 space-y-2 text-sm text-metin-ikincil">
                 <li>• Aracınıza bölgenizdeki YerimeBak ekspertiz personelinin atanması</li>
-                <li>• Kurumsal ekspertiz firmasında randevu ve süreç takibi</li>
+                <li>• Satıcıyla ayarladığınız randevuda kurumsal ekspertiz ve süreç takibi</li>
                 <li>• Saha raporu, hasar fotoğrafları ve kurumsal rapor tek panelde</li>
                 <li>• Ekspertiz bulgularına göre yapay zekâ değerlemesi ve tavsiye fiyat</li>
               </ul>
@@ -339,11 +414,16 @@ function EkspertizTalebiIcerigi() {
                   <p className="mt-1 text-sm text-metin-ikincil">
                     {arac.brand || arac.model ? `${arac.brand} ${arac.model} ${arac.year}`.trim() : arac.link} • {arac.city} / {arac.district}
                   </p>
-                  <button type="button" onClick={odemeyeGec} disabled={busy || !selectedPackage}
+                  <div className="mt-4 rounded-lg bg-arkaplan-acik p-4 text-sm space-y-2"><p><strong>Randevu:</strong> {randevuMetni(appointment.appointment_at)}</p><p>{appointment.address}</p><p>Satıcı: {appointment.seller_name || "Ad belirtilmedi"} · {appointment.seller_phone}</p></div>
+                  <label className="mt-4 flex items-start gap-3 text-sm"><input type="checkbox" checked={appointment.not_found_accepted} onChange={(e) => setAppointment((a) => ({ ...a, not_found_accepted: e.target.checked }))} className="mt-1 shrink-0" /><span>{BULUNAMAMA_ONAYI}</span></label>
+                  {fieldErrors.not_found_accepted && <p role="alert" className="mt-1 text-sm text-tehlike">{fieldErrors.not_found_accepted}</p>}
+                  <label className="mt-4 flex items-start gap-3 text-sm"><input type="checkbox" checked={contractAccepted} onChange={(e) => setContractAccepted(e.target.checked)} className="mt-1 shrink-0" /><span><Link href="/mesafeli-satis" target="_blank" className="underline">Mesafeli satış sözleşmesini</Link> okudum ve kabul ediyorum.</span></label>
+                  {area.tester && <label className="mt-4 flex items-start gap-3 text-sm"><input type="checkbox" checked={unpaid} onChange={(e) => setUnpaid(e.target.checked)} className="mt-1 shrink-0" /><span>Ödemesiz test talebi</span></label>}
+                  <button type="button" onClick={odemeyeGec} disabled={busy || !selectedPackage || !appointment.not_found_accepted || !contractAccepted || !area.cities.some((city) => city.il === arac.city && city.talep_acabilir)}
                     className="mt-4 w-full rounded-lg bg-birincil py-3 font-semibold text-white disabled:opacity-50">
-                    {busy ? "Talep gönderiliyor..." : "Talep oluştur"}
+                    {busy ? "Talep gönderiliyor..." : area.tester && unpaid ? "Ödemesiz test talebi oluştur" : "Güvenli ödemeye geç"}
                   </button>
-                  <p className="mt-2 text-xs text-metin-ikincil">Bu adımda ödeme alınmaz; talebiniz yöneticiye iletilir.</p>
+                  <p className="mt-2 text-xs text-metin-ikincil">{area.tester && unpaid ? "Test talebi ödeme alınmadan iletilir." : "PayTR güvenli ödeme sayfasına yönlendirilirsiniz."}</p>
                 </>
             </section>
           )}
@@ -357,7 +437,7 @@ function EkspertizTalebiIcerigi() {
                 Geri
               </button>
               {adim < ADIMLAR.length - 1 && (
-                <button type="button" onClick={ilerle} className="rounded-lg bg-birincil px-5 py-2.5 text-sm font-semibold text-white">
+                <button type="button" onClick={ilerle} disabled={!!arac.city && !area.cities.some((city) => city.il === arac.city && city.talep_acabilir)} className="rounded-lg bg-birincil px-5 py-2.5 text-sm font-semibold text-white">
                   Devam
                 </button>
               )}

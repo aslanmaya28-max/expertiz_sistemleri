@@ -22,7 +22,7 @@ const adimlar = [
 ];
 const sorular = [
   ["YerimeBak benim için ne yapar?", "Satın almayı düşündüğünüz aracın bulunduğu yerde inceleme sürecini yürütür. Alanında uzman personel, iç ve dış kozmetik ile boya/kaporta durumunu inceler ve belgeler. Talebiniz doğrultusunda kurumsal ekspertiz kontrolleri de sürece dahil edilir."],
-  ["Kurumsal ekspertiz firmasını seçebilir miyim?", "Evet. Tercih ettiğiniz kurumsal ekspertiz firmasını ve inceleme taleplerinizi bize iletebilirsiniz. Firma, konum, randevu ve paket kapsamı talebiniz değerlendirilirken netleştirilir."],
+  ["Kurumsal ekspertiz firmasını seçebilir miyim?", "Evet. Tercih ettiğiniz kurumsal ekspertiz firmasını ve inceleme taleplerinizi bize iletebilirsiniz. Randevuyu satıcıyla siz ayarlarsınız; anlaşmalı firmamız gelmeden önce satıcıyı arar. Firma, konum ve paket kapsamını talebinizde belirtirsiniz."],
   ["Raporlarıma nereden ulaşırım?", "Yönetim kontrolü tamamlanıp onaylanan iç ekspertiz, dış ekspertiz, yapay zekâ değerleme ve kurumsal ekspertiz raporları ilgili araç talebiniz altında müşteri panelinizde sunulur."],
   ["Hangi illerde hizmet veriyorsunuz?", "Yerinde inceleme İstanbul'un tamamında, Avrupa ve Anadolu yakasında sunulur. Çevrim içi araç değerleme raporu ise Türkiye'nin her yerindeki araç için kullanılabilir. Yerinde inceleme ağımızı aşamalı olarak diğer illere taşımayı hedefliyoruz; diğer iller henüz yerinde inceleme kapsamında değildir."],
   ...ORTAK_SORULAR.map((s) => [s.soru, s.yanit]),

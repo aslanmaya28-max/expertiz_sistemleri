@@ -85,6 +85,7 @@ export default function YerindeIncelemeSayfasi() {
           icerik: (
             <ol>
               <li><strong>Talep:</strong> araç bilgilerini, ilan bağlantısını, il ve ilçeyi girin; kurumsal ekspertiz firması ve paketini seçin. Değerleme raporunuz varsa araç bilgileri forma hazır gelir.</li>
+              <li><strong>Randevu:</strong> randevuyu satıcıyla siz ayarlayın; anlaştığınız tarih, saat, açık adres ve satıcı telefonunu talebe girin. Anlaşmalı firmamız gelmeden önce satıcıyı arar.</li>
               <li><strong>Ücret ve onay:</strong> toplam tutarı ödeme adımından önce görürsünüz.</li>
               <li><strong>Personel ataması:</strong> aracın konumuna göre uzman personelimiz telefonla teyit edilerek görevlendirilir.</li>
               <li><strong>Yerinde inceleme:</strong> personelin yola çıktığı ve araç başına ulaştığı size bildirilir; inceleme yapılır, fotoğraflar çekilir, gerekiyorsa araç kurumsal ekspertiz noktasına götürülür.</li>
