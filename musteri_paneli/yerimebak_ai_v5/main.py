@@ -74,6 +74,85 @@ def _check_rate_limit(request: Request, max_requests: int = _APP_RATE_LIMIT, win
     return True
 
 
+def _veritabani_semasini_kur() -> None:
+    """Şema kurulumu yalnız sunucu açılışında yapılır (istek yolunda DDL yok)."""
+    from yerimebak_ai_v5.core.database_config import DatabaseConfig
+    DatabaseConfig.bootstrap()
+    DatabaseConfig.alignment()
+    # Personel / talep / atama tablolarini commit ederek hazirla
+    from yerimebak_ai_v5.services.dispatch_service import ensure_workflow_schema_once
+    ensure_workflow_schema_once()
+    # Fiyatlandirma katalogu + PayTR odeme kolonlari
+    from yerimebak_ai_v5.services import checkout_service, pricing_service
+    pricing_service.ensure_schema()
+    checkout_service.ensure_schema()
+    # E-posta dogrulama / sifre sifirlama
+    from yerimebak_ai_v5.services import account_service
+    account_service.ensure_schema()
+    from yerimebak_ai_v5.services import google_play_service
+    google_play_service.ensure_schema()
+    # Yerinde ekspertiz: test kullanıcısı sütunu (istek sırasında DDL yapılmaz)
+    from yerimebak_ai_v5.services import service_area
+    from yerimebak_ai_v5.services import control_center
+    _conn = DatabaseConfig.get_connection()
+    try:
+        service_area.ensure_schema(_conn.cursor())
+        control_center.ensure_schema(_conn.cursor())
+        _conn.commit()
+    finally:
+        DatabaseConfig.return_connection(_conn)
+    google_play_service.warn_simulation_config()
+    # Ilk admin (.env: INITIAL_ADMIN_EMAIL / INITIAL_ADMIN_PASSWORD); varsa dokunulmaz
+    from yerimebak_ai_v5.services.auth_service import get_auth_service
+    get_auth_service().ensure_initial_admin()
+
+
+# Render'da birden fazla işlem (WEB_CONCURRENCY) aynı anda açılır. Hepsi şemayı aynı anda kurmaya çalışınca
+# PostgreSQL "tuple concurrently updated" hatası veriyordu (CREATE OR REPLACE FUNCTION, 10.11.2026 canlı günlük).
+# Kurulum bu kilitle sıraya girer; sonra gelen işlem şemayı hazır bulur. Kilit alınamazsa yine de kurulur.
+SEMA_KILIDI = 800830
+SEMA_KILIT_BEKLEME = "60s"
+
+
+def sirali_sema_kurulumu(kur, kilit_baglantisi_ac, deneme: int = 3, bekleme: float = 2.0) -> None:
+    """``kur`` işlevini işlemler arası kilitle sırayla çalıştırır; geçici hatada yeniden dener."""
+    kilit = None
+    try:
+        kilit = kilit_baglantisi_ac()
+        kilit.autocommit = True
+        cur = kilit.cursor()
+        cur.execute(f"SET lock_timeout = '{SEMA_KILIT_BEKLEME}'")
+        cur.execute("SELECT pg_advisory_lock(%s)", (SEMA_KILIDI,))
+    except Exception as exc:
+        logger.warning(f"[STARTUP] Şema kilidi alınamadı, kilitsiz devam: {exc}")
+        if kilit is not None:
+            try:
+                kilit.close()
+            except Exception:
+                pass
+        kilit = None
+    try:
+        for sira in range(1, deneme + 1):
+            try:
+                kur()
+                return
+            except Exception as exc:
+                if sira == deneme:
+                    raise
+                logger.warning(f"[STARTUP] Şema kurulumu {sira}. denemede olmadı, yeniden denenecek: {exc}")
+                time.sleep(bekleme)
+    finally:
+        if kilit is not None:
+            try:
+                kilit.cursor().execute("SELECT pg_advisory_unlock(%s)", (SEMA_KILIDI,))
+            except Exception:
+                pass
+            try:
+                kilit.close()
+            except Exception:
+                pass
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from yerimebak_ai_v5.core.database_config import DatabaseConfig
@@ -87,34 +166,7 @@ async def lifespan(app: FastAPI):
         ThreadPoolExecutor(max_workers=MAX_CONCURRENT_ANALYSES * 2 + 16, thread_name_prefix="istek"))
     logger.info("[STARTUP] Database bootstrap + alignment...")
     try:
-        DatabaseConfig.bootstrap()
-        DatabaseConfig.alignment()
-        # Personel / talep / atama tablolarini commit ederek hazirla
-        from yerimebak_ai_v5.services.dispatch_service import ensure_workflow_schema_once
-        ensure_workflow_schema_once()
-        # Fiyatlandirma katalogu + PayTR odeme kolonlari
-        from yerimebak_ai_v5.services import checkout_service, pricing_service
-        pricing_service.ensure_schema()
-        checkout_service.ensure_schema()
-        # E-posta dogrulama / sifre sifirlama
-        from yerimebak_ai_v5.services import account_service
-        account_service.ensure_schema()
-        from yerimebak_ai_v5.services import google_play_service
-        google_play_service.ensure_schema()
-        # Yerinde ekspertiz: test kullanıcısı sütunu (istek sırasında DDL yapılmaz)
-        from yerimebak_ai_v5.services import service_area
-        from yerimebak_ai_v5.services import control_center
-        _conn = DatabaseConfig.get_connection()
-        try:
-            service_area.ensure_schema(_conn.cursor())
-            control_center.ensure_schema(_conn.cursor())
-            _conn.commit()
-        finally:
-            DatabaseConfig.return_connection(_conn)
-        google_play_service.warn_simulation_config()
-        # Ilk admin (.env: INITIAL_ADMIN_EMAIL / INITIAL_ADMIN_PASSWORD); varsa dokunulmaz
-        from yerimebak_ai_v5.services.auth_service import get_auth_service
-        get_auth_service().ensure_initial_admin()
+        sirali_sema_kurulumu(_veritabani_semasini_kur, DatabaseConfig.get_lock_connection)
         logger.info("[STARTUP] Database ready.")
     except Exception as e:
         logger.error(f"[STARTUP] Database init failed: {e}", exc_info=True)

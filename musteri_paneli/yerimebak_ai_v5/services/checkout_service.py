@@ -413,7 +413,7 @@ def _send_receipt(oid: str, result: Dict[str, Any]) -> None:
         lines.append("Talebiniz bölgedeki ekspertiz uzmanına yönlendiriliyor; süreci panelinizden canlı izleyebilirsiniz.")
         button = ("Talebimi izle", email_service.site_url("/panel"))
     lines.append("Faturanız ayrıca e-posta adresinize gönderilecektir.")
-    email_service.send(result.get("email"), f"YerimeBak - Odemeniz alindi ({oid})", "Ödemeniz alındı", lines, button)
+    email_service.send(result.get("email"), f"YerimeBak - Ödemeniz alındı ({oid})", "Ödemeniz alındı", lines, button)
 
 
 def complete_payment(oid: str, success: bool, total_kurus: Optional[int] = None, reason: str = "") -> Dict[str, Any]:

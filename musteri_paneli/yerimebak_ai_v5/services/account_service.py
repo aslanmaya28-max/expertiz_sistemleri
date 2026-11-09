@@ -157,7 +157,7 @@ def send_verification(user_id: Any, email: str, full_name: str = "") -> bool:
     credits = welcome_credits()
     return email_service.send(
         email,
-        "YerimeBak - E-posta adresinizi dogrulayin",
+        "YerimeBak - E-posta adresinizi doğrulayın",
         "E-posta adresinizi doğrulayın",
         [
             f"Merhaba {full_name or ''}".strip() + ",",
@@ -277,7 +277,7 @@ def request_password_reset(email: str) -> Dict[str, Any]:
 
     email_service.send(
         row["email"],
-        "YerimeBak - Sifre sifirlama",
+        "YerimeBak - Şifre sıfırlama",
         "Şifrenizi sıfırlayın",
         [
             "Hesabınız için şifre sıfırlama talebi aldık.",

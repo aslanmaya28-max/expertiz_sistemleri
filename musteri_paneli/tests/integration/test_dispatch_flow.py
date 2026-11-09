@@ -933,7 +933,7 @@ def test_accounts_refunds_invoices_and_emails(client, admin_token):
         unknown = client.post("/api/v1/auth/forgot-password", json={"email": "yok@yerimebak.test"})
         known = client.post("/api/v1/auth/forgot-password", json={"email": "yeni@yerimebak.test"})
         assert unknown.status_code == known.status_code == 200 and unknown.json() == known.json()
-        reset_mail = [m for m in outbox if "Sifre sifirlama" in m["Subject"]]
+        reset_mail = [m for m in outbox if "Şifre sıfırlama" in m["Subject"]]
         assert len(reset_mail) == 1
         rtoken = _link_token(reset_mail[0], "/sifre-sifirla")
         assert client.post("/api/v1/auth/reset-password", json={"token": rtoken, "new_password": "zayif"}).status_code == 400
@@ -955,7 +955,7 @@ def test_accounts_refunds_invoices_and_emails(client, admin_token):
 
         # --- Odeme: makbuz e-postasi + admine yeni talep bildirimi
         report_id = _create_paid_request(client, token, "06 IPT 06", "Ankara", district="Çankaya")
-        assert any("Odemeniz alindi" in m["Subject"] and m["To"] == "yeni@yerimebak.test" for m in outbox)
+        assert any("Ödemeniz alındı" in m["Subject"] and m["To"] == "yeni@yerimebak.test" for m in outbox)
         admin_notes = client.get("/api/v1/expertiz/admin/notifications", headers=_auth(admin_token)).json()["notifications"]
         assert any(n["kind"] == "request_paid" and n["report_id"] == report_id for n in admin_notes)
 
