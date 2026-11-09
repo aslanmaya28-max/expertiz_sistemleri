@@ -85,3 +85,26 @@ class FirmaPaketiAyrimiTests(unittest.TestCase):
         self.assertEqual(ekspertiz["kdv_tl"], 1000)
         self.assertEqual(ekspertiz["net_tl"], 5000)
         self.assertEqual(ekspertiz["firma_paketi_tl"], 4900)
+
+
+class FirmaVeBulunamadiTests(unittest.TestCase):
+    """Kurumsal firma modeli ve 'araç adreste bulunamadı' (sözleşme 2026-11-09)."""
+
+    def test_kismi_iade_ve_firma_bazli_hakedis(self):
+        yayinlanan = {**_req(10900, 1000, "published", fee=5000), "package_price_tl": 4900,
+                      "firm_id": "otorapor", "firm_name": "Otorapor"}
+        bulunamadi = {**_req(10900, 1000, "draft", fee=5000, payment_status="partially_refunded"),
+                      "package_price_tl": 4900, "firm_id": "otorapor", "firm_name": "Otorapor"}
+        result = summarize([yayinlanan, bulunamadi], [])
+        e = result["ekspertiz"]
+        # Ciro: yayınlanan tam tutar + bulunamayanda tutulan hizmet bedeli ve KDV'si
+        self.assertEqual(e["ciro_tl"], 10900 + 6000)
+        self.assertEqual(e["kdv_tl"], 2000)
+        self.assertEqual(e["net_tl"], 10000)          # paket (4.900) YerimeBak geliri değildir
+        self.assertEqual(e["firma_paketi_tl"], 4900)
+        self.assertEqual(result["iadeler"]["expertiz_tl"], 4900)
+        firma = result["firmalar"][0]
+        self.assertEqual((firma["firm_id"], firma["is_sayisi"], firma["bulunamadi_sayisi"]), ("otorapor", 1, 1))
+        self.assertEqual(firma["hakedis_tl"], round(2 * 5000 * PERSONNEL_SHARE_RATE, 2))
+        self.assertEqual(firma["paket_tl"], 4900)
+        self.assertEqual(firma["odenecek_tl"], round(4900 + 2 * 5000 * PERSONNEL_SHARE_RATE, 2))

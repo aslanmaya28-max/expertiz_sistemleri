@@ -125,6 +125,14 @@ class CancelRequestPayload(BaseModel):
     refund: bool = True
 
 
+class NotFoundNote(BaseModel):
+    note: str = ""
+
+
+class NotFoundRefundPayload(BaseModel):
+    reason: str = ""
+
+
 class DutyRequest(BaseModel):
     on_duty: bool
 
@@ -466,6 +474,16 @@ async def admin_cancel_request(
     return _raise_if_error(refund_service.cancel_expertiz_request(report_id, admin, payload.reason, payload.refund))
 
 
+@router.post("/admin/requests/{report_id}/not-found-refund")
+async def admin_not_found_refund(
+    report_id: str,
+    payload: NotFoundRefundPayload,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    """Araç adreste bulunamadı: yalnız kurumsal paket ücreti iade edilir (sözleşme 2026-11-09 bölüm 4)."""
+    return _raise_if_error(await run_in_threadpool(refund_service.not_found_refund, report_id, admin, payload.reason))
+
+
 @router.get("/admin/dashboard")
 async def admin_dashboard(admin: Dict[str, Any] = Depends(get_admin_user)) -> Dict[str, Any]:
     """Flutter admin ana ekrani: sayaclar, durum dagilimi, son islemler, trendler."""
@@ -531,6 +549,14 @@ async def personnel_depart_task(report_id: str, user: Dict[str, Any] = Depends(g
 async def personnel_arrive_task(report_id: str, user: Dict[str, Any] = Depends(get_personnel_user)) -> Dict[str, Any]:
     """Arac basinda."""
     return _raise_if_error(dispatch_service.update_task_progress(report_id, user, "arrive"))
+
+
+@router.post("/personnel/tasks/{report_id}/not-found")
+async def personnel_vehicle_not_found(
+    report_id: str, payload: NotFoundNote, user: Dict[str, Any] = Depends(get_personnel_user)
+) -> Dict[str, Any]:
+    """Araç randevu adresinde yok: görev kapanır, yönetim paket ücreti iadesine karar verir."""
+    return _raise_if_error(await run_in_threadpool(dispatch_service.report_vehicle_not_found, report_id, user, payload.note))
 
 
 @router.post("/personnel/tasks/{report_id}/corporate")

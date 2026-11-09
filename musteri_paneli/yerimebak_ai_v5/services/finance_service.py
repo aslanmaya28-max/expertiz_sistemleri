@@ -51,12 +51,36 @@ def summarize(requests: List[Dict[str, Any]], payment_orders: List[Dict[str, Any
     adet = simulasyon_adet = 0
     durumlar: Dict[str, int] = {}
     personel: Dict[str, Dict[str, Any]] = {}
+    firmalar: Dict[str, Dict[str, Any]] = {}
+
+    def firma_kaydi(row: Dict[str, Any]) -> Dict[str, Any]:
+        firm_id = str(row.get("firm_id") or "").strip() or "firmasiz"
+        return firmalar.setdefault(firm_id, {"firm_id": firm_id, "firm_name": row.get("firm_name") or "",
+                                             "is_sayisi": 0, "bulunamadi_sayisi": 0,
+                                             "hakedis_tl": 0.0, "paket_tl": 0.0})
 
     iade = {"expertiz_count": 0, "expertiz_tl": 0.0, "kredi_count": 0, "kredi_tl": 0.0}
     for row in requests:
         if row.get("payment_status") == "refunded":
             iade["expertiz_count"] += 1
             iade["expertiz_tl"] += _num(row.get("total_tl"))
+            continue
+        if row.get("payment_status") == "partially_refunded":
+            # Araç adreste bulunamadı (9 Kasım 2026): paket iade; hizmet bedeli + KDV tutulur,
+            # firma %25 saha payını alır (personel adrese gitti).
+            paket_iade = _num(row.get("package_price_tl"))
+            vergi = _num(row.get("vat_tl"))
+            hizmet = _num(row.get("service_fee_tl"))
+            iade["expertiz_count"] += 1
+            iade["expertiz_tl"] += paket_iade
+            adet += 1
+            ciro += hizmet + vergi
+            kdv += vergi
+            net += hizmet
+            durumlar["vehicle_not_found"] = durumlar.get("vehicle_not_found", 0) + 1
+            firma = firma_kaydi(row)
+            firma["bulunamadi_sayisi"] += 1
+            firma["hakedis_tl"] += hizmet * PERSONNEL_SHARE_RATE
             continue
         if row.get("status") in CANCELLED_REQUEST_STATUSES:
             continue
@@ -81,6 +105,10 @@ def summarize(requests: List[Dict[str, Any]], payment_orders: List[Dict[str, Any
 
         if rapor_durumu != "published":
             continue
+        firma = firma_kaydi(row)
+        firma["is_sayisi"] += 1
+        firma["hakedis_tl"] += _num(row.get("service_fee_tl")) * PERSONNEL_SHARE_RATE
+        firma["paket_tl"] += paket
         data = _as_dict(row.get("report_data"))
         assignment = _as_dict(data.get("assignment"))
         personel_id = str(data.get("assigned_personel_id") or assignment.get("personnel_id") or "").strip()
@@ -105,6 +133,12 @@ def summarize(requests: List[Dict[str, Any]], payment_orders: List[Dict[str, Any
             iade["kredi_tl"] += _num(row.get("toplam"))
             iade["kredi_count"] += int(row.get("adet") or 0)
 
+    firma_listesi = sorted(firmalar.values(), key=lambda f: f["hakedis_tl"], reverse=True)
+    for f in firma_listesi:
+        f["hakedis_tl"] = round(f["hakedis_tl"], 2)
+        f["paket_tl"] = round(f["paket_tl"], 2)
+        # Firmaya ödenecek: tamamlanan işlerin paket ücreti + saha payı (KDV hariç; firma faturasına KDV eklenir)
+        f["odenecek_tl"] = round(f["hakedis_tl"] + f["paket_tl"], 2)
     personel_listesi = sorted(personel.values(), key=lambda p: p["hakedis_tl"], reverse=True)
     for p in personel_listesi:
         p["hakedis_tl"] = round(p["hakedis_tl"], 2)
@@ -128,6 +162,8 @@ def summarize(requests: List[Dict[str, Any]], payment_orders: List[Dict[str, Any
             "by_personnel": personel_listesi,
             "payout_tracking": False,
         },
+        # Kurumsal firma modeli: hak ediş firma bazında (sözleşme 2026-11-09 bölüm 3)
+        "firmalar": firma_listesi,
     }
 
 
@@ -139,6 +175,7 @@ def get_admin_finance_summary() -> Dict[str, Any]:
         cursor.execute(
             """
             SELECT q.id, q.status, q.payment_status, q.total_tl, q.vat_tl, q.service_fee_tl,
+                   q.package_price_tl, q.firm_id, q.firm_name,
                    r.status AS report_status, r.data AS report_data
             FROM expertiz_requests q
             LEFT JOIN reports r ON r.id::text = q.id

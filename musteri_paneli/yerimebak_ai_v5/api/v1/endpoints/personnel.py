@@ -18,6 +18,7 @@ class PersonnelCreateRequest(BaseModel):
     city: str
     district: str
     expertise: Optional[str] = None
+    firm_id: Optional[str] = None
 
 
 class PersonnelUpdateRequest(BaseModel):
@@ -26,6 +27,7 @@ class PersonnelUpdateRequest(BaseModel):
     city: Optional[str] = None
     district: Optional[str] = None
     expertise: Optional[str] = None
+    firm_id: Optional[str] = None
 
 
 class DeactivateRequest(BaseModel):

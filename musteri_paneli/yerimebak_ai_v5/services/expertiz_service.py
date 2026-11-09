@@ -343,6 +343,12 @@ def _upsert_report_from_request(
 
     profile_id = _expertiz_profile_id(user)
     _upsert_profile(cursor, profile_id, user)
+    # Saha personeli "Müşteriyi ara" ile talep sahibine ulaşır (9 Kasım 2026): oturumda telefon yoksa kayıttan al.
+    if not user.get("phone") and user.get("id"):
+        cursor.execute("SELECT phone FROM users WHERE id::text = %s", (str(user["id"]),))
+        kayit = cursor.fetchone()
+        if kayit and kayit["phone"]:
+            user = {**user, "phone": kayit["phone"]}
 
     # Vitrin ilani varsa onun bilgisi, yoksa musterinin linkle/elle girdigi arac
     listing = dict(_get_listing_snapshot(cursor, payload.get("listing_id")) or {})

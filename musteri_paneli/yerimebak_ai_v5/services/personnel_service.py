@@ -99,6 +99,8 @@ def _ensure_personnel_schema(cursor: Any) -> None:
         # Gorev icin aktif/pasif (hesap aktifliginden ayri): pasif personele gorev atanmaz
         "on_duty": "BOOLEAN DEFAULT TRUE",
         "on_duty_changed_at": "TIMESTAMPTZ",
+        # Kurumsal firma modeli (9 Kasım 2026): saha personeli anlaşmalı firmanın çalışanıdır
+        "firm_id": "TEXT",
     }
     for column, column_type in user_columns.items():
         cursor.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {column} {column_type}")
@@ -174,6 +176,8 @@ def _public_personnel(row: Dict[str, Any]) -> Dict[str, Any]:
         "region_id": region_id,
         "region": turkey_regions.region_name(region_id),
         "expertise": row.get("expertise") or row.get("uzmanlik_alani") or "",
+        "firm_id": row.get("firm_id") or "",
+        "firm_name": row.get("firm_name") or "",
         "must_change_password": bool(row.get("must_change_password", False)),
         "open_task_count": int(row.get("open_task_count") or 0),
         "completed_task_count": int(row.get("completed_task_count") or 0),
@@ -236,6 +240,15 @@ def _upsert_personnel_profile(cursor: Any, user_id: Any, values: Dict[str, Any])
         )
 
 
+def _firm_name(cursor: Any, firm_id: Optional[str]) -> Optional[str]:
+    """Firma kimliği geçerliyse adı; boşsa ''; tanınmazsa None."""
+    if not firm_id:
+        return ""
+    cursor.execute("SELECT name FROM expertiz_firms WHERE id = %s", (firm_id,))
+    row = cursor.fetchone()
+    return row["name"] if row else None
+
+
 def create_personnel(payload: Dict[str, Any], admin: Dict[str, Any]) -> Dict[str, Any]:
     full_name = str(payload.get("full_name") or "").strip()
     email = str(payload.get("email") or "").strip().lower()
@@ -243,6 +256,7 @@ def create_personnel(payload: Dict[str, Any], admin: Dict[str, Any]) -> Dict[str
     district = str(payload.get("district") or "").strip()
     phone = str(payload.get("phone") or "").strip() or None
     expertise = str(payload.get("expertise") or "").strip() or None
+    firm_id = str(payload.get("firm_id") or "").strip() or None
 
     if not full_name or not email or not temporary_password or not payload.get("city") or not district:
         return _error("Ad soyad, e-posta, gecici sifre, il ve ilce zorunludur", 400)
@@ -266,15 +280,18 @@ def create_personnel(payload: Dict[str, Any], admin: Dict[str, Any]) -> Dict[str
             cursor.execute("SELECT id FROM users WHERE phone = %s LIMIT 1", (phone,))
             if cursor.fetchone():
                 return _error("Bu telefon numarasi baska bir kullanicida kayitli", 409)
+        firma_adi = _firm_name(cursor, firm_id)
+        if firma_adi is None:
+            return _error("Gecersiz firma secimi", 400)
 
         cursor.execute(
             """
             INSERT INTO users (
                 email, password, full_name, phone, credits, role,
                 is_active, must_change_password, city, district, expertise, il_id, region_id,
-                email_verified, welcome_credits_granted
+                email_verified, welcome_credits_granted, firm_id
             )
-            VALUES (%s, %s, %s, %s, 0, 'personel', 1, TRUE, %s, %s, %s, %s, %s, TRUE, TRUE)
+            VALUES (%s, %s, %s, %s, 0, 'personel', 1, TRUE, %s, %s, %s, %s, %s, TRUE, TRUE, %s)
             RETURNING id, created_at
             """,
             (
@@ -287,6 +304,7 @@ def create_personnel(payload: Dict[str, Any], admin: Dict[str, Any]) -> Dict[str
                 expertise,
                 location["il_id"],
                 location["region_id"],
+                firm_id,
             ),
         )
         user_row = cursor.fetchone()
@@ -326,6 +344,8 @@ def create_personnel(payload: Dict[str, Any], admin: Dict[str, Any]) -> Dict[str
                     "il_id": location["il_id"],
                     "region_id": location["region_id"],
                     "expertise": expertise,
+                    "firm_id": firm_id,
+                    "firm_name": firma_adi,
                     "must_change_password": True,
                     "created_at": user_row["created_at"],
                 }
@@ -344,7 +364,8 @@ def _personnel_rows(cursor: Any, where_extra: str = "", params: tuple = ()) -> L
         SELECT
             u.id, u.full_name, u.email, u.phone, u.role, u.is_active, u.city, u.district,
             u.expertise, u.il_id, u.region_id, u.must_change_password, u.created_at,
-            u.on_duty, u.on_duty_changed_at,
+            u.on_duty, u.on_duty_changed_at, u.firm_id,
+            (SELECT f.name FROM expertiz_firms f WHERE f.id = u.firm_id) AS firm_name,
             COALESCE(t.open_count, 0) AS open_task_count,
             COALESCE(t.done_count, 0) AS completed_task_count
         FROM users u
@@ -390,7 +411,8 @@ def _get_personnel(cursor: Any, personnel_id: str) -> Optional[Dict[str, Any]]:
     cursor.execute(
         """
         SELECT id, email, full_name, phone, role, is_active, city, district, expertise, il_id, region_id,
-               on_duty, on_duty_changed_at
+               on_duty, on_duty_changed_at, firm_id,
+               (SELECT f.name FROM expertiz_firms f WHERE f.id = users.firm_id) AS firm_name
         FROM users
         WHERE (id::text = %s OR lower(email) = lower(%s))
           AND role IN %s
@@ -403,12 +425,14 @@ def _get_personnel(cursor: Any, personnel_id: str) -> Optional[Dict[str, Any]]:
 
 
 def update_personnel(personnel_id: str, payload: Dict[str, Any], admin: Dict[str, Any]) -> Dict[str, Any]:
-    allowed = {"full_name", "phone", "city", "district", "expertise"}
+    allowed = {"full_name", "phone", "city", "district", "expertise", "firm_id"}
     updates = {
         key: value.strip() if isinstance(value, str) else value
         for key, value in payload.items()
         if key in allowed and value is not None
     }
+    if "firm_id" in updates:
+        updates["firm_id"] = updates["firm_id"] or None
     if not updates:
         return _error("Guncellenecek alan bulunamadi", 400)
     if updates.get("full_name") == "":
@@ -437,6 +461,8 @@ def update_personnel(personnel_id: str, payload: Dict[str, Any], admin: Dict[str
         user_id = personnel["id"]
         email = personnel.get("email")
 
+        if "firm_id" in updates and _firm_name(cursor, updates["firm_id"]) is None:
+            return _error("Gecersiz firma secimi", 400)
         if updates.get("phone"):
             cursor.execute("SELECT id FROM users WHERE phone = %s AND id <> %s LIMIT 1", (updates["phone"], user_id))
             if cursor.fetchone():
@@ -466,6 +492,8 @@ def update_personnel(personnel_id: str, payload: Dict[str, Any], admin: Dict[str
             )
         _write_audit(cursor, "PERSONNEL_UPDATED", str(user_id), admin, {"email": email, "updates": updates})
         conn.commit()
+        if "firm_id" in updates:
+            updates["firm_name"] = _firm_name(cursor, updates["firm_id"]) or ""
         return {"success": True, "personnel": _public_personnel({**personnel, **updates})}
     except psycopg2.IntegrityError:
         conn.rollback()

@@ -225,3 +225,86 @@ def refund_credit_order(order_id: str, admin: Dict[str, Any], reason: str) -> Di
         raise
     finally:
         DatabaseConfig.return_connection(conn)
+
+
+# ---------------------------------------------------------------------------
+# Araç adreste bulunamadı: yalnız kurumsal paket ücreti iade (sözleşme 2026-11-09 bölüm 4)
+# ---------------------------------------------------------------------------
+
+def not_found_refund(report_id: str, admin: Dict[str, Any], reason: str) -> Dict[str, Any]:
+    """Kullanıcı kararı (4 Kasım 2026): hizmet bedeli iade edilmez (müşteri ödeme öncesi onayladı),
+    firma paket ücreti iade edilir, firma %25 saha payını alır."""
+    reason = (reason or "").strip()
+    if not reason:
+        return _error("Neden zorunludur")
+    from yerimebak_ai_v5.services import dispatch_service
+
+    dispatch_service.ensure_workflow_schema_once()
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM reports WHERE id::text = %s FOR UPDATE", (str(report_id),))
+        row = cursor.fetchone()
+        if not row:
+            return _error("Talep bulunamadi", 404)
+        row = dict(row)
+        data = _load(row.get("data"))
+        if data.get("durum_kodu") != "vehicle_not_found":
+            return {"error": "Bu işlem yalnız saha 'araç adreste yok' bildirdiğinde yapılabilir",
+                    "http_status": 409, "code": "arac_bulunamadi_bildirimi_yok"}
+        if (row.get("status") or "") in ("cancelled", "published"):
+            return _error("Talep zaten kapanmis", 409)
+        request_id = str(data.get("expertiz_request_id") or row["id"])
+        cursor.execute("SELECT * FROM expertiz_requests WHERE id = %s FOR UPDATE", (request_id,))
+        req = cursor.fetchone()
+        req = dict(req) if req else {}
+        payment_status = str(req.get("payment_status") or row.get("payment_status") or "")
+        package = float(req.get("package_price_tl") or row.get("paket_fiyati") or 0)
+        total = float(req.get("total_tl") or row.get("toplam_tutar") or 0)
+
+        refunded = 0.0
+        if payment_status in PAID_EXPERTIZ and package > 0:
+            result = _do_refund(req.get("paytr_oid"), package, payment_status)
+            if "error" in result:
+                conn.rollback()
+                return _error(result["error"], 502)
+            refunded = package
+        kept = round(total - refunded, 2) if payment_status in PAID_EXPERTIZ else 0.0
+
+        now = _now()
+        data["cancellation"] = {"reason": reason, "by": _actor(admin), "at": now, "refunded_tl": refunded,
+                                "kept_tl": kept, "kind": "vehicle_not_found"}
+        new_payment = "partially_refunded" if refunded else payment_status
+        cursor.execute(
+            """
+            UPDATE reports
+            SET status = 'cancelled', durum = 'Araç bulunamadı', data = %s, payment_status = %s,
+                status_updated_at = NOW(), updated_at = NOW(), version_id = COALESCE(version_id, 0) + 1
+            WHERE id = %s
+            """,
+            (Json(data), new_payment, row["id"]),
+        )
+        if req:
+            cursor.execute(
+                "UPDATE expertiz_requests SET status = 'Iptal', updated_at = %s, payment_status = %s WHERE id = %s",
+                (now, new_payment, request_id),
+            )
+        _audit(cursor, "REQUEST_VEHICLE_NOT_FOUND_REFUND", "expertiz_request", str(row["id"]), admin,
+               {"reason": reason, "refunded_tl": refunded, "kept_tl": kept, "paytr_oid": req.get("paytr_oid")})
+        body = ("Aracın randevu adresinde bulunamadığı bildirildi. Ödeme öncesi onayladığınız koşul gereği hizmet "
+                "bedeli iade edilmez.")
+        if refunded:
+            body += (f" Kurumsal ekspertiz paket ücreti olan {_tl(refunded)} TL kartınıza iade edildi; "
+                     "bankanıza göre hesabınıza yansıması birkaç iş günü sürebilir.")
+        notification_service.notify_user(
+            cursor, req.get("user_id") or notification_service.customer_user_id(cursor, data),
+            "vehicle_not_found", "Araç adreste bulunamadı", body, str(row["id"]),
+        )
+        conn.commit()
+        return {"success": True, "report_id": str(row["id"]), "refund_tl": refunded, "kept_tl": kept,
+                "status": "cancelled"}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        DatabaseConfig.return_connection(conn)

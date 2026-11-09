@@ -399,6 +399,11 @@ def list_candidates(report_id: str) -> Dict[str, Any]:
         return detail
     request = detail["request"]
     personnel = personnel_service.list_personnel(active=True)["personnel"]
+    # Kurumsal firma modeli (sözleşme 2026-11-09 bölüm 3): başka firmanın personeli aday olmaz; firmasız
+    # personel (YerimeBak koordinatörü) yönetici kararıyla atanabilir, talebin firmasının personeli önce gelir.
+    firma = request.get("firm_id") or ""
+    if firma:
+        personnel = [p for p in personnel if not p.get("firm_id") or p.get("firm_id") == firma]
     candidates = []
     for person in personnel:
         level = _match_level(person, request)
@@ -408,7 +413,8 @@ def list_candidates(report_id: str) -> Dict[str, Any]:
             "assignable": bool(person.get("on_duty")),
             "is_current": person["id"] == request["assignment"].get("personnel_id"),
         })
-    candidates.sort(key=lambda p: (not p["assignable"], _MATCH_ORDER[p["match"]], p["open_task_count"], p["full_name"]))
+    candidates.sort(key=lambda p: (not p["assignable"], bool(firma) and p.get("firm_id") != firma,
+                                   _MATCH_ORDER[p["match"]], p["open_task_count"], p["full_name"]))
     recommended = next((p for p in candidates if p["assignable"] and not p["is_current"]), None)
     return {
         "success": True,
@@ -416,6 +422,7 @@ def list_candidates(report_id: str) -> Dict[str, Any]:
         "candidates": candidates,
         "on_duty_count": sum(1 for p in candidates if p["assignable"]),
         "recommended_id": recommended["id"] if recommended else None,
+        "firm_id": request.get("firm_id") or "",
     }
 
 
@@ -443,6 +450,9 @@ def assign_request(report_id: str, personnel_id: str, admin: Dict[str, Any], not
             return _error("Personel su an gorev icin pasif; aktif bir personel secin", 409)
 
         data = _load_data(row.get("data"))
+        if data.get("firm_id") and personnel.get("firm_id") and personnel["firm_id"] != data["firm_id"]:
+            return {"error": "Bu talep secilen firmanin personeline atanabilir", "http_status": 409,
+                    "code": "firma_uyusmuyor"}
         previous_id = _assigned_id(data)
         new_id = str(personnel["id"])
         if previous_id == new_id:
@@ -651,6 +661,8 @@ def update_task_progress(report_id: str, user: Dict[str, Any], action: str) -> D
         data = _load_data(row.get("data"))
         if _assigned_id(data) != personnel_id:
             return _error("Bu gorev size atanmamis", 403)
+        if data.get("durum_kodu") == "vehicle_not_found":
+            return _error("Araç adreste bulunamadı bildirildi; görev yönetim kararını bekliyor", 409)
         report_status = row.get("status") or "draft"
         if report_status not in ASSIGNABLE_STATUSES:
             return _error("Bu gorev artik guncellenemez", 409)
@@ -1093,3 +1105,59 @@ async def run_central_ai(report_id: str) -> bool:
     except Exception as exc:  # pragma: no cover - loglanir
         logger.error("Merkezi AI analizi baslatilamadi (%s): %s", report_id, exc)
         return False
+
+
+# ---------------------------------------------------------------------------
+# Araç adreste bulunamadı (sözleşme 2026-11-09 bölüm 4)
+# ---------------------------------------------------------------------------
+
+NOT_FOUND_STAGES = ("on_the_way", "at_vehicle")
+
+
+def report_vehicle_not_found(report_id: str, user: Dict[str, Any], note: str) -> Dict[str, Any]:
+    """Saha personeli aracın adreste olmadığını bildirir; görev kapanır, yönetim iade kararını verir."""
+    note = " ".join(str(note or "").split())
+    if len(note) < 10:
+        return {"error": "Ne olduğunu kısaca yazın (en az 10 karakter): satıcı arandı mı, adres doğru muydu?",
+                "http_status": 422, "code": "not_gerekli"}
+    ensure_workflow_schema_once()
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        task = _load_owned_task(cursor, report_id, user, lock=True)
+        if "error" in task:
+            return task
+        row = task["row"]
+        if not _task_is_open(row):
+            return _error("Bu gorev artik acik degil", 409)
+        data = _load_data(row.get("data"))
+        stage = _assignment_status(data)
+        if stage not in NOT_FOUND_STAGES:
+            return {"error": "Bu bildirim yalnız yoldayken ya da araç başındayken yapılabilir",
+                    "http_status": 409, "code": "asama_uygun_degil"}
+        now = _now()
+        data["durum_kodu"] = "vehicle_not_found"
+        data["not_found"] = {"note": note, "at": now, "by": _actor_label(user), "personnel_id": str(user.get("id"))}
+        assignment = data.get("assignment") if isinstance(data.get("assignment"), dict) else {}
+        history = list(assignment.get("history") or [])
+        history.append({"action": "vehicle_not_found", "by": _actor_label(user), "at": now, "note": note})
+        assignment["history"] = history
+        assignment["status"] = "vehicle_not_found"
+        data["assignment"] = assignment
+        if isinstance(data.get("talep"), dict):
+            data["talep"]["durum"] = "Araç adreste bulunamadı"
+        _save_report_data(cursor, row, data, "Araç adreste bulunamadı")
+        _write_audit(cursor, "VEHICLE_NOT_FOUND", str(row["id"]), user, {"note": note})
+        from yerimebak_ai_v5.services import notification_service
+        notification_service.notify_admins(
+            cursor, "vehicle_not_found", "Araç adreste bulunamadı",
+            f"{_vehicle_label(_admin_request(dict(row, data=data)))}: {note}. Paket ücreti iadesini değerlendirin.",
+            str(row["id"]),
+        )
+        conn.commit()
+        return {"success": True, "report_id": str(row["id"]), "durum_kodu": "vehicle_not_found"}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        DatabaseConfig.return_connection(conn)
