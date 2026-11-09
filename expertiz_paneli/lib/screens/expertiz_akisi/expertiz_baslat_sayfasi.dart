@@ -1,8 +1,10 @@
+import 'package:yerimebak_sistemleri/bilesenler/yb_iskelet.dart';
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/constants/yerimebak_colors.dart';
 import '../../providers/expertiz_provider.dart';
 import 'adim1_sayfasi.dart';
 import 'adim2_sayfasi.dart';
@@ -91,7 +93,7 @@ class _ExpertizBaslatSayfasiState extends State<ExpertizBaslatSayfasi> {
             const SizedBox(height: 8),
             ...eksikler.take(30).map((e) => ListTile(
                 dense: true,
-                leading: const Icon(Icons.error_outline, color: Colors.orange),
+                leading: Icon(LucideIcons.circleAlert, color: context.renkler.uyari),
                 title: Text(e))),
           ],
         ),
@@ -124,7 +126,7 @@ class _ExpertizBaslatSayfasiState extends State<ExpertizBaslatSayfasi> {
               child: const Text('Kontrol Et')),
           FilledButton.icon(
             onPressed: () => Navigator.pop(ctx, true),
-            icon: const Icon(Icons.send),
+            icon: const Icon(LucideIcons.send),
             label: const Text('Kaydet ve Gönder'),
           ),
         ],
@@ -135,9 +137,9 @@ class _ExpertizBaslatSayfasiState extends State<ExpertizBaslatSayfasi> {
     final basarili = await provider.completeGorev();
     if (!mounted || !reportContext.mounted) return;
     if (basarili) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Rapor kaydedildi ve admin onayına gönderildi 🚀'),
-        backgroundColor: SahaRaporuTemasi.success,
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Rapor kaydedildi ve admin onayına gönderildi'),
+        backgroundColor: context.renkler.birincilMetin,
         duration: Duration(seconds: 3),
       ));
       Navigator.pop(context, true);
@@ -177,11 +179,11 @@ class _ExpertizBaslatSayfasiState extends State<ExpertizBaslatSayfasi> {
                       ExpertizProvider.stepTitles[provider.currentStep - 1],
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: SahaRaporuTemasi.primary, fontSize: 18),
+                      style: TextStyle(
+                          color: reportContext.renkler.birincil, fontSize: 18),
                     ),
-                    backgroundColor: Colors.white,
-                    foregroundColor: YerimeBakColors.blue,
+                    backgroundColor: reportContext.renkler.yuzey,
+                    foregroundColor: reportContext.renkler.birincil,
                     elevation: 0,
                     actions: [
                       if (MediaQuery.sizeOf(reportContext).width >= 600)
@@ -195,10 +197,10 @@ class _ExpertizBaslatSayfasiState extends State<ExpertizBaslatSayfasi> {
                         child: Center(
                           child: Text(
                             '%${(provider.completionPercentage * 100).toStringAsFixed(0)}',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: YerimeBakColors.blue),
+                                color: reportContext.renkler.birincil),
                           ),
                         ),
                       ),
@@ -207,9 +209,9 @@ class _ExpertizBaslatSayfasiState extends State<ExpertizBaslatSayfasi> {
                       preferredSize: const Size.fromHeight(4),
                       child: LinearProgressIndicator(
                         value: provider.completionPercentage,
-                        backgroundColor: YerimeBakColors.lightGray,
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                            YerimeBakColors.blue),
+                        backgroundColor: reportContext.renkler.yuzeyIkincil,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                            reportContext.renkler.birincil),
                       ),
                     ),
                   ),
@@ -221,7 +223,7 @@ class _ExpertizBaslatSayfasiState extends State<ExpertizBaslatSayfasi> {
 
   Widget _govde(ExpertizProvider provider, BuildContext reportContext) {
     if (provider.isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Padding(padding: EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [YbIskelet(height: 24), SizedBox(height: 16), YbIskelet(height: 120)]));
     }
     if (provider.errorMessage != null) {
       return Center(
@@ -230,13 +232,13 @@ class _ExpertizBaslatSayfasiState extends State<ExpertizBaslatSayfasi> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.cloud_off, size: 56, color: YerimeBakColors.red),
+              Icon(LucideIcons.cloudOff, size: 56, color: context.renkler.tehlike),
               const SizedBox(height: 12),
               Text(provider.errorMessage!, textAlign: TextAlign.center),
               const SizedBox(height: 16),
               FilledButton.icon(
                   onPressed: _baslat,
-                  icon: const Icon(Icons.refresh),
+                  icon: const Icon(LucideIcons.refreshCw),
                   label: const Text('Tekrar Dene')),
             ],
           ),
@@ -248,15 +250,15 @@ class _ExpertizBaslatSayfasiState extends State<ExpertizBaslatSayfasi> {
         _GorevBilgisi(provider: provider),
         if (provider.redNedeni != null && provider.duzenlenebilir)
           MaterialBanner(
-            backgroundColor: Colors.red.withValues(alpha: .08),
-            leading: const Icon(Icons.assignment_return, color: Colors.red),
+            backgroundColor: context.renkler.tehlike.withValues(alpha: .08),
+            leading: Icon(LucideIcons.undo2, color: context.renkler.tehlike),
             content: Text('Admin düzeltme istedi: ${provider.redNedeni}'),
             actions: const [SizedBox.shrink()],
           ),
         if (!provider.duzenlenebilir)
           MaterialBanner(
-            backgroundColor: Colors.blue.withValues(alpha: .08),
-            leading: const Icon(Icons.lock_outline, color: Colors.blue),
+            backgroundColor: context.renkler.birincil.withValues(alpha: .08),
+            leading: Icon(LucideIcons.lockKeyhole, color: context.renkler.birincil),
             content: const Text(
                 'Bu rapor gönderildi; admin onayı bekleniyor. Sadece görüntüleme modundasınız.'),
             actions: const [SizedBox.shrink()],
@@ -296,11 +298,11 @@ class _TaslakDurumu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!provider.duzenlenebilir) {
-      return const Text('Gönderildi',
-          style: TextStyle(fontSize: 12, color: SahaRaporuTemasi.primary));
+      return Text('Gönderildi',
+          style: TextStyle(fontSize: 12, color: context.renkler.birincil));
     }
     if (provider.taslakKaydediliyor) {
-      return const Row(
+      return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
@@ -309,7 +311,7 @@ class _TaslakDurumu extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2)),
           SizedBox(width: 6),
           Text('Kaydediliyor',
-              style: TextStyle(fontSize: 12, color: SahaRaporuTemasi.muted)),
+              style: TextStyle(fontSize: 12, color: context.renkler.metinIkincil)),
         ],
       );
     }
@@ -318,9 +320,9 @@ class _TaslakDurumu extends StatelessWidget {
         message: provider.taslakHatasi!,
         child: TextButton.icon(
           onPressed: provider.taslagiKaydet,
-          icon: const Icon(Icons.cloud_off, size: 16, color: Colors.red),
-          label: const Text('Kaydedilemedi',
-              style: TextStyle(fontSize: 12, color: Colors.red)),
+          icon: Icon(LucideIcons.cloudOff, size: 16, color: context.renkler.tehlike),
+          label: Text('Kaydedilemedi',
+              style: TextStyle(fontSize: 12, color: context.renkler.tehlike)),
         ),
       );
     }
@@ -329,7 +331,7 @@ class _TaslakDurumu extends StatelessWidget {
       zaman == null
           ? ''
           : 'Kaydedildi ${DateFormat('HH:mm').format(zaman.toLocal())}',
-      style: const TextStyle(fontSize: 12, color: SahaRaporuTemasi.muted),
+      style: TextStyle(fontSize: 12, color: context.renkler.metinIkincil),
     );
   }
 }
@@ -343,20 +345,20 @@ class _GorevBilgisi extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      color: YerimeBakColors.lightGray,
+      color: context.renkler.yuzeyIkincil,
       child: Wrap(
         spacing: 20,
         runSpacing: 4,
         children: [
-          _bilgi(
-              Icons.directions_car,
+          _bilgi(context, 
+              LucideIcons.car,
               provider.adim1Model?.plaka.isNotEmpty == true
                   ? provider.adim1Model!.plaka
                   : (provider.aracPlakasi ?? '-')),
-          _bilgi(Icons.person, 'Müşteri: ${provider.musteriAdi ?? '-'}'),
-          _bilgi(Icons.badge, 'Personel: ${provider.personelAdi ?? '-'}'),
+          _bilgi(context, LucideIcons.userRound, 'Müşteri: ${provider.musteriAdi ?? '-'}'),
+          _bilgi(context, LucideIcons.idCard, 'Personel: ${provider.personelAdi ?? '-'}'),
           if (provider.kurumsalZorunlu)
-            _bilgi(Icons.business, 'Kurumsal: ${provider.kurumsalFirma}'),
+            _bilgi(context, LucideIcons.building2, 'Kurumsal: ${provider.kurumsalFirma}'),
           if (MediaQuery.sizeOf(context).width < 600)
             _TaslakDurumu(provider: provider),
         ],
@@ -364,17 +366,17 @@ class _GorevBilgisi extends StatelessWidget {
     );
   }
 
-  Widget _bilgi(IconData icon, String text) {
+  Widget _bilgi(BuildContext context, IconData icon, String text) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: Colors.grey.shade700),
+        Icon(icon, size: 16, color: context.renkler.metinIkincil),
         const SizedBox(width: 4),
         Flexible(
             child: Text(text,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade800))),
+                style: TextStyle(fontSize: 13, color: context.renkler.metinIkincil))),
       ],
     );
   }
@@ -400,13 +402,8 @@ class _AltNavigasyon extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
         decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 8,
-                offset: const Offset(0, -2))
-          ],
+          color: context.renkler.yuzey,
+          border: Border(top: BorderSide(color: context.renkler.kenarlik)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -433,17 +430,17 @@ class _AltNavigasyon extends StatelessWidget {
                                   horizontal: 2, vertical: 6),
                               decoration: BoxDecoration(
                                 color: aktif
-                                    ? YerimeBakColors.blue
+                                    ? context.renkler.birincil
                                     : tamam
-                                        ? YerimeBakColors.green
+                                        ? context.renkler.birincilMetin
                                             .withValues(alpha: .15)
-                                        : Colors.grey.shade200,
+                                        : context.renkler.yuzeyIkincil,
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                '${ExpertizProvider.stepIcons[index]} $s',
+                                '$s',
                                 style: TextStyle(
-                                  color: aktif ? Colors.white : Colors.black87,
+                                  color: aktif ? context.renkler.birincilUstu : context.renkler.metin,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -458,7 +455,7 @@ class _AltNavigasyon extends StatelessWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: step > 1 ? provider.previousStep : null,
-                    icon: const Icon(Icons.arrow_back),
+                    icon: const Icon(LucideIcons.arrowLeft),
                     label: const Text('Geri'),
                   ),
                 ),
@@ -470,14 +467,14 @@ class _AltNavigasyon extends StatelessWidget {
                           onPressed: gecerli ? provider.nextStep : onEksikler,
                           style: FilledButton.styleFrom(
                             backgroundColor: gecerli
-                                ? SahaRaporuTemasi.primary
-                                : const Color(0xFFFFEDD5),
+                                ? context.renkler.birincil
+                                : context.renkler.uyariYuzey,
                             foregroundColor: gecerli
-                                ? Colors.white
-                                : const Color(0xFF7C2D12),
+                                ? context.renkler.birincilUstu
+                                : context.renkler.uyari,
                           ),
                           icon: Icon(
-                              gecerli ? Icons.arrow_forward : Icons.checklist),
+                              gecerli ? LucideIcons.arrowRight : LucideIcons.listChecks),
                           label: Text(gecerli ? 'İleri' : 'Eksikleri Gör'),
                         )
                       : FilledButton.icon(
@@ -486,16 +483,16 @@ class _AltNavigasyon extends StatelessWidget {
                                   ? null
                                   : onGonder,
                           style: FilledButton.styleFrom(
-                              backgroundColor: SahaRaporuTemasi.success,
-                              foregroundColor: Colors.white),
+                              backgroundColor: context.renkler.birincilMetin,
+                              foregroundColor: context.renkler.birincilUstu),
                           icon: provider.isSubmitting
-                              ? const SizedBox(
+                              ? SizedBox(
                                   width: 18,
                                   height: 18,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: Colors.white),
+                                      strokeWidth: 2, color: context.renkler.birincilUstu),
                                 )
-                              : const Icon(Icons.send),
+                              : const Icon(LucideIcons.send),
                           label: const Text('Kaydet ve Gönder',
                               textAlign: TextAlign.center),
                         ),

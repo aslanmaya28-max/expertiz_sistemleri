@@ -1,30 +1,19 @@
-/// ADMIN SHELL - SYSTEM BORDER CONTROL
-/// 
-/// ⚠️ NON-NEGOTIABLE: Admin paneline giriş için TEK NOKTA
-/// 
-/// Sorumluluklar:
-/// 1. ROLE GUARD: Sadece admin kullanıcıları içeri alır
-/// 2. SINGLE ENTRY POINT: Admin paneline girişi kontrol eder
-/// 3. SIDEBAR/DRAWER: Navigation'ı yönetir
-/// 4. TAB ROUTING: 9 sekme için modül routing sağlar
-/// 
-/// ❌ Business logic YOK - Her modül kendi işini halleder
-/// ✅ Sadece auth check ve navigation
-library;
-
-import 'dart:ui';
-import '../core/widgets/yerimebak_logo.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../../providers/user_provider.dart';
-import '../../providers/theme_provider.dart';
-import '../../widgets/cyber/cyber_background.dart';
-import '../../core/constants/yerimebak_colors.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../providers/user_provider.dart';
+import '../providers/theme_provider.dart';
+import '../core/widgets/sidebar.dart';
+import '../core/widgets/sifre_degistir_dialog.dart';
+import '../services/yerimebak_expertiz_api_service.dart';
+import '../models/dashboard_stats.dart';
+import '../tema/renkler.dart';
 import 'unauthorized_screen.dart';
 import 'widgets/admin_notification_bell.dart';
 import 'modules/dashboard_module.dart';
 import 'modules/arac_operasyonu.dart';
-import '../../screens/personel/personel_bolge_sistemi.dart';
+import '../screens/personel/personel_bolge_sistemi.dart';
 import 'modules/musteri_yonetimi_module.dart';
 import 'modules/rapor_inceleme_module.dart';
 import 'modules/fiyatlandirma_module.dart';
@@ -33,440 +22,149 @@ import 'modules/ayarlar_module.dart';
 import 'modules/piyasa_takibi_module.dart';
 import 'modules/kontrol_merkezi_module.dart';
 
-/// Admin Shell
-/// 
-/// Sistem'in tek giriş kapısı ve role guard'ı
+/// Yetki denetimi, modül gezinmesi ve sunucu kaynaklı menü rozetleri.
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
-
   @override
   State<AdminShell> createState() => _AdminShellState();
 }
 
-class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  int _selectedIndex = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 10, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDarkMode = theme.brightness == Brightness.dark;
-
-    // ✅ ROLE GUARD: Sadece admin kullanıcıları içeri al
-    return Consumer<UserProvider>(
-      builder: (context, userProvider, child) {
-        // Kullanıcı giriş yapmamışsa
-        if (!userProvider.isAuthenticated) {
-          return _buildUnauthorizedScreen(context);
-        }
-
-        // Kullanıcı admin değilse
-        if (!userProvider.isAdmin) {
-          return _buildUnauthorizedScreen(context);
-        }
-
-        // ✅ TAMAM: Admin kullanıcısı - içeri al
-        return CyberBackground(
-          child: Scaffold(
-            backgroundColor: Colors.transparent,
-            key: _scaffoldKey,
-            appBar: _buildAppBar(context, isDarkMode, userProvider),
-            drawer: _buildDrawer(context, isDarkMode, userProvider),
-            body: TabBarView(
-              controller: _tabController,
-              children: [
-                // 9 Modül - Her biri kendi işini halleder
-                const DashboardModule(),
-                // Kontrol merkezi (9 Kasım 2026): saha ↔ müşteri/satıcı bağlantısı buradan kurulur
-                const KontrolMerkeziModule(),
-                const AracOperasyonu(),
-                _buildPersonelModule(context),
-                const MusteriYonetimiModule(),
-                const RaporIncelemeModule(),
-                const FinansYonetimi(),
-                const FiyatlandirmaModule(),
-                const AyarlarModule(),
-                const PiyasaTakibiModule(),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// =====================================================
-  // ROLE GUARD
-  // =====================================================
-
-  /// Unauthorized screen göster
-  Widget _buildUnauthorizedScreen(BuildContext context) {
-    return const UnauthorizedScreen();
-  }
-
-  /// =====================================================
-  // APP BAR
-  // =====================================================
-
-  PreferredSizeWidget _buildAppBar(
-    BuildContext context,
-    bool isDarkMode,
-    UserProvider userProvider,
-  ) {
-    return AppBar(
-      title: Row(
-        children: [
-          YerimeBakLogo(height: 34, onDark: isDarkMode),
-          const SizedBox(width: 12),
-          Text(
-            'Admin Paneli',
-            style: TextStyle(
-              color: isDarkMode ? Colors.white : YerimeBakColors.blue,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-      backgroundColor: isDarkMode ? const Color(0xFF121212) : Colors.white,
-      elevation: 4,
-      iconTheme: IconThemeData(color: isDarkMode ? Colors.white : YerimeBakColors.blue),
-      actions: [
-        // Theme toggle
-        IconButton(
-          icon: Icon(
-            isDarkMode ? Icons.light_mode : Icons.dark_mode,
-            color: isDarkMode ? Colors.white : YerimeBakColors.blue,
-          ),
-          onPressed: () => _toggleTheme(context),
-          tooltip: isDarkMode ? 'Aydınlık Mod' : 'Gece Modu',
-        ),
-        // Notifications
-        // Saha adımları, onaya gelen raporlar; tıklanınca Araç Operasyonu açılır
-        AdminNotificationBell(
-          color: isDarkMode ? Colors.white : YerimeBakColors.blue,
-          onOpenReport: (_) => _tabController.animateTo(1),
-        ),
-        // Logout
-        IconButton(
-          icon: Icon(
-            Icons.exit_to_app,
-            color: isDarkMode ? Colors.white : YerimeBakColors.blue,
-          ),
-          onPressed: () => _logout(context),
-          tooltip: 'Çıkış Yap',
-        ),
-      ],
-      bottom: TabBar(
-        controller: _tabController,
-        isScrollable: true,
-        tabs: const [
-          Tab(icon: Icon(Icons.dashboard), text: 'Dashboard'),
-          Tab(icon: Icon(Icons.support_agent), text: 'Kontrol Merkezi'),
-          Tab(icon: Icon(Icons.directions_car), text: 'Araç Operasyonu'),
-          Tab(icon: Icon(Icons.people), text: 'Personel'),
-          Tab(icon: Icon(Icons.person), text: 'Müşteriler'),
-          Tab(icon: Icon(Icons.description), text: 'Raporlar'),
-          Tab(icon: Icon(Icons.attach_money), text: 'Finans Yönetimi'),
-          Tab(icon: Icon(Icons.sell), text: 'Fiyatlandırma'),
-          Tab(icon: Icon(Icons.settings), text: 'Ayarlar'),
-          // Eksikti: denetleyici uzunluğu sekme sayısıyla eşleşmeli (9 Kasım 2026)
-          Tab(icon: Icon(Icons.query_stats), text: 'Piyasa takibi'),
-        ],
-        onTap: (index) => setState(() => _selectedIndex = index),
-      ),
-    );
-  }
-
-  /// =====================================================
-  // DRAWER
-  // =====================================================
-
-  Widget _buildDrawer(
-    BuildContext context,
-    bool isDarkMode,
-    UserProvider userProvider,
-  ) {
-    final currentUser = userProvider.currentUser;
-    final initials = currentUser?.initials ?? 'A';
-    final fullName = currentUser?.fullName ?? 'Admin';
-
-    return Drawer(
-      backgroundColor: Colors.transparent,
-      child: ClipRRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: Container(
-            decoration: BoxDecoration(
-              color: (isDarkMode ? YerimeBakColors.darkGray : YerimeBakColors.blue).withAlpha(204),
-              border: const Border(
-                right: BorderSide(
-                  color: Colors.white24,
-                  width: 1.0,
-                ),
-              ),
-            ),
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                // HEADER
-                DrawerHeader(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(12),
-                    border: Border(
-                      bottom: BorderSide(color: Colors.white.withAlpha(25)),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Avatar
-                      Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: YerimeBakColors.cyberNeonTurquoise,
-                            width: 2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: YerimeBakColors.cyberNeonTurquoise.withAlpha(76),
-                              blurRadius: 10,
-                            ),
-                          ],
-                        ),
-                        child: CircleAvatar(
-                          radius: 28,
-                          backgroundColor: Colors.white,
-                          child: Text(
-                            initials,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: YerimeBakColors.blue,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      // Admin Panel
-                      const Text(
-                        'Admin Panel',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                      // Kullanıcı adı
-                      Text(
-                        fullName,
-                        style: TextStyle(
-                          color: Colors.white.withAlpha(153),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // NAVIGATION ITEMS
-                _buildDrawerItem(Icons.dashboard, 'Dashboard', 0, isDarkMode),
-                _buildDrawerItem(Icons.support_agent, 'Kontrol Merkezi', 1, isDarkMode),
-                _buildDrawerItem(Icons.directions_car, 'Araç Operasyonu', 2, isDarkMode),
-                _buildDrawerItem(Icons.people, 'Personel', 3, isDarkMode),
-                _buildDrawerItem(Icons.person, 'Müşteriler', 4, isDarkMode),
-                _buildDrawerItem(Icons.description, 'Raporlar', 5, isDarkMode),
-                _buildDrawerItem(Icons.attach_money, 'Finans Yönetimi', 6, isDarkMode),
-                _buildDrawerItem(Icons.sell, 'Fiyatlandırma', 7, isDarkMode),
-                _buildDrawerItem(Icons.settings, 'Ayarlar', 8, isDarkMode),
-                _buildDrawerItem(Icons.query_stats, 'Piyasa takibi', 9, isDarkMode),
-
-                // DIVIDER
-                Divider(color: Colors.white.withAlpha(25), thickness: 1),
-
-                // BOTTOM ACTIONS
-                _buildBottomDrawerItem(
-                  Icons.help,
-                  'Yardım',
-                  isDarkMode,
-                  () => _showMessage('Yardım'),
-                ),
-                _buildBottomDrawerItem(
-                  Icons.logout,
-                  'Çıkış Yap',
-                  isDarkMode,
-                  () => _logout(context),
-                  isDestructive: true,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Drawer item builder
-  Widget _buildDrawerItem(IconData icon, String title, int index, bool isDarkMode) {
-    final isSelected = _selectedIndex == index;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            setState(() {
-              _selectedIndex = index;
-              _tabController.animateTo(index);
+class _AdminShellState extends State<AdminShell> {
+  int _selected = 0;
+  String? _filter;
+  Map<int, int> _badges = {};
+  final _api = YerimebakExpertizApiService();
+  bool _badgesStarted = false;
+  Future<void> _loadBadges() async {
+    try {
+      final data = await _api.getAdminDashboard();
+      final ozet = DashboardOzet.fromResponse(data);
+      if (mounted) {
+        setState(() => _badges = {
+              2: ozet?.ekspertiz['waiting_assignment']?.toInt() ?? 0,
+              6: ozet?.krediSatisi['bekleyen_havale']?.toInt() ?? 0
             });
-            Navigator.pop(context);
-          },
-          borderRadius: BorderRadius.circular(10),
-          splashColor: YerimeBakColors.cyberNeonTurquoise.withValues(alpha: 0.2),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              color: isSelected
-                  ? YerimeBakColors.cyberNeonTurquoise.withValues(alpha: 0.15)
-                  : Colors.transparent,
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: YerimeBakColors.cyberNeonTurquoise.withValues(alpha: 0.1),
-                        blurRadius: 10,
-                        spreadRadius: 1,
-                      )
-                    ]
-                  : [],
-              border: isSelected
-                  ? Border.all(
-                      color: YerimeBakColors.cyberNeonTurquoise.withValues(alpha: 0.3),
-                    )
-                  : Border.all(color: Colors.transparent),
-            ),
-            child: Row(
-              children: [
-                // Icon
-                Icon(
-                  icon,
-                  color: isSelected ? YerimeBakColors.cyberNeonTurquoise : Colors.white70,
-                  size: 22,
-                ),
-                const SizedBox(width: 16),
-                // Title
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      color: isSelected ? Colors.white : Colors.white70,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      fontSize: 14,
-                      letterSpacing: isSelected ? 0.5 : 0,
-                    ),
-                  ),
-                ),
-                // Glowing Indicator Line
-                if (isSelected)
-                  Container(
-                    width: 3,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: YerimeBakColors.cyberNeonTurquoise,
-                      borderRadius: BorderRadius.circular(2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: YerimeBakColors.cyberNeonTurquoise,
-                          blurRadius: 6,
-                          spreadRadius: 2,
-                        ),
+      }
+      final control = await _api.getControlCenterTasks();
+      final now = DateTime.now().toUtc().add(const Duration(hours: 3));
+      final wall = DateTime(now.year, now.month, now.day, now.hour, now.minute);
+      const departed = {
+        'on_the_way',
+        'at_vehicle',
+        'at_corporate',
+        'in_progress',
+        'submitted'
+      };
+      final urgent =
+          (control['gorevler'] as List? ?? []).whereType<Map>().where((row) {
+        final slot = row['randevu'];
+        final date =
+            slot is Map ? DateTime.tryParse('${slot['tarih_saat']}') : null;
+        return date != null &&
+            !departed.contains(row['stage']) &&
+            date.difference(wall).inMinutes < 60;
+      }).length;
+      if (mounted) setState(() => _badges = {..._badges, 1: urgent});
+    } catch (_) {/* Rozet hatası modül kullanımını engellemez. */}
+  }
+
+  void _open(int index, [String? filter]) => setState(() {
+        _selected = index;
+        _filter = filter;
+      });
+  void _navigate(String page, String? filter) {
+    const indices = {
+      'musteriler': 4,
+      'raporlar': 5,
+      'finans': 6,
+      'talepler': 2,
+      'kontrol': 1
+    };
+    _open(indices[page] ?? 0, filter);
+  }
+
+  Widget _page(UserProvider user) => switch (_selected) {
+        0 => DashboardModule(
+            displayName: user.currentUser?.fullName,
+            email: user.currentUser?.email,
+            onNavigate: _navigate,
+            onUpdated: _loadBadges),
+        1 => const KontrolMerkeziModule(),
+        2 => AracOperasyonu(
+            key: ValueKey('talepler:$_filter'),
+            initialBucket:
+                _filter == 'arac_bulunamadi' ? 'in_progress' : _filter,
+            refundOnly: _filter == 'arac_bulunamadi'),
+        3 => const PersonelBolgePaneli(),
+        4 => const MusteriYonetimiModule(),
+        5 => const RaporIncelemeModule(),
+        6 => FinansYonetimi(key: ValueKey('finans:$_filter'), initialFilter: _filter),
+        7 => const FiyatlandirmaModule(),
+        8 => const AyarlarModule(),
+        _ => const PiyasaTakibiModule(),
+      };
+  @override
+  Widget build(BuildContext context) =>
+      Consumer<UserProvider>(builder: (context, user, _) {
+        if (!user.isAuthenticated || !user.isAdmin) {
+          return const UnauthorizedScreen();
+        }
+        if (!_badgesStarted) {
+          _badgesStarted = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) => _loadBadges());
+        }
+        final name = user.currentUser?.fullName.trim() ?? '';
+        final label = name.isNotEmpty
+            ? name
+            : (user.currentUser?.email.split('@').first ?? 'Yönetici');
+        final dark = Theme.of(context).brightness == Brightness.dark;
+        return PanelYerlesim(
+            secili: _selected,
+            onSelect: (i) => _open(i),
+            sayilar: _badges,
+            actions: [
+              IconButton(
+                  tooltip: dark ? 'Açık temaya geç' : 'Koyu temaya geç',
+                  icon: Icon(dark ? LucideIcons.sun : LucideIcons.moon),
+                  onPressed: () => context.read<ThemeProvider>().toggleTheme()),
+              AdminNotificationBell(
+                  color: context.renkler.metinIkincil,
+                  onOpenReport: (_) => _open(2)),
+              PopupMenuButton<String>(
+                  tooltip: 'Kullanıcı menüsü',
+                  onSelected: (action) async {
+                    if (action == 'password') {
+                      await showDialog<void>(
+                          context: context,
+                          builder: (_) => SifreDegistirDialog(api: _api));
+                    } else {
+                      await user.logout();
+                      if (context.mounted) context.go('/login');
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                        PopupMenuItem(
+                            value: 'password', child: Text('Şifre değiştir')),
+                        PopupMenuItem(value: 'logout', child: Text('Çıkış'))
                       ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Bottom drawer item builder
-  Widget _buildBottomDrawerItem(
-    IconData icon,
-    String title,
-    bool isDarkMode,
-    VoidCallback onTap, {
-    bool isDestructive = false,
-  }) {
-    return ListTile(
-      leading: Icon(
-        icon,
-        color: isDestructive ? Colors.redAccent : Colors.white70,
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: isDestructive ? Colors.redAccent : Colors.white,
-        ),
-      ),
-      onTap: onTap,
-      hoverColor: Colors.white.withValues(alpha: 0.05),
-    );
-  }
-
-  /// =====================================================
-  // MODULES
-  // =====================================================
-
-  /// Personel modülü - PersonelService'i inject et
-  Widget _buildPersonelModule(BuildContext context) {
-    // Panel verisini merkezi API'den kendisi yükler ve kaydeder.
-    return const PersonelBolgePaneli();
-  }
-
-  /// =====================================================
-  // ACTIONS
-  // =====================================================
-
-  /// Theme toggle
-  void _toggleTheme(BuildContext context) {
-    Provider.of<ThemeProvider>(context, listen: false).toggleTheme();
-  }
-
-  /// Logout
-  void _logout(BuildContext context) async {
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
-    await userProvider.logout();
-
-    if (context.mounted) {
-      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-    }
-  }
-
-  /// Show message
-  void _showMessage(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
-    }
-  }
+                  child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        CircleAvatar(
+                            radius: 16,
+                            backgroundColor: context.renkler.birincilYuzey,
+                            child: Text(label.substring(0, 1).toUpperCase(),
+                                style: TextStyle(
+                                    color: context.renkler.birincilMetin,
+                                    fontSize: 12))),
+                        if (MediaQuery.sizeOf(context).width >= 1100) ...[
+                          const SizedBox(width: 8),
+                          Text(label, style: const TextStyle(fontSize: 13))
+                        ],
+                        const SizedBox(width: 6),
+                        const Icon(LucideIcons.chevronDown, size: 14)
+                      ]))),
+            ],
+            child: _page(user));
+      });
 }

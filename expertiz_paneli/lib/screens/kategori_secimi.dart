@@ -1,3 +1,4 @@
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/material.dart';
 import 'rapor_dis_ekspertiz.dart';
 import 'rapor_ic_mekan.dart';
@@ -24,7 +25,7 @@ class KategoriSecimiSayfasi extends StatelessWidget {
             _buildKategoriButton(
               context,
               "Dış Ekspertiz",
-              Icons.car_repair,
+              LucideIcons.carFront,
               () => Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -36,7 +37,7 @@ class KategoriSecimiSayfasi extends StatelessWidget {
             _buildKategoriButton(
               context,
               "İç Mekan Kontrol",
-              Icons.event_seat,
+              LucideIcons.armchair,
               () => Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -48,7 +49,7 @@ class KategoriSecimiSayfasi extends StatelessWidget {
             _buildKategoriButton(
               context,
               "Kaporta / Boya Kontrol",
-              Icons.build_circle,
+              LucideIcons.wrench,
               () => Navigator.push(
                 context,
                 MaterialPageRoute(

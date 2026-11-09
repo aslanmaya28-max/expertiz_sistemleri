@@ -2,14 +2,18 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
 
 import '../../services/yerimebak_expertiz_api_service.dart';
 
 const durumEtiketleri = {'acik': 'Açık', 'test': 'Test', 'kapali': 'Kapalı'};
 
 /// Kontrol merkezi telefonu ve çalışma saatleri penceresi. Kaydedilirse true döner.
-Future<bool?> kontrolMerkeziAyariAc(BuildContext context, YerimebakExpertizApiService api) {
-  return showDialog<bool>(context: context, builder: (_) => _KontrolMerkeziAyari(api: api));
+Future<bool?> kontrolMerkeziAyariAc(
+    BuildContext context, YerimebakExpertizApiService api) {
+  return showDialog<bool>(
+      context: context, builder: (_) => _KontrolMerkeziAyari(api: api));
 }
 
 class _KontrolMerkeziAyari extends StatefulWidget {
@@ -55,7 +59,8 @@ class _KontrolMerkeziAyariState extends State<_KontrolMerkeziAyari> {
       _hata = null;
     });
     try {
-      await widget.api.updateControlCenter(phone: _telefon.text, hours: _saatler.text);
+      await widget.api
+          .updateControlCenter(phone: _telefon.text, hours: _saatler.text);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) setState(() => _hata = e.toString());
@@ -69,29 +74,42 @@ class _KontrolMerkeziAyariState extends State<_KontrolMerkeziAyari> {
     return AlertDialog(
       title: const Text('Kontrol merkezi'),
       content: _yukleniyor
-          ? const SizedBox(height: 80, child: Center(child: CircularProgressIndicator()))
+          ? SizedBox(
+              height: 80, child: Center(child: CircularProgressIndicator()))
           : Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Saha personeli müşteriye ya da satıcıya doğrudan bağlanmaz; bu numarayı arar.'),
+                const Text(
+                    'Saha personeli müşteriye ya da satıcıya doğrudan bağlanmaz; bu numarayı arar.'),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _telefon,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Kontrol merkezi telefonu', hintText: '0850 … ya da 05xx …'),
+                  decoration: const InputDecoration(
+                      labelText: 'Kontrol merkezi telefonu',
+                      hintText: '0850 … ya da 05xx …'),
                 ),
                 TextField(
                   controller: _saatler,
-                  decoration: const InputDecoration(labelText: 'Çalışma saatleri', hintText: 'Her gün 08.00–20.00'),
+                  decoration: const InputDecoration(
+                      labelText: 'Çalışma saatleri',
+                      hintText: 'Her gün 08.00–20.00'),
                 ),
                 if (_hata != null)
-                  Padding(padding: const EdgeInsets.only(top: 8), child: Text(_hata!, style: const TextStyle(color: Colors.red))),
+                  Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(_hata!,
+                          style: TextStyle(color: context.renkler.tehlike))),
               ],
             ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Vazgeç')),
-        FilledButton(onPressed: _yukleniyor || _kaydediliyor ? null : _kaydet, child: const Text('Kaydet')),
+        TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Vazgeç')),
+        FilledButton(
+            onPressed: _yukleniyor || _kaydediliyor ? null : _kaydet,
+            child: const Text('Kaydet')),
       ],
     );
   }
@@ -149,22 +167,32 @@ class _HizmetBolgeleriSayfasiState extends State<HizmetBolgeleriSayfasi> {
     }
   }
 
-  Map<String, String> get _degisenler =>
-      {for (final e in _durum.entries) if (_kayitli[e.key] != e.value) e.key: e.value};
+  Map<String, String> get _degisenler => {
+        for (final e in _durum.entries)
+          if (_kayitli[e.key] != e.value) e.key: e.value
+      };
 
   Future<void> _kaydet() async {
     final degisen = _degisenler;
     if (degisen.isEmpty) return;
-    final acilan = degisen.entries.where((e) => e.value == 'acik').map((e) => e.key).toList();
+    final acilan = degisen.entries
+        .where((e) => e.value == 'acik')
+        .map((e) => e.key)
+        .toList();
     if (acilan.isNotEmpty) {
       final onay = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Hizmeti aç'),
-          content: Text('${acilan.join(', ')}: Bu ildeki herkes talep ve ödeme yapabilir. Devam edilsin mi?'),
+          content: Text(
+              '${acilan.join(', ')}: Bu ildeki herkes talep ve ödeme yapabilir. Devam edilsin mi?'),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Vazgeç')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Aç')),
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Vazgeç')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Aç')),
           ],
         ),
       );
@@ -172,12 +200,18 @@ class _HizmetBolgeleriSayfasiState extends State<HizmetBolgeleriSayfasi> {
     }
     setState(() => _kaydediliyor = true);
     try {
-      await widget.api.updateServiceArea([for (final e in degisen.entries) {'il': e.key, 'durum': e.value}]);
+      await widget.api.updateServiceArea([
+        for (final e in degisen.entries) {'il': e.key, 'durum': e.value}
+      ]);
       if (!mounted) return;
       setState(() => _kayitli = Map.of(_durum));
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Hizmet bölgeleri kaydedildi')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Hizmet bölgeleri kaydedildi')));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
+      }
     } finally {
       if (mounted) setState(() => _kaydediliyor = false);
     }
@@ -185,8 +219,13 @@ class _HizmetBolgeleriSayfasiState extends State<HizmetBolgeleriSayfasi> {
 
   @override
   Widget build(BuildContext context) {
-    final sayilar = {for (final d in durumEtiketleri.keys) d: _durum.values.where((v) => v == d).length};
-    final gorunen = _durum.keys.where((il) => il.toLowerCase().contains(_arama.toLowerCase())).toList();
+    final sayilar = {
+      for (final d in durumEtiketleri.keys)
+        d: _durum.values.where((v) => v == d).length
+    };
+    final gorunen = _durum.keys
+        .where((il) => il.toLowerCase().contains(_arama.toLowerCase()))
+        .toList();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Hizmet bölgeleri'),
@@ -196,27 +235,33 @@ class _HizmetBolgeleriSayfasiState extends State<HizmetBolgeleriSayfasi> {
             child: FilledButton.icon(
               key: const Key('hizmet-bolgeleri-kaydet'),
               onPressed: _kaydediliyor || _degisenler.isEmpty ? null : _kaydet,
-              icon: const Icon(Icons.save),
-              label: Text(_degisenler.isEmpty ? 'Kaydet' : 'Kaydet (${_degisenler.length})'),
+              icon: const Icon(LucideIcons.save),
+              label: Text(_degisenler.isEmpty
+                  ? 'Kaydet'
+                  : 'Kaydet (${_degisenler.length})'),
             ),
           ),
         ],
       ),
       body: _yukleniyor
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: CircularProgressIndicator())
           : _hata != null
               ? Center(child: Text(_hata!))
               : ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    Text('Pilot il: $_pilot · Açık ${sayilar['acik']} · Test ${sayilar['test']} · Kapalı ${sayilar['kapali']}',
+                    Text(
+                        'Pilot il: $_pilot · Açık ${sayilar['acik']} · Test ${sayilar['test']} · Kapalı ${sayilar['kapali']}',
                         style: const TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(height: 4),
-                    const Text('Açık: herkes talep açar. Test: yalnız yönetici ve test kullanıcıları. '
+                    const Text(
+                        'Açık: herkes talep açar. Test: yalnız yönetici ve test kullanıcıları. '
                         'Genel anahtar kapalıyken açık illerde de yalnız test kullanıcıları talep açar.'),
                     const SizedBox(height: 12),
                     TextField(
-                      decoration: const InputDecoration(prefixIcon: Icon(Icons.search), labelText: 'İl ara'),
+                      decoration: const InputDecoration(
+                          prefixIcon: Icon(LucideIcons.search),
+                          labelText: 'İl ara'),
                       onChanged: (v) => setState(() => _arama = v),
                     ),
                     const SizedBox(height: 8),
@@ -224,14 +269,23 @@ class _HizmetBolgeleriSayfasiState extends State<HizmetBolgeleriSayfasi> {
                       ListTile(
                         key: Key('il-$il'),
                         dense: true,
-                        title: Text(il, style: TextStyle(fontWeight: il == _pilot ? FontWeight.w700 : null)),
-                        subtitle: _kayitli[il] != _durum[il] ? const Text('Kaydedilmedi', style: TextStyle(color: Colors.deepOrange)) : null,
+                        title: Text(il,
+                            style: TextStyle(
+                                fontWeight:
+                                    il == _pilot ? FontWeight.w700 : null)),
+                        subtitle: _kayitli[il] != _durum[il]
+                            ? Text('Kaydedilmedi',
+                                style: TextStyle(color: context.renkler.uyari))
+                            : null,
                         trailing: DropdownButton<String>(
                           value: _durum[il],
                           items: [
-                            for (final e in durumEtiketleri.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
+                            for (final e in durumEtiketleri.entries)
+                              DropdownMenuItem(
+                                  value: e.key, child: Text(e.value)),
                           ],
-                          onChanged: (v) => setState(() => _durum[il] = v ?? _durum[il]!),
+                          onChanged: (v) =>
+                              setState(() => _durum[il] = v ?? _durum[il]!),
                         ),
                       ),
                   ],

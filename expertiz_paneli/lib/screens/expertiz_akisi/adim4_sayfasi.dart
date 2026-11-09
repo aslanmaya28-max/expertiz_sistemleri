@@ -1,3 +1,5 @@
+import 'package:yerimebak_sistemleri/bilesenler/yb_iskelet.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -22,7 +24,7 @@ class Adim4Sayfasi extends StatelessWidget {
     final provider = context.watch<ExpertizProvider>();
     final model = provider.adim4Model;
     if (model == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const Padding(padding: EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [YbIskelet(height: 24), SizedBox(height: 16), YbIskelet(height: 120)]));
     }
     final duzenlenebilir = provider.duzenlenebilir;
 
@@ -34,7 +36,7 @@ class Adim4Sayfasi extends StatelessWidget {
         _BoyaOzeti(model: model),
         const SizedBox(height: 12),
         KontrolListesiBolumu(
-          baslik: '🎨 Kaporta Parçaları',
+          baslik: 'Kaporta Parçaları',
           bolum: ExpertizProvider.bolumBoya,
           maddeler: Adim4BoyaKaportaModel.parcalar,
           secenekler: DurumSecenekleri.parca,
@@ -55,7 +57,7 @@ class Adim4Sayfasi extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         KontrolListesiBolumu(
-          baslik: '🔩 Şasi ve Yapısal Elemanlar',
+          baslik: 'Şasi ve Yapısal Elemanlar',
           bolum: ExpertizProvider.bolumBoya,
           maddeler: Adim4BoyaKaportaModel.yapisal,
           secenekler: DurumSecenekleri.yapisal,
@@ -242,14 +244,14 @@ class _EkHasarKayitlari extends StatelessWidget {
           children: [
             const Expanded(
               child: Text(
-                '⚠️ Ek Hasar Kayıtları',
+                'Ek Hasar Kayıtları',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
             if (duzenlenebilir)
               TextButton.icon(
                 onPressed: () => _ekle(context),
-                icon: const Icon(Icons.add),
+                icon: const Icon(LucideIcons.plus),
                 label: const Text('Hasar Ekle'),
               ),
           ],

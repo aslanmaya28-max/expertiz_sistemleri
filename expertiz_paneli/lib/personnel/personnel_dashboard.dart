@@ -15,12 +15,13 @@ import 'dart:async';
 import '../core/widgets/yerimebak_logo.dart';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
+import 'package:yerimebak_sistemleri/bilesenler/bilesenler.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../core/theme/futuristic_theme.dart';
-import '../core/widgets/glass_card.dart';
 import '../core/widgets/sifre_degistir_dialog.dart';
 import '../providers/expertiz_provider.dart';
 import '../providers/user_provider.dart';
@@ -38,11 +39,11 @@ const Map<String, String> kGorevAdimEtiketleri = {
 };
 
 const Map<String, IconData> _adimIkonlari = {
-  'accept': Icons.check,
-  'depart': Icons.directions_car,
-  'arrive': Icons.place,
-  'corporate': Icons.business,
-  'start': Icons.edit_note,
+  'accept': LucideIcons.check,
+  'depart': LucideIcons.car,
+  'arrive': LucideIcons.mapPin,
+  'corporate': LucideIcons.building2,
+  'start': LucideIcons.filePenLine,
 };
 
 const Map<String, String> _asamaEtiketleri = {
@@ -59,7 +60,11 @@ const Map<String, String> _asamaEtiketleri = {
 /// "Araç adreste yok" yalnız bu aşamalarda bildirilebilir (sunucu da aynı kuralı uygular).
 const Set<String> kBulunamadiAsamalari = {'on_the_way', 'at_vehicle'};
 
-const List<String> kKontrolNotSecenekleri = ['Satıcı telefonu açmıyor', 'Gecikeceğim', 'Adreste sorun var'];
+const List<String> kKontrolNotSecenekleri = [
+  'Satıcı telefonu açmıyor',
+  'Gecikeceğim',
+  'Adreste sorun var'
+];
 
 class PersonnelDashboard extends StatefulWidget {
   const PersonnelDashboard({
@@ -111,7 +116,10 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
   }
 
   static List<Map<String, dynamic>> _rows(dynamic value) =>
-      (value as List? ?? const []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+      (value as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
 
   Future<void> _load({bool initial = false}) async {
     try {
@@ -122,12 +130,19 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
       ]);
       if (!mounted) return;
       final notifications = _rows(results[2]['notifications']);
-      final newestId = notifications.isEmpty ? null : (notifications.first['id'] as num?)?.toInt();
-      final hasNew = !initial && newestId != null && _lastNotificationId != null && newestId != _lastNotificationId;
+      final newestId = notifications.isEmpty
+          ? null
+          : (notifications.first['id'] as num?)?.toInt();
+      final hasNew = !initial &&
+          newestId != null &&
+          _lastNotificationId != null &&
+          newestId != _lastNotificationId;
       setState(() {
-        _me = Map<String, dynamic>.from(results[0]['personnel'] as Map? ?? const {});
+        _me = Map<String, dynamic>.from(
+            results[0]['personnel'] as Map? ?? const {});
         _tasks = _rows(results[1]['tasks']);
-        _kontrolMerkezi = Map<String, dynamic>.from(results[1]['kontrol_merkezi'] as Map? ?? const {});
+        _kontrolMerkezi = Map<String, dynamic>.from(
+            results[1]['kontrol_merkezi'] as Map? ?? const {});
         _notifications = notifications;
         _unread = (results[2]['unread'] as num?)?.toInt() ?? 0;
         _lastNotificationId = newestId ?? _lastNotificationId;
@@ -138,7 +153,9 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
       if (_me['must_change_password'] == true) _changePassword(zorunlu: true);
       if (hasNew) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(content: Text(notifications.first['title']?.toString() ?? 'Yeni bildirim')),
+          SnackBar(
+              content: Text(
+                  notifications.first['title']?.toString() ?? 'Yeni bildirim')),
         );
       }
     } catch (e) {
@@ -157,10 +174,15 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
     try {
       final response = await _api.setMyDuty(value);
       if (!mounted) return;
-      setState(() => _me = Map<String, dynamic>.from(response['personnel'] as Map? ?? _me));
-      _snack(value ? 'Görev için aktifsiniz; yeni görev alabilirsiniz' : 'Görev için pasifsiniz; yeni görev atanmayacak');
+      setState(() => _me =
+          Map<String, dynamic>.from(response['personnel'] as Map? ?? _me));
+      _snack(value
+          ? 'Görev için aktifsiniz; yeni görev alabilirsiniz'
+          : 'Görev için pasifsiniz; yeni görev atanmayacak');
     } catch (e) {
-      _snack('Görev durumu değiştirilemedi: ${e is ApiException ? e.message : e}', error: true);
+      _snack(
+          'Görev durumu değiştirilemedi: ${e is ApiException ? e.message : e}',
+          error: true);
     } finally {
       if (mounted) setState(() => _dutyBusy = false);
     }
@@ -175,22 +197,28 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
       await _load();
       if (action == 'start') _openReport(task);
     } catch (e) {
-      _snack('İşlem başarısız: ${e is ApiException ? e.message : e}', error: true);
+      _snack('İşlem başarısız: ${e is ApiException ? e.message : e}',
+          error: true);
     } finally {
       if (mounted) setState(() => _busyTasks.remove(id));
     }
   }
 
-  String get _kontrolTelefonu => (_kontrolMerkezi['telefon'] ?? '').toString().trim();
+  String get _kontrolTelefonu =>
+      (_kontrolMerkezi['telefon'] ?? '').toString().trim();
 
   Future<void> _ac(Uri uri) async {
     bool acildi;
     try {
-      acildi = await (widget.baglantiAc?.call(uri) ?? launchUrl(uri, mode: LaunchMode.externalApplication));
+      acildi = await (widget.baglantiAc?.call(uri) ??
+          launchUrl(uri, mode: LaunchMode.externalApplication));
     } catch (_) {
       acildi = false;
     }
-    if (!acildi) _snack('Bağlantı açılamadı: ${uri.path.isEmpty ? uri : uri.path}', error: true);
+    if (!acildi) {
+      _snack('Bağlantı açılamadı: ${uri.path.isEmpty ? uri : uri.path}',
+          error: true);
+    }
   }
 
   Future<void> _kontrolMerkeziniAra() async {
@@ -200,18 +228,21 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
   }
 
   Future<void> _kontrolNotu(Map<String, dynamic> task) async {
-    final not = await showDialog<String>(context: context, builder: (_) => const _KontrolNotuDialog());
+    final not = await showDialog<String>(
+        context: context, builder: (_) => const _KontrolNotuDialog());
     if (not == null) return;
     try {
       await _api.sendControlNote(task['id']?.toString() ?? '', not);
       _snack('Not kontrol merkezine iletildi');
     } catch (e) {
-      _snack('Not gönderilemedi: ${e is ApiException ? e.message : e}', error: true);
+      _snack('Not gönderilemedi: ${e is ApiException ? e.message : e}',
+          error: true);
     }
   }
 
   Future<void> _aracYok(Map<String, dynamic> task) async {
-    final not = await showDialog<String>(context: context, builder: (_) => const _AracYokDialog());
+    final not = await showDialog<String>(
+        context: context, builder: (_) => const _AracYokDialog());
     if (not == null) return;
     final id = task['id']?.toString() ?? '';
     setState(() => _busyTasks.add(id));
@@ -220,15 +251,18 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
       _snack('Bildirildi. Görev kapandı; karar kontrol merkezinde.');
       await _load();
     } catch (e) {
-      _snack('Bildirilemedi: ${e is ApiException ? e.message : e}', error: true);
+      _snack('Bildirilemedi: ${e is ApiException ? e.message : e}',
+          error: true);
     } finally {
       if (mounted) setState(() => _busyTasks.remove(id));
     }
   }
 
   void _openReport(Map<String, dynamic> task) {
-    final vehicle = Map<String, dynamic>.from(task['vehicle'] as Map? ?? const {});
-    final customer = Map<String, dynamic>.from(task['customer'] as Map? ?? const {});
+    final vehicle =
+        Map<String, dynamic>.from(task['vehicle'] as Map? ?? const {});
+    final customer =
+        Map<String, dynamic>.from(task['customer'] as Map? ?? const {});
     Navigator.of(context)
         .push(MaterialPageRoute(
           builder: (_) => ChangeNotifierProvider(
@@ -255,7 +289,7 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
     if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: FuturisticTheme.bgSecondary,
+      backgroundColor: context.renkler.yuzey,
       builder: (_) => _NotificationList(items: _notifications),
     );
     _load();
@@ -271,7 +305,9 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
     );
     _passwordDialogOpen = false;
     if (changed == true) {
-      if (mounted) setState(() => _me = {..._me, 'must_change_password': false});
+      if (mounted) {
+        setState(() => _me = {..._me, 'must_change_password': false});
+      }
       _snack('Şifreniz değiştirildi');
     }
   }
@@ -289,7 +325,9 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
   void _snack(String text, {bool error = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text), backgroundColor: error ? Colors.red.shade700 : null),
+      SnackBar(
+          content: Text(text),
+          backgroundColor: error ? context.renkler.tehlike : null),
     );
   }
 
@@ -306,14 +344,14 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
     return DefaultTabController(
       length: 4,
       child: Scaffold(
-        backgroundColor: FuturisticTheme.bgPrimary,
+        backgroundColor: context.renkler.zemin,
         appBar: AppBar(
-          title: const Row(
+          title: MediaQuery.sizeOf(context).width < 760 ? const Text('Saha') : Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              YerimeBakLogo(height: 32, onDark: true),
+              const YerimeBakLogo(height: 28),
               SizedBox(width: 12),
-              Text('Personel Paneli'),
+              if (MediaQuery.sizeOf(context).width >= 760) Text('Saha paneli'),
             ],
           ),
           actions: [
@@ -324,33 +362,69 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
               icon: Badge(
                 isLabelVisible: _unread > 0,
                 label: Text(_unread > 9 ? '9+' : '$_unread'),
-                child: const Icon(Icons.notifications_outlined),
+                child: const Icon(LucideIcons.bell),
               ),
             ),
-            IconButton(tooltip: 'Yenile', onPressed: _load, icon: const Icon(Icons.refresh)),
+            IconButton(
+                tooltip: 'Yenile',
+                onPressed: _load,
+                icon: const Icon(LucideIcons.refreshCw)),
             IconButton(
               key: const Key('changePasswordButton'),
               tooltip: 'Şifre Değiştir',
               onPressed: () => _changePassword(),
-              icon: const Icon(Icons.lock_reset),
+              icon: const Icon(LucideIcons.lockKeyhole),
             ),
-            IconButton(tooltip: 'Çıkış', onPressed: _logout, icon: const Icon(Icons.logout)),
+            IconButton(
+                tooltip: 'Çıkış',
+                onPressed: _logout,
+                icon: const Icon(LucideIcons.logOut)),
           ],
-          bottom: TabBar(
-            isScrollable: true,
-            labelColor: FuturisticTheme.neon,
-            indicatorColor: FuturisticTheme.neon,
-            unselectedLabelColor: Colors.white54,
-            tabs: [
-              Tab(text: 'Aktif (${active.length})'),
-              Tab(text: 'Beklemede (${pending.length})'),
-              Tab(text: 'Reddedildi (${rejected.length})'),
-              Tab(text: 'Tamamlanan (${approved.length})'),
-            ],
-          ),
+          bottom: MediaQuery.sizeOf(context).width < 760
+              ? null
+              : TabBar(
+                  isScrollable: true,
+                  labelColor: context.renkler.birincil,
+                  indicatorColor: context.renkler.birincil,
+                  unselectedLabelColor: context.renkler.metinIkincil,
+                  tabs: [
+                    Tab(text: 'Aktif (${active.length})'),
+                    Tab(text: 'Beklemede (${pending.length})'),
+                    Tab(text: 'Reddedildi (${rejected.length})'),
+                    Tab(text: 'Tamamlanan (${approved.length})'),
+                  ],
+                ),
         ),
+        bottomNavigationBar: MediaQuery.sizeOf(context).width >= 760
+            ? null
+            : Builder(
+                builder: (context) {
+                  final controller = DefaultTabController.of(context);
+                  return AnimatedBuilder(
+                      animation: controller,
+                      builder: (context, _) => NavigationBar(
+                            height: 72,
+                            selectedIndex: controller.index,
+                            onDestinationSelected: controller.animateTo,
+                            destinations: [
+                              NavigationDestination(
+                                  icon: const Icon(LucideIcons.clipboardList),
+                                  label: 'Aktif (${active.length})'),
+                              NavigationDestination(
+                                  icon: const Icon(LucideIcons.hourglass),
+                                  label: 'Beklemede (${pending.length})'),
+                              NavigationDestination(
+                                  icon: const Icon(LucideIcons.filePenLine),
+                                  label: 'Reddedildi (${rejected.length})'),
+                              NavigationDestination(
+                                  icon: const Icon(LucideIcons.circleCheck),
+                                  label: 'Tamamlanan (${approved.length})'),
+                            ],
+                          ));
+                },
+              ),
         body: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Padding(padding: EdgeInsets.all(24), child: Column(children: [YbIskelet(height: 80), SizedBox(height: 16), YbIskelet(height: 80), SizedBox(height: 16), YbIskelet(height: 80)]))
             : Column(
                 children: [
                   if (_error != null) _errorBanner(),
@@ -358,10 +432,18 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
                   Expanded(
                     child: TabBarView(
                       children: [
-                        _list(active, 'Aktif göreviniz yok', _onDuty ? 'Admin size görev atadığında burada görünür.' : 'Görev için pasifsiniz; yeni görev atanmaz.'),
-                        _list(pending, 'Admin kontrolünde rapor yok', 'Gönderdiğiniz raporlar onaylanana kadar burada bekler.'),
-                        _list(rejected, 'Reddedilen rapor yok', 'Admin hata bulursa rapor nedeniyle buraya döner.'),
-                        _list(approved, 'Tamamlanan görev yok', 'Admin onaylayıp müşteriye gönderdiği raporlar.'),
+                        _list(
+                            active,
+                            'Aktif göreviniz yok',
+                            _onDuty
+                                ? 'Yönetim size görev atadığında burada görünür.'
+                                : 'Görev için pasifsiniz; yeni görev atanmaz.'),
+                        _list(pending, 'Admin kontrolünde rapor yok',
+                            'Gönderdiğiniz raporlar onaylanana kadar burada bekler.'),
+                        _list(rejected, 'Reddedilen rapor yok',
+                            'Admin hata bulursa rapor nedeniyle buraya döner.'),
+                        _list(approved, 'Tamamlanan görev yok',
+                            'Admin onaylayıp müşteriye gönderdiği raporlar.'),
                       ],
                     ),
                   ),
@@ -374,13 +456,16 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
   Widget _errorBanner() {
     return Container(
       width: double.infinity,
-      color: Colors.red.withValues(alpha: 0.15),
+      color: context.renkler.tehlike.withValues(alpha: 0.15),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, color: Colors.redAccent, size: 18),
+          Icon(LucideIcons.circleAlert,
+              color: context.renkler.tehlike, size: 18),
           const SizedBox(width: 8),
-          Expanded(child: Text(_error!, style: const TextStyle(color: Colors.white70))),
+          Expanded(
+              child: Text(_error!,
+                  style: TextStyle(color: context.renkler.metinIkincil))),
           TextButton(onPressed: _load, child: const Text('Tekrar dene')),
         ],
       ),
@@ -389,15 +474,26 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
 
   Widget _dutyCard() {
     final name = _me['full_name']?.toString() ?? '';
-    final place = [_me['city'], _me['district']].where((e) => (e?.toString() ?? '').isNotEmpty).join(' / ');
+    final place = [_me['city'], _me['district']]
+        .where((e) => (e?.toString() ?? '').isNotEmpty)
+        .join(' / ');
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: GlassCard(
+      child: YbKart(
         child: Row(
           children: [
             CircleAvatar(
-              backgroundColor: (_onDuty ? Colors.green : Colors.grey).withValues(alpha: 0.25),
-              child: Icon(_onDuty ? Icons.work : Icons.work_off, color: _onDuty ? Colors.greenAccent : Colors.grey),
+              backgroundColor: (_onDuty
+                      ? context.renkler.birincilMetin
+                      : context.renkler.metinIkincil)
+                  .withValues(alpha: 0.25),
+              child: Icon(
+                  _onDuty
+                      ? LucideIcons.briefcaseBusiness
+                      : LucideIcons.briefcaseBusiness,
+                  color: _onDuty
+                      ? context.renkler.birincilMetin
+                      : context.renkler.metinIkincil),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -405,41 +501,66 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(name.isEmpty ? 'Personel' : name,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                  if (place.isNotEmpty) Text(place, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                      style: TextStyle(
+                          color: context.renkler.metin,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16)),
+                  if (place.isNotEmpty)
+                    Text(place,
+                        style: TextStyle(
+                            color: context.renkler.metinIkincil, fontSize: 13)),
                   const SizedBox(height: 2),
                   Text(
-                    _onDuty ? 'Görev için AKTİF — yeni görev alabilirsiniz' : 'Görev için PASİF — yeni görev atanmaz',
-                    style: TextStyle(color: _onDuty ? Colors.greenAccent : Colors.orangeAccent, fontSize: 12),
+                    _onDuty
+                        ? 'Görev için AKTİF — yeni görev alabilirsiniz'
+                        : 'Görev için PASİF — yeni görev atanmaz',
+                    style: TextStyle(
+                        color: _onDuty
+                            ? context.renkler.birincilMetin
+                            : context.renkler.uyari,
+                        fontSize: 13),
                   ),
                 ],
               ),
             ),
             if (_dutyBusy)
-              const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+              const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2))
             else
-              Switch(key: const Key('dutySwitch'), value: _onDuty, onChanged: _setDuty),
+              Switch(
+                  key: const Key('dutySwitch'),
+                  value: _onDuty,
+                  onChanged: _setDuty),
           ],
         ),
       ),
     );
   }
 
-  Widget _list(List<Map<String, dynamic>> tasks, String emptyTitle, String emptyHint) {
+  Widget _list(
+      List<Map<String, dynamic>> tasks, String emptyTitle, String emptyHint) {
     if (tasks.isEmpty) {
       return RefreshIndicator(
         onRefresh: _load,
         child: ListView(
           children: [
             const SizedBox(height: 60),
-            const Icon(Icons.assignment_outlined, size: 56, color: Colors.white24),
+            Icon(LucideIcons.clipboardList,
+                size: 56, color: context.renkler.kenarlik),
             const SizedBox(height: 12),
-            Center(child: Text(emptyTitle, style: const TextStyle(color: Colors.white70))),
+            Center(
+                child: Text(emptyTitle,
+                    style: TextStyle(color: context.renkler.metinIkincil))),
             const SizedBox(height: 4),
             Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Text(emptyHint, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                child: Text(emptyHint,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: context.renkler.metinIkincil, fontSize: 13)),
               ),
             ),
           ],
@@ -459,29 +580,39 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
 
   static String _date(dynamic value) {
     final parsed = DateTime.tryParse(value?.toString() ?? '');
-    return parsed == null ? '' : DateFormat('dd.MM.yyyy HH:mm').format(parsed.toLocal());
+    return parsed == null
+        ? ''
+        : DateFormat('dd.MM.yyyy HH:mm').format(parsed.toLocal());
   }
 
   Widget _taskCard(Map<String, dynamic> task) {
     final id = task['id']?.toString() ?? '';
-    final vehicle = Map<String, dynamic>.from(task['vehicle'] as Map? ?? const {});
-    final customer = Map<String, dynamic>.from(task['customer'] as Map? ?? const {});
-    final assignment = Map<String, dynamic>.from(task['assignment'] as Map? ?? const {});
+    final vehicle =
+        Map<String, dynamic>.from(task['vehicle'] as Map? ?? const {});
+    final customer =
+        Map<String, dynamic>.from(task['customer'] as Map? ?? const {});
+    final assignment =
+        Map<String, dynamic>.from(task['assignment'] as Map? ?? const {});
     final bucket = task['personnel_bucket']?.toString() ?? 'active';
     final stage = assignment['status']?.toString() ?? 'assigned';
-    final actions = (task['next_actions'] as List? ?? const []).map((e) => e.toString()).toList();
+    final actions = (task['next_actions'] as List? ?? const [])
+        .map((e) => e.toString())
+        .toList();
     final busy = _busyTasks.contains(id);
-    final place = [task['city'], task['district']].where((e) => (e?.toString() ?? '').isNotEmpty).join(' / ');
-    final randevu = Map<String, dynamic>.from(task['randevu'] as Map? ?? const {});
+    final place = [task['city'], task['district']]
+        .where((e) => (e?.toString() ?? '').isNotEmpty)
+        .join(' / ');
+    final randevu =
+        Map<String, dynamic>.from(task['randevu'] as Map? ?? const {});
     final adres = (randevu['adres'] ?? '').toString().trim();
     final saticiAdi = (randevu['satici_adi'] ?? '').toString().trim();
     final acik = bucket == 'active' || bucket == 'rejected';
 
     final (chipText, chipColor) = switch (bucket) {
-      'pending' => ('Admin kontrolünde', Colors.orangeAccent),
-      'rejected' => ('Reddedildi — düzeltin', Colors.redAccent),
-      'approved' => ('Onaylandı', Colors.greenAccent),
-      _ => (_asamaEtiketleri[stage] ?? stage, FuturisticTheme.neon),
+      'pending' => ('Admin kontrolünde', context.renkler.uyari),
+      'rejected' => ('Reddedildi — düzeltin', context.renkler.tehlike),
+      'approved' => ('Onaylandı', context.renkler.birincilMetin),
+      _ => (_asamaEtiketleri[stage] ?? stage, context.renkler.birincil),
     };
 
     final steps = <(String, dynamic)>[
@@ -489,12 +620,13 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
       ('Kabul', assignment['accepted_at']),
       ('Harekete geçti', assignment['departed_at']),
       ('Araç başında', assignment['arrived_at']),
-      if (task['corporate_required'] == true) ('Kurumsal ekspertiz', assignment['corporate_at']),
+      if (task['corporate_required'] == true)
+        ('Kurumsal ekspertiz', assignment['corporate_at']),
       ('Rapor', assignment['started_at']),
       ('Gönderildi', assignment['submitted_at']),
     ].where((s) => s.$2 != null).toList();
 
-    return GlassCard(
+    return YbKart(
       key: Key('task-$id'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -505,7 +637,10 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
               Expanded(
                 child: Text(
                   vehicle['title']?.toString() ?? 'Araç',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                  style: TextStyle(
+                      color: context.renkler.metin,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16),
                 ),
               ),
               Container(
@@ -515,52 +650,73 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
                   border: Border.all(color: chipColor),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(chipText, style: TextStyle(color: chipColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                child: Text(chipText,
+                    style: TextStyle(
+                        color: chipColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold)),
               ),
             ],
           ),
           const SizedBox(height: 6),
           if ((vehicle['plate']?.toString() ?? '').isNotEmpty)
-            Text(vehicle['plate'].toString(), style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
-          _line(Icons.location_on, place.isEmpty ? 'Konum belirtilmedi' : place),
+            Text(vehicle['plate'].toString(),
+                style: TextStyle(
+                    color: context.renkler.metinIkincil,
+                    fontWeight: FontWeight.w600)),
+          _line(
+              LucideIcons.mapPin, place.isEmpty ? 'Konum belirtilmedi' : place),
           // Müşteri/satıcı numarası gösterilmez; bağlantı kontrol merkezi üzerinden.
-          _line(Icons.person_outline, customer['name']?.toString() ?? ''),
+          _line(LucideIcons.user, customer['name']?.toString() ?? ''),
           if (randevu.isNotEmpty) ...[
-            _line(Icons.event, 'Randevu: ${_date(randevu['tarih_saat'])}'),
+            _line(LucideIcons.calendar,
+                'Randevu: ${_date(randevu['tarih_saat'])}'),
             if (adres.isNotEmpty)
               Row(
                 children: [
-                  Expanded(child: _line(Icons.home_outlined, adres)),
+                  Expanded(child: _line(LucideIcons.house, adres)),
                   TextButton.icon(
                     key: Key('harita-$id'),
-                    onPressed: () => _ac(Uri.https('www.google.com', '/maps/search/', {
+                    onPressed: () =>
+                        _ac(Uri.https('www.google.com', '/maps/search/', {
                       'api': '1',
-                      'query': [adres, place].where((e) => e.isNotEmpty).join(', '),
+                      'query':
+                          [adres, place].where((e) => e.isNotEmpty).join(', '),
                     })),
-                    icon: const Icon(Icons.map_outlined, size: 16),
+                    icon: const Icon(LucideIcons.map, size: 16),
                     label: const Text('Harita'),
                   ),
                 ],
               ),
-            if (saticiAdi.isNotEmpty) _line(Icons.storefront_outlined, 'Satıcı: $saticiAdi'),
+            if (saticiAdi.isNotEmpty)
+              _line(LucideIcons.store, 'Satıcı: $saticiAdi'),
           ],
           if ((task['firm_name']?.toString() ?? '').isNotEmpty)
-            _line(Icons.business, '${task['firm_name']} — ${task['package_name'] ?? ''}'),
-          if ((task['note']?.toString() ?? '').isNotEmpty) _line(Icons.notes, task['note'].toString()),
-          if (bucket == 'rejected' && (task['rejection_reason']?.toString() ?? '').isNotEmpty)
+            _line(LucideIcons.building2,
+                '${task['firm_name']} — ${task['package_name'] ?? ''}'),
+          if ((task['note']?.toString() ?? '').isNotEmpty)
+            _line(LucideIcons.notebookPen, task['note'].toString()),
+          if (bucket == 'rejected' &&
+              (task['rejection_reason']?.toString() ?? '').isNotEmpty)
             Container(
               width: double.infinity,
               margin: const EdgeInsets.only(top: 8),
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.12),
+                color: context.renkler.tehlike.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.6)),
+                border: Border.all(
+                    color: context.renkler.tehlike.withValues(alpha: 0.6)),
               ),
-              child: Text('Admin notu: ${task['rejection_reason']}', style: const TextStyle(color: Colors.redAccent)),
+              child: Text('Admin notu: ${task['rejection_reason']}',
+                  style: TextStyle(color: context.renkler.tehlike)),
             ),
-          if (bucket == 'pending') _line(Icons.hourglass_top, 'Gönderildi: ${_date(task['submitted_at'])}'),
-          if (bucket == 'approved') _line(Icons.verified, 'Onaylandı: ${_date(task['published_at'])}'),
+          if (bucket == 'pending')
+            _line(LucideIcons.hourglass,
+                'Gönderildi: ${_date(task['submitted_at'])}'),
+          if (bucket == 'approved')
+            _line(LucideIcons.badgeCheck,
+                'Onaylandı: ${_date(task['published_at'])}'),
           if (steps.isNotEmpty && bucket != 'approved') ...[
             const SizedBox(height: 8),
             Wrap(
@@ -569,7 +725,8 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
               children: steps
                   .map((s) => Chip(
                         visualDensity: VisualDensity.compact,
-                        label: Text('${s.$1} ${_date(s.$2).split(' ').last}', style: const TextStyle(fontSize: 11)),
+                        label: Text('${s.$1} ${_date(s.$2).split(' ').last}',
+                            style: const TextStyle(fontSize: 13)),
                       ))
                   .toList(),
             ),
@@ -577,7 +734,7 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
           if (bucket == 'active' || bucket == 'rejected') ...[
             const SizedBox(height: 12),
             if (busy)
-              const Center(child: CircularProgressIndicator())
+              const SizedBox(height: 48, width: 48, child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2)))
             else
               Wrap(
                 spacing: 8,
@@ -587,12 +744,17 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
                     action == actions.first
                         ? FilledButton.icon(
                             key: Key('action-$id-$action'),
+                            style: const ButtonStyle(minimumSize: WidgetStatePropertyAll(Size(44, 48)), visualDensity: VisualDensity.standard),
                             onPressed: () => _step(task, action),
                             icon: Icon(_adimIkonlari[action]),
-                            label: Text(action == 'start' && bucket == 'rejected' ? 'Düzeltmeye Başla' : kGorevAdimEtiketleri[action] ?? action),
+                            label: Text(
+                                action == 'start' && bucket == 'rejected'
+                                    ? 'Düzeltmeye Başla'
+                                    : kGorevAdimEtiketleri[action] ?? action),
                           )
                         : OutlinedButton.icon(
                             key: Key('action-$id-$action'),
+                            style: const ButtonStyle(minimumSize: WidgetStatePropertyAll(Size(44, 48)), visualDensity: VisualDensity.standard),
                             onPressed: () => _step(task, action),
                             icon: Icon(_adimIkonlari[action]),
                             label: Text(kGorevAdimEtiketleri[action] ?? action),
@@ -600,16 +762,19 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
                   if (stage == 'in_progress')
                     FilledButton.icon(
                       key: Key('report-$id'),
+                      style: const ButtonStyle(minimumSize: WidgetStatePropertyAll(Size(44, 48)), visualDensity: VisualDensity.standard),
                       onPressed: () => _openReport(task),
-                      icon: const Icon(Icons.edit_document),
+                      icon: const Icon(LucideIcons.filePenLine),
                       label: const Text('Rapora Devam Et'),
                     ),
-                  if (bucket == 'active' && kBulunamadiAsamalari.contains(stage))
+                  if (bucket == 'active' &&
+                      kBulunamadiAsamalari.contains(stage))
                     OutlinedButton.icon(
                       key: Key('bulunamadi-$id'),
-                      style: OutlinedButton.styleFrom(foregroundColor: Colors.deepOrangeAccent),
+                      style: OutlinedButton.styleFrom(
+                          foregroundColor: context.renkler.metinIkincil, minimumSize: const Size(44, 48), visualDensity: VisualDensity.standard),
                       onPressed: () => _aracYok(task),
-                      icon: const Icon(Icons.location_off_outlined),
+                      icon: const Icon(LucideIcons.mapPinOff),
                       label: const Text('Araç adreste yok'),
                     ),
                 ],
@@ -624,14 +789,16 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
   Widget _kontrolMerkeziSatiri(Map<String, dynamic> task) {
     final id = task['id']?.toString() ?? '';
     final tel = _kontrolTelefonu;
-    final saatler = (_kontrolMerkezi['calisma_saatleri'] ?? '').toString().trim();
+    final saatler =
+        (_kontrolMerkezi['calisma_saatleri'] ?? '').toString().trim();
     return Container(
       margin: const EdgeInsets.only(top: 12),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: FuturisticTheme.neon.withValues(alpha: 0.08),
+        color: context.renkler.birincil.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: FuturisticTheme.neon.withValues(alpha: 0.35)),
+        border:
+            Border.all(color: context.renkler.birincil.withValues(alpha: 0.35)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -640,7 +807,11 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
             tel.isEmpty
                 ? 'Kontrol merkezi numarası henüz girilmedi'
                 : 'Müşteri ve satıcıyla bağlantıyı kontrol merkezi kurar${saatler.isEmpty ? '' : ' • $saatler'}',
-            style: TextStyle(color: tel.isEmpty ? Colors.orangeAccent : Colors.white60, fontSize: 12),
+            style: TextStyle(
+                color: tel.isEmpty
+                    ? context.renkler.uyari
+                    : context.renkler.metinIkincil,
+                fontSize: 13),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -650,13 +821,16 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
               FilledButton.icon(
                 key: Key('kontrol-ara-$id'),
                 onPressed: tel.isEmpty ? null : _kontrolMerkeziniAra,
-                icon: const Icon(Icons.support_agent),
+                icon: const Icon(LucideIcons.headset),
+                style: FilledButton.styleFrom(minimumSize: const Size(44, 48), visualDensity: VisualDensity.standard),
                 label: const Text('Kontrol merkezini ara'),
               ),
               OutlinedButton.icon(
                 key: Key('kontrol-not-$id'),
+                style:
+                    OutlinedButton.styleFrom(minimumSize: const Size(44, 48), visualDensity: VisualDensity.standard),
                 onPressed: () => _kontrolNotu(task),
-                icon: const Icon(Icons.edit_note),
+                icon: const Icon(LucideIcons.filePenLine),
                 label: const Text('Kontrol merkezine not'),
               ),
             ],
@@ -667,15 +841,18 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
   }
 
   Widget _line(IconData icon, String text) {
-    if (text.isEmpty) return const SizedBox.shrink();
+    if (text.isEmpty) return SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 14, color: Colors.white54),
+          Icon(icon, size: 14, color: context.renkler.metinIkincil),
           const SizedBox(width: 6),
-          Expanded(child: Text(text, style: const TextStyle(color: Colors.white60, fontSize: 12))),
+          Expanded(
+              child: Text(text,
+                  style: TextStyle(
+                      color: context.renkler.metinIkincil, fontSize: 13))),
         ],
       ),
     );
@@ -690,41 +867,46 @@ class _NotificationList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
-      return const SizedBox(
+      return SizedBox(
         height: 160,
-        child: Center(child: Text('Henüz bildirim yok', style: TextStyle(color: Colors.white60))),
+        child: Center(
+            child: Text('Henüz bildirim yok',
+                style: TextStyle(color: context.renkler.metinIkincil))),
       );
     }
     return ListView.separated(
       shrinkWrap: true,
       padding: const EdgeInsets.all(16),
       itemCount: items.length,
-      separatorBuilder: (_, __) => const Divider(color: Colors.white12),
+      separatorBuilder: (_, __) => Divider(color: context.renkler.ayirici),
       itemBuilder: (_, i) {
         final n = items[i];
         final kind = n['kind']?.toString() ?? '';
         final color = kind == 'report_rejected'
-            ? Colors.redAccent
+            ? context.renkler.tehlike
             : kind == 'report_approved'
-                ? Colors.greenAccent
-                : FuturisticTheme.neon;
+                ? context.renkler.birincilMetin
+                : context.renkler.birincil;
         final created = DateTime.tryParse(n['created_at']?.toString() ?? '');
         return ListTile(
           contentPadding: EdgeInsets.zero,
           leading: Icon(
             kind == 'report_rejected'
-                ? Icons.report_problem
+                ? LucideIcons.triangleAlert
                 : kind == 'report_approved'
-                    ? Icons.verified
-                    : Icons.notifications,
+                    ? LucideIcons.badgeCheck
+                    : LucideIcons.bell,
             color: color,
           ),
-          title: Text(n['title']?.toString() ?? '', style: const TextStyle(color: Colors.white)),
+          title: Text(n['title']?.toString() ?? '',
+              style: TextStyle(color: context.renkler.metin)),
           subtitle: Text(
-            [n['body']?.toString() ?? '', if (created != null) DateFormat('dd.MM HH:mm').format(created.toLocal())]
-                .where((e) => e.isNotEmpty)
-                .join('\n'),
-            style: const TextStyle(color: Colors.white54),
+            [
+              n['body']?.toString() ?? '',
+              if (created != null)
+                DateFormat('dd.MM HH:mm').format(created.toLocal())
+            ].where((e) => e.isNotEmpty).join('\n'),
+            style: TextStyle(color: context.renkler.metinIkincil),
           ),
         );
       },
@@ -765,7 +947,9 @@ class _KontrolNotuDialogState extends State<_KontrolNotuDialog> {
               runSpacing: 6,
               children: [
                 for (final secenek in kKontrolNotSecenekleri)
-                  ActionChip(label: Text(secenek), onPressed: () => setState(() => _not.text = secenek)),
+                  ActionChip(
+                      label: Text(secenek),
+                      onPressed: () => setState(() => _not.text = secenek)),
               ],
             ),
             const SizedBox(height: 12),
@@ -774,15 +958,22 @@ class _KontrolNotuDialogState extends State<_KontrolNotuDialog> {
               controller: _not,
               maxLines: 3,
               maxLength: 500,
-              decoration: InputDecoration(labelText: 'Not', border: const OutlineInputBorder(), errorText: _hata),
+              decoration: InputDecoration(
+                  labelText: 'Not',
+                  border: const OutlineInputBorder(),
+                  errorText: _hata),
             ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Vazgeç')),
+        TextButton(
+            style: const ButtonStyle(minimumSize: WidgetStatePropertyAll(Size(44, 48)), visualDensity: VisualDensity.standard),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Vazgeç')),
         FilledButton(
           key: const Key('kontrol-not-gonder'),
+          style: const ButtonStyle(minimumSize: WidgetStatePropertyAll(Size(44, 48)), visualDensity: VisualDensity.standard),
           onPressed: () {
             final not = _not.text.trim();
             if (not.length < 3) {
@@ -845,22 +1036,27 @@ class _AracYokDialogState extends State<_AracYokDialog> {
               contentPadding: EdgeInsets.zero,
               value: _onay,
               onChanged: (v) => setState(() => _onay = v ?? false),
-              title: const Text('Kontrol merkezi satıcıya ulaşmayı denedi; araç adreste yok'),
+              title: const Text(
+                  'Kontrol merkezi satıcıya ulaşmayı denedi; araç adreste yok'),
             ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Vazgeç')),
+        TextButton(
+            style: const ButtonStyle(minimumSize: WidgetStatePropertyAll(Size(44, 48)), visualDensity: VisualDensity.standard),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Vazgeç')),
         FilledButton(
           key: const Key('bulunamadi-gonder'),
-          style: FilledButton.styleFrom(backgroundColor: Colors.deepOrange.shade700),
+          style: FilledButton.styleFrom(backgroundColor: context.renkler.uyari, minimumSize: const Size(44, 48), visualDensity: VisualDensity.standard),
           onPressed: !_onay
               ? null
               : () {
                   final not = _not.text.trim();
                   if (not.length < 10) {
-                    setState(() => _hata = 'En az 10 karakterle ne olduğunu yazın');
+                    setState(
+                        () => _hata = 'En az 10 karakterle ne olduğunu yazın');
                     return;
                   }
                   Navigator.pop(context, not);

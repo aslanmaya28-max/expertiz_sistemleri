@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/yerimebak_colors.dart';
+import 'package:yerimebak_sistemleri/core/widgets/yerimebak_logo.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
+import 'package:yerimebak_sistemleri/bilesenler/bilesenler.dart';
 import '../../core/constants/vehicle_packages.dart';
-import '../../widgets/cyber/index.dart';
 import '../../services/market_radar_service.dart';
 
 /// Müşteri Paneli - AI Oto-Analiz Modülü
@@ -24,34 +26,60 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
   List<String> _paintedParts = [];
   List<String> _damagedParts = [];
   Map<String, bool> _selectedOptions = {};
-  
+
   // Payment state
   bool _isPaymentUnlocked = false;
-  
+
   // Analysis result
   Map<String, dynamic>? _analysisResult;
-  
+
   // Dynamic packages
   List<VehiclePackage> _availablePackages = [];
-  
+
   // Brand data
   final List<String> _brandNames = VehiclePackagesDatabase.getAllBrandNames();
-  
+
   final List<String> _colors = [
-    'Beyaz', 'Gümüş Gri', 'Gri', 'Siyah', 'Kırmızı', 'Mavi', 'Yeşil', 'Sarı', 'Turuncu', 'Bej', 'Kahverengi',
+    'Beyaz',
+    'Gümüş Gri',
+    'Gri',
+    'Siyah',
+    'Kırmızı',
+    'Mavi',
+    'Yeşil',
+    'Sarı',
+    'Turuncu',
+    'Bej',
+    'Kahverengi',
   ];
-  
+
   final List<String> _bodyParts = [
-    'Kaput', 'Sol Ön Çamurluk', 'Sağ Ön Çamurluk', 'Sol Ön Kapı', 'Sağ Ön Kapı',
-    'Sol Arka Kapı', 'Sağ Arka Kapı', 'Sol Arka Çamurluk', 'Sağ Arka Çamurluk',
-    'Bagaj Kapağı', 'Tavan', 'Sol Ön Direk', 'Sağ Ön Direk', 'Sol Arka Direk', 'Sağ Arka Direk',
-    'Tampon Ön', 'Tampon Arka', 'Sol Yan Panel', 'Sağ Yan Panel',
+    'Kaput',
+    'Sol Ön Çamurluk',
+    'Sağ Ön Çamurluk',
+    'Sol Ön Kapı',
+    'Sağ Ön Kapı',
+    'Sol Arka Kapı',
+    'Sağ Arka Kapı',
+    'Sol Arka Çamurluk',
+    'Sağ Arka Çamurluk',
+    'Bagaj Kapağı',
+    'Tavan',
+    'Sol Ön Direk',
+    'Sağ Ön Direk',
+    'Sol Arka Direk',
+    'Sağ Arka Direk',
+    'Tampon Ön',
+    'Tampon Arka',
+    'Sol Yan Panel',
+    'Sağ Yan Panel',
   ];
-  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: CyberBackground(
+      body: ColoredBox(
+        color: context.renkler.zemin,
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -61,11 +89,11 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
                 // Header
                 _buildHeader(),
                 const SizedBox(height: 24),
-                 
+
                 // Progress indicator
                 _buildProgressIndicator(),
                 const SizedBox(height: 24),
-                 
+
                 // Form sections
                 if (!_isPaymentUnlocked) ...[
                   _buildBrandSelection(),
@@ -86,7 +114,7 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
                   const SizedBox(height: 16),
                   _buildEquipmentOptions(),
                   const SizedBox(height: 24),
-                   
+
                   // Payment wall
                   _buildPaymentWall(),
                 ] else ...[
@@ -100,15 +128,15 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
       ),
     );
   }
-  
+
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.6),
+        color: context.renkler.yuzey,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: YerimeBakColors.cyberNeonTurquoise.withValues(alpha: 0.5),
+          color: context.renkler.birincil.withValues(alpha: 0.5),
           width: 2,
         ),
       ),
@@ -117,18 +145,18 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
         children: [
           Row(
             children: [
-              const CyberLogo(size: 40),
+              const YerimeBakLogo(height: 40),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'AI OTO-ANALİZ',
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: YerimeBakColors.cyberNeonTurquoise,
+                        color: context.renkler.birincil,
                         letterSpacing: 2,
                       ),
                     ),
@@ -137,7 +165,7 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
                       'Yapay Zeka Destekli Araç Değerleme',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.white.withValues(alpha: 0.7),
+                        color: context.renkler.metin.withValues(alpha: 0.7),
                       ),
                     ),
                   ],
@@ -149,7 +177,7 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
       ),
     );
   }
-  
+
   Widget _buildProgressIndicator() {
     int completedSteps = 0;
     if (_selectedBrand.isNotEmpty) completedSteps++;
@@ -158,9 +186,9 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
     if (_km > 0) completedSteps++;
     if (_color.isNotEmpty) completedSteps++;
     if (_selectedOptions.isNotEmpty) completedSteps++;
-    
+
     double progress = completedSteps / 6;
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -172,7 +200,7 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: YerimeBakColors.cyberNeonTurquoise,
+                color: context.renkler.birincil,
               ),
             ),
             Text(
@@ -180,7 +208,7 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: YerimeBakColors.cyberNeonPurple,
+                color: context.renkler.birincil,
               ),
             ),
           ],
@@ -189,7 +217,7 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
         Container(
           height: 8,
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.5),
+            color: context.renkler.yuzey,
             borderRadius: BorderRadius.circular(4),
           ),
           child: FractionallySizedBox(
@@ -197,12 +225,7 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
             alignment: Alignment.centerLeft,
             child: Container(
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [
-                    YerimeBakColors.cyberNeonTurquoise,
-                    YerimeBakColors.cyberNeonPurple,
-                  ],
-                ),
+                color: context.renkler.birincil,
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -211,31 +234,33 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
       ],
     );
   }
-  
+
   Widget _buildBrandSelection() {
-    return _buildGlassCard(
-      title: '🚗 Marka Seçimi',
+    return _buildYbKart(
+      title: ' Marka Seçimi',
       child: DropdownButtonFormField<String>(
         initialValue: _selectedBrand.isEmpty ? null : _selectedBrand,
-        dropdownColor: Colors.black.withValues(alpha: 0.9),
+        dropdownColor: context.renkler.yuzey,
         decoration: InputDecoration(
           labelText: 'Marka',
-          labelStyle: const TextStyle(color: YerimeBakColors.cyberNeonTurquoise),
+          labelStyle: TextStyle(color: context.renkler.birincil),
           border: OutlineInputBorder(
-            borderSide: BorderSide(color: YerimeBakColors.cyberNeonTurquoise),
+            borderSide: BorderSide(color: context.renkler.birincil),
           ),
           enabledBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: YerimeBakColors.cyberNeonTurquoise.withValues(alpha: 0.5)),
+            borderSide: BorderSide(
+                color: context.renkler.birincil.withValues(alpha: 0.5)),
           ),
           focusedBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: YerimeBakColors.cyberNeonTurquoise, width: 2),
+            borderSide: BorderSide(color: context.renkler.birincil, width: 2),
           ),
-          prefixIcon: const Icon(Icons.directions_car, color: YerimeBakColors.cyberNeonTurquoise),
+          prefixIcon: Icon(LucideIcons.car, color: context.renkler.birincil),
         ),
         items: _brandNames
             .map((brand) => DropdownMenuItem(
                   value: brand,
-                  child: Text(brand, style: const TextStyle(color: Colors.white)),
+                  child: Text(brand,
+                      style: TextStyle(color: context.renkler.metin)),
                 ))
             .toList(),
         onChanged: (value) {
@@ -249,35 +274,38 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
       ),
     );
   }
-  
+
   Widget _buildModelSelection() {
-    if (_selectedBrand.isEmpty) return const SizedBox.shrink();
-    
-    final modelsForBrand = VehiclePackagesDatabase.getModelNamesForBrand(_selectedBrand);
-    
-    return _buildGlassCard(
-      title: '🚙 Model Seçimi',
+    if (_selectedBrand.isEmpty) return SizedBox.shrink();
+
+    final modelsForBrand =
+        VehiclePackagesDatabase.getModelNamesForBrand(_selectedBrand);
+
+    return _buildYbKart(
+      title: ' Model Seçimi',
       child: DropdownButtonFormField<String>(
         initialValue: _selectedModel.isEmpty ? null : _selectedModel,
-        dropdownColor: Colors.black.withValues(alpha: 0.9),
+        dropdownColor: context.renkler.yuzey,
         decoration: InputDecoration(
           labelText: 'Model',
-          labelStyle: const TextStyle(color: YerimeBakColors.cyberNeonTurquoise),
+          labelStyle: TextStyle(color: context.renkler.birincil),
           border: OutlineInputBorder(
-            borderSide: BorderSide(color: YerimeBakColors.cyberNeonTurquoise),
+            borderSide: BorderSide(color: context.renkler.birincil),
           ),
           enabledBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: YerimeBakColors.cyberNeonTurquoise.withValues(alpha: 0.5)),
+            borderSide: BorderSide(
+                color: context.renkler.birincil.withValues(alpha: 0.5)),
           ),
           focusedBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: YerimeBakColors.cyberNeonTurquoise, width: 2),
+            borderSide: BorderSide(color: context.renkler.birincil, width: 2),
           ),
-          prefixIcon: const Icon(Icons.car_repair, color: YerimeBakColors.cyberNeonTurquoise),
+          prefixIcon: Icon(LucideIcons.wrench, color: context.renkler.birincil),
         ),
         items: modelsForBrand
             .map((model) => DropdownMenuItem(
                   value: model,
-                  child: Text(model, style: const TextStyle(color: Colors.white)),
+                  child: Text(model,
+                      style: TextStyle(color: context.renkler.metin)),
                 ))
             .toList(),
         onChanged: (value) {
@@ -301,37 +329,43 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
       ),
     );
   }
-  
+
   Widget _buildPackageSelection() {
     if (_selectedModel.isEmpty) return const SizedBox.shrink();
-    
-    return NeonPackageSelector(
-      selectedPackage: _selectedPackageId,
-      packages: _availablePackages,
-      brandName: _selectedBrand,
-      modelName: _selectedModel,
-      onPackageSelected: (package) {
-        setState(() {
-          _selectedPackageId = package.id;
-        });
-      },
+
+    return YbKart(
+      baslik: 'Paket seçimi',
+      child: _availablePackages.isEmpty
+        ? const YbBosDurum(mesaj: 'Bu model için paket bulunamadı')
+        : Column(children: [
+          for (final paket in _availablePackages)
+            Semantics(selected: _selectedPackageId == paket.id, child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              minTileHeight: 52,
+              title: Text(paket.name),
+              subtitle: paket.description == null ? null : Text(paket.description!),
+              trailing: Icon(_selectedPackageId == paket.id ? LucideIcons.circleCheck : LucideIcons.circle,
+                color: _selectedPackageId == paket.id ? context.renkler.birincil : context.renkler.ikonPasif),
+              onTap: () => setState(() => _selectedPackageId = paket.id),
+            )),
+        ]),
     );
   }
-  
+
   Widget _buildYearSelection() {
-    if (_selectedPackageId.isEmpty) return const SizedBox.shrink();
-    
-    return _buildGlassCard(
-      title: '📅 Yıl Seçimi',
+    if (_selectedPackageId.isEmpty) return SizedBox.shrink();
+
+    return _buildYbKart(
+      title: ' Yıl Seçimi',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Üretim Yılı: $_selectedYear',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: YerimeBakColors.cyberNeonTurquoise,
+              color: context.renkler.birincil,
             ),
           ),
           const SizedBox(height: 12),
@@ -341,7 +375,7 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
             max: DateTime.now().year.toDouble(),
             divisions: DateTime.now().year - 2010,
             label: '$_selectedYear',
-            activeColor: YerimeBakColors.cyberNeonTurquoise,
+            activeColor: context.renkler.birincil,
             onChanged: (value) {
               setState(() {
                 _selectedYear = value.toInt();
@@ -352,21 +386,21 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
       ),
     );
   }
-  
+
   Widget _buildKmSelection() {
-    if (_selectedYear == DateTime.now().year) return const SizedBox.shrink();
-    
-    return _buildGlassCard(
-      title: '📊 KM Bilgisi',
+    if (_selectedYear == DateTime.now().year) return SizedBox.shrink();
+
+    return _buildYbKart(
+      title: ' KM Bilgisi',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Kilometre: ${_km.toString()} km',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: YerimeBakColors.cyberNeonTurquoise,
+              color: context.renkler.birincil,
             ),
           ),
           const SizedBox(height: 12),
@@ -376,7 +410,7 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
             max: 300000,
             divisions: 300,
             label: '${_km.toString()} km',
-            activeColor: YerimeBakColors.cyberNeonTurquoise,
+            activeColor: context.renkler.birincil,
             onChanged: (value) {
               setState(() {
                 _km = value.toInt();
@@ -387,12 +421,12 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
       ),
     );
   }
-  
+
   Widget _buildColorSelection() {
-    if (_selectedYear == DateTime.now().year) return const SizedBox.shrink();
-    
-    return _buildGlassCard(
-      title: '🎨 Renk Seçimi',
+    if (_selectedYear == DateTime.now().year) return SizedBox.shrink();
+
+    return _buildYbKart(
+      title: ' Renk Seçimi',
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
@@ -408,13 +442,13 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? YerimeBakColors.cyberNeonTurquoise.withValues(alpha: 0.3)
-                    : Colors.black.withValues(alpha: 0.5),
+                    ? context.renkler.birincil.withValues(alpha: 0.3)
+                    : context.renkler.yuzey,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: isSelected
-                        ? YerimeBakColors.cyberNeonTurquoise
-                        : Colors.white.withValues(alpha: 0.3),
+                      ? context.renkler.birincil
+                      : context.renkler.metin.withValues(alpha: 0.3),
                   width: isSelected ? 2 : 1,
                 ),
               ),
@@ -422,8 +456,8 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
                 color,
                 style: TextStyle(
                   color: isSelected
-                        ? YerimeBakColors.cyberNeonTurquoise
-                        : Colors.white.withValues(alpha: 0.7),
+                      ? context.renkler.birincil
+                      : context.renkler.metin.withValues(alpha: 0.7),
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
@@ -433,12 +467,12 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
       ),
     );
   }
-  
+
   Widget _buildPaintedParts() {
-    if (_selectedYear == DateTime.now().year) return const SizedBox.shrink();
-    
-    return _buildGlassCard(
-      title: '🖌️ Boyalı Parçalar',
+    if (_selectedYear == DateTime.now().year) return SizedBox.shrink();
+
+    return _buildYbKart(
+      title: ' Boyalı Parçalar',
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
@@ -458,13 +492,13 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? Colors.orange.withValues(alpha: 0.3)
-                    : Colors.black.withValues(alpha: 0.5),
+                    ? context.renkler.uyari.withValues(alpha: 0.3)
+                    : context.renkler.yuzey,
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
                   color: isSelected
-                        ? Colors.orange
-                        : Colors.white.withValues(alpha: 0.3),
+                      ? context.renkler.uyari
+                      : context.renkler.metin.withValues(alpha: 0.3),
                   width: isSelected ? 2 : 1,
                 ),
               ),
@@ -472,9 +506,9 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
                 part,
                 style: TextStyle(
                   color: isSelected
-                        ? Colors.orange
-                        : Colors.white.withValues(alpha: 0.7),
-                  fontSize: 12,
+                      ? context.renkler.uyari
+                      : context.renkler.metin.withValues(alpha: 0.7),
+                  fontSize: 13,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
@@ -484,10 +518,10 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
       ),
     );
   }
-  
+
   Widget _buildDamagedParts() {
-    return _buildGlassCard(
-      title: '⚠️ Hasarlı Parçalar',
+    return _buildYbKart(
+      title: ' Hasarlı Parçalar',
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
@@ -507,13 +541,13 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? Colors.red.withValues(alpha: 0.3)
-                    : Colors.black.withValues(alpha: 0.5),
+                    ? context.renkler.tehlike.withValues(alpha: 0.3)
+                    : context.renkler.yuzey,
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
                   color: isSelected
-                        ? Colors.red
-                        : Colors.white.withValues(alpha: 0.3),
+                      ? context.renkler.tehlike
+                      : context.renkler.metin.withValues(alpha: 0.3),
                   width: isSelected ? 2 : 1,
                 ),
               ),
@@ -521,9 +555,9 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
                 part,
                 style: TextStyle(
                   color: isSelected
-                        ? Colors.red
-                        : Colors.white.withValues(alpha: 0.7),
-                  fontSize: 12,
+                      ? context.renkler.tehlike
+                      : context.renkler.metin.withValues(alpha: 0.7),
+                  fontSize: 13,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
@@ -533,76 +567,72 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
       ),
     );
   }
-  
+
   Widget _buildEquipmentOptions() {
-    return _buildGlassCard(
-      title: '🔧 Donanım Seçenekleri',
-      child: PremiumDonanimlarWidget(
-        selectedOptions: _selectedOptions,
-        onOptionChanged: (option, isSelected) {
-          setState(() {
-            _selectedOptions[option] = isSelected;
-          });
-        },
-      ),
-    );
+    const gruplar = <String, List<String>>{
+      'Premium': ['Cam Tavan', 'Head-up Display', 'Isıtmalı Koltuk', 'Panoramik Tavan', 'Vakumlu Kapı', 'Soft Close Kapı', 'Adaptif Cruise Control', '360 Kamera'],
+      'Orta': ['LED Far', 'Deri Döşeme', 'Navigasyon', 'Bluetooth', 'USB Bağlantı', 'Klima', 'Park Sensörü'],
+      'Standart': ['Alarmlı Tekerlek', 'Yol Bilgisayarı', 'Hız Sabitleyici', 'Elektrikli Camlar', 'Merkezi Kilit', 'Radyo'],
+    };
+    return YbKart(baslik: 'Donanım seçenekleri', child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [for (final grup in gruplar.entries) ...[
+        Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text(grup.key, style: Theme.of(context).textTheme.titleMedium)),
+        for (final ad in grup.value)
+          CheckboxListTile(contentPadding: EdgeInsets.zero, title: Text(ad), value: _selectedOptions[ad] ?? false,
+            onChanged: (secili) => setState(() => _selectedOptions[ad] = secili ?? false)),
+      ]],
+    ));
   }
-  
+
   Widget _buildPaymentWall() {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.8),
+        color: context.renkler.yuzey,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: YerimeBakColors.cyberNeonTurquoise.withValues(alpha: 0.5),
+          color: context.renkler.birincil.withValues(alpha: 0.5),
           width: 2,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: YerimeBakColors.cyberNeonTurquoise.withValues(alpha: 0.2),
-            blurRadius: 20,
-            spreadRadius: 5,
-          ),
-        ],
       ),
       child: Column(
         children: [
           Icon(
-            Icons.lock,
+            LucideIcons.lock,
             size: 60,
-            color: YerimeBakColors.cyberNeonTurquoise,
+            color: context.renkler.birincil,
           ),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'Analizi Kilidini Aç',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: YerimeBakColors.cyberNeonTurquoise,
+              color: context.renkler.birincil,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             '500 TL',
             style: TextStyle(
               fontSize: 32,
               fontWeight: FontWeight.bold,
-              color: YerimeBakColors.cyberNeonPurple,
+              color: context.renkler.birincil,
             ),
           ),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'Yapay zeka destekli detaylı araç değerleme raporu',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
-              color: Colors.white70,
+              color: context.renkler.metinIkincil,
             ),
           ),
           const SizedBox(height: 24),
-          NeonButton(
-            text: 'Analizi Başlat',
+          YbButon(
+            metin: 'Analizi Başlat',
             onPressed: () {
               setState(() {
                 _isPaymentUnlocked = true;
@@ -614,41 +644,42 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
       ),
     );
   }
-  
+
   Widget _buildAnalysisResults() {
     if (_analysisResult == null) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(
-          color: YerimeBakColors.cyberNeonTurquoise,
+          color: context.renkler.birincil,
         ),
       );
     }
-    
+
     final result = _analysisResult!;
     final vehicleInfo = result['vehicleInfo'] as Map<String, dynamic>;
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Vehicle identity header
         _buildVehicleIdentityHeader(vehicleInfo),
         const SizedBox(height: 24),
-        
+
         // Value cards
         _buildValueCards(result),
         const SizedBox(height: 24),
-        
+
         // Adjustments
         _buildAdjustmentsList(result),
         const SizedBox(height: 24),
-        
+
         // Conflict warning
-        if (result['conflict'] != null) _buildConflictWarning(result['conflict']),
+        if (result['conflict'] != null)
+          _buildConflictWarning(result['conflict']),
         const SizedBox(height: 24),
-        
+
         // Back button
-        NeonButton(
-          text: 'Yeni Analiz',
+        YbButon(
+          metin: 'Yeni Analiz',
           onPressed: () {
             setState(() {
               _isPaymentUnlocked = false;
@@ -660,32 +691,20 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
       ],
     );
   }
-  
+
   Widget _buildVehicleIdentityHeader(Map<String, dynamic> vehicleInfo) {
     String packageBadge = vehicleInfo['packageLevel'] ?? '';
     bool isSport = vehicleInfo['isSportPackage'] ?? false;
-    
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            YerimeBakColors.cyberNeonTurquoise.withValues(alpha: 0.2),
-            YerimeBakColors.cyberNeonPurple.withValues(alpha: 0.2),
-          ],
-        ),
+        color: context.renkler.birincil,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: YerimeBakColors.cyberNeonTurquoise,
+          color: context.renkler.birincil,
           width: 2,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: YerimeBakColors.cyberNeonTurquoise.withValues(alpha: 0.3),
-            blurRadius: 15,
-            spreadRadius: 3,
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -695,23 +714,26 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
               Expanded(
                 child: Text(
                   '${vehicleInfo['year']} ${vehicleInfo['brand']} ${vehicleInfo['model']}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: YerimeBakColors.cyberNeonTurquoise,
+                    color: context.renkler.birincil,
                   ),
                 ),
               ),
               if (packageBadge.isNotEmpty)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: isSport
-                        ? Colors.orange.withValues(alpha: 0.3)
-                        : YerimeBakColors.cyberNeonPurple.withValues(alpha: 0.3),
+                        ? context.renkler.uyari.withValues(alpha: 0.3)
+                        : context.renkler.birincil.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: isSport ? Colors.orange : YerimeBakColors.cyberNeonPurple,
+                      color: isSport
+                          ? context.renkler.uyari
+                          : context.renkler.birincil,
                       width: 2,
                     ),
                   ),
@@ -719,14 +741,17 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (isSport)
-                        const Icon(Icons.sports_motorsports, color: Colors.orange, size: 16),
+                        Icon(LucideIcons.gauge,
+                            color: context.renkler.uyari, size: 16),
                       if (isSport) const SizedBox(width: 4),
                       Text(
                         packageBadge,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: isSport ? Colors.orange : YerimeBakColors.cyberNeonPurple,
+                          color: isSport
+                              ? context.renkler.uyari
+                              : context.renkler.birincil,
                         ),
                       ),
                     ],
@@ -737,23 +762,25 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
           const SizedBox(height: 8),
           Row(
             children: [
-              Icon(Icons.speed, color: YerimeBakColors.cyberNeonPurple, size: 20),
+              Icon(LucideIcons.gauge,
+                  color: context.renkler.birincil, size: 20),
               const SizedBox(width: 8),
               Text(
                 '${vehicleInfo['km'].toString()} km',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
-                  color: Colors.white70,
+                  color: context.renkler.metinIkincil,
                 ),
               ),
               const SizedBox(width: 24),
-              Icon(Icons.palette, color: YerimeBakColors.cyberNeonPurple, size: 20),
+              Icon(LucideIcons.palette,
+                  color: context.renkler.birincil, size: 20),
               const SizedBox(width: 8),
               Text(
                 vehicleInfo['color'],
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
-                  color: Colors.white70,
+                  color: context.renkler.metinIkincil,
                 ),
               ),
             ],
@@ -762,21 +789,21 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
       ),
     );
   }
-  
+
   Widget _buildValueCards(Map<String, dynamic> result) {
     return Row(
       children: [
         Expanded(
-          child: _buildGlassCard(
+          child: _buildYbKart(
             title: 'Temel Piyasa Değeri',
             child: Column(
               children: [
                 Text(
                   '${(result['basePrice'] as double).toStringAsFixed(0)} TL',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white70,
+                    color: context.renkler.metinIkincil,
                   ),
                 ),
               ],
@@ -785,16 +812,16 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: _buildGlassCard(
+          child: _buildYbKart(
             title: 'AI Tahmini Değer',
             child: Column(
               children: [
                 Text(
                   '${(result['finalValue'] as double).toStringAsFixed(0)} TL',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: YerimeBakColors.cyberNeonTurquoise,
+                    color: context.renkler.birincil,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -802,9 +829,10 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
                   '${result['adjustmentPercentage']}%',
                   style: TextStyle(
                     fontSize: 16,
-                    color: (result['adjustmentPercentage'] as String).startsWith('-')
-                        ? Colors.red
-                        : YerimeBakColors.cyberNeonPurple,
+                    color: (result['adjustmentPercentage'] as String)
+                            .startsWith('-')
+                        ? context.renkler.tehlike
+                        : context.renkler.birincil,
                   ),
                 ),
               ],
@@ -814,12 +842,12 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
       ],
     );
   }
-  
+
   Widget _buildAdjustmentsList(Map<String, dynamic> result) {
     final adjustments = result['adjustments'] as List<String>;
-    
-    return _buildGlassCard(
-      title: '📊 Ayarlamalar',
+
+    return _buildYbKart(
+      title: ' Ayarlamalar',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: adjustments.map((adjustment) {
@@ -828,17 +856,21 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
             child: Row(
               children: [
                 Icon(
-                  adjustment.startsWith('-') ? Icons.trending_down : Icons.trending_up,
-                  color: adjustment.startsWith('-') ? Colors.red : YerimeBakColors.cyberNeonTurquoise,
+                  adjustment.startsWith('-')
+                      ? LucideIcons.trendingDown
+                      : LucideIcons.trendingUp,
+                  color: adjustment.startsWith('-')
+                      ? context.renkler.tehlike
+                      : context.renkler.birincil,
                   size: 20,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     adjustment,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
-                      color: Colors.white70,
+                      color: context.renkler.metinIkincil,
                     ),
                   ),
                 ),
@@ -849,28 +881,28 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
       ),
     );
   }
-  
+
   Widget _buildConflictWarning(dynamic conflict) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: 0.2),
+        color: context.renkler.uyari.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Colors.orange,
+          color: context.renkler.uyari,
           width: 2,
         ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning, color: Colors.orange),
+          Icon(LucideIcons.triangleAlert, color: context.renkler.uyari),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               conflict['warning'] ?? 'Paket/Donanım çakışması tespit edildi',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
-                color: Colors.orange,
+                color: context.renkler.uyari,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -879,15 +911,15 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
       ),
     );
   }
-  
-  Widget _buildGlassCard({required String title, required Widget child}) {
+
+  Widget _buildYbKart({required String title, required Widget child}) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.6),
+        color: context.renkler.yuzey,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: YerimeBakColors.cyberNeonTurquoise.withValues(alpha: 0.3),
+          color: context.renkler.birincil.withValues(alpha: 0.3),
           width: 1,
         ),
       ),
@@ -896,10 +928,10 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: YerimeBakColors.cyberNeonTurquoise,
+              color: context.renkler.birincil,
             ),
           ),
           const SizedBox(height: 16),
@@ -908,11 +940,12 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
       ),
     );
   }
-  
+
   void _runAnalysis() {
     // Get package weight from database
-    double packageWeight = VehiclePackagesDatabase.getPackageWeight(_selectedPackageId);
-    
+    double packageWeight =
+        VehiclePackagesDatabase.getPackageWeight(_selectedPackageId);
+
     final result = MarketRadarService.calculateIntegratedValue(
       brand: _selectedBrand,
       model: _selectedModel,
@@ -926,12 +959,12 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
       damagedParts: _damagedParts,
       marketSource: null,
     );
-    
+
     setState(() {
       _analysisResult = result;
     });
   }
-  
+
   void _resetForm() {
     setState(() {
       _selectedBrand = '';

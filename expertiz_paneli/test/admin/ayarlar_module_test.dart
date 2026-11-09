@@ -49,16 +49,16 @@ void main() {
     await tester.pumpWidget(_app(theme, MockClient((_) async => http.Response('{}', 200))));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('🌙 Gece Modu'));
+    await tester.tap(find.text('Koyu'));
     await tester.pumpAndSettle();
     expect(theme.themeMode, ThemeMode.dark);
 
     // Aynı karta tekrar basmak temayı geri çevirmez.
-    await tester.tap(find.text('🌙 Gece Modu'));
+    await tester.tap(find.text('Koyu'));
     await tester.pumpAndSettle();
     expect(theme.themeMode, ThemeMode.dark);
 
-    await tester.tap(find.text('☀️ Aydınlık Mod'));
+    await tester.tap(find.text('Açık'));
     await tester.pumpAndSettle();
     expect(theme.themeMode, ThemeMode.light);
   });

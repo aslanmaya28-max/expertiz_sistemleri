@@ -6,6 +6,7 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:intl/intl.dart';
 
 import '../../services/yerimebak_expertiz_api_service.dart';
@@ -60,7 +61,8 @@ class _AdminNotificationBellState extends State<AdminNotificationBell> {
           .toList();
       if (!mounted) return;
       final newest = rows.isEmpty ? null : (rows.first['id'] as num?)?.toInt();
-      final isNew = !initial && newest != null && _lastId != null && newest != _lastId;
+      final isNew =
+          !initial && newest != null && _lastId != null && newest != _lastId;
       setState(() {
         _items = rows;
         _unread = (response['unread'] as num?)?.toInt() ?? 0;
@@ -69,7 +71,8 @@ class _AdminNotificationBellState extends State<AdminNotificationBell> {
       if (isNew) {
         final n = rows.first;
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
-          content: Text('${n['title']}${(n['body'] ?? '').toString().isEmpty ? '' : ' — ${n['body']}'}'),
+          content: Text(
+              '${n['title']}${(n['body'] ?? '').toString().isEmpty ? '' : ' — ${n['body']}'}'),
         ));
       }
     } catch (_) {
@@ -92,14 +95,17 @@ class _AdminNotificationBellState extends State<AdminNotificationBell> {
         content: SizedBox(
           width: 460,
           child: _items.isEmpty
-              ? const Padding(padding: EdgeInsets.all(16), child: Text('Henüz bildirim yok'))
+              ? const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('Henüz bildirim yok'))
               : ListView.separated(
                   shrinkWrap: true,
                   itemCount: _items.length,
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (_, i) {
                     final n = _items[i];
-                    final created = DateTime.tryParse(n['created_at']?.toString() ?? '');
+                    final created =
+                        DateTime.tryParse(n['created_at']?.toString() ?? '');
                     final reportId = n['report_id']?.toString();
                     return ListTile(
                       dense: true,
@@ -107,7 +113,9 @@ class _AdminNotificationBellState extends State<AdminNotificationBell> {
                       title: Text(n['title']?.toString() ?? ''),
                       subtitle: Text([
                         n['body']?.toString() ?? '',
-                        if (created != null) DateFormat('dd.MM.yyyy HH:mm').format(created.toLocal()),
+                        if (created != null)
+                          DateFormat('dd.MM.yyyy HH:mm')
+                              .format(created.toLocal()),
                       ].where((e) => e.isNotEmpty).join('\n')),
                       onTap: reportId == null || widget.onOpenReport == null
                           ? null
@@ -119,7 +127,10 @@ class _AdminNotificationBellState extends State<AdminNotificationBell> {
                   },
                 ),
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Kapat'))],
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Kapat'))
+        ],
       ),
     );
   }
@@ -127,17 +138,17 @@ class _AdminNotificationBellState extends State<AdminNotificationBell> {
   static IconData _icon(String kind) {
     switch (kind) {
       case 'task_depart':
-        return Icons.directions_car;
+        return LucideIcons.car;
       case 'task_arrive':
-        return Icons.place;
+        return LucideIcons.mapPin;
       case 'task_corporate':
-        return Icons.business;
+        return LucideIcons.building2;
       case 'report_submitted':
-        return Icons.assignment_turned_in;
+        return LucideIcons.clipboardCheck;
       case 'duty_changed':
-        return Icons.toggle_on;
+        return LucideIcons.toggleRight;
       default:
-        return Icons.notifications;
+        return LucideIcons.bell;
     }
   }
 
@@ -150,7 +161,7 @@ class _AdminNotificationBellState extends State<AdminNotificationBell> {
       icon: Badge(
         isLabelVisible: _unread > 0,
         label: Text(_unread > 99 ? '99+' : '$_unread'),
-        child: Icon(Icons.notifications, color: widget.color),
+        child: Icon(LucideIcons.bell, color: widget.color),
       ),
     );
   }

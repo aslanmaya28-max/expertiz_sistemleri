@@ -1,15 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../../tema/renkler.dart';
+import '../../bilesenler/bilesenler.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/mappers/location_mapper.dart';
-import '../../../core/theme/futuristic_theme.dart';
-import '../../../services/yerimebak_expertiz_api_service.dart';
-import '../../../widgets/cyber/cyber_error_widget.dart';
-import '../../../widgets/cyber/cyber_radar_scan.dart';
-import '../../../widgets/cyber/cyber_shimmer_loading.dart';
+import '../../core/mappers/location_mapper.dart';
+import '../../services/yerimebak_expertiz_api_service.dart';
 
 /// Araç Operasyonu Modülü
 ///
@@ -24,11 +23,13 @@ import '../../../widgets/cyber/cyber_shimmer_loading.dart';
 /// atanamaz). İşlemdeki taleplerde personelin saha adımı (harekete geçti, araç
 /// başında, kurumsal ekspertizde) canlı görünür.
 class AracOperasyonu extends StatefulWidget {
-  const AracOperasyonu({super.key, this.apiService, this.openListing});
+  const AracOperasyonu({super.key, this.apiService, this.openListing, this.initialBucket, this.refundOnly = false});
 
   /// Testler için enjekte edilebilir.
   final YerimebakExpertizApiService? apiService;
   final Future<bool> Function(Uri)? openListing;
+  final String? initialBucket;
+  final bool refundOnly;
 
   @override
   State<AracOperasyonu> createState() => _AracOperasyonuState();
@@ -56,12 +57,17 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
   String? _error;
   int _regionId = 0;
   DateTime? _lastUpdated;
+  String _search = '';
+  late bool _refundOnly;
+  int _page = 0;
 
   @override
   void initState() {
     super.initState();
     _api = widget.apiService ?? YerimebakExpertizApiService();
-    _tabController = TabController(length: _buckets.length, vsync: this);
+    _refundOnly = widget.refundOnly;
+    final bucketIndex = _buckets.indexOf(widget.initialBucket ?? (_refundOnly ? 'in_progress' : 'waiting_assignment'));
+    _tabController = TabController(length: _buckets.length, vsync: this, initialIndex: bucketIndex < 0 ? 0 : bucketIndex);
     _load();
     // Yeni müşteri talepleri admin açık ekranda beklerken de düşsün
     _autoRefresh = Timer.periodic(const Duration(seconds: 30), (_) => _load(silent: true));
@@ -72,6 +78,16 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
     _autoRefresh?.cancel();
     _tabController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant AracOperasyonu oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialBucket != widget.initialBucket || oldWidget.refundOnly != widget.refundOnly) {
+      _refundOnly = widget.refundOnly;
+      final index = _buckets.indexOf(widget.initialBucket ?? (_refundOnly ? 'in_progress' : 'waiting_assignment'));
+      _tabController.index = index < 0 ? 0 : index;
+    }
   }
 
   Future<void> _load({bool silent = false}) async {
@@ -111,14 +127,23 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
     }
   }
 
-  List<Map<String, dynamic>> _itemsFor(String bucket) => _requests.where((r) => r['bucket'] == bucket).toList();
+  List<Map<String, dynamic>> _itemsFor(String bucket) => _requests.where((r) {
+    if (r['bucket'] != bucket || (_refundOnly && !_aracBulunamadi(r))) return false;
+    final search = _search.trim().toLowerCase();
+    if (search.isEmpty) return true;
+    final vehicle = _map(r['vehicle']);
+    final customer = _map(r['customer']);
+    final assignment = _map(r['assignment']);
+    return [vehicle['plate'], vehicle['title'], customer['name'], r['city'], r['firm_name'], assignment['personnel_name']]
+        .any((value) => (value ?? '').toString().toLowerCase().contains(search));
+  }).toList();
 
   void _toast(String message, {bool error = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: error ? Colors.red.shade700 : Colors.green.shade700,
+        backgroundColor: error ? context.renkler.tehlike : context.renkler.birincil,
         duration: Duration(seconds: error ? 5 : 3),
       ),
     );
@@ -131,55 +156,81 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: FuturisticTheme.bgPrimary,
+      backgroundColor: context.renkler.zemin,
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            color: FuturisticTheme.bgSecondary,
-            padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
-            child: Row(
-              children: [
-                const Icon(Icons.filter_alt_outlined, color: Colors.white54, size: 18),
-                const SizedBox(width: 8),
-                DropdownButtonHideUnderline(
-                  child: DropdownButton<int>(
-                    value: _regionId,
-                    dropdownColor: FuturisticTheme.bgSecondary,
-                    style: const TextStyle(color: Colors.white),
-                    items: [
-                      const DropdownMenuItem(value: 0, child: Text('Tüm bölgeler')),
-                      ..._locationMapper.getAllBolgeIds().map(
-                            (id) => DropdownMenuItem(value: id, child: Text(_locationMapper.getBolgeAdi(id))),
-                          ),
-                    ],
-                    onChanged: (value) {
-                      setState(() => _regionId = value ?? 0);
-                      _load();
-                    },
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Talepler', style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 4),
+              Text('Ekspertiz taleplerini takip edin, personel atayın ve randevuları yönetin.', style: TextStyle(color: context.renkler.metinIkincil)),
+              const SizedBox(height: 16),
+              YbArama(ipucu: 'Plaka, araç, müşteri veya personel ara', onChanged: (value) => setState(() => _search = value)),
+              const SizedBox(height: 12),
+              // Süzgeçler aramanın altında, zeminle aynı (ayrı renkli şerit yok)
+              Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Container(
+                    height: 36,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: context.renkler.yuzey,
+                      border: Border.all(color: context.renkler.girdiKenarlik),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(LucideIcons.mapPin, color: context.renkler.metinIkincil, size: 16),
+                      const SizedBox(width: 8),
+                      DropdownButtonHideUnderline(
+                        child: DropdownButton<int>(
+                          value: _regionId,
+                          isDense: true,
+                          dropdownColor: context.renkler.yuzey,
+                          borderRadius: BorderRadius.circular(10),
+                          icon: Icon(LucideIcons.chevronDown, size: 16, color: context.renkler.metinIkincil),
+                          style: TextStyle(color: context.renkler.metin, fontSize: 13),
+                          items: [
+                            const DropdownMenuItem(value: 0, child: Text('Tüm bölgeler')),
+                            ..._locationMapper.getAllBolgeIds().map(
+                                  (id) => DropdownMenuItem(value: id, child: Text(_locationMapper.getBolgeAdi(id))),
+                                ),
+                          ],
+                          onChanged: (value) {
+                            setState(() => _regionId = value ?? 0);
+                            _load();
+                          },
+                        ),
+                      ),
+                    ]),
                   ),
-                ),
-                const Spacer(),
-                if (_lastUpdated != null)
-                  Text(
-                    'Güncellendi ${DateFormat('HH:mm:ss').format(_lastUpdated!)}',
-                    style: const TextStyle(color: Colors.white38, fontSize: 11),
+                  FilterChip(label: const Text('İade kararı bekleyen'), selected: _refundOnly,
+                    onSelected: (value) => setState(() { _refundOnly = value; if (value) _tabController.index = 1; })),
+                  if (_lastUpdated != null)
+                    Text(
+                      'Güncellendi ${DateFormat('HH:mm').format(_lastUpdated!)}',
+                      style: TextStyle(color: context.renkler.metinIkincil, fontSize: 13),
+                    ),
+                  IconButton(
+                    tooltip: 'Yenile',
+                    icon: const Icon(LucideIcons.refreshCw, size: 18),
+                    onPressed: _load,
                   ),
-                IconButton(
-                  tooltip: 'Yenile',
-                  icon: const Icon(Icons.refresh, color: FuturisticTheme.neon),
-                  onPressed: _load,
-                ),
-              ],
-            ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ]),
           ),
-          Container(
-            color: FuturisticTheme.bgSecondary,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: TabBar(
               controller: _tabController,
               isScrollable: true,
-              labelColor: FuturisticTheme.neon,
-              unselectedLabelColor: Colors.white.withValues(alpha: 0.54),
-              indicatorColor: FuturisticTheme.neon,
+              tabAlignment: TabAlignment.start,
               tabs: List.generate(_buckets.length, (i) {
                 final count = _counts[_buckets[i]] ?? _itemsFor(_buckets[i]).length;
                 return Tab(text: '${_bucketTitles[i]} ($count)');
@@ -199,15 +250,15 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
 
   Widget _buildListTab(String bucket, String emptyMessage) {
     if (_error != null && _requests.isEmpty) {
-      return CyberErrorWidget(message: _error, onRetry: _load);
+      return YbBosDurum(mesaj: _error ?? 'Talepler yüklenemedi', eylem: 'Tekrar dene', onPressed: _load);
     }
     if (_isLoading && _requests.isEmpty) {
       return ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: 4,
-        itemBuilder: (context, index) => const Padding(
+        itemBuilder: (context, index) => Padding(
           padding: EdgeInsets.only(bottom: 12),
-          child: CyberShimmerLoading(height: 110),
+          child: YbIskelet(height: 110),
         ),
       );
     }
@@ -216,35 +267,49 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
       onRefresh: _load,
       child: items.isEmpty
           ? ListView(children: [SizedBox(height: 420, child: _buildEmptyState(emptyMessage))])
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: items.length,
-              itemBuilder: (context, index) => _buildRequestCard(items[index]),
-            ),
+          : LayoutBuilder(builder: (context, constraints) => constraints.maxWidth >= 1000
+              ? SingleChildScrollView(padding: const EdgeInsets.all(16), child: _requestTable(items))
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) => _buildRequestCard(items[index]),
+                )),
     );
   }
 
-  Widget _buildEmptyState(String message) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CyberRadarScan(size: 150, color: FuturisticTheme.neon),
-          const SizedBox(height: 30),
-          Text(
-            message,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.9),
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
-              shadows: [Shadow(color: FuturisticTheme.neon.withValues(alpha: 0.8), blurRadius: 15)],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildEmptyState(String message) => YbBosDurum(mesaj: message);
+
+  Widget _requestTable(List<Map<String, dynamic>> items) => YbTablo(
+    sayfa: _page,
+    onPageChanged: (value) => setState(() => _page = value),
+    columns: const [
+      DataColumn(label: Text('Talep / plaka')),
+      DataColumn(label: Text('İl / ilçe')),
+      DataColumn(label: Text('Firma / personel')),
+      DataColumn(label: Text('Durum')),
+      DataColumn(label: Text('Randevu')),
+      DataColumn(label: Text('Ayrıntı')),
+    ],
+    rows: items.map((request) {
+      final vehicle = _map(request['vehicle']);
+      final assignment = _map(request['assignment']);
+      final status = _statusOf(request);
+      return DataRow(cells: [
+        DataCell(Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(vehicle['title']?.toString() ?? 'Araç', style: const TextStyle(fontWeight: FontWeight.w600)),
+          Text(_orDash(vehicle['plate']), style: TextStyle(color: context.renkler.metinIkincil)),
+        ]), onTap: () => _showDetail(request)),
+        DataCell(Text([request['city'], request['district']].where((v) => v != null && v.toString().isNotEmpty).join(' / '))),
+        DataCell(Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(_orDash(request['firm_name'])),
+          Text(_orDash(assignment['personnel_name']), style: TextStyle(color: context.renkler.metinIkincil)),
+        ])),
+        DataCell(_chip(status.label, status.color)),
+        DataCell(Text('Randevu: ${_formatDate(_map(request['randevu'])['tarih_saat'])}')),
+        DataCell(IconButton(tooltip: 'Talep ayrıntısı', icon: const Icon(LucideIcons.chevronRight), onPressed: () => _showDetail(request))),
+      ]);
+    }).toList(),
+  );
 
   // ---------------------------------------------------------------------------
   // Kart
@@ -263,32 +328,32 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
     final status = request['status']?.toString();
     switch (request['bucket']) {
       case 'waiting_assignment':
-        return (label: 'Atama bekliyor', color: Colors.orange);
+        return (label: 'Atama bekliyor', color: context.renkler.uyari);
       case 'pending_approval':
         return status == 'pending_ai'
-            ? (label: 'AI analizi bekliyor', color: Colors.lightBlueAccent)
-            : (label: 'Admin onayı bekliyor', color: Colors.greenAccent);
+            ? (label: 'AI analizi bekliyor', color: context.renkler.bilgi)
+            : (label: 'Admin onayı bekliyor', color: context.renkler.birincilMetin);
       case 'completed':
-        return (label: 'Yayınlandı', color: Colors.green);
+        return (label: 'Yayınlandı', color: context.renkler.birincil);
       case 'cancelled':
         final refunded = (_map(request['cancellation'])['refunded_tl'] as num?) ?? 0;
-        return (label: refunded > 0 ? 'İptal + iade edildi' : 'İptal edildi', color: Colors.grey);
+        return (label: refunded > 0 ? 'İptal + iade edildi' : 'İptal edildi', color: context.renkler.metinIkincil);
     }
-    if (_aracBulunamadi(request)) return (label: 'Araç adreste yok', color: Colors.deepOrangeAccent);
-    if (request['needs_revision'] == true) return (label: 'Düzeltme bekliyor', color: Colors.redAccent);
+    if (_aracBulunamadi(request)) return (label: 'Araç adreste yok', color: context.renkler.uyari);
+    if (request['needs_revision'] == true) return (label: 'Düzeltme bekliyor', color: context.renkler.tehlike);
     switch (assignment['status']) {
       case 'accepted':
-        return (label: 'Personel kabul etti', color: Colors.tealAccent);
+        return (label: 'Personel kabul etti', color: context.renkler.birincilMetin);
       case 'on_the_way':
-        return (label: 'Harekete geçti', color: Colors.amberAccent);
+        return (label: 'Harekete geçti', color: context.renkler.uyari);
       case 'at_vehicle':
-        return (label: 'Araç başında', color: Colors.lightGreenAccent);
+        return (label: 'Araç başında', color: context.renkler.birincilMetin);
       case 'at_corporate':
-        return (label: 'Kurumsal ekspertizde', color: Colors.cyanAccent);
+        return (label: 'Kurumsal ekspertizde', color: context.renkler.bilgi);
       case 'in_progress':
-        return (label: 'Rapor hazırlanıyor', color: Colors.blueAccent);
+        return (label: 'Rapor hazırlanıyor', color: context.renkler.bilgi);
       default:
-        return (label: 'Personele atandı', color: Colors.purpleAccent);
+        return (label: 'Personele atandı', color: context.renkler.bilgi);
     }
   }
 
@@ -316,60 +381,11 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
     final region = request['region']?.toString() ?? '';
     final assignedName = assignment['personnel_name']?.toString() ?? '';
 
-    final actions = <Widget>[];
-    if (bucket == 'waiting_assignment') {
-      actions.add(FilledButton.icon(
-        onPressed: () => _openAssignDialog(request),
-        icon: const Icon(Icons.person_add, size: 18),
-        label: const Text('Personel Ata'),
-      ));
-    } else if (bucket == 'pending_approval') {
-      actions.add(const Text(
-        'Personel raporu gönderdi • İncelemek ve yayınlamak için "Raporlar" sekmesini açın',
-        style: TextStyle(color: Colors.white54, fontSize: 12),
-      ));
-    }
-    if (_aracBulunamadi(request)) {
-      actions.add(FilledButton.icon(
-        key: Key('bulunamadi-iade-${request['id']}'),
-        style: FilledButton.styleFrom(backgroundColor: Colors.deepOrange.shade700),
-        onPressed: () => _confirmNotFoundRefund(request),
-        icon: const Icon(Icons.currency_exchange, size: 18),
-        label: const Text('Paket ücretini iade et'),
-      ));
-    }
-    if (bucket == 'in_progress' && !_aracBulunamadi(request)) {
-      actions.addAll([
-        OutlinedButton.icon(
-          onPressed: () => _openAssignDialog(request),
-          icon: const Icon(Icons.swap_horiz, size: 18),
-          label: const Text('Yeniden Ata'),
-        ),
-        TextButton.icon(
-          onPressed: () => _confirmUnassign(request),
-          icon: const Icon(Icons.person_off_outlined, size: 18, color: Colors.redAccent),
-          label: const Text('Atamayı Kaldır', style: TextStyle(color: Colors.redAccent)),
-        ),
-      ]);
-    }
-    if (bucket != 'completed' && bucket != 'cancelled') {
-      actions.add(TextButton.icon(
-        key: Key('cancel-${request['id']}'),
-        onPressed: () => _confirmCancel(request),
-        icon: const Icon(Icons.money_off, size: 18, color: Colors.orangeAccent),
-        label: const Text('İptal / İade', style: TextStyle(color: Colors.orangeAccent)),
-      ));
-    }
+    final actions = _requestActions(request);
 
-    return Card(
+    return YbKart(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 4,
-      shadowColor: FuturisticTheme.neon.withValues(alpha: 0.1),
-      color: FuturisticTheme.bgSecondary,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: status.color.withValues(alpha: 0.35)),
-      ),
+      padding: EdgeInsets.zero,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () => _showDetail(request),
@@ -383,13 +399,13 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(color: status.color.withValues(alpha: 0.2), shape: BoxShape.circle),
-                    child: Icon(Icons.directions_car, color: status.color),
+                    child: Icon(LucideIcons.car, color: status.color),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       vehicle['title']?.toString() ?? 'Araç',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: context.renkler.metin),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -397,31 +413,31 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
                   _chip(status.label, status.color),
                 ],
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               Wrap(
                 spacing: 18,
                 runSpacing: 4,
                 children: [
-                  _info(Icons.pin, 'Plaka: ${_orDash(vehicle['plate'])}'),
-                  _info(Icons.person, 'Müşteri: ${_orDash(customer['name'])}'),
-                  _info(Icons.phone, _orDash(customer['phone'])),
-                  _info(Icons.location_on, region.isEmpty ? _orDash(city) : '$city • $region'),
-                  _info(Icons.inventory_2_outlined, '${_orDash(request['firm_name'])} – ${_orDash(request['package_name'])}'),
-                  _info(Icons.schedule, _formatDate(request['created_at'])),
-                  if (randevuOzeti.isNotEmpty) _info(Icons.event, 'Randevu: $randevuOzeti', color: Colors.amberAccent),
-                  if (assignedName.isNotEmpty) _info(Icons.badge, 'Personel: $assignedName', color: Colors.purpleAccent),
+                  _info(LucideIcons.hash, 'Plaka: ${_orDash(vehicle['plate'])}'),
+                  _info(LucideIcons.user, 'Müşteri: ${_orDash(customer['name'])}'),
+                  _info(LucideIcons.phone, _orDash(customer['phone'])),
+                  _info(LucideIcons.mapPin, region.isEmpty ? _orDash(city) : '$city • $region'),
+                  _info(LucideIcons.package, '${_orDash(request['firm_name'])} – ${_orDash(request['package_name'])}'),
+                  _info(LucideIcons.clock, _formatDate(request['created_at'])),
+                  if (randevuOzeti.isNotEmpty) _info(LucideIcons.calendarClock, 'Randevu: $randevuOzeti', color: context.renkler.uyari),
+                  if (assignedName.isNotEmpty) _info(LucideIcons.contact, 'Personel: $assignedName', color: context.renkler.bilgi),
                 ],
               ),
               if (bucket == 'cancelled' && _map(request['cancellation']).isNotEmpty) ...[
-                const SizedBox(height: 6),
-                _info(Icons.cancel_outlined, 'İptal nedeni: ${_orDash(_map(request['cancellation'])['reason'])}', color: Colors.white54),
+                SizedBox(height: 6),
+                _info(LucideIcons.circleX, 'İptal nedeni: ${_orDash(_map(request['cancellation'])['reason'])}', color: context.renkler.metinIkincil),
               ],
               if (request['needs_revision'] == true && (request['rejection_reason'] ?? '').toString().isNotEmpty) ...[
-                const SizedBox(height: 6),
-                _info(Icons.report_gmailerrorred, 'Red nedeni: ${request['rejection_reason']}', color: Colors.redAccent),
+                SizedBox(height: 6),
+                _info(LucideIcons.triangleAlert, 'Red nedeni: ${request['rejection_reason']}', color: context.renkler.tehlike),
               ],
               if (actions.isNotEmpty) ...[
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.end, children: actions),
               ],
             ],
@@ -431,32 +447,81 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
     );
   }
 
+  VoidCallback _action(VoidCallback action, bool closeDetail) => () {
+    if (closeDetail) Navigator.pop(context);
+    action();
+  };
+
+  List<Widget> _requestActions(Map<String, dynamic> request, {bool closeDetail = false}) {
+    final bucket = request['bucket'];
+    final actions = <Widget>[];
+    if (bucket == 'waiting_assignment') {
+      actions.add(FilledButton.icon(
+        onPressed: _action(() => _openAssignDialog(request), closeDetail),
+        icon: Icon(LucideIcons.userPlus, size: 18),
+        label: Text('Personel Ata'),
+      ));
+    } else if (bucket == 'pending_approval') {
+      actions.add(Text(
+        'Personel raporu gönderdi • İncelemek ve yayınlamak için "Raporlar" sekmesini açın',
+        style: TextStyle(color: context.renkler.metinIkincil, fontSize: 13),
+      ));
+    }
+    if (_aracBulunamadi(request)) {
+      actions.add(FilledButton.icon(
+        key: Key('bulunamadi-iade-${request['id']}'),
+        style: FilledButton.styleFrom(backgroundColor: context.renkler.uyari),
+        onPressed: _action(() => _confirmNotFoundRefund(request), closeDetail),
+        icon: Icon(LucideIcons.rotateCcw, size: 18),
+        label: Text('Paket ücretini iade et'),
+      ));
+    }
+    if (bucket == 'in_progress' && !_aracBulunamadi(request)) {
+      actions.addAll([
+        OutlinedButton.icon(
+          onPressed: _action(() => _openAssignDialog(request), closeDetail),
+          icon: Icon(LucideIcons.repeat2, size: 18),
+          label: Text('Yeniden Ata'),
+        ),
+        TextButton.icon(
+          onPressed: _action(() => _confirmUnassign(request), closeDetail),
+          icon: Icon(LucideIcons.userMinus, size: 18, color: context.renkler.tehlike),
+          label: Text('Atamayı Kaldır', style: TextStyle(color: context.renkler.tehlike)),
+        ),
+      ]);
+    }
+    if (bucket != 'completed' && bucket != 'cancelled') {
+      actions.add(TextButton.icon(
+        key: Key('cancel-${request['id']}'),
+        onPressed: _action(() => _confirmCancel(request), closeDetail),
+        icon: Icon(LucideIcons.ban, size: 18, color: context.renkler.uyari),
+        label: Text('İptal / İade', style: TextStyle(color: context.renkler.uyari)),
+      ));
+    }
+
+    return actions;
+  }
+
   String _orDash(dynamic value) {
     final text = value?.toString().trim() ?? '';
     return text.isEmpty ? '-' : text;
   }
 
-  Widget _chip(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color),
-      ),
-      child: Text(text, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold)),
-    );
-  }
+  Widget _chip(String text, Color color) => YbRozet(text, tur:
+      color == context.renkler.tehlike ? YbRozetTuru.tehlike :
+      color == context.renkler.uyari ? YbRozetTuru.uyari :
+      color == context.renkler.birincil || color == context.renkler.birincilMetin ? YbRozetTuru.basari :
+      color == context.renkler.bilgi ? YbRozetTuru.bilgi : YbRozetTuru.notr);
 
-  Widget _info(IconData icon, String text, {Color color = Colors.white70}) {
+  Widget _info(IconData icon, String text, {Color? color}) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 13, color: Colors.white38),
-        const SizedBox(width: 4),
+        Icon(icon, size: 13, color: context.renkler.ikonPasif),
+        SizedBox(width: 4),
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 320),
-          child: Text(text, style: TextStyle(fontSize: 12, color: color), overflow: TextOverflow.ellipsis),
+          child: Text(text, style: TextStyle(fontSize: 13, color: color ?? context.renkler.metinGovde), overflow: TextOverflow.ellipsis),
         ),
       ],
     );
@@ -497,23 +562,19 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
       'start': 'İnceleme başladı',
     };
 
-    showModalBottomSheet<void>(
+    showDialog<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: FuturisticTheme.bgSecondary,
-      builder: (sheetContext) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.6,
-        maxChildSize: 0.95,
-        builder: (context, controller) => ListView(
-          controller: controller,
+      builder: (sheetContext) => Dialog(
+        alignment: Alignment.centerRight,
+        insetPadding: const EdgeInsets.all(20),
+        child: SizedBox(width: 480, child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
             Text(vehicle['title']?.toString() ?? 'Talep',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-            const SizedBox(height: 4),
-            Text('Talep No: ${request['request_id'] ?? request['id']}', style: const TextStyle(color: Colors.white38, fontSize: 12)),
-            const SizedBox(height: 16),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: context.renkler.metin)),
+            SizedBox(height: 4),
+            Text('Talep No: ${request['request_id'] ?? request['id']}', style: TextStyle(color: context.renkler.ikonPasif, fontSize: 13)),
+            SizedBox(height: 16),
             _detailRow('Durum', _statusOf(request).label),
             _detailRow('Plaka', _orDash(vehicle['plate'])),
             _detailRow('Marka', _orDash(vehicle['brand'])),
@@ -524,8 +585,8 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
                 alignment: Alignment.centerLeft,
                 child: OutlinedButton.icon(
                   key: const Key('openListingButton'),
-                  icon: const Icon(Icons.open_in_new),
-                  label: const Text('İlanı aç'),
+                  icon: Icon(LucideIcons.externalLink),
+                  label: Text('İlanı aç'),
                   onPressed: () async {
                     bool opened;
                     try {
@@ -535,7 +596,7 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
                       opened = false;
                     }
                     if (!opened && mounted) {
-                      ScaffoldMessenger.of(this.context).showSnackBar(const SnackBar(
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                         content: Text('İlan açılamadı. Yukarıdaki bağlantıyı kopyalayıp tarayıcıda açabilirsiniz.'),
                       ));
                     }
@@ -552,63 +613,63 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
             _detailRow('Müşteri notu', _orDash(request['note'])),
             _detailRow('Oluşturma', _formatDate(request['created_at'])),
             if (randevu.isNotEmpty) ...[
-              const Divider(color: Colors.white12, height: 28),
-              const Text('Randevu', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
+              Divider(color: context.renkler.ayirici, height: 28),
+              Text('Randevu', style: TextStyle(color: context.renkler.metin, fontWeight: FontWeight.bold)),
+              SizedBox(height: 8),
               _detailRow('Tarih / saat', _formatDate(randevu['tarih_saat'])),
               _detailRow('Adres', _orDash(randevu['adres'])),
               _detailRow('Satıcı', _orDash(randevu['satici_adi'])),
               _detailRow('Satıcı tel.', _orDash(randevu['satici_telefon'])),
             ],
             if (_aracBulunamadi(request)) ...[
-              const Divider(color: Colors.white12, height: 28),
+              Divider(color: context.renkler.ayirici, height: 28),
               Container(
                 key: const Key('bulunamadi-uyarisi'),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.deepOrange.withValues(alpha: 0.15),
+                  color: context.renkler.uyari.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.deepOrangeAccent),
+                  border: Border.all(color: context.renkler.uyari),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Saha personeli aracın randevu adresinde olmadığını bildirdi.',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Saha personeli aracın randevu adresinde olmadığını bildirdi.',
+                        style: TextStyle(color: context.renkler.metin, fontWeight: FontWeight.bold)),
                     if (bulunamadiNotu.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text('Personel notu: $bulunamadiNotu', style: const TextStyle(color: Colors.white70)),
+                      SizedBox(height: 4),
+                      Text('Personel notu: $bulunamadiNotu', style: TextStyle(color: context.renkler.metinGovde)),
                     ],
-                    const SizedBox(height: 4),
-                    const Text(
+                    SizedBox(height: 4),
+                    Text(
                       'Müşteri ödeme öncesi bu koşulu onayladı: yalnız kurumsal paket ücreti iade edilir, '
                       'hizmet bedeli iade edilmez.',
-                      style: TextStyle(color: Colors.white54, fontSize: 12),
+                      style: TextStyle(color: context.renkler.metinIkincil, fontSize: 13),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     FilledButton.icon(
-                      style: FilledButton.styleFrom(backgroundColor: Colors.deepOrange.shade700),
+                      style: FilledButton.styleFrom(backgroundColor: context.renkler.uyari),
                       onPressed: () {
                         Navigator.pop(sheetContext);
                         _confirmNotFoundRefund(request);
                       },
-                      icon: const Icon(Icons.currency_exchange, size: 18),
-                      label: const Text('Paket ücretini iade et'),
+                      icon: Icon(LucideIcons.rotateCcw, size: 18),
+                      label: Text('Paket ücretini iade et'),
                     ),
                   ],
                 ),
               ),
             ],
             if ((assignment['personnel_name'] ?? '').toString().isNotEmpty) ...[
-              const Divider(color: Colors.white12, height: 28),
+              Divider(color: context.renkler.ayirici, height: 28),
               _detailRow('Atanan personel', _orDash(assignment['personnel_name'])),
               _detailRow('Personel tel.', _orDash(assignment['personnel_phone'])),
               _detailRow('Atama zamanı', _formatDate(assignment['assigned_at'])),
               _detailRow('Atayan', _orDash(assignment['assigned_by'])),
               _detailRow('Admin notu', _orDash(assignment['note'])),
-              const Divider(color: Colors.white12, height: 28),
-              const Text('Saha durumu', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
+              Divider(color: context.renkler.ayirici, height: 28),
+              Text('Saha durumu', style: TextStyle(color: context.renkler.metin, fontWeight: FontWeight.bold)),
+              SizedBox(height: 8),
               _detailRow('Kabul', _formatDate(assignment['accepted_at'])),
               _detailRow('Harekete geçti', _formatDate(assignment['departed_at'])),
               _detailRow('Araç başında', _formatDate(assignment['arrived_at'])),
@@ -618,22 +679,22 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
               _detailRow('Rapor gönderildi', _formatDate(assignment['submitted_at'])),
             ],
             if (history.isNotEmpty) ...[
-              const Divider(color: Colors.white12, height: 28),
-              const Text('Atama geçmişi', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
+              Divider(color: context.renkler.ayirici, height: 28),
+              Text('Atama geçmişi', style: TextStyle(color: context.renkler.metin, fontWeight: FontWeight.bold)),
+              SizedBox(height: 8),
               ...history.reversed.map((h) => ListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.history, color: Colors.white38, size: 18),
+                    leading: Icon(LucideIcons.history, color: context.renkler.ikonPasif, size: 18),
                     title: Text(
                       '${actionLabels[h['action']] ?? h['action']}'
                       '${(h['personnel_name'] ?? '').toString().isNotEmpty ? ' – ${h['personnel_name']}' : ''}',
-                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                      style: TextStyle(color: context.renkler.metinGovde, fontSize: 13),
                     ),
                     subtitle: Text(
                       '${_formatDate(h['at'])} • ${_orDash(h['by'])}'
                       '${(h['note'] ?? '').toString().isNotEmpty ? ' • ${h['note']}' : ''}',
-                      style: const TextStyle(color: Colors.white38, fontSize: 11),
+                      style: TextStyle(color: context.renkler.ikonPasif, fontSize: 13),
                     ),
                   )),
             ],
@@ -641,37 +702,39 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
               future: iletisim,
               builder: (context, snapshot) {
                 final kayitlar = snapshot.data ?? const <Map>[];
-                if (kayitlar.isEmpty) return const SizedBox.shrink();
+                if (kayitlar.isEmpty) return SizedBox.shrink();
                 return Column(
                   key: const Key('iletisim-gecmisi'),
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Divider(color: Colors.white12, height: 28),
-                    const Text('Kontrol merkezi iletişim geçmişi',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
+                    Divider(color: context.renkler.ayirici, height: 28),
+                    Text('Kontrol merkezi iletişim geçmişi',
+                        style: TextStyle(color: context.renkler.metin, fontWeight: FontWeight.bold)),
+                    SizedBox(height: 8),
                     for (final k in kayitlar)
                       ListTile(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.support_agent, color: Colors.white38, size: 18),
+                        leading: Icon(LucideIcons.headset, color: context.renkler.ikonPasif, size: 18),
                         title: Text(
                           '${_iletisimHedefleri[k['hedef']] ?? k['hedef']} · '
                           '${_iletisimSonuclari[k['sonuc']] ?? k['sonuc']}',
-                          style: const TextStyle(color: Colors.white70, fontSize: 13),
+                          style: TextStyle(color: context.renkler.metinGovde, fontSize: 13),
                         ),
                         subtitle: Text(
                           '${_formatDate(k['created_at'])} • ${_orDash(k['actor_name'])}'
                           '${(k['note'] ?? '').toString().isNotEmpty ? ' • ${k['note']}' : ''}',
-                          style: const TextStyle(color: Colors.white38, fontSize: 11),
+                          style: TextStyle(color: context.renkler.ikonPasif, fontSize: 13),
                         ),
                       ),
                   ],
                 );
               },
             ),
+            const SizedBox(height: 16),
+            Wrap(spacing: 8, runSpacing: 8, children: _requestActions(request, closeDetail: true)),
           ],
-        ),
+        )),
       ),
     );
   }
@@ -714,8 +777,8 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 130, child: Text(label, style: const TextStyle(color: Colors.white54, fontSize: 13))),
-          Expanded(child: SelectableText(value, style: const TextStyle(color: Colors.white, fontSize: 13))),
+          SizedBox(width: 130, child: Text(label, style: TextStyle(color: context.renkler.metinIkincil, fontSize: 13))),
+          Expanded(child: SelectableText(value, style: TextStyle(color: context.renkler.metin, fontSize: 13))),
         ],
       ),
     );
@@ -759,24 +822,24 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
     final assignment = _map(request['assignment']);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Atamayı kaldır'),
-        content: Column(
+      builder: (dialogContext) => YbDiyalog(
+        baslik: 'Atamayı kaldır',
+        eylemler: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text('Vazgeç')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text('Atamayı Kaldır')),
+        ],
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text('${_orDash(assignment['personnel_name'])} bu talepten alınacak ve talep "Atama Bekleyen" listesine dönecek.'),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             TextField(
               controller: reasonController,
               decoration: const InputDecoration(labelText: 'Neden (isteğe bağlı)', border: OutlineInputBorder()),
             ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Vazgeç')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Atamayı Kaldır')),
-        ],
-      ),
+),
     );
     final reason = reasonController.text.trim();
     reasonController.dispose();
@@ -809,11 +872,11 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
     'same_region': 'Aynı bölge',
     'other_region': 'Bölge dışı',
   };
-  static const _matchColors = {
-    'same_district': Colors.greenAccent,
-    'same_city': Colors.green,
-    'same_region': Colors.orange,
-    'other_region': Colors.grey,
+  Map<String, Color> get _matchColors => {
+    'same_district': context.renkler.birincilMetin,
+    'same_city': context.renkler.birincil,
+    'same_region': context.renkler.uyari,
+    'other_region': context.renkler.metinIkincil,
   };
 
   final TextEditingController _noteController = TextEditingController();
@@ -908,43 +971,53 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
     final visible = _showOtherRegions ? selectable : selectable.where((c) => c['match'] != 'other_region').toList();
     final hiddenCount = selectable.length - visible.length;
 
-    return AlertDialog(
-      title: Text('Personel Ata – ${vehicle['plate'] ?? vehicle['title'] ?? ''}'),
-      content: SizedBox(
+    return YbDiyalog(
+      baslik: 'Personel Ata – ${vehicle['plate'] ?? vehicle['title'] ?? ''}',
+      eylemler: [
+        TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: Text('İptal')),
+        FilledButton.icon(
+          onPressed: (_saving || _selectedId == null) ? null : _assign,
+          icon: _saving
+              ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : Icon(LucideIcons.send),
+          label: Text('Personele Gönder'),
+        ),
+      ],
+      child: SizedBox(
         width: 560,
         child: _loading
-            ? const SizedBox(height: 160, child: Center(child: CircularProgressIndicator()))
+            ? const YbIskelet(height: 160)
             : Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     city.isEmpty ? 'Talebin ili belirtilmemiş' : 'Talep konumu: $city${region.isEmpty ? '' : ' ($region)'}',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
+                  SizedBox(height: 4),
+                  Text(
                     'Öneri sırası: aynı ilçe → aynı il → aynı bölge → en az açık görev. '
                     'Görev için pasif personel seçilemez.',
-                    style: TextStyle(fontSize: 12),
+                    style: TextStyle(fontSize: 13),
                   ),
                   if (_firmaId.isNotEmpty) ...[
-                    const SizedBox(height: 6),
+                    SizedBox(height: 6),
                     Text(
                       key: const Key('atama-firma-basligi'),
                       'Talep firması: ${(widget.request['firm_name'] ?? '').toString().isEmpty ? _firmaId : widget.request['firm_name']}'
                       ' • Önce firmanın personeli, sonra firmasız YerimeBak personeli listelenir.',
-                      style: const TextStyle(fontSize: 12, color: Colors.cyanAccent),
+                      style: TextStyle(fontSize: 13, color: context.renkler.bilgi),
                     ),
                   ],
                   if (current != null) ...[
-                    const SizedBox(height: 6),
+                    SizedBox(height: 6),
                     Text(
                       'Şu an atanmış: ${current['full_name']} (${current['city'] ?? '-'})',
-                      style: const TextStyle(fontSize: 12, color: Colors.purpleAccent),
+                      style: TextStyle(fontSize: 13, color: context.renkler.bilgi),
                     ),
                   ],
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   if (selectable.isEmpty || onDutyCount == 0)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -952,7 +1025,7 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
                         selectable.isEmpty
                             ? 'Atanabilecek personel yok. Önce Personel sekmesinden personel ekleyin.'
                             : 'Şu an görev için aktif personel yok; personel kendini aktif yaptığında atanabilir.',
-                        style: const TextStyle(color: Colors.orange),
+                        style: TextStyle(color: context.renkler.uyari),
                       ),
                     ),
                   if (selectable.isNotEmpty)
@@ -973,7 +1046,7 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
                                 enabled: assignable,
                                 title: Text(
                                   '${c['full_name']}',
-                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                  style: TextStyle(fontWeight: FontWeight.w600),
                                 ),
                                 subtitle: Text(
                                   '${c['city'] ?? '-'} / ${c['district'] ?? '-'} • ${c['region'] ?? '-'} • '
@@ -985,12 +1058,12 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
                                 secondary: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: (_matchColors[match] ?? Colors.grey).withValues(alpha: .18),
+                                    color: (_matchColors[match] ?? context.renkler.metinIkincil).withValues(alpha: .18),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Text(
                                     _matchLabels[match] ?? match,
-                                    style: TextStyle(fontSize: 11, color: _matchColors[match], fontWeight: FontWeight.bold),
+                                    style: TextStyle(fontSize: 13, color: _matchColors[match], fontWeight: FontWeight.bold),
                                   ),
                                 ),
                               );
@@ -1004,7 +1077,7 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
                       onPressed: () => setState(() => _showOtherRegions = true),
                       child: Text('Bölge dışındaki $hiddenCount personeli de göster'),
                     ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   TextField(
                     controller: _noteController,
                     decoration: const InputDecoration(
@@ -1013,23 +1086,13 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
                     ),
                   ),
                   if (_error != null) ...[
-                    const SizedBox(height: 8),
-                    Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+                    SizedBox(height: 8),
+                    Text(_error!, style: TextStyle(color: context.renkler.tehlike)),
                   ],
                 ],
               ),
       ),
-      actions: [
-        TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('İptal')),
-        FilledButton.icon(
-          onPressed: (_saving || _selectedId == null) ? null : _assign,
-          icon: _saving
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.send),
-          label: const Text('Personele Gönder'),
-        ),
-      ],
-    );
+);
   }
 }
 
@@ -1054,17 +1117,33 @@ class _BulunamadiIadeDialogState extends State<_BulunamadiIadeDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Paket ücretini iade et'),
-      content: SizedBox(
+    return YbDiyalog(
+      baslik: 'Paket ücretini iade et',
+      eylemler: [
+        TextButton(onPressed: () => Navigator.pop(context), child: Text('Vazgeç')),
+        FilledButton(
+          key: const Key('bulunamadi-iade-onay'),
+          style: FilledButton.styleFrom(backgroundColor: context.renkler.uyari),
+          onPressed: () {
+            final reason = _reason.text.trim();
+            if (reason.isEmpty) {
+              setState(() => _error = 'Neden zorunludur');
+              return;
+            }
+            Navigator.pop(context, reason);
+          },
+          child: Text('İade et ve kapat'),
+        ),
+      ],
+      child: SizedBox(
         width: 420,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Talep kapanır. Kurumsal ekspertiz paket ücreti karta iade edilir; '
+            Text('Talep kapanır. Kurumsal ekspertiz paket ücreti karta iade edilir; '
                 'hizmet bedeli müşterinin ödeme öncesi onayı gereği iade edilmez. Müşteriye bildirim gider.'),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             TextField(
               key: const Key('bulunamadi-neden'),
               controller: _reason,
@@ -1074,23 +1153,7 @@ class _BulunamadiIadeDialogState extends State<_BulunamadiIadeDialog> {
           ],
         ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Vazgeç')),
-        FilledButton(
-          key: const Key('bulunamadi-iade-onay'),
-          style: FilledButton.styleFrom(backgroundColor: Colors.deepOrange.shade700),
-          onPressed: () {
-            final reason = _reason.text.trim();
-            if (reason.isEmpty) {
-              setState(() => _error = 'Neden zorunludur');
-              return;
-            }
-            Navigator.pop(context, reason);
-          },
-          child: const Text('İade et ve kapat'),
-        ),
-      ],
-    );
+);
   }
 }
 
@@ -1120,16 +1183,32 @@ class _IptalDialogState extends State<_IptalDialog> {
     final total = (widget.request['total_tl'] as num?)?.toDouble() ?? 0;
     final paid = widget.request['is_paid'] == true ||
         ['paid', 'paid_simulation'].contains(widget.request['payment_status']);
-    return AlertDialog(
-      title: const Text('Talebi iptal et'),
-      content: SizedBox(
+    return YbDiyalog(
+      baslik: 'Talebi iptal et',
+      eylemler: [
+        TextButton(onPressed: () => Navigator.pop(context), child: Text('Vazgeç')),
+        FilledButton(
+          key: const Key('confirmCancelButton'),
+          style: FilledButton.styleFrom(backgroundColor: context.renkler.uyari),
+          onPressed: () {
+            final reason = _reason.text.trim();
+            if (reason.isEmpty) {
+              setState(() => _error = 'İptal nedeni zorunludur');
+              return;
+            }
+            Navigator.pop(context, (reason: reason, refund: paid && _refund));
+          },
+          child: Text('İptal Et'),
+        ),
+      ],
+      child: SizedBox(
         width: 420,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Talep iptal edilir, personel ataması kaldırılır; müşteriye ve personele bildirim gider.'),
-            const SizedBox(height: 12),
+            Text('Talep iptal edilir, personel ataması kaldırılır; müşteriye ve personele bildirim gider.'),
+            SizedBox(height: 12),
             TextField(
               key: const Key('cancelReasonField'),
               controller: _reason,
@@ -1144,26 +1223,10 @@ class _IptalDialogState extends State<_IptalDialog> {
                 onChanged: (v) => setState(() => _refund = v ?? true),
                 title: Text('${NumberFormat.decimalPattern('tr').format(total)} TL ödemeyi karta iade et (PayTR)'),
               ),
-            if (_error != null) Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+            if (_error != null) Text(_error!, style: TextStyle(color: context.renkler.tehlike)),
           ],
         ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Vazgeç')),
-        FilledButton(
-          key: const Key('confirmCancelButton'),
-          style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade800),
-          onPressed: () {
-            final reason = _reason.text.trim();
-            if (reason.isEmpty) {
-              setState(() => _error = 'İptal nedeni zorunludur');
-              return;
-            }
-            Navigator.pop(context, (reason: reason, refund: paid && _refund));
-          },
-          child: const Text('İptal Et'),
-        ),
-      ],
-    );
+);
   }
 }

@@ -1,3 +1,5 @@
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
@@ -106,21 +108,21 @@ class _RaporDisEkspertizState extends State<RaporDisEkspertiz> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Dış Ekspertiz Raporu"),
-        backgroundColor: Colors.blue,
+        backgroundColor: context.renkler.birincil,
       ),
       body: Column(
         children: [
-          // 📋 ARAÇ BİLGİLERİ
+          // ARAÇ BİLGİLERİ
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.grey[100],
-              border: Border.all(color: Colors.blue),
+              color: context.renkler.yuzeyIkincil,
+              border: Border.all(color: context.renkler.birincil),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('📋 Araç Bilgileri', 
+                const Text('Araç Bilgileri', 
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Text('Plaka: ${widget.aracBilgileri['plaka'] ?? "Belirtilmedi"}'),
@@ -135,10 +137,10 @@ class _RaporDisEkspertizState extends State<RaporDisEkspertiz> {
           // İlerleme Çubuğu
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: Colors.blue[50],
+            color: context.renkler.birincilYuzey,
             child: Row(
               children: [
-                const Icon(Icons.car_repair, size: 20, color: Colors.blue),
+                Icon(LucideIcons.carFront, size: 20, color: context.renkler.birincil),
                 const SizedBox(width: 8),
                 const Text('Dış Ekspertiz Kontrol', style: TextStyle(fontWeight: FontWeight.bold)),
                 const Spacer(),
@@ -162,10 +164,10 @@ class _RaporDisEkspertizState extends State<RaporDisEkspertiz> {
                       children: [
                         Text(
                           item['madde'], 
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.bold, 
                             fontSize: 16,
-                            color: Colors.blue
+                            color: context.renkler.birincil
                           )
                         ),
                         const SizedBox(height: 8),
@@ -202,11 +204,11 @@ class _RaporDisEkspertizState extends State<RaporDisEkspertiz> {
                             ),
                             const SizedBox(width: 8),
                             IconButton(
-                              icon: const Icon(Icons.camera_alt, color: Colors.blue),
+                              icon: Icon(LucideIcons.camera, color: context.renkler.birincil),
                               onPressed: () => _fotoSec(index),
                             ),
                             if (item['foto'] != null)
-                              const Icon(Icons.check_circle, color: Colors.green),
+                              Icon(LucideIcons.circleCheck, color: context.renkler.birincilMetin),
                           ],
                         ),
                         // Fotoğraf önizleme (varsa)
@@ -219,7 +221,7 @@ class _RaporDisEkspertizState extends State<RaporDisEkspertiz> {
                                   width: 60,
                                   height: 60,
                                   decoration: BoxDecoration(
-                                    border: Border.all(color: Colors.blue),
+                                    border: Border.all(color: context.renkler.birincil),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Image.file(
@@ -228,7 +230,7 @@ class _RaporDisEkspertizState extends State<RaporDisEkspertiz> {
                                   ),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  icon: Icon(LucideIcons.trash2, color: context.renkler.tehlike),
                                   onPressed: () => _fotoSil(index),
                                 ),
                               ],
@@ -242,14 +244,14 @@ class _RaporDisEkspertizState extends State<RaporDisEkspertiz> {
             ),
           ),
 
-          // 📝 DIŞ EKSPERTİZ EK NOTLAR
+          // DIŞ EKSPERTİZ EK NOTLAR
           Container(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  "📝 Dış Ekspertiz Ek Notlar",
+                  "Dış Ekspertiz Ek Notlar",
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
@@ -266,18 +268,18 @@ class _RaporDisEkspertizState extends State<RaporDisEkspertiz> {
             ),
           ),
 
-          // 📱 KAYDET ve İLERLE BUTONU
+          // KAYDET ve İLERLE BUTONU
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.grey[50],
-              border: Border.all(color: Colors.grey[300]!),
+              color: context.renkler.yuzeyIkincil,
+              border: Border.all(color: context.renkler.girdiKenarlik),
             ),
             child: Row(
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    icon: const Icon(Icons.arrow_back),
+                    icon: const Icon(LucideIcons.arrowLeft),
                     label: const Text('Geri (Rapor Detay)'),
                     onPressed: () => Navigator.pop(context),
                   ),
@@ -285,12 +287,12 @@ class _RaporDisEkspertizState extends State<RaporDisEkspertiz> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
-                    icon: const Icon(Icons.save, color: Colors.white),
-                    label: const Text('Kaydet ve İlerle', 
-                      style: TextStyle(color: Colors.white)),
+                    icon: Icon(LucideIcons.save, color: context.renkler.birincilUstu),
+                    label: Text('Kaydet ve İlerle', 
+                      style: TextStyle(color: context.renkler.birincilUstu)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _tumAlanlarDoldurulduMu() ? Colors.blue : Colors.grey,
-                      foregroundColor: Colors.white,
+                      backgroundColor: _tumAlanlarDoldurulduMu() ? context.renkler.birincil : context.renkler.metinIkincil,
+                      foregroundColor: context.renkler.birincilUstu,
                       minimumSize: const Size(0, 48),
                     ),
                     onPressed: _tumAlanlarDoldurulduMu()

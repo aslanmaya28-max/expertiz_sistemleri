@@ -1,21 +1,23 @@
 /// ADMIN BAR CHART
-/// 
+///
 /// FAZ-5.0 / Phase 5 - Visual BI & KPI Cockpit
-/// 
-/// 🎯 PURPOSE:
+///
+///  PURPOSE:
 /// Horizontal bar chart for personnel SLA and performance metrics.
 /// Shows exact duration and person info with SLA violation highlighting.
-/// 
-/// 🪨 PRINCIPLE:
+///
+///  PRINCIPLE:
 /// "Performance metrics must be actionable and visible."
 library;
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../../models/chart_data.dart';
 
 /// Admin Bar Chart Widget
-/// 
+///
 /// Displays horizontal bar charts with:
 /// - Personnel SLA metrics
 /// - Average approval times
@@ -44,35 +46,36 @@ class AdminBarChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (data.isEmpty) {
-      return _buildEmptyState();
+      return _buildEmptyState(context);
     }
 
     final threshold = slaThresholdHours ?? config.slaThresholdHours;
     final hasViolations = data.any((d) => d.y > threshold);
 
     return Card(
-      elevation: 4,
-      color: isDarkMode ? ForensicChartColors.backgroundDark : ForensicChartColors.backgroundLight,
+      elevation: 0,
+      color: context.renkler.yuzey,
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
-            _buildHeader(hasViolations, threshold),
+            _buildHeader(context, hasViolations, threshold),
             const SizedBox(height: 20),
 
             // Chart
             AspectRatio(
               aspectRatio: 1.8,
               child: BarChart(
-                _buildBarChartData(threshold),
-                duration: config.animate ? config.animationDuration : Duration.zero,
+                _buildBarChartData(context, threshold),
+                duration:
+                    config.animate ? config.animationDuration : Duration.zero,
               ),
             ),
 
             // Legend
-            if (hasViolations) _buildSLALegend(threshold),
+            if (hasViolations) _buildSLALegend(context, threshold),
           ],
         ),
       ),
@@ -80,7 +83,8 @@ class AdminBarChart extends StatelessWidget {
   }
 
   /// Build header
-  Widget _buildHeader(bool hasViolations, double threshold) {
+  Widget _buildHeader(
+      BuildContext context, bool hasViolations, double threshold) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -93,15 +97,15 @@ class AdminBarChart extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: isDarkMode ? Colors.white : const Color(0xFF111827),
+                  color: context.renkler.metin,
                 ),
               ),
               if (hasViolations)
                 Text(
-                  '⚠️ SLA ihlali var (${threshold.toInt()} saat üzeri)',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: ForensicChartColors.warningYellow,
+                  ' SLA ihlali var (${threshold.toInt()} saat üzeri)',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: context.renkler.metin,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -109,16 +113,16 @@ class AdminBarChart extends StatelessWidget {
           ),
         ),
         IconButton(
-          icon: const Icon(Icons.info_outline),
+          icon: const Icon(LucideIcons.info),
           onPressed: onTap,
-          color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
+          color: context.renkler.metinIkincil,
         ),
       ],
     );
   }
 
   /// Build bar chart data
-  BarChartData _buildBarChartData(double threshold) {
+  BarChartData _buildBarChartData(BuildContext context, double threshold) {
     final maxY = data.map((d) => d.y).reduce((a, b) => a > b ? a : b);
 
     return BarChartData(
@@ -128,25 +132,25 @@ class AdminBarChart extends StatelessWidget {
       barTouchData: BarTouchData(
         enabled: config.showTooltips,
         touchTooltipData: BarTouchTooltipData(
-          getTooltipColor: (group) => ForensicChartColors.tooltipBackground,
+          getTooltipColor: (group) => context.renkler.yuzey,
           getTooltipItem: (group, groupIndex, rod, rodIndex) {
             final item = data[groupIndex];
             final hours = item.y;
             final isViolation = hours > threshold;
-            final personnelId = item.metadata?['personnel_id'] as String? ?? item.label;
+            final personnelId =
+                item.metadata?['personnel_id'] as String? ?? item.label;
             final reportCount = item.metadata?['report_count'] as int? ?? 0;
 
             return BarTooltipItem(
               '$personnelId\n'
               'Ort: ${hours.toStringAsFixed(1)} saat\n'
               'Rapor: $reportCount\n'
-              '${isViolation ? '⚠️ SLA İhlali!' : '✅ SLA İçi'}',
+              '${isViolation ? ' SLA İhlali!' : ' SLA İçi'}',
               TextStyle(
-                color: isViolation 
-                    ? ForensicChartColors.warningYellow 
-                    : ForensicChartColors.tooltipText,
+                color:
+                    isViolation ? context.renkler.metin : context.renkler.metin,
                 fontWeight: FontWeight.bold,
-                fontSize: 11,
+                fontSize: 13,
               ),
             );
           },
@@ -173,8 +177,8 @@ class AdminBarChart extends StatelessWidget {
                 child: Text(
                   '${value.toInt()}s',
                   style: TextStyle(
-                    color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
-                    fontSize: 10,
+                    color: context.renkler.metinIkincil,
+                    fontSize: 13,
                   ),
                 ),
               );
@@ -187,9 +191,7 @@ class AdminBarChart extends StatelessWidget {
         drawVerticalLine: false,
         getDrawingHorizontalLine: (value) {
           return FlLine(
-            color: isDarkMode 
-                ? ForensicChartColors.gridLineDark 
-                : ForensicChartColors.gridLineLight,
+            color: isDarkMode ? context.renkler.yuzey : context.renkler.yuzey,
             strokeWidth: 1,
           );
         },
@@ -207,26 +209,11 @@ class AdminBarChart extends StatelessWidget {
           barRods: [
             BarChartRodData(
               toY: value,
-              color: isViolation 
-                  ? ForensicChartColors.warningYellow 
-                  : ForensicChartColors.securityGreen,
+              color: isViolation ? context.renkler.uyari : context.renkler.birincil,
               width: 20,
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(4),
                 topRight: Radius.circular(4),
-              ),
-              gradient: LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: isViolation
-                    ? [
-                        ForensicChartColors.warningYellow.withValues(alpha: 0.6),
-                        ForensicChartColors.warningYellow,
-                      ]
-                    : [
-                        ForensicChartColors.securityGreen.withValues(alpha: 0.6),
-                        ForensicChartColors.securityGreen,
-                      ],
               ),
             ),
           ],
@@ -236,7 +223,7 @@ class AdminBarChart extends StatelessWidget {
   }
 
   /// Build SLA legend
-  Widget _buildSLALegend(double threshold) {
+  Widget _buildSLALegend(BuildContext context, double threshold) {
     return Padding(
       padding: const EdgeInsets.only(top: 16),
       child: Row(
@@ -245,7 +232,7 @@ class AdminBarChart extends StatelessWidget {
             width: 12,
             height: 12,
             decoration: BoxDecoration(
-              color: ForensicChartColors.securityGreen,
+              color: context.renkler.yuzey,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -253,8 +240,8 @@ class AdminBarChart extends StatelessWidget {
           Text(
             'SLA İçi (≤ ${threshold.toInt()} saat)',
             style: TextStyle(
-              color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
-              fontSize: 12,
+              color: context.renkler.metinIkincil,
+              fontSize: 13,
             ),
           ),
           const SizedBox(width: 16),
@@ -262,7 +249,7 @@ class AdminBarChart extends StatelessWidget {
             width: 12,
             height: 12,
             decoration: BoxDecoration(
-              color: ForensicChartColors.warningYellow,
+              color: context.renkler.yuzey,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -270,8 +257,8 @@ class AdminBarChart extends StatelessWidget {
           Text(
             'SLA İhlali (> ${threshold.toInt()} saat)',
             style: TextStyle(
-              color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
-              fontSize: 12,
+              color: context.renkler.metinIkincil,
+              fontSize: 13,
             ),
           ),
         ],
@@ -280,25 +267,25 @@ class AdminBarChart extends StatelessWidget {
   }
 
   /// Build empty state
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
     return Card(
-      elevation: 4,
-      color: isDarkMode ? ForensicChartColors.backgroundDark : ForensicChartColors.backgroundLight,
+      elevation: 0,
+      color: context.renkler.yuzey,
       child: Padding(
         padding: const EdgeInsets.all(40),
         child: Center(
           child: Column(
             children: [
               Icon(
-                Icons.bar_chart,
+                LucideIcons.chartNoAxesColumn,
                 size: 64,
-                color: isDarkMode ? Colors.grey[600] : Colors.grey[400],
+                color: context.renkler.metinIkincil,
               ),
               const SizedBox(height: 16),
               Text(
                 'Veri bulunamadı',
                 style: TextStyle(
-                  color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                  color: context.renkler.metinIkincil,
                   fontSize: 16,
                 ),
               ),

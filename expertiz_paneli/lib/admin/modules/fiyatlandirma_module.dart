@@ -6,6 +6,9 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
+import 'package:yerimebak_sistemleri/bilesenler/bilesenler.dart';
 import '../../services/yerimebak_expertiz_api_service.dart';
 
 class FiyatlandirmaModule extends StatefulWidget {
@@ -48,8 +51,10 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
     super.dispose();
   }
 
-  static List<Map<String, dynamic>> _maps(dynamic v) =>
-      (v as List? ?? const []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  static List<Map<String, dynamic>> _maps(dynamic v) => (v as List? ?? const [])
+      .whereType<Map>()
+      .map((e) => Map<String, dynamic>.from(e))
+      .toList();
 
   Future<void> _load() async {
     if (!mounted) return;
@@ -60,13 +65,17 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
     try {
       final r = await _api.getAdminPricing();
       if (!mounted) return;
-      final inflation = r['vehicle_inflation'] is Map ? Map<String, dynamic>.from(r['vehicle_inflation'] as Map) : null;
+      final inflation = r['vehicle_inflation'] is Map
+          ? Map<String, dynamic>.from(r['vehicle_inflation'] as Map)
+          : null;
       setState(() {
         _vatRate = (r['vat_rate'] as num?)?.toDouble() ?? 0.2;
         _inflation = inflation;
         _firms = _maps(r['firms']);
         _feeController.text = _plain((r['service_fee_tl'] as num?) ?? 0);
-        _inflationController.text = inflation == null ? '' : _plain(inflation['monthly_pct'] as num? ?? 0);
+        _inflationController.text = inflation == null
+            ? ''
+            : _plain(inflation['monthly_pct'] as num? ?? 0);
         _inflationNoteController.text = inflation?['note']?.toString() ?? '';
         _loading = false;
       });
@@ -79,20 +88,26 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
     }
   }
 
-  static String _plain(num v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();
+  static String _plain(num v) =>
+      v == v.roundToDouble() ? v.toInt().toString() : v.toString();
 
-  static double? _parse(String text) => double.tryParse(text.trim().replaceAll('.', '').replaceAll(',', '.'));
+  static double? _parse(String text) =>
+      double.tryParse(text.trim().replaceAll('.', '').replaceAll(',', '.'));
 
   static String _tl(num value) {
     final parts = value.toDouble().toStringAsFixed(2).split('.');
-    final digits = parts[0].replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => '.');
+    final digits =
+        parts[0].replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => '.');
     return parts[1] == '00' ? '$digits TL' : '$digits,${parts[1]} TL';
   }
 
   void _toast(String message, {bool error = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: error ? Colors.red.shade700 : Colors.green.shade700),
+      SnackBar(
+          content: Text(message),
+          backgroundColor:
+              error ? context.renkler.tehlike : context.renkler.birincilMetin),
     );
   }
 
@@ -117,23 +132,30 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
       _toast('Geçerli bir hizmet bedeli girin', error: true);
       return;
     }
-    await _run(() => _api.updatePricingSettings(serviceFeeTl: fee), 'Hizmet bedeli güncellendi');
+    await _run(() => _api.updatePricingSettings(serviceFeeTl: fee),
+        'Hizmet bedeli güncellendi');
   }
 
   Future<void> _saveInflation() async {
-    final rate = double.tryParse(_inflationController.text.trim().replaceAll(',', '.'));
+    final rate =
+        double.tryParse(_inflationController.text.trim().replaceAll(',', '.'));
     if (rate == null) {
       _toast('Aylık enflasyon oranını girin (ör. 2,5)', error: true);
       return;
     }
     await _run(
-      () => _api.updatePricingSettings(inflationMonthlyPct: rate, inflationNote: _inflationNoteController.text.trim()),
+      () => _api.updatePricingSettings(
+          inflationMonthlyPct: rate,
+          inflationNote: _inflationNoteController.text.trim()),
       'Araç enflasyonu güncellendi',
     );
   }
 
-  Future<Map<String, String>?> _formDialog(String title, List<(String, String, String)> fields) {
-    final controllers = {for (final f in fields) f.$1: TextEditingController(text: f.$3)};
+  Future<Map<String, String>?> _formDialog(
+      String title, List<(String, String, String)> fields) {
+    final controllers = {
+      for (final f in fields) f.$1: TextEditingController(text: f.$3)
+    };
     return showDialog<Map<String, String>>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -146,15 +168,21 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
                 .map((f) => TextField(
                       controller: controllers[f.$1],
                       decoration: InputDecoration(labelText: f.$2),
-                      keyboardType: f.$1 == 'price' ? const TextInputType.numberWithOptions(decimal: true) : null,
+                      keyboardType: f.$1 == 'price'
+                          ? const TextInputType.numberWithOptions(decimal: true)
+                          : null,
                     ))
                 .toList(),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Vazgeç')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Vazgeç')),
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, {for (final e in controllers.entries) e.key: e.value.text.trim()}),
+            onPressed: () => Navigator.pop(dialogContext, {
+              for (final e in controllers.entries) e.key: e.value.text.trim()
+            }),
             child: const Text('Kaydet'),
           ),
         ],
@@ -170,25 +198,47 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
   }
 
   Future<void> _addFirm() async {
-    final values = await _formDialog('Firma ekle', [('name', 'Firma adı', ''), ('source_url', 'Fiyat kaynağı (web sayfası)', '')]);
+    final values = await _formDialog('Firma ekle', [
+      ('name', 'Firma adı', ''),
+      ('source_url', 'Fiyat kaynağı (web sayfası)', '')
+    ]);
     if (values == null || (values['name'] ?? '').isEmpty) return;
-    await _run(() => _api.createFirm(values['name']!, sourceUrl: values['source_url']), 'Firma eklendi');
+    await _run(
+        () => _api.createFirm(values['name']!, sourceUrl: values['source_url']),
+        'Firma eklendi');
   }
 
   Future<void> _editFirm(Map<String, dynamic> firm) async {
     final values = await _formDialog('Firmayı düzenle', [
       ('name', 'Firma adı', firm['name']?.toString() ?? ''),
-      ('source_url', 'Fiyat kaynağı (web sayfası)', firm['source_url']?.toString() ?? ''),
+      (
+        'source_url',
+        'Fiyat kaynağı (web sayfası)',
+        firm['source_url']?.toString() ?? ''
+      ),
     ]);
     if (values == null || (values['name'] ?? '').isEmpty) return;
-    await _run(() => _api.updateFirm(firm['id'] as String, {'name': values['name'], 'source_url': values['source_url']}), 'Firma güncellendi');
+    await _run(
+        () => _api.updateFirm(firm['id'] as String,
+            {'name': values['name'], 'source_url': values['source_url']}),
+        'Firma güncellendi');
   }
 
-  Future<void> _packageDialog(Map<String, dynamic> firm, [Map<String, dynamic>? pkg]) async {
-    final values = await _formDialog(pkg == null ? '${firm['name']} — paket ekle' : 'Paketi düzenle', [
+  Future<void> _packageDialog(Map<String, dynamic> firm,
+      [Map<String, dynamic>? pkg]) async {
+    final values = await _formDialog(
+        pkg == null ? '${firm['name']} — paket ekle' : 'Paketi düzenle', [
       ('name', 'Paket adı', pkg?['name']?.toString() ?? ''),
-      ('price', 'Fiyat (TL, KDV dahil)', pkg == null ? '' : _plain(pkg['price'] as num)),
-      ('features', 'Kapsam (virgülle ayırın)', ((pkg?['features'] as List?) ?? const []).join(', ')),
+      (
+        'price',
+        'Fiyat (TL, KDV dahil)',
+        pkg == null ? '' : _plain(pkg['price'] as num)
+      ),
+      (
+        'features',
+        'Kapsam (virgülle ayırın)',
+        ((pkg?['features'] as List?) ?? const []).join(', ')
+      ),
     ]);
     if (values == null) return;
     final price = _parse(values['price'] ?? '');
@@ -196,12 +246,20 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
       _toast('Paket adı ve geçerli bir fiyat girin', error: true);
       return;
     }
-    final features = (values['features'] ?? '').split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    final features = (values['features'] ?? '')
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
     if (pkg == null) {
-      await _run(() => _api.createPackage(firm['id'] as String, name: values['name']!, price: price, features: features), 'Paket eklendi');
+      await _run(
+          () => _api.createPackage(firm['id'] as String,
+              name: values['name']!, price: price, features: features),
+          'Paket eklendi');
     } else {
       await _run(
-        () => _api.updatePackage(firm['id'] as String, pkg['id'] as String, {'name': values['name'], 'price': price, 'features': features}),
+        () => _api.updatePackage(firm['id'] as String, pkg['id'] as String,
+            {'name': values['name'], 'price': price, 'features': features}),
         'Paket güncellendi',
       );
     }
@@ -209,31 +267,45 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDarkMode ? Colors.white : const Color(0xFF111827);
-    final subColor = isDarkMode ? Colors.grey[400] : Colors.grey[600];
-    final cardColor = isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
+    final textColor = context.renkler.metin;
+    final subColor = context.renkler.metinIkincil;
+    final cardColor = context.renkler.yuzey;
 
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return const Padding(padding: EdgeInsets.all(24), child: Column(children: [YbIskelet(height: 80), SizedBox(height: 16), YbIskelet(height: 80), SizedBox(height: 16), YbIskelet(height: 80)]));
     if (_error != null) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+            Icon(LucideIcons.circleAlert,
+                color: context.renkler.tehlike, size: 48),
             const SizedBox(height: 12),
-            Text('Fiyatlandırma yüklenemedi', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
+            Text('Fiyatlandırma yüklenemedi',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: textColor)),
             const SizedBox(height: 8),
-            Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
+            Text(_error!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: context.renkler.metinIkincil)),
             const SizedBox(height: 16),
-            FilledButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('Tekrar Dene')),
+            FilledButton.icon(
+                onPressed: _load,
+                icon: const Icon(LucideIcons.refreshCw),
+                label: const Text('Tekrar Dene')),
           ],
         ),
       );
     }
 
-    final activeFirms = _firms.where((f) => f['active'] == true && _maps(f['packages']).any((p) => p['active'] == true)).length;
-    final monthly = double.tryParse(_inflationController.text.replaceAll(',', '.'));
+    final activeFirms = _firms
+        .where((f) =>
+            f['active'] == true &&
+            _maps(f['packages']).any((p) => p['active'] == true))
+        .length;
+    final monthly =
+        double.tryParse(_inflationController.text.replaceAll(',', '.'));
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -243,25 +315,39 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
         children: [
           Row(
             children: [
-              Expanded(child: Text('Fiyatlandırma', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: textColor))),
-              IconButton(onPressed: _load, icon: const Icon(Icons.refresh), tooltip: 'Yenile'),
+              Expanded(
+                  child: Text('Fiyatlandırma',
+                      style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: textColor))),
+              IconButton(
+                  onPressed: _load,
+                  icon: const Icon(LucideIcons.refreshCw),
+                  tooltip: 'Yenile'),
             ],
           ),
-          Text('Değişiklikler müşteri panelinde hemen geçerli olur.', style: TextStyle(color: subColor)),
+          Text('Değişiklikler müşteri panelinde hemen geçerli olur.',
+              style: TextStyle(color: subColor)),
           const SizedBox(height: 16),
 
           // HİZMET BEDELİ
-          Card(
-            color: cardColor,
+          YbKart(
+            padding: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('YerimeBak hizmet bedeli', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
+                  Text('YerimeBak hizmet bedeli',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: textColor)),
                   const SizedBox(height: 4),
-                  Text('KDV hariç tutardır; KDV %${(_vatRate * 100).round()} yalnız hizmet bedeline eklenir. Firma paket fiyatlarını KDV dahil girin.',
-                      style: TextStyle(fontSize: 12, color: subColor)),
+                  Text(
+                      'KDV hariç tutardır; KDV %${(_vatRate * 100).round()} yalnız hizmet bedeline eklenir. Firma paket fiyatlarını KDV dahil girin.',
+                      style: TextStyle(fontSize: 13, color: subColor)),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -270,12 +356,18 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
                         child: TextField(
                           key: const Key('serviceFeeField'),
                           controller: _feeController,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(labelText: 'Hizmet bedeli', suffixText: 'TL', isDense: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          decoration: const InputDecoration(
+                              labelText: 'Hizmet bedeli',
+                              suffixText: 'TL',
+                              isDense: true),
                         ),
                       ),
                       const SizedBox(width: 12),
-                      FilledButton(onPressed: _saving ? null : _saveFee, child: const Text('Kaydet')),
+                      FilledButton(
+                          onPressed: _saving ? null : _saveFee,
+                          child: const Text('Kaydet')),
                     ],
                   ),
                 ],
@@ -285,21 +377,29 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
           const SizedBox(height: 12),
 
           // ARAÇ ENFLASYONU
-          Card(
-            color: cardColor,
+          YbKart(
+            padding: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Aylık araç enflasyonu', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
+                  Text('Aylık araç enflasyonu',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: textColor)),
                   const SizedBox(height: 4),
                   Text(
                     _inflation == null
                         ? 'Henüz girilmedi: müşteri değerlemelerinde 6 aylık / yıllık getiri gösterilmez.'
                         : 'Son güncelleme: ${_inflation!['effective_date'] ?? '-'}'
                             '${_inflation!['updated_by'] != null ? ' • ${_inflation!['updated_by']}' : ''}',
-                    style: TextStyle(fontSize: 12, color: _inflation == null ? Colors.orange : subColor),
+                    style: TextStyle(
+                        fontSize: 13,
+                        color: _inflation == null
+                            ? context.renkler.uyari
+                            : subColor),
                   ),
                   const SizedBox(height: 12),
                   Wrap(
@@ -313,25 +413,33 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
                           key: const Key('inflationField'),
                           controller: _inflationController,
                           onChanged: (_) => setState(() {}),
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                          decoration: const InputDecoration(labelText: 'Aylık oran', suffixText: '%', isDense: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true, signed: true),
+                          decoration: const InputDecoration(
+                              labelText: 'Aylık oran',
+                              suffixText: '%',
+                              isDense: true),
                         ),
                       ),
                       SizedBox(
                         width: 260,
                         child: TextField(
                           controller: _inflationNoteController,
-                          decoration: const InputDecoration(labelText: 'Kaynak (ör. TÜİK / ODMD Eylül)', isDense: true),
+                          decoration: const InputDecoration(
+                              labelText: 'Kaynak (ör. TÜİK / ODMD Eylül)',
+                              isDense: true),
                         ),
                       ),
-                      FilledButton(onPressed: _saving ? null : _saveInflation, child: const Text('Kaydet')),
+                      FilledButton(
+                          onPressed: _saving ? null : _saveInflation,
+                          child: const Text('Kaydet')),
                     ],
                   ),
                   if (monthly != null) ...[
                     const SizedBox(height: 8),
                     Text(
                       'Yıllık karşılığı ≈ %${((_pow(1 + monthly / 100, 12) - 1) * 100).toStringAsFixed(1)}',
-                      style: TextStyle(fontSize: 12, color: subColor),
+                      style: TextStyle(fontSize: 13, color: subColor),
                     ),
                   ],
                 ],
@@ -344,9 +452,16 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
           Row(
             children: [
               Expanded(
-                child: Text('Kurumsal ekspertiz firmaları', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)),
+                child: Text('Kurumsal ekspertiz firmaları',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: textColor)),
               ),
-              FilledButton.icon(onPressed: _saving ? null : _addFirm, icon: const Icon(Icons.add), label: const Text('Firma Ekle')),
+              FilledButton.icon(
+                  onPressed: _saving ? null : _addFirm,
+                  icon: const Icon(LucideIcons.plus),
+                  label: const Text('Firma Ekle')),
             ],
           ),
           const SizedBox(height: 8),
@@ -355,16 +470,17 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
               padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.only(bottom: 8),
               decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.12),
+                color: context.renkler.uyari.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
                 'Müşteriye $activeFirms firma gösteriliyor (hedef $_targetFirmCount). '
                 'Başlangıç fiyatları internetteki kaynaklardan alındı; firmalardan teyit edip "Doğrulandı" işaretleyin.',
-                style: const TextStyle(fontSize: 12),
+                style: const TextStyle(fontSize: 13),
               ),
             ),
-          ..._firms.map((firm) => _buildFirm(firm, cardColor, textColor, subColor)),
+          ..._firms
+              .map((firm) => _buildFirm(firm, cardColor, textColor, subColor)),
         ],
       ),
     );
@@ -378,12 +494,13 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
     return result;
   }
 
-  Widget _buildFirm(Map<String, dynamic> firm, Color cardColor, Color textColor, Color? subColor) {
+  Widget _buildFirm(Map<String, dynamic> firm, Color cardColor, Color textColor,
+      Color? subColor) {
     final active = firm['active'] == true;
     final verified = firm['verified'] == true;
     final packages = _maps(firm['packages']);
-    return Card(
-      color: cardColor,
+    return YbKart(
+      padding: EdgeInsets.zero,
       child: Opacity(
         opacity: active ? 1 : 0.55,
         child: Padding(
@@ -397,9 +514,15 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(firm['name']?.toString() ?? '', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor)),
+                        Text(firm['name']?.toString() ?? '',
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: textColor)),
                         if ((firm['source_url'] ?? '').toString().isNotEmpty)
-                          Text('Kaynak: ${firm['source_url']}', style: TextStyle(fontSize: 11, color: subColor), overflow: TextOverflow.ellipsis),
+                          Text('Kaynak: ${firm['source_url']}',
+                              style: TextStyle(fontSize: 13, color: subColor),
+                              overflow: TextOverflow.ellipsis),
                       ],
                     ),
                   ),
@@ -408,16 +531,25 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
                     selected: verified,
                     onSelected: _saving
                         ? null
-                        : (v) => _run(() => _api.updateFirm(firm['id'] as String, {'verified': v}), v ? 'Fiyatlar doğrulandı' : 'Doğrulama kaldırıldı'),
+                        : (v) => _run(
+                            () => _api.updateFirm(
+                                firm['id'] as String, {'verified': v}),
+                            v ? 'Fiyatlar doğrulandı' : 'Doğrulama kaldırıldı'),
                   ),
                   const SizedBox(width: 6),
                   Switch(
                     value: active,
                     onChanged: _saving
                         ? null
-                        : (v) => _run(() => _api.updateFirm(firm['id'] as String, {'active': v}), v ? 'Firma yayında' : 'Firma gizlendi'),
+                        : (v) => _run(
+                            () => _api.updateFirm(
+                                firm['id'] as String, {'active': v}),
+                            v ? 'Firma yayında' : 'Firma gizlendi'),
                   ),
-                  IconButton(icon: const Icon(Icons.edit), tooltip: 'Düzenle', onPressed: _saving ? null : () => _editFirm(firm)),
+                  IconButton(
+                      icon: const Icon(LucideIcons.pencil),
+                      tooltip: 'Düzenle',
+                      onPressed: _saving ? null : () => _editFirm(firm)),
                 ],
               ),
               const Divider(),
@@ -427,27 +559,35 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
                   dense: true,
                   contentPadding: EdgeInsets.zero,
                   title: Text(pkg['name']?.toString() ?? '',
-                      style: TextStyle(color: textColor, decoration: pActive ? null : TextDecoration.lineThrough)),
+                      style: TextStyle(
+                          color: textColor,
+                          decoration:
+                              pActive ? null : TextDecoration.lineThrough)),
                   subtitle: ((pkg['features'] as List?) ?? const []).isEmpty
                       ? null
-                      : Text((pkg['features'] as List).join(' • '), style: TextStyle(fontSize: 11, color: subColor)),
+                      : Text((pkg['features'] as List).join(' • '),
+                          style: TextStyle(fontSize: 13, color: subColor)),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(_tl((pkg['price'] as num?) ?? 0), style: TextStyle(fontWeight: FontWeight.bold, color: textColor)),
+                      Text(_tl((pkg['price'] as num?) ?? 0),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, color: textColor)),
                       Switch(
                         value: pActive,
                         onChanged: _saving
                             ? null
                             : (v) => _run(
-                                  () => _api.updatePackage(firm['id'] as String, pkg['id'] as String, {'active': v}),
+                                  () => _api.updatePackage(firm['id'] as String,
+                                      pkg['id'] as String, {'active': v}),
                                   v ? 'Paket yayında' : 'Paket gizlendi',
                                 ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.edit, size: 18),
+                        icon: const Icon(LucideIcons.pencil, size: 18),
                         tooltip: 'Paketi düzenle',
-                        onPressed: _saving ? null : () => _packageDialog(firm, pkg),
+                        onPressed:
+                            _saving ? null : () => _packageDialog(firm, pkg),
                       ),
                     ],
                   ),
@@ -457,7 +597,7 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
                   onPressed: _saving ? null : () => _packageDialog(firm),
-                  icon: const Icon(Icons.add),
+                  icon: const Icon(LucideIcons.plus),
                   label: const Text('Paket ekle'),
                 ),
               ),

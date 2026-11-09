@@ -1,3 +1,5 @@
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../models/expertiz/adim1_arac_satici_model.dart';
@@ -101,8 +103,8 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 🚗 Araç Bilgileri (ZORUNLU)
-          _buildSectionHeader('🚗 Araç Bilgileri', zorunlu: true),
+          // Araç Bilgileri (ZORUNLU)
+          _buildSectionHeader('Araç Bilgileri', zorunlu: true),
           const SizedBox(height: 16),
 
           _ResponsiveFieldRow(
@@ -114,7 +116,7 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
                   decoration: const InputDecoration(
                     labelText: 'Marka *',
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.directions_car),
+                    prefixIcon: Icon(LucideIcons.car),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -156,7 +158,7 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
               hintText: 'ör. 1.0 EcoTSI Style DSG, 1.3 Multijet Urban',
               helperText: 'İlandaki gibi yazın; AI aynı paketteki ilanlarla karşılaştırır',
               border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.star),
+              prefixIcon: Icon(LucideIcons.star),
             ),
             onChanged: (_) => _updateModel(),
           ),
@@ -168,7 +170,7 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
             decoration: const InputDecoration(
               labelText: 'Yakıt Tipi *',
               border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.local_gas_station),
+              prefixIcon: Icon(LucideIcons.fuel),
             ),
             items: Adim1AracSaticiModel.yakitTurleri
                 .map((tip) => DropdownMenuItem(value: tip, child: Text(tip)))
@@ -196,7 +198,7 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
             decoration: const InputDecoration(
               labelText: 'Plaka *',
               border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.credit_card),
+              prefixIcon: Icon(LucideIcons.creditCard),
             ),
             textCapitalization: TextCapitalization.characters,
             validator: (value) {
@@ -215,7 +217,7 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
             decoration: const InputDecoration(
               labelText: 'Şase No *',
               border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.vpn_key),
+              prefixIcon: Icon(LucideIcons.keyRound),
             ),
             textCapitalization: TextCapitalization.characters,
             validator: (value) {
@@ -237,7 +239,7 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
             decoration: const InputDecoration(
               labelText: 'Güncel KM *',
               border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.speed),
+              prefixIcon: Icon(LucideIcons.gauge),
               suffixText: 'km',
             ),
             keyboardType: TextInputType.number,
@@ -279,8 +281,8 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
                     decoration: const InputDecoration(
                       labelText: 'En Son Bakım Tarihi',
                       border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.build),
-                      suffixIcon: Icon(Icons.calendar_today),
+                      prefixIcon: Icon(LucideIcons.wrench),
+                      suffixIcon: Icon(LucideIcons.calendarDays),
                     ),
                     child: Text(
                       widget.model.enSonBakimTarihi != null
@@ -316,8 +318,8 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
                     decoration: const InputDecoration(
                       labelText: 'Son Muayene Tarihi',
                       border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.verified_user),
-                      suffixIcon: Icon(Icons.calendar_today),
+                      prefixIcon: Icon(LucideIcons.shieldCheck),
+                      suffixIcon: Icon(LucideIcons.calendarDays),
                     ),
                     child: Text(
                       widget.model.sonMuayeneTarihi != null
@@ -333,8 +335,8 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
           ),
           const SizedBox(height: 24),
 
-          // ⚠️ Hasar Bilgileri (OPSİYONEL)
-          _buildSectionHeader('⚠️ Hasar Bilgileri', zorunlu: false),
+          // Hasar Bilgileri (OPSİYONEL)
+          _buildSectionHeader('Hasar Bilgileri', zorunlu: false),
           const SizedBox(height: 16),
 
           _ResponsiveFieldRow(
@@ -346,7 +348,7 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
                   decoration: const InputDecoration(
                     labelText: 'Hasar Kayıt Adet',
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.warning),
+                    prefixIcon: Icon(LucideIcons.triangleAlert),
                     suffixText: 'adet',
                   ),
                   keyboardType: TextInputType.number,
@@ -370,7 +372,7 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
                   decoration: const InputDecoration(
                     labelText: 'Hasar Kayıt Toplam Tutar',
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.attach_money),
+                    prefixIcon: Icon(LucideIcons.banknote),
                     prefixText: '₺ ',
                   ),
                   keyboardType: TextInputType.number,
@@ -390,8 +392,8 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
           ),
           const SizedBox(height: 24),
 
-          // 👤 Ruhsat / Satıcı Bilgileri (ZORUNLU)
-          _buildSectionHeader('👤 Ruhsat / Satıcı Bilgileri', zorunlu: true),
+          // Ruhsat / Satıcı Bilgileri (ZORUNLU)
+          _buildSectionHeader('Ruhsat / Satıcı Bilgileri', zorunlu: true),
           const SizedBox(height: 16),
 
           TextFormField(
@@ -400,7 +402,7 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
             decoration: const InputDecoration(
               labelText: 'Ruhsat Sahibi Ad Soyad *',
               border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.person),
+              prefixIcon: Icon(LucideIcons.userRound),
             ),
             validator: (value) {
               if (value == null || value.isEmpty) {
@@ -418,7 +420,7 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
             decoration: const InputDecoration(
               labelText: 'İletişim (Telefon) *',
               border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.phone),
+              prefixIcon: Icon(LucideIcons.phone),
             ),
             keyboardType: TextInputType.phone,
             validator: (value) {
@@ -431,8 +433,8 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
           ),
           const SizedBox(height: 24),
 
-          // 🔸 Durum Sekme Mantığı
-          _buildSectionHeader('🔸 Durum Değerlendirmesi', zorunlu: true),
+          // Durum Sekme Mantığı
+          _buildSectionHeader('Durum Değerlendirmesi', zorunlu: true),
           const SizedBox(height: 16),
 
           ...widget.model.durumSorular.asMap().entries.map((entry) {
@@ -493,17 +495,17 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
                 flex: 3,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.grey[100],
+                    color: context.renkler.yuzeyIkincil,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey[300]!),
+                    border: Border.all(color: context.renkler.girdiKenarlik),
                   ),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: const Text(
+                  child: Text(
                     '-',
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.grey,
+                      color: context.renkler.metinIkincil,
                     ),
                   ),
                 ),
@@ -553,10 +555,10 @@ class _Adim1AracSaticiFormWidgetState extends State<Adim1AracSaticiFormWidget> {
           )),
           if (zorunlu) const SizedBox(width: 8),
           if (zorunlu)
-            const Text(
+            Text(
               '*',
               style: TextStyle(
-                color: Colors.red,
+                color: context.renkler.tehlike,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),

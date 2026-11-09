@@ -23,6 +23,29 @@ Map<String, dynamic> _talep(String bucket) => {
     };
 
 void main() {
+  testWidgets('dikkat bağlantısı iade bekleyen talepleri ilgili kovada açar', (tester) async {
+    final client = MockClient((_) async => _json({
+      'requests': [
+        {..._talep('in_progress'), 'vehicle': {'title': 'İade bekleyen araç'}, 'durum_kodu': 'vehicle_not_found'},
+        {..._talep('in_progress'), 'id': 'R2', 'vehicle': {'title': 'Devam eden araç'}},
+      ],
+      'counts': {'in_progress': 2},
+    }));
+    await tester.pumpWidget(MaterialApp(home: AracOperasyonu(
+      initialBucket: 'in_progress',
+      refundOnly: true,
+      apiService: YerimebakExpertizApiService(baseUrl: 'http://api.test/api/v1', client: client, accessToken: 'admin-token'),
+    )));
+    await tester.pumpAndSettle();
+    expect(find.text('İade bekleyen araç'), findsOneWidget);
+    expect(find.text('Devam eden araç'), findsNothing);
+    expect(tester.widget<FilterChip>(find.widgetWithText(FilterChip, 'İade kararı bekleyen')).selected, isTrue);
+    await tester.tap(find.widgetWithText(FilterChip, 'İade kararı bekleyen'));
+    await tester.pumpAndSettle();
+    expect(find.text('Devam eden araç'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('admin talepteki ilan baglantisini acar', (tester) async {
     const url = 'https://www.sahibinden.com/ilan/test-1347633467/detay';
     Uri? opened;
@@ -91,6 +114,8 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
+    await tester.tap(find.byTooltip('Talep ayrıntısı'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('cancel-R1')));
     await tester.pumpAndSettle();
 
@@ -162,6 +187,9 @@ void main() {
 
     expect(find.text('Araç adreste yok'), findsOneWidget);
     expect(find.text('Yeniden Ata'), findsNothing, reason: 'saha kapandı; yönetim kararı bekleniyor');
+    await tester.tap(find.byTooltip('Talep ayrıntısı'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('bulunamadi-iade-R1')));
     await tester.tap(find.byKey(const Key('bulunamadi-iade-R1')));
     await bekle(tester);
     await tester.enterText(find.byKey(const Key('bulunamadi-neden')), 'Satıcı aracı satmış');
@@ -243,6 +271,9 @@ void main() {
     });
     await tester.pumpWidget(MaterialApp(home: AracOperasyonu(apiService: api(client))));
     await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Talep ayrıntısı'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Personel Ata'));
     await tester.tap(find.text('Personel Ata'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('atama-firma-basligi')), findsOneWidget);

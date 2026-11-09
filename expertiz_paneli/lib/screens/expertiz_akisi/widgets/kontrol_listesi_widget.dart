@@ -1,8 +1,9 @@
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
-import '../../../core/constants/yerimebak_colors.dart';
 import '../../../models/expertiz/kontrol_listesi.dart';
 import '../../../models/expertiz/rapor_medya.dart';
 import '../../../providers/expertiz_provider.dart';
@@ -24,6 +25,21 @@ class DurumSecenekleri {
     required this.eksiklikMi,
     required this.varsayilan,
   });
+
+  /// Durumun iş anlamını değiştirmeden tema karşılığını seçer.
+  Color temaRengi(BuildContext context, String? durum) {
+    final r = context.renkler;
+    return switch (durum) {
+      'mukemmel' || 'iyi' || 'orijinal' => r.birincilMetin,
+      'orta' || 'sorunlu' || 'islemli' => r.uyari,
+      'kotu' || 'agirHasar' || 'hasarli' => r.tehlike,
+      'lokal_boyali' => r.lokalKenar,
+      'boyali' => r.boyaliKenar,
+      'degisen' => r.degisenYuzey,
+      'sokulup_takilmis' => r.bilgi,
+      _ => r.metinIkincil,
+    };
+  }
 
   static const kontrol = DurumSecenekleri(
     degerler: KontrolDurumu.secenekler,
@@ -103,10 +119,10 @@ class KontrolListesiBolumu extends StatelessWidget {
             Expanded(
               child: Text(
                 baslik,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: YerimeBakColors.blue),
+                    color: context.renkler.birincil),
               ),
             ),
             Text('$secilen / ${maddeler.length}',
@@ -120,22 +136,22 @@ class KontrolListesiBolumu extends StatelessWidget {
           children: [
             if (eksiklikli.isNotEmpty)
               Chip(
-                avatar: const Icon(Icons.report_problem,
-                    size: 16, color: Colors.deepOrange),
+                avatar: Icon(LucideIcons.triangleAlert,
+                    size: 16, color: context.renkler.uyari),
                 label: Text('${eksiklikli.length} eksiklik'),
                 visualDensity: VisualDensity.compact,
               ),
             if (fotoEksik > 0)
               Chip(
                 avatar:
-                    const Icon(Icons.photo_camera, size: 16, color: Colors.red),
+                    Icon(LucideIcons.camera, size: 16, color: context.renkler.tehlike),
                 label: Text('$fotoEksik maddede fotoğraf gerekli'),
-                backgroundColor: Colors.red.withValues(alpha: .08),
+                backgroundColor: context.renkler.tehlike.withValues(alpha: .08),
                 visualDensity: VisualDensity.compact,
               ),
             if (duzenlenebilir && onToplu != null && secilmemis.isNotEmpty)
               ActionChip(
-                avatar: const Icon(Icons.done_all, size: 16),
+                avatar: const Icon(LucideIcons.checkCheck, size: 16),
                 label: Text(
                     'Kalan ${secilmemis.length} maddeyi "${secenekler.etiket(secenekler.varsayilan)}" işaretle'),
                 onPressed: () async {
@@ -176,7 +192,7 @@ class KontrolListesiBolumu extends StatelessWidget {
                 fontSize: 13,
                 letterSpacing: 1.1,
                 fontWeight: FontWeight.w700,
-                color: Colors.grey.shade700,
+                color: context.renkler.metinIkincil,
               ),
             ),
           ),
@@ -259,6 +275,7 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
   Future<void> _fotografCek(ImageSource kaynak) async {
     final provider = context.read<ExpertizProvider>();
     final messenger = ScaffoldMessenger.of(context);
+    final renk = context.renkler; // await sonrası bağlam kullanılmaz
     try {
       final XFile? foto = await ImagePicker().pickImage(
         source: kaynak,
@@ -278,13 +295,13 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
       );
       messenger.showSnackBar(SnackBar(
         content: Text('${widget.madde.label} için fotoğraf kaydedildi'),
-        backgroundColor: YerimeBakColors.green,
+        backgroundColor: renk.birincilMetin,
         duration: const Duration(seconds: 2),
       ));
     } catch (e) {
       messenger.showSnackBar(SnackBar(
         content: Text('Fotoğraf kaydedilemedi: $e'),
-        backgroundColor: YerimeBakColors.red,
+        backgroundColor: renk.tehlike,
       ));
     }
   }
@@ -292,6 +309,7 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
   Future<void> _fotografSil(RaporMedya medya) async {
     final provider = context.read<ExpertizProvider>();
     final messenger = ScaffoldMessenger.of(context);
+    final renk = context.renkler; // await sonrası bağlam kullanılmaz
     final onay = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -312,7 +330,7 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
     } catch (e) {
       messenger.showSnackBar(SnackBar(
           content: Text('Silinemedi: $e'),
-          backgroundColor: YerimeBakColors.red));
+          backgroundColor: renk.tehlike));
     }
   }
 
@@ -335,7 +353,7 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
     final eksiklik = secenekler.eksiklikMi(widget.seciliDurum);
     final fotoGerekli = eksiklik && fotolar.isEmpty;
     final yukleniyor = provider.yukleniyor(widget.bolum, widget.madde.key);
-    final renk = secenekler.renk(widget.seciliDurum);
+    final renk = secenekler.temaRengi(context, widget.seciliDurum);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -344,9 +362,9 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
           color: fotoGerekli
-              ? Colors.red
+              ? context.renkler.tehlike
               : widget.seciliDurum == null
-                  ? Colors.grey.shade300
+                  ? context.renkler.girdiKenarlik
                   : renk.withValues(alpha: .6),
           width: fotoGerekli ? 1.6 : 1,
         ),
@@ -371,7 +389,7 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 12))
                 else
-                  Icon(eksiklik ? Icons.report_problem : Icons.check_circle,
+                  Icon(eksiklik ? LucideIcons.triangleAlert : LucideIcons.circleCheck,
                       color: renk, size: 20),
               ],
             ),
@@ -381,12 +399,12 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
               runSpacing: 6,
               children: secenekler.degerler.map((deger) {
                 final secili = widget.seciliDurum == deger;
-                final c = secenekler.renk(deger);
+                final c = secenekler.temaRengi(context, deger);
                 return ChoiceChip(
                   label: Text(secenekler.etiket(deger)),
                   selected: secili,
                   selectedColor: c.withValues(alpha: .25),
-                  side: BorderSide(color: secili ? c : Colors.grey.shade300),
+                  side: BorderSide(color: secili ? c : context.renkler.girdiKenarlik),
                   labelStyle: TextStyle(
                     color: Theme.of(context).colorScheme.onSurface,
                     fontWeight: secili ? FontWeight.w700 : FontWeight.normal,
@@ -443,8 +461,8 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
                               errorBuilder: (_, __, ___) => Container(
                                 width: 76,
                                 height: 76,
-                                color: Colors.grey.shade200,
-                                child: const Icon(Icons.broken_image),
+                                color: context.renkler.yuzeyIkincil,
+                                child: const Icon(LucideIcons.imageOff),
                               ),
                             ),
                           ),
@@ -456,12 +474,12 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
                             child: InkWell(
                               onTap: () => _fotografSil(medya),
                               child: Container(
-                                decoration: const BoxDecoration(
-                                    color: Colors.black54,
+                                decoration: BoxDecoration(
+                                    color: context.renkler.metin,
                                     shape: BoxShape.circle),
                                 padding: const EdgeInsets.all(2),
-                                child: const Icon(Icons.close,
-                                    size: 16, color: Colors.white),
+                                child: Icon(LucideIcons.x,
+                                    size: 16, color: context.renkler.beyaz),
                               ),
                             ),
                           ),
@@ -473,11 +491,11 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
             Row(
               children: [
                 if (fotoGerekli)
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Eksiklik işaretlendi: en az 1 fotoğraf çekin',
                       style: TextStyle(
-                          color: Color(0xFFB91C1C),
+                          color: context.renkler.tehlike,
                           fontSize: 12,
                           fontWeight: FontWeight.w600),
                     ),
@@ -496,7 +514,7 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
                 if (!eksiklik && !_notAcik && widget.duzenlenebilir)
                   IconButton(
                     tooltip: 'Not ekle',
-                    icon: const Icon(Icons.edit_note),
+                    icon: const Icon(LucideIcons.notebookPen),
                     onPressed: () => setState(() => _notAcik = true),
                   ),
                 if (yukleniyor)
@@ -510,14 +528,14 @@ class _KontrolMaddesiKartiState extends State<KontrolMaddesiKarti> {
                 else if (widget.duzenlenebilir) ...[
                   IconButton(
                     tooltip: 'Fotoğraf çek',
-                    icon: Icon(Icons.photo_camera,
-                        color: fotoGerekli ? Colors.red : YerimeBakColors.blue),
+                    icon: Icon(LucideIcons.camera,
+                        color: fotoGerekli ? context.renkler.tehlike : context.renkler.birincil),
                     onPressed: () => _fotografCek(ImageSource.camera),
                   ),
                   IconButton(
                     tooltip: 'Galeriden seç',
-                    icon: const Icon(Icons.photo_library_outlined,
-                        color: YerimeBakColors.blue),
+                    icon: Icon(LucideIcons.images,
+                        color: context.renkler.birincil),
                     onPressed: () => _fotografCek(ImageSource.gallery),
                   ),
                 ],
@@ -581,24 +599,24 @@ class AdimEksikleriKarti extends StatelessWidget {
   Widget build(BuildContext context) {
     if (eksikler.isEmpty) {
       return Card(
-        color: Colors.green.withValues(alpha: .08),
-        child: const ListTile(
-          leading: Icon(Icons.verified, color: Colors.green),
+        color: context.renkler.birincilMetin.withValues(alpha: .08),
+        child: ListTile(
+          leading: Icon(LucideIcons.badgeCheck, color: context.renkler.birincilMetin),
           title: Text('Bu adım tamam'),
         ),
       );
     }
     return Card(
-      color: Colors.orange.withValues(alpha: .08),
+      color: context.renkler.uyari.withValues(alpha: .08),
       child: ExpansionTile(
-        leading: const Icon(Icons.pending_actions, color: Colors.orange),
+        leading: Icon(LucideIcons.clipboardClock, color: context.renkler.uyari),
         title: Text('${eksikler.length} eksik var'),
         subtitle: const Text('Tamamlamadan sonraki adıma geçilemez'),
         children: eksikler
             .take(40)
             .map((e) => ListTile(
                 dense: true,
-                leading: const Icon(Icons.chevron_right, size: 18),
+                leading: const Icon(LucideIcons.chevronRight, size: 18),
                 title: Text(e)))
             .toList(),
       ),

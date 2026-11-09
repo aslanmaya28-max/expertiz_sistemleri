@@ -1,3 +1,4 @@
+import 'package:yerimebak_sistemleri/bilesenler/yb_iskelet.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -17,7 +18,7 @@ class Adim2Sayfasi extends StatelessWidget {
     final provider = context.watch<ExpertizProvider>();
     final model = provider.adim2Model;
     if (model == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const Padding(padding: EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [YbIskelet(height: 24), SizedBox(height: 16), YbIskelet(height: 120)]));
     }
     final duzenlenebilir = provider.duzenlenebilir;
 
@@ -27,7 +28,7 @@ class Adim2Sayfasi extends StatelessWidget {
         AdimEksikleriKarti(eksikler: provider.adimEksikleri(2)),
         const SizedBox(height: 12),
         KontrolListesiBolumu(
-          baslik: '🔍 Dış Ekspertiz',
+          baslik: 'Dış Ekspertiz',
           bolum: ExpertizProvider.bolumDis,
           maddeler: Adim2DisEkspertizModel.maddeler,
           secenekler: DurumSecenekleri.kontrol,

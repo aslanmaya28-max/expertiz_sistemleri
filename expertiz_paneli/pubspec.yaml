@@ -1,4 +1,4 @@
-name: yerimebak_sistemleri
+﻿name: yerimebak_sistemleri
 description: YerimeBak Sistemleri - Araç ekspertiz ve değerleme platformu
 homepage: https://yerimebak.com
 publish_to: 'none'
@@ -15,6 +15,7 @@ dependencies:
   
   # Temel UI Bileşenleri
   cupertino_icons: ^1.0.6
+  lucide_icons_flutter: ^4.0.2
   
   # Veri Depolama (ZORUNLU)
   shared_preferences: ^2.2.2
@@ -110,3 +111,16 @@ flutter:
     - assets/icons/
     - assets/animations/
     - assets/fonts/
+
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter.ttf
+          weight: 400
+        - asset: assets/fonts/Inter.ttf
+          weight: 500
+        - asset: assets/fonts/Inter.ttf
+          weight: 600
+        - asset: assets/fonts/Inter.ttf
+          weight: 700
+

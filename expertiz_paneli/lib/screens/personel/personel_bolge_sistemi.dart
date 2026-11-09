@@ -6,6 +6,9 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:yerimebak_sistemleri/bilesenler/bilesenler.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:yerimebak_sistemleri/tema/renkler.dart';
 import '../../services/yerimebak_expertiz_api_service.dart';
 
 import '../../core/constants/roles.dart';
@@ -62,17 +65,22 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
 
   List<int> get _ilIdsSortedByName {
     final ids = _locationMapper.getAllIlIds();
-    ids.sort((a, b) => _locationMapper.getIlAdi(a).compareTo(_locationMapper.getIlAdi(b)));
+    ids.sort((a, b) =>
+        _locationMapper.getIlAdi(a).compareTo(_locationMapper.getIlAdi(b)));
     return ids;
   }
 
   List<PersonelModel> _filteredPersonnel(List<PersonelModel> all) {
     final query = _searchController.text.trim().toLowerCase();
     return all.where((p) {
-      if (_selectedRegionId != 0 && p.bolgeId != _selectedRegionId) return false;
+      if (_selectedRegionId != 0 && p.bolgeId != _selectedRegionId) {
+        return false;
+      }
       if (!_showPassive && !p.aktif) return false;
       if (query.isEmpty) return true;
-      final haystack = '${p.tamAd} ${p.email ?? ''} ${p.il ?? ''} ${p.ilce ?? ''} ${p.telefon ?? ''}'.toLowerCase();
+      final haystack =
+          '${p.tamAd} ${p.email ?? ''} ${p.il ?? ''} ${p.ilce ?? ''} ${p.telefon ?? ''}'
+              .toLowerCase();
       return haystack.contains(query);
     }).toList();
   }
@@ -82,7 +90,8 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: error ? Colors.red.shade700 : Colors.green.shade700,
+        backgroundColor:
+            error ? context.renkler.tehlike : context.renkler.birincilMetin,
         duration: Duration(seconds: error ? 5 : 3),
       ),
     );
@@ -111,7 +120,8 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
       builder: (context, _) {
         final all = _service.personeller;
         final coverage = _service.coverage;
-        final summary = Map<String, dynamic>.from((coverage?['summary'] as Map?) ?? const {});
+        final summary = Map<String, dynamic>.from(
+            (coverage?['summary'] as Map?) ?? const {});
         final regions = ((coverage?['regions'] as List?) ?? const [])
             .whereType<Map>()
             .map((e) => Map<String, dynamic>.from(e))
@@ -126,29 +136,43 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  _Header(onAdd: () => _showPersonelDialog(), onRefresh: _service.refreshAll),
+                  _Header(
+                      onAdd: () => _showPersonelDialog(),
+                      onRefresh: _service.refreshAll),
                   if (_service.lastError != null) ...[
                     const SizedBox(height: 12),
-                    _ErrorBanner(message: _service.lastError!, onRetry: _service.refreshAll),
+                    _ErrorBanner(
+                        message: _service.lastError!,
+                        onRetry: _service.refreshAll),
                   ],
                   const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
+                  _MetricGrid(
                     children: [
-                      _MetricCard(label: 'Toplam Personel', value: '${all.length}', color: Colors.blueGrey),
-                      _MetricCard(label: 'Aktif', value: '$activeCount', color: Colors.green),
-                      _MetricCard(label: 'Pasif', value: '${all.length - activeCount}', color: Colors.redAccent),
-                      _MetricCard(label: 'Kapsanan İl', value: '${summary['covered_city_count'] ?? '-'} / 81', color: Colors.indigo),
+                      _MetricCard(
+                          label: 'Toplam Personel',
+                          value: '${all.length}',
+                          color: context.renkler.ikonPasif),
+                      _MetricCard(
+                          label: 'Aktif',
+                          value: '$activeCount',
+                          color: context.renkler.birincilMetin),
+                      _MetricCard(
+                          label: 'Pasif',
+                          value: '${all.length - activeCount}',
+                          color: context.renkler.tehlike),
+                      _MetricCard(
+                          label: 'Kapsanan İl',
+                          value: '${summary['covered_city_count'] ?? '-'} / 81',
+                          color: context.renkler.bilgi),
                       _MetricCard(
                         label: 'Personelsiz + Talepli İl',
                         value: '${summary['critical_city_count'] ?? '-'}',
-                        color: Colors.deepOrange,
+                        color: context.renkler.uyari,
                       ),
                       _MetricCard(
                         label: 'Atama Bekleyen Talep',
                         value: '${summary['unassigned_request_count'] ?? '-'}',
-                        color: Colors.amber.shade800,
+                        color: context.renkler.uyari,
                       ),
                     ],
                   ),
@@ -156,25 +180,33 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
                   _RegionGrid(
                     regions: regions,
                     selectedRegionId: _selectedRegionId,
-                    onSelect: (id) => setState(() => _selectedRegionId = _selectedRegionId == id ? 0 : id),
-                    colorOf: _locationMapper.getBolgeRenk,
+                    onSelect: (id) => setState(() =>
+                        _selectedRegionId = _selectedRegionId == id ? 0 : id),
+                    colorOf: (_) => context.renkler.birincil,
                   ),
                   const SizedBox(height: 16),
                   _RiskLists(
-                    critical: List<String>.from((coverage?['critical_cities'] as List?) ?? const []),
-                    understaffed: List<String>.from((coverage?['understaffed_cities'] as List?) ?? const []),
+                    critical: List<String>.from(
+                        (coverage?['critical_cities'] as List?) ?? const []),
+                    understaffed: List<String>.from(
+                        (coverage?['understaffed_cities'] as List?) ??
+                            const []),
                     loading: coverage == null && _service.lastError == null,
                   ),
                   const SizedBox(height: 16),
-                  _ProvinceTable(regions: regions, selectedRegionId: _selectedRegionId),
+                  _ProvinceTable(
+                      regions: regions, selectedRegionId: _selectedRegionId),
                   const SizedBox(height: 20),
                   _PersonnelToolbar(
                     controller: _searchController,
-                    selectedRegionName: _selectedRegionId == 0 ? null : _locationMapper.getBolgeAdi(_selectedRegionId),
+                    selectedRegionName: _selectedRegionId == 0
+                        ? null
+                        : _locationMapper.getBolgeAdi(_selectedRegionId),
                     showPassive: _showPassive,
                     onSearch: (_) => setState(() {}),
                     onClearRegion: () => setState(() => _selectedRegionId = 0),
-                    onTogglePassive: (value) => setState(() => _showPassive = value),
+                    onTogglePassive: (value) =>
+                        setState(() => _showPassive = value),
                   ),
                   const SizedBox(height: 8),
                   if (_service.isLoading && all.isEmpty)
@@ -196,16 +228,18 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
                       onRemove: _confirmRemove,
                       onDutyChanged: (p, value) => _run(() async {
                         await _service.setGorevDurumu(p.id, value);
-                        _toast(value ? '${p.tamAd} görev için aktif' : '${p.tamAd} görev için pasif; yeni görev atanmaz');
+                        _toast(value
+                            ? '${p.tamAd} görev için aktif'
+                            : '${p.tamAd} görev için pasif; yeni görev atanmaz');
                       }),
                     ),
                 ],
               ),
             ),
             if (_busy)
-              const Positioned.fill(
+              Positioned.fill(
                 child: ColoredBox(
-                  color: Color(0x33000000),
+                  color: context.renkler.yuzey,
                   child: Center(child: CircularProgressIndicator()),
                 ),
               ),
@@ -237,8 +271,10 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: personel?.tamAd ?? '');
     final emailController = TextEditingController(text: personel?.email ?? '');
-    final phoneController = TextEditingController(text: personel?.telefon ?? '');
-    final expertiseController = TextEditingController(text: personel?.uzmanlikAlani ?? '');
+    final phoneController =
+        TextEditingController(text: personel?.telefon ?? '');
+    final expertiseController =
+        TextEditingController(text: personel?.uzmanlikAlani ?? '');
     final passwordController = TextEditingController();
 
     int selectedIlId = personel?.ilId ?? 0;
@@ -260,7 +296,9 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (dialogContext, setDialogState) {
-            final ilceler = selectedIlId > 0 ? _locationMapper.getIlceler(selectedIlId) : <String>[];
+            final ilceler = selectedIlId > 0
+                ? _locationMapper.getIlceler(selectedIlId)
+                : <String>[];
             if (!ilceler.contains(selectedIlce)) selectedIlce = '';
             final bolgeId = _locationMapper.getBolgeIdFromIlId(selectedIlId);
 
@@ -276,8 +314,10 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
                       children: [
                         TextFormField(
                           controller: nameController,
-                          decoration: const InputDecoration(labelText: 'Ad Soyad *'),
-                          validator: (v) => (v == null || v.trim().split(RegExp(r'\s+')).length < 2)
+                          decoration:
+                              const InputDecoration(labelText: 'Ad Soyad *'),
+                          validator: (v) => (v == null ||
+                                  v.trim().split(RegExp(r'\s+')).length < 2)
                               ? 'Ad ve soyad girin'
                               : null,
                         ),
@@ -287,31 +327,40 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
                           keyboardType: TextInputType.emailAddress,
                           decoration: InputDecoration(
                             labelText: 'E-posta *',
-                            helperText: isEdit ? 'E-posta giriş kimliğidir, değiştirilemez' : 'Personel bu e-posta ile giriş yapar',
+                            helperText: isEdit
+                                ? 'E-posta giriş kimliğidir, değiştirilemez'
+                                : 'Personel bu e-posta ile giriş yapar',
                           ),
                           validator: (v) {
                             final value = (v ?? '').trim();
-                            if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value)) return 'Geçerli bir e-posta girin';
+                            if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                                .hasMatch(value)) {
+                              return 'Geçerli bir e-posta girin';
+                            }
                             return null;
                           },
                         ),
                         TextFormField(
                           controller: phoneController,
                           keyboardType: TextInputType.phone,
-                          decoration: const InputDecoration(labelText: 'Telefon'),
+                          decoration:
+                              const InputDecoration(labelText: 'Telefon'),
                         ),
                         const SizedBox(height: 12),
                         DropdownButtonFormField<int>(
                           initialValue: selectedIlId > 0 ? selectedIlId : null,
                           isExpanded: true,
-                          decoration: const InputDecoration(labelText: 'İl *', border: OutlineInputBorder()),
+                          decoration: const InputDecoration(
+                              labelText: 'İl *', border: OutlineInputBorder()),
                           items: ilIds
                               .map((id) => DropdownMenuItem<int>(
                                     value: id,
-                                    child: Text('${_locationMapper.getIlAdi(id)} (${id.toString().padLeft(2, '0')})'),
+                                    child: Text(
+                                        '${_locationMapper.getIlAdi(id)} (${id.toString().padLeft(2, '0')})'),
                                   ))
                               .toList(),
-                          validator: (v) => (v == null || v == 0) ? 'İl seçin' : null,
+                          validator: (v) =>
+                              (v == null || v == 0) ? 'İl seçin' : null,
                           onChanged: (value) => setDialogState(() {
                             selectedIlId = value ?? 0;
                             selectedIlce = '';
@@ -322,21 +371,33 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
                             padding: const EdgeInsets.only(top: 6),
                             child: Row(
                               children: [
-                                Icon(Icons.map_outlined, size: 16, color: _locationMapper.getBolgeRenk(bolgeId)),
+                                Icon(LucideIcons.map,
+                                    size: 16,
+                                    color:
+                                        context.renkler.birincil),
                                 const SizedBox(width: 6),
-                                Text('Bölge: ${_locationMapper.getBolgeAdi(bolgeId)}'),
+                                Text(
+                                    'Bölge: ${_locationMapper.getBolgeAdi(bolgeId)}'),
                               ],
                             ),
                           ),
                         const SizedBox(height: 12),
                         DropdownButtonFormField<String>(
                           key: ValueKey('ilce-$selectedIlId'),
-                          initialValue: selectedIlce.isNotEmpty ? selectedIlce : null,
+                          initialValue:
+                              selectedIlce.isNotEmpty ? selectedIlce : null,
                           isExpanded: true,
-                          decoration: const InputDecoration(labelText: 'İlçe *', border: OutlineInputBorder()),
-                          items: ilceler.map((ilce) => DropdownMenuItem<String>(value: ilce, child: Text(ilce))).toList(),
-                          validator: (v) => (v == null || v.isEmpty) ? 'İlçe seçin' : null,
-                          onChanged: (value) => setDialogState(() => selectedIlce = value ?? ''),
+                          decoration: const InputDecoration(
+                              labelText: 'İlçe *',
+                              border: OutlineInputBorder()),
+                          items: ilceler
+                              .map((ilce) => DropdownMenuItem<String>(
+                                  value: ilce, child: Text(ilce)))
+                              .toList(),
+                          validator: (v) =>
+                              (v == null || v.isEmpty) ? 'İlçe seçin' : null,
+                          onChanged: (value) =>
+                              setDialogState(() => selectedIlce = value ?? ''),
                         ),
                         const SizedBox(height: 12),
                         DropdownButtonFormField<String>(
@@ -345,19 +406,26 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
                           isExpanded: true,
                           decoration: const InputDecoration(
                             labelText: 'Firma',
-                            helperText: 'Firma personeli yalnız kendi firmasının talebine atanır',
+                            helperText:
+                                'Firma personeli yalnız kendi firmasının talebine atanır',
                             border: OutlineInputBorder(),
                           ),
                           items: [
-                            const DropdownMenuItem<String>(value: '', child: Text('Firmasız (YerimeBak personeli)')),
-                            for (final f in firmalar.entries) DropdownMenuItem<String>(value: f.key, child: Text(f.value)),
+                            const DropdownMenuItem<String>(
+                                value: '',
+                                child: Text('Firmasız (YerimeBak personeli)')),
+                            for (final f in firmalar.entries)
+                              DropdownMenuItem<String>(
+                                  value: f.key, child: Text(f.value)),
                           ],
-                          onChanged: (value) => setDialogState(() => selectedFirmaId = value ?? ''),
+                          onChanged: (value) => setDialogState(
+                              () => selectedFirmaId = value ?? ''),
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: expertiseController,
-                          decoration: const InputDecoration(labelText: 'Uzmanlık (ör. Kaporta, Mekanik)'),
+                          decoration: const InputDecoration(
+                              labelText: 'Uzmanlık (ör. Kaporta, Mekanik)'),
                         ),
                         if (!isEdit) ...[
                           const SizedBox(height: 12),
@@ -366,9 +434,12 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
                             obscureText: true,
                             decoration: const InputDecoration(
                               labelText: 'Geçici Şifre *',
-                              helperText: 'En az 8 karakter. Personel ilk girişte değiştirir.',
+                              helperText:
+                                  'En az 8 karakter. Personel ilk girişte değiştirir.',
                             ),
-                            validator: (v) => (v == null || v.length < 8) ? 'En az 8 karakter' : null,
+                            validator: (v) => (v == null || v.length < 8)
+                                ? 'En az 8 karakter'
+                                : null,
                           ),
                         ],
                       ],
@@ -377,11 +448,15 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Vazgeç')),
+                TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Vazgeç')),
                 FilledButton(
                   onPressed: () {
                     if (!(formKey.currentState?.validate() ?? false)) return;
-                    final fullName = nameController.text.trim().replaceAll(RegExp(r'\s+'), ' ');
+                    final fullName = nameController.text
+                        .trim()
+                        .replaceAll(RegExp(r'\s+'), ' ');
                     final parts = fullName.split(' ');
                     final expertise = expertiseController.text.trim();
                     Navigator.pop(
@@ -389,7 +464,8 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
                       PersonelModel(
                         id: personel?.id ?? '',
                         ad: parts.first,
-                        soyad: parts.length > 1 ? parts.sublist(1).join(' ') : '',
+                        soyad:
+                            parts.length > 1 ? parts.sublist(1).join(' ') : '',
                         adSoyad: fullName,
                         unvan: expertise.isEmpty ? 'Saha Personeli' : expertise,
                         ilId: selectedIlId,
@@ -406,7 +482,9 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
                         uzmanlikAlani: expertise,
                         gorevAktif: personel?.gorevAktif ?? true,
                         firmaId: selectedFirmaId,
-                        firmaAdi: selectedFirmaId.isEmpty ? '' : firmalar[selectedFirmaId],
+                        firmaAdi: selectedFirmaId.isEmpty
+                            ? ''
+                            : firmalar[selectedFirmaId],
                       ),
                     );
                   },
@@ -432,7 +510,8 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
         _toast('${result.tamAd} güncellendi');
       } else {
         final created = await _service.addPersonel(result);
-        _toast('${created.tamAd} eklendi (${created.il} / ${created.bolge}). Geçici şifre ile giriş yapabilir.');
+        _toast(
+            '${created.tamAd} eklendi (${created.il} / ${created.bolge}). Geçici şifre ile giriş yapabilir.');
       }
     });
   }
@@ -448,12 +527,14 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Pasif personel sisteme giriş yapamaz ve yeni görev alamaz.'),
+            const Text(
+                'Pasif personel sisteme giriş yapamaz ve yeni görev alamaz.'),
             if (openTasks > 0) ...[
               const SizedBox(height: 8),
               Text(
                 'Üzerindeki $openTasks açık görev admin kuyruğuna (Atama Bekleyen) geri dönecek.',
-                style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.deepOrange),
+                style: TextStyle(
+                    fontWeight: FontWeight.w600, color: context.renkler.uyari),
               ),
             ],
             const SizedBox(height: 12),
@@ -461,12 +542,16 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
               controller: reasonController,
               minLines: 2,
               maxLines: 4,
-              decoration: const InputDecoration(labelText: 'Pasife alma nedeni *', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                  labelText: 'Pasife alma nedeni *',
+                  border: OutlineInputBorder()),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Vazgeç')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Vazgeç')),
           FilledButton(
             onPressed: () {
               if (reasonController.text.trim().isEmpty) return;
@@ -496,10 +581,13 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
         content: TextField(
           controller: passwordController,
           obscureText: true,
-          decoration: const InputDecoration(labelText: 'Yeni geçici şifre (en az 8 karakter)'),
+          decoration: const InputDecoration(
+              labelText: 'Yeni geçici şifre (en az 8 karakter)'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Vazgeç')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Vazgeç')),
           FilledButton(
             onPressed: () {
               if (passwordController.text.length < 8) return;
@@ -529,32 +617,40 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${personel.tamAd} (${personel.email ?? '-'}) hesabı silinecek ve bir daha giriş yapamayacak.'),
+            Text(
+                '${personel.tamAd} (${personel.email ?? '-'}) hesabı silinecek ve bir daha giriş yapamayacak.'),
             const SizedBox(height: 8),
             Text(
               openTasks > 0
                   ? 'Üzerindeki $openTasks açık görev admin kuyruğuna geri dönecek.'
                   : 'Açık görevi yok.',
-              style: TextStyle(color: openTasks > 0 ? Colors.deepOrange : null),
+              style: TextStyle(
+                  color: openTasks > 0 ? context.renkler.uyari : null),
             ),
             const SizedBox(height: 4),
-            const Text('Tamamlanmış raporlar silinmez.', style: TextStyle(fontSize: 12)),
+            const Text('Tamamlanmış raporlar silinmez.',
+                style: TextStyle(fontSize: 13)),
             const SizedBox(height: 4),
             const Text(
               'Geçici olarak durdurmak için "Pasife Al" seçeneğini kullanın.',
-              style: TextStyle(fontSize: 12),
+              style: TextStyle(fontSize: 13),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: reasonController,
-              decoration: const InputDecoration(labelText: 'Neden (isteğe bağlı)', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                  labelText: 'Neden (isteğe bağlı)',
+                  border: OutlineInputBorder()),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Vazgeç')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Vazgeç')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            style: FilledButton.styleFrom(
+                backgroundColor: context.renkler.tehlike),
             onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Sistemden Çıkar'),
           ),
@@ -565,7 +661,8 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
     reasonController.dispose();
     if (confirmed != true) return;
     await _run(() async {
-      final released = await _service.deletePersonel(personel.id, reason: reason.isEmpty ? null : reason);
+      final released = await _service.deletePersonel(personel.id,
+          reason: reason.isEmpty ? null : reason);
       _toast(released > 0
           ? '${personel.tamAd} sistemden çıkarıldı. $released görev kuyruğa döndü.'
           : '${personel.tamAd} sistemden çıkarıldı.');
@@ -587,13 +684,17 @@ class _Header extends StatelessWidget {
     return Row(
       children: [
         const Expanded(
-          child: Text('Personel ve Bölge Yönetimi', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+          child: Text('Personel ve Bölge Yönetimi',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
         ),
-        IconButton(tooltip: 'Yenile', onPressed: onRefresh, icon: const Icon(Icons.refresh)),
+        IconButton(
+            tooltip: 'Yenile',
+            onPressed: onRefresh,
+            icon: const Icon(LucideIcons.refreshCw)),
         const SizedBox(width: 8),
         FilledButton.icon(
           onPressed: onAdd,
-          icon: const Icon(Icons.person_add_alt_1),
+          icon: const Icon(LucideIcons.userPlus),
           label: const Text('Personel Ekle'),
         ),
       ],
@@ -609,13 +710,13 @@ class _ErrorBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.red.withValues(alpha: .12),
+      color: context.renkler.tehlike.withValues(alpha: .12),
       borderRadius: BorderRadius.circular(8),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            const Icon(Icons.error_outline, color: Colors.redAccent),
+            Icon(LucideIcons.circleAlert, color: context.renkler.tehlike),
             const SizedBox(width: 8),
             Expanded(child: Text(message)),
             TextButton(onPressed: onRetry, child: const Text('Tekrar dene')),
@@ -630,32 +731,36 @@ class _MetricCard extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
-
   const _MetricCard({required this.label, required this.value, required this.color});
-
   @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 170,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border.all(color: color.withValues(alpha: .35)),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => YbKart(
+    padding: const EdgeInsets.all(16),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 8),
+        Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: context.renkler.metinIkincil, fontSize: 13))),
+      ]),
+      const SizedBox(height: 12),
+      Text(value, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w600,
+          fontFeatures: const [FontFeature.tabularFigures()], color: context.renkler.metin)),
+    ]),
+  );
+}
+
+/// Sayaç kartları eşit genişlik ve yükseklikte: geniş ekranda tek satır, darda 3 ya da 2 sütun.
+class _MetricGrid extends StatelessWidget {
+  final List<Widget> children;
+  const _MetricGrid({required this.children});
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, c) {
+    final columns = c.maxWidth >= 1100 ? children.length : c.maxWidth >= 640 ? 3 : 2;
+    final width = (c.maxWidth - (columns - 1) * 12) / columns;
+    return Wrap(spacing: 12, runSpacing: 12, children: [
+      for (final child in children) SizedBox(width: width, child: child),
+    ]);
+  });
 }
 
 class _RegionGrid extends StatelessWidget {
@@ -676,12 +781,15 @@ class _RegionGrid extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Bölgeler', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        const Text('Bölgeler',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
         const SizedBox(height: 4),
-        const Text('Bir bölgeye dokunarak il tablosunu ve personel listesini filtreleyin.', style: TextStyle(fontSize: 12)),
+        const Text(
+            'Bir bölgeye dokunarak il tablosunu ve personel listesini filtreleyin.',
+            style: TextStyle(fontSize: 13)),
         const SizedBox(height: 8),
         if (regions.isEmpty)
-          const Text('Bölge verisi yükleniyor...')
+          Text('Bölge verisi yükleniyor...')
         else
           Wrap(
             spacing: 12,
@@ -693,8 +801,10 @@ class _RegionGrid extends StatelessWidget {
               final covered = region['covered_province_count'] ?? 0;
               final total = region['province_count'] ?? 0;
               final pct = ((region['coverage_pct'] as num?) ?? 0).toDouble();
-              final unassigned = (region['unassigned_request_count'] as num?)?.toInt() ?? 0;
-              final critical = List<String>.from((region['critical_cities'] as List?) ?? const []);
+              final unassigned =
+                  (region['unassigned_request_count'] as num?)?.toInt() ?? 0;
+              final critical = List<String>.from(
+                  (region['critical_cities'] as List?) ?? const []);
               return InkWell(
                 borderRadius: BorderRadius.circular(10),
                 onTap: () => onSelect(id),
@@ -704,19 +814,22 @@ class _RegionGrid extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: selected ? color.withValues(alpha: .18) : null,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: color.withValues(alpha: selected ? .9 : .4), width: selected ? 2 : 1),
+                    border: Border.all(
+                        color: color.withValues(alpha: selected ? .9 : .4),
+                        width: selected ? 2 : 1),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.location_on, color: color, size: 18),
+                          Icon(LucideIcons.mapPin, color: color, size: 18),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
                               region['region']?.toString() ?? '-',
-                              style: const TextStyle(fontWeight: FontWeight.w700),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w700),
                             ),
                           ),
                         ],
@@ -730,20 +843,23 @@ class _RegionGrid extends StatelessWidget {
                         borderRadius: BorderRadius.circular(3),
                       ),
                       const SizedBox(height: 6),
-                      Text('$covered / $total il kapsanıyor', style: const TextStyle(fontSize: 12)),
-                      Text('Aktif personel: ${region['active_personnel'] ?? 0}', style: const TextStyle(fontSize: 12)),
+                      Text('$covered / $total il kapsanıyor',
+                          style: const TextStyle(fontSize: 13)),
+                      Text('Aktif personel: ${region['active_personnel'] ?? 0}',
+                          style: const TextStyle(fontSize: 13)),
                       Text(
                         'Atama bekleyen talep: $unassigned',
                         style: TextStyle(
-                          fontSize: 12,
-                          color: unassigned > 0 ? Colors.deepOrange : null,
+                          fontSize: 13,
+                          color: unassigned > 0 ? context.renkler.uyari : null,
                           fontWeight: unassigned > 0 ? FontWeight.w700 : null,
                         ),
                       ),
                       if (critical.isNotEmpty)
                         Text(
                           'Personelsiz talepli: ${critical.join(', ')}',
-                          style: const TextStyle(fontSize: 11, color: Colors.redAccent),
+                          style: TextStyle(
+                              fontSize: 13, color: context.renkler.tehlike),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -763,7 +879,10 @@ class _RiskLists extends StatelessWidget {
   final List<String> understaffed;
   final bool loading;
 
-  const _RiskLists({required this.critical, required this.understaffed, required this.loading});
+  const _RiskLists(
+      {required this.critical,
+      required this.understaffed,
+      required this.loading});
 
   @override
   Widget build(BuildContext context) {
@@ -775,7 +894,7 @@ class _RiskLists extends StatelessWidget {
             title: 'Talep var, personel yok',
             items: critical,
             emptyText: 'Talebi olup personeli olmayan il yok',
-            color: Colors.redAccent,
+            color: context.renkler.tehlike,
             loading: loading,
           ),
         ),
@@ -785,7 +904,7 @@ class _RiskLists extends StatelessWidget {
             title: 'Hedefin altında (büyükşehir min. 3)',
             items: understaffed,
             emptyText: 'Hedefin altında il yok',
-            color: Colors.amber.shade800,
+            color: context.renkler.uyari,
             loading: loading,
           ),
         ),
@@ -815,7 +934,8 @@ class _RiskBox extends StatelessWidget {
         ? 'Yükleniyor...'
         : items.isEmpty
             ? emptyText
-            : items.take(15).join(', ') + (items.length > 15 ? ' +${items.length - 15}' : '');
+            : items.take(15).join(', ') +
+                (items.length > 15 ? ' +${items.length - 15}' : '');
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border.all(color: color.withValues(alpha: .35)),
@@ -826,7 +946,8 @@ class _RiskBox extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: TextStyle(color: color, fontWeight: FontWeight.w700)),
+            Text(title,
+                style: TextStyle(color: color, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
             Text(text),
           ],
@@ -849,12 +970,12 @@ class _ProvinceTable extends StatelessWidget {
     'critical': 'Talep var, personel yok',
   };
 
-  static const Map<String, Color> _statusColor = {
-    'ok': Colors.green,
-    'understaffed': Colors.orange,
-    'missing': Colors.grey,
-    'critical': Colors.redAccent,
-  };
+  Map<String, Color> _statusColor(BuildContext context) => {
+        'ok': context.renkler.birincilMetin,
+        'understaffed': context.renkler.uyari,
+        'missing': context.renkler.metinIkincil,
+        'critical': context.renkler.tehlike,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -868,24 +989,34 @@ class _ProvinceTable extends StatelessWidget {
     }
     // Tüm Türkiye görünümünde sadece hareketli illeri göster; bölge seçiliyse hepsini.
     final visible = selectedRegionId == 0
-        ? provinces.where((p) => (p['active_count'] ?? 0) != 0 || (p['passive_count'] ?? 0) != 0 || (p['open_request_count'] ?? 0) != 0).toList()
+        ? provinces
+            .where((p) =>
+                (p['active_count'] ?? 0) != 0 ||
+                (p['passive_count'] ?? 0) != 0 ||
+                (p['open_request_count'] ?? 0) != 0)
+            .toList()
         : provinces;
     visible.sort((a, b) {
       final order = ['critical', 'understaffed', 'missing', 'ok'];
-      final byStatus = order.indexOf('${a['status']}').compareTo(order.indexOf('${b['status']}'));
-      return byStatus != 0 ? byStatus : '${a['city']}'.compareTo('${b['city']}');
+      final byStatus = order
+          .indexOf('${a['status']}')
+          .compareTo(order.indexOf('${b['status']}'));
+      return byStatus != 0
+          ? byStatus
+          : '${a['city']}'.compareTo('${b['city']}');
     });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          selectedRegionId == 0 ? 'İl Bazlı Kapasite (personeli veya talebi olan iller)' : 'İl Bazlı Kapasite',
+          selectedRegionId == 0
+              ? 'İl Bazlı Kapasite (personeli veya talebi olan iller)'
+              : 'İl Bazlı Kapasite',
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 8),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+        _TamGenislikTablo(
           child: DataTable(
             columns: const [
               DataColumn(label: Text('İl')),
@@ -922,7 +1053,9 @@ class _ProvinceTable extends StatelessWidget {
                       DataCell(Text('${p['minimum_target'] ?? 1}')),
                       DataCell(Text(
                         _statusText[status] ?? status,
-                        style: TextStyle(color: _statusColor[status], fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                            color: _statusColor(context)[status],
+                            fontWeight: FontWeight.w600),
                       )),
                     ]);
                   }).toList(),
@@ -957,7 +1090,8 @@ class _PersonnelToolbar extends StatelessWidget {
       runSpacing: 8,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        const Text('Personel Listesi', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        const Text('Personel Listesi',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
         SizedBox(
           width: 260,
           child: TextField(
@@ -965,14 +1099,16 @@ class _PersonnelToolbar extends StatelessWidget {
             onChanged: onSearch,
             decoration: const InputDecoration(
               isDense: true,
-              prefixIcon: Icon(Icons.search),
+              prefixIcon: Icon(LucideIcons.search),
               hintText: 'Ad, e-posta, il ara',
               border: OutlineInputBorder(),
             ),
           ),
         ),
         if (selectedRegionName != null)
-          InputChip(label: Text('Bölge: $selectedRegionName'), onDeleted: onClearRegion),
+          InputChip(
+              label: Text('Bölge: $selectedRegionName'),
+              onDeleted: onClearRegion),
         FilterChip(
           label: const Text('Pasifleri göster'),
           selected: showPassive,
@@ -1009,11 +1145,11 @@ class _PersonnelTable extends StatelessWidget {
     if (personeller.isEmpty) {
       return const Padding(
         padding: EdgeInsets.all(24),
-        child: Text('Henüz personel yok. "Personel Ekle" ile ilk saha personelini ekleyin.'),
+        child: Text(
+            'Henüz personel yok. "Personel Ekle" ile ilk saha personelini ekleyin.'),
       );
     }
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+    return _TamGenislikTablo(
       child: DataTable(
         dataRowMinHeight: 52,
         dataRowMaxHeight: 64,
@@ -1035,44 +1171,68 @@ class _PersonnelTable extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(personel.tamAd, style: const TextStyle(fontWeight: FontWeight.w600)),
-                Text(personel.email ?? '-', style: const TextStyle(fontSize: 11)),
+                Text(personel.tamAd,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text(personel.email ?? '-',
+                    style: const TextStyle(fontSize: 13)),
               ],
             )),
             DataCell(Text('${personel.il ?? '-'} / ${personel.ilce ?? '-'}')),
             DataCell(Text(personel.bolge ?? '-')),
-            DataCell(Text((personel.telefon ?? '').isEmpty ? '-' : personel.telefon!)),
-            DataCell(Text((personel.uzmanlikAlani ?? '').isEmpty ? personel.unvan : personel.uzmanlikAlani!)),
-            DataCell(Text((personel.firmaAdi ?? '').isEmpty ? 'YerimeBak' : personel.firmaAdi!)),
+            DataCell(Text(
+                (personel.telefon ?? '').isEmpty ? '-' : personel.telefon!)),
+            DataCell(Text((personel.uzmanlikAlani ?? '').isEmpty
+                ? personel.unvan
+                : personel.uzmanlikAlani!)),
+            DataCell(Text((personel.firmaAdi ?? '').isEmpty
+                ? 'YerimeBak'
+                : personel.firmaAdi!)),
             DataCell(Text('${openTaskCount(personel.id)}')),
             DataCell(Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Switch(
                   value: personel.aktif && personel.gorevAktif,
-                  onChanged: personel.aktif ? (value) => onDutyChanged(personel, value) : null,
+                  onChanged: personel.aktif
+                      ? (value) => onDutyChanged(personel, value)
+                      : null,
                 ),
-                Text(personel.aktif && personel.gorevAktif ? 'Aktif' : 'Pasif', style: const TextStyle(fontSize: 12)),
+                Text(personel.aktif && personel.gorevAktif ? 'Aktif' : 'Pasif',
+                    style: const TextStyle(fontSize: 13)),
               ],
             )),
             DataCell(Chip(
               label: Text(personel.aktif ? 'Aktif' : 'Pasif'),
-              backgroundColor: (personel.aktif ? Colors.green : Colors.grey).withValues(alpha: .18),
+              backgroundColor: (personel.aktif
+                      ? context.renkler.birincilMetin
+                      : context.renkler.metinIkincil)
+                  .withValues(alpha: .18),
               visualDensity: VisualDensity.compact,
             )),
             DataCell(Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(tooltip: 'Düzenle', icon: const Icon(Icons.edit), onPressed: () => onEdit(personel)),
-                IconButton(tooltip: 'Şifre Sıfırla', icon: const Icon(Icons.lock_reset), onPressed: () => onResetPassword(personel)),
+                IconButton(
+                    tooltip: 'Düzenle',
+                    icon: const Icon(LucideIcons.pencil),
+                    onPressed: () => onEdit(personel)),
+                IconButton(
+                    tooltip: 'Şifre Sıfırla',
+                    icon: const Icon(LucideIcons.lockKeyhole),
+                    onPressed: () => onResetPassword(personel)),
                 IconButton(
                   tooltip: personel.aktif ? 'Pasife Al' : 'Aktif Et',
-                  icon: Icon(personel.aktif ? Icons.block : Icons.check_circle_outline),
-                  onPressed: () => personel.aktif ? onDeactivate(personel) : onActivate(personel),
+                  icon: Icon(personel.aktif
+                      ? LucideIcons.ban
+                      : LucideIcons.circleCheck),
+                  onPressed: () => personel.aktif
+                      ? onDeactivate(personel)
+                      : onActivate(personel),
                 ),
                 IconButton(
                   tooltip: 'Sistemden Çıkar',
-                  icon: const Icon(Icons.person_remove_alt_1_outlined, color: Colors.redAccent),
+                  icon: Icon(LucideIcons.userMinus,
+                      color: context.renkler.tehlike),
                   onPressed: () => onRemove(personel),
                 ),
               ],
@@ -1082,4 +1242,19 @@ class _PersonnelTable extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Tablo kartın tamamını kaplar; dar ekranda yatay kayar.
+class _TamGenislikTablo extends StatelessWidget {
+  final Widget child;
+  const _TamGenislikTablo({required this.child});
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+      builder: (context, c) => YbKart(
+          padding: EdgeInsets.zero,
+          child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: c.maxWidth),
+                  child: child))));
 }
