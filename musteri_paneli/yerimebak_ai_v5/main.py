@@ -77,6 +77,14 @@ def _check_rate_limit(request: Request, max_requests: int = _APP_RATE_LIMIT, win
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from yerimebak_ai_v5.core.database_config import DatabaseConfig
+    # Değerleme ve diğer senkron işler run_in_executor(None) ile varsayılan havuzda çalışır. Python'un
+    # varsayılanı işlemci sayısına bağlıdır (küçük planda 5–6 iş parçacığı) ve eşzamanlı değerlemeyi
+    # sıra sisteminden önce kısıtlıyordu. Değerleme yuvası + diğer istekler için sabit boy (09.11.2026).
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+    from yerimebak_ai_v5.services.valuation_service import MAX_CONCURRENT_ANALYSES
+    asyncio.get_running_loop().set_default_executor(
+        ThreadPoolExecutor(max_workers=MAX_CONCURRENT_ANALYSES * 2 + 16, thread_name_prefix="istek"))
     logger.info("[STARTUP] Database bootstrap + alignment...")
     try:
         DatabaseConfig.bootstrap()

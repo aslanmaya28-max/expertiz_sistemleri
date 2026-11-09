@@ -2,8 +2,9 @@ import os
 import logging
 import psycopg2
 from psycopg2.extras import DictCursor
-from psycopg2.pool import ThreadedConnectionPool
+from psycopg2.pool import PoolError, ThreadedConnectionPool
 import threading
+import time
 
 from dotenv import load_dotenv
 load_dotenv(override=False)
@@ -26,6 +27,8 @@ def _get_database_url():
     return url
 
 
+# Havuz doluyken yeni bağlantı için en fazla bu kadar beklenir (sonra PoolError).
+POOL_WAIT_SECONDS = float(os.getenv("DB_POOL_WAIT_SECONDS", "10"))
 _pool = None
 _pool_lock = threading.Lock()
 
@@ -102,7 +105,19 @@ class DatabaseConfig:
         """
         try:
             pool = _get_pool()
-            conn = pool.getconn()
+            # Havuz doluysa hemen hata verme; kısa sorgular saniyeler içinde bağlantıyı geri verir
+            # (eşzamanlı değerlemelerde "connection pool exhausted" görülmesin, 09.11.2026).
+            deadline = time.monotonic() + POOL_WAIT_SECONDS
+            delay = 0.05
+            while True:
+                try:
+                    conn = pool.getconn()
+                    break
+                except PoolError as exc:
+                    if "exhausted" not in str(exc) or time.monotonic() >= deadline:
+                        raise
+                    time.sleep(delay)
+                    delay = min(delay * 2, 0.5)
             conn.autocommit = False
 
             def _release(connection):

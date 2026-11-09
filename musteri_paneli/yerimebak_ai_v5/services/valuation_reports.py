@@ -1,5 +1,6 @@
 """Kredili raporların değişmez anlık görüntüleri ve istek kilidi."""
 import json
+import time
 from contextlib import contextmanager
 from uuid import UUID
 
@@ -47,6 +48,12 @@ def ensure_schema(cursor):
             report_id TEXT PRIMARY KEY, user_id INTEGER NOT NULL, hidden_at TIMESTAMPTZ NOT NULL DEFAULT NOW())''')
         # Supabase: tablo dışarıya (anon/authenticated) kapalı kalsın; sunucu sahibi rolle erişir.
         cursor.execute('ALTER TABLE valuation_report_hidden ENABLE ROW LEVEL SECURITY')
+    # Aynı isteğin iki kez işlenmesini önleyen kısa ömürlü "işleniyor" kayıtları (request_guard, 09.11.2026).
+    if 'valuation_request_claims' not in tables:
+        cursor.execute('''CREATE TABLE IF NOT EXISTS valuation_request_claims (
+            user_id INTEGER NOT NULL, request_id TEXT NOT NULL,
+            claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (user_id, request_id))''')
+        cursor.execute('ALTER TABLE valuation_request_claims ENABLE ROW LEVEL SECURITY')
     cursor.execute('''CREATE OR REPLACE FUNCTION protect_valuation_snapshot() RETURNS trigger AS $$
         BEGIN
             IF OLD.report_json IS NOT NULL THEN
@@ -75,33 +82,77 @@ def ensure_schema(cursor):
     END $$''')
 
 
+# Aynı istek (UUID) ikinci kez gelirse ilkinin bitmesini bekleme süresi ve sahipsiz kalan "işleniyor" kaydının
+# bayatlama süresi. Değerleme en fazla ~3 dk sürer (arama sınırları 85–90 sn, sıra 60 sn).
+GUARD_WAIT_SECONDS = 300
+GUARD_STALE_SECONDS = 600
+GUARD_POLL_SECONDS = 1.0
+
+
+def _claim(user_id, request_id):
+    """Kısa işlem: rapor hazırsa onu, değilse "işleniyor" kaydını almayı dener. Bağlantı hemen havuza döner."""
+    conn = DatabaseConfig.get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT report_json FROM analysis_history WHERE user_id=%s AND request_id=%s',
+                       (user_id, request_id))
+        row = cursor.fetchone()
+        if row and row['report_json']:
+            return 'hazir', dict(row['report_json'], tekrar=True)
+        # Çöken işlemden kalan kayıt sonsuza dek beklettirmesin.
+        cursor.execute('DELETE FROM valuation_request_claims WHERE user_id=%s AND request_id=%s '
+                       'AND claimed_at < NOW() - make_interval(secs => %s)',
+                       (user_id, request_id, GUARD_STALE_SECONDS))
+        cursor.execute('''INSERT INTO valuation_request_claims (user_id, request_id) VALUES (%s, %s)
+                          ON CONFLICT DO NOTHING RETURNING 1''', (user_id, request_id))
+        got = cursor.fetchone() is not None
+        conn.commit()
+        return ('alindi' if got else 'bekle'), None
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
+def _release(user_id, request_id):
+    conn = DatabaseConfig.get_connection()
+    try:
+        conn.cursor().execute('DELETE FROM valuation_request_claims WHERE user_id=%s AND request_id=%s',
+                              (user_id, request_id))
+        conn.commit()
+    finally:
+        DatabaseConfig.return_connection(conn)
+
+
 @contextmanager
 def request_guard(user_id, request_id):
     """Süreçler arasında da aynı UUID'nin aramaya iki kere girmesini önler.
 
-    Kilit bağlantısı kredi işlemi bitene kadar açık kalır. Ayrı kredi işlemi
-    commit olduktan sonra bekleyen istek READ COMMITTED ile raporu görür.
-    Hata halinde rollback kilidi de serbest bırakır.
+    09.11.2026: Eskiden analiz boyunca (1–3 dk) havuz dışı bir bağlantı açık kalıyordu; Supabase bağlantı
+    sınırında eşzamanlı değerleme sayısını ~5'e düşürüyordu. Şimdi kısa işlemlerle "işleniyor" kaydı
+    (valuation_request_claims) alınır; ikinci istek bağlantı tutmadan bekler ve ilk raporu döner.
+    İlk istek başarısız olursa kayıt silinir, bekleyen istek kendisi dener. Son güvence: (user_id, request_id)
+    benzersiz indeksi aynı isteğin iki rapor yazmasını engeller.
     """
     if not request_id:
         yield None
         return
     request_id = str(UUID(str(request_id)))
-    conn = DatabaseConfig.get_lock_connection()
+    deadline = time.monotonic() + GUARD_WAIT_SECONDS
+    while True:
+        state, report = _claim(user_id, request_id)
+        if state == 'hazir':
+            yield report
+            return
+        if state == 'alindi':
+            break
+        if time.monotonic() >= deadline:
+            yield {'error': 'Bu değerleme isteği hâlâ işleniyor; birkaç dakika sonra raporlarınızda görünecek.',
+                   'http_status': 409, 'code': 'istek_isleniyor'}
+            return
+        time.sleep(GUARD_POLL_SECONDS)
     try:
-        conn.set_session(isolation_level='READ COMMITTED')
-        cursor = conn.cursor()
-        cursor.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))',
-                       (f'valuation:{user_id}:{request_id}',))
-        cursor.execute('SELECT report_json FROM analysis_history WHERE user_id=%s AND request_id=%s',
-                       (user_id, request_id))
-        row = cursor.fetchone()
-        yield dict(row['report_json'], tekrar=True) if row and row['report_json'] else None
+        yield None
     finally:
-        try:
-            conn.rollback()
-        finally:
-            conn.close()
+        _release(user_id, request_id)
 
 
 def _json(value):

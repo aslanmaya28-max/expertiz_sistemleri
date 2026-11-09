@@ -12,6 +12,8 @@ ve tramer (hasar kaydi) bildirilir. Sistem:
 Yeterli emsal yoksa analiz yapilmaz ve kredi dusulmez.
 """
 import logging
+import os
+import threading
 import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -278,7 +280,14 @@ def decision_summary(
 
 RISK_TIMEOUT_SECONDS = 90
 DISPLAYED_RISK_CONFIDENCE = ("yuksek", "orta")
-_RISK_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="model-risk")
+# Kapasite (09.11.2026): her sunucu işleminde aynı anda en fazla bu kadar değerleme; fazlası sırada bekler.
+# Risk araması havuzu aynı boyda olmalı: eskiden 4'tü, 5. değerlemenin risk araması 90 sn bekleyip düşüyordu.
+MAX_CONCURRENT_ANALYSES = max(1, int(os.getenv("VALUATION_MAX_CONCURRENT", "10")))
+QUEUE_WAIT_SECONDS = float(os.getenv("VALUATION_QUEUE_SECONDS", "60"))
+_ANALYSIS_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_ANALYSES)
+BUSY_MESSAGE = ("Şu an çok sayıda değerleme yapılıyor. Lütfen 1–2 dakika sonra tekrar deneyin; "
+                "krediniz düşülmedi.")
+_RISK_POOL = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_ANALYSES, thread_name_prefix="model-risk")
 
 
 def _risk_vehicle(brand, model, year, km, package, fuel, transmission) -> Dict[str, Any]:
@@ -571,7 +580,15 @@ def analyze(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
     with request_guard(user['id'], payload.get('request_id')) as previous:
         if previous is not None:
             return previous
-        return _analyze_once(user, payload)
+        # Sıra: boş yer yoksa en fazla QUEUE_WAIT_SECONDS bekler; hâlâ yoksa kredi düşülmeden 503.
+        if not _ANALYSIS_SLOTS.acquire(timeout=QUEUE_WAIT_SECONDS):
+            logger.warning("[KAPASITE] %s eşzamanlı değerleme dolu; istek sırada %.0f sn bekledi",
+                           MAX_CONCURRENT_ANALYSES, QUEUE_WAIT_SECONDS)
+            return _error(BUSY_MESSAGE, 503, "yogunluk")
+        try:
+            return _analyze_once(user, payload)
+        finally:
+            _ANALYSIS_SLOTS.release()
 
 
 def _analyze_once(user: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:

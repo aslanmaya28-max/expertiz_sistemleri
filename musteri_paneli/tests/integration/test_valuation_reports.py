@@ -237,3 +237,80 @@ def test_musteri_raporunu_siler_kayit_ve_dogrulama_korunur(client, admin_token, 
     # Arşiv satırı ve doğrulama yerinde (rapor gerçekten düzenlenmişti).
     assert sql('SELECT report_json FROM analysis_history WHERE id=%s', (identity['id'],), True)[0]['report_json'] == report
     assert client.get('/api/v1/expertiz/verify/' + identity['verification_code']).json()['gecerli'] is True
+
+
+# --- Kapasite (09.11.2026): uzun kilit bağlantısı yok, sıra sistemi, risk havuzu ---
+
+def test_yogunlukta_kredi_dusmeden_503_ve_kayit_birakilmaz(client, scenario, monkeypatch):
+    uid, headers, payload, search = scenario
+    dolu = threading.BoundedSemaphore(1)
+    dolu.acquire()
+    monkeypatch.setattr(valuation_service, '_ANALYSIS_SLOTS', dolu)
+    monkeypatch.setattr(valuation_service, 'QUEUE_WAIT_SECONDS', 0.2)
+    r = client.post('/api/v1/valuation/analyze', headers=headers, json=payload)
+    assert r.status_code == 503, r.text
+    assert 'krediniz düşülmedi' in r.json()['detail']['message']
+    assert search.call_count == 0
+    assert sql('SELECT credits FROM users WHERE id=%s', (uid,), True)[0]['credits'] == 3
+    # Aynı istek yer açılınca normal işlenir: "işleniyor" kaydı geride kalmadı.
+    assert not sql('SELECT 1 FROM valuation_request_claims WHERE user_id=%s', (uid,), True)
+    dolu.release()
+    assert client.post('/api/v1/valuation/analyze', headers=headers, json=payload).status_code == 200
+
+
+def test_sahipsiz_islem_kaydi_bayatlayinca_istek_ilerler(client, scenario, monkeypatch):
+    from yerimebak_ai_v5.services import valuation_reports
+    uid, headers, payload, _ = scenario
+    sql("INSERT INTO valuation_request_claims (user_id, request_id, claimed_at) VALUES (%s, %s, NOW() - INTERVAL '1 hour')",
+        (uid, payload['request_id']))
+    r = client.post('/api/v1/valuation/analyze', headers=headers, json=payload)
+    assert r.status_code == 200, r.text
+    # Taze kayıt (başka süreç işliyor) varsa ve süre dolarsa 409; kredi düşmez.
+    other = dict(payload, request_id=str(uuid.uuid4()))
+    sql('INSERT INTO valuation_request_claims (user_id, request_id) VALUES (%s, %s)', (uid, other['request_id']))
+    monkeypatch.setattr(valuation_reports, 'GUARD_WAIT_SECONDS', 0.3)
+    before = sql('SELECT credits FROM users WHERE id=%s', (uid,), True)[0]['credits']
+    busy = client.post('/api/v1/valuation/analyze', headers=headers, json=other)
+    assert busy.status_code == 409, busy.text
+    assert sql('SELECT credits FROM users WHERE id=%s', (uid,), True)[0]['credits'] == before
+    sql('DELETE FROM valuation_request_claims WHERE user_id=%s', (uid,))
+
+
+def test_yirmi_eszamanli_degerleme_bes_baglantilik_havuzla(client, scenario, monkeypatch):
+    """Canlı ayar: işlem başına 5 bağlantı. 20 değerleme aynı anda gelir; hepsi tamamlanır, kredi tam 20 düşer,
+    havuz dışı (uzun kilit) bağlantı açılmaz. Arama gecikmesi sahte (1 sn)."""
+    import time
+    from psycopg2.extras import DictCursor
+    from psycopg2.pool import ThreadedConnectionPool
+    from yerimebak_ai_v5.core.infrastructure import database_config as db
+    uid, headers, payload, search = scenario
+    sql('UPDATE users SET credits=25 WHERE id=%s', (uid,))
+    gercek = search.return_value
+    search.side_effect = lambda *_a, **_k: (time.sleep(1.0), gercek)[1]
+    monkeypatch.setattr(valuation_service.vehicle_risk if hasattr(valuation_service, 'vehicle_risk') else
+                        __import__('yerimebak_ai_v5.services.vehicle_risk', fromlist=['x']),
+                        'get_model_risks', lambda v: (time.sleep(1.0), {'riskler': [], 'bulunamadi': True, 'mesaj': None})[1])
+    havuz = ThreadedConnectionPool(1, 5, dsn=TEST_DB, cursor_factory=DictCursor, connection_factory=db._PooledConnection)
+    monkeypatch.setattr(db, '_pool', havuz)
+    monkeypatch.setattr(db.DatabaseConfig, 'get_lock_connection',
+                        staticmethod(lambda: (_ for _ in ()).throw(AssertionError('uzun kilit bağlantısı açılmamalı'))))
+    basla = threading.Barrier(20)
+
+    def gonder(i):
+        basla.wait(timeout=20)
+        return client.post('/api/v1/valuation/analyze', headers=headers,
+                           json=dict(payload, request_id=str(uuid.uuid4())))
+    t0 = time.monotonic()
+    try:
+        with ThreadPoolExecutor(max_workers=20) as pool:
+            cevaplar = list(pool.map(gonder, range(20)))
+        sure = time.monotonic() - t0
+        assert [r.status_code for r in cevaplar] == [200] * 20, [r.text[:120] for r in cevaplar if r.status_code != 200]
+        assert len({r.json()['rapor']['id'] for r in cevaplar}) == 20
+        assert sql('SELECT credits FROM users WHERE id=%s', (uid,), True)[0]['credits'] == 5
+        # 10'luk yuva → iki dalga; tek tek sıralansaydı ≥ 20 sn sürerdi.
+        assert sure < 15, sure
+        print(f'[YÜK] 20 eşzamanlı değerleme {sure:.1f} sn')
+    finally:
+        monkeypatch.undo()
+        havuz.closeall()
