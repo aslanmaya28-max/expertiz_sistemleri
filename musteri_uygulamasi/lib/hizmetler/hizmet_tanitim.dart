@@ -15,6 +15,7 @@ import '../tema/olculer.dart';
 import '../tema/renkler.dart';
 import '../tema/yazi.dart';
 import 'hizmet_api.dart';
+import 'randevu.dart';
 
 String hizmetPara(dynamic value) => value is num
     ? '${NumberFormat('#,##0.##', 'tr_TR').format(value)} TL'
@@ -27,7 +28,7 @@ class HizmetKartlari extends ConsumerWidget {
   const HizmetKartlari({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final acik = ref.watch(configProvider).valueOrNull?.expertizEnabled == true;
+    final acik = ref.watch(ekspertizAcikProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -185,7 +186,8 @@ class YerindeIncelemeEkrani extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(configProvider).valueOrNull,
-        acik = config?.expertizEnabled == true;
+        acik = ref.watch(ekspertizAcikProvider);
+    final bolge = ref.watch(hizmetBolgesiProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Yerinde ekspertiz')),
       body: SingleChildScrollView(
@@ -194,10 +196,22 @@ class YerindeIncelemeEkrani extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Panel('Başka şehirde olsanız da aracın yanında olun', [
-                if (!acik) const YakindaRozeti(),
+                if (bolge.isLoading) const LoadingView(),
+                if (bolge.hasError)
+                  FailureView(
+                    bolge.error!,
+                    () => ref.invalidate(hizmetBolgesiProvider),
+                  ),
+                if (!acik && !bolge.hasError && !bolge.isLoading) ...[
+                  const YakindaRozeti(),
+                  const Text(
+                    'Yerinde inceleme yakında',
+                    style: Yazilar.bolumBaslik,
+                  ),
+                ],
                 const SizedBox(height: Olcu.s16),
                 const Text(
-                  'Başka şehirde olsanız da aracı anlaşmalı kurumsal ekspertiz firmamız inceler; satıcıyla randevuyu biz ayarlarız, tüm raporlar uygulamanıza gelir.',
+                  'Başka şehirde olsanız da aracı anlaşmalı kurumsal ekspertiz firmamız inceler. Randevuyu satıcıyla siz ayarlarsınız; anlaşmalı firmamız gelmeden önce satıcıyı arar. Tüm raporlar uygulamanıza gelir.',
                 ),
                 const SizedBox(height: Olcu.s12),
                 const Text(
@@ -253,7 +267,7 @@ class YerindeIncelemeEkrani extends ConsumerWidget {
                   'Talep oluştur',
                   () async => context.push('/ekspertiz/talep', extra: arac),
                 )
-              else
+              else if (!bolge.hasError && !bolge.isLoading)
                 AnaButon(
                   'Açılınca bana haber ver',
                   () => ref
@@ -309,11 +323,9 @@ class UzaktanSatinAlmaEkrani extends ConsumerWidget {
             ),
             _SurecAdimi(
               '2. Yerinde ekspertiz',
-              'Anlaşmalı kurumsal ekspertiz firması aracı inceler; randevuyu biz ayarlarız.',
+              randevuAciklamasi,
               LucideIcons.clipboardCheck,
-              simdi:
-                  ref.watch(configProvider).valueOrNull?.expertizEnabled ==
-                  true,
+              simdi: ref.watch(ekspertizAcikProvider),
             ),
             const _SurecAdimi(
               '3. Vekaletle satın alma',
@@ -362,15 +374,13 @@ class SonrakiAdim extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => Panel('Sonraki adım', [
     const Text(
-      'Almaya karar vermeden önce aracı yerinde inceletin. Başka şehirde olsanız da randevuyu biz ayarlarız.',
+      'Almaya karar vermeden önce aracı yerinde inceletin. Randevuyu satıcıyla siz ayarlarsınız; anlaşmalı firmamız gelmeden önce satıcıyı arar.',
     ),
     const SizedBox(height: Olcu.s12),
     AnaButon(
       'Yerinde ekspertizi inceleyin',
       () async => context.push(
-        ekspertizYolu(
-          ref.read(configProvider).valueOrNull?.expertizEnabled == true,
-        ),
+        ekspertizYolu(ref.read(ekspertizAcikProvider)),
         extra: arac,
       ),
     ),

@@ -22,13 +22,20 @@ class HizmetOdemeEkrani extends ConsumerStatefulWidget {
 class _OdemeState extends ConsumerState<HizmetOdemeEkrani> {
   WebViewController? web;
   Timer? timer;
-  bool sorgulaniyor = false, tamam = false;
+  bool sorgulaniyor = false, tamam = false, baslatildi = false;
   Json? durum;
   Object? hata;
   @override
   void initState() {
     super.initState();
-    if (ref.read(configProvider).valueOrNull?.expertizEnabled != true) return;
+    ref.listenManual(ekspertizAcikProvider, (_, acik) {
+      if (acik) _baslat();
+    }, fireImmediately: true);
+  }
+
+  void _baslat() {
+    if (baslatildi || !mounted) return;
+    baslatildi = true;
     final checkout = widget.checkout;
     if (checkout?['order_id'] == widget.id &&
         checkout?['kind'] == 'expertiz' &&
@@ -97,7 +104,7 @@ class _OdemeState extends ConsumerState<HizmetOdemeEkrani> {
 
   @override
   Widget build(BuildContext context) {
-    if (ref.watch(configProvider).valueOrNull?.expertizEnabled != true) {
+    if (!ref.watch(ekspertizAcikProvider)) {
       return const YerindeIncelemeEkrani();
     }
     final status = text(durum?['status']), checkout = widget.checkout;

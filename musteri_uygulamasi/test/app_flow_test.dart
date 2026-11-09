@@ -39,12 +39,14 @@ class AppFixture {
   final String minVersion;
   final Json? report;
   final Map<String, Json> responses;
+  final Map<String, int> statuses;
   late final ApiClient api;
   AppFixture({
     this.configStatus = 200,
     this.minVersion = '1.0.0',
     this.report,
     this.responses = const {},
+    this.statuses = const {},
   }) {
     api = ApiClient(
       store: store,
@@ -71,6 +73,20 @@ class AppFixture {
               'credits': 5,
               'email_verified': false,
             },
+          };
+        }
+        if (path.endsWith('/expertiz/service-area')) {
+          final enabled =
+              responses['/api/v1/app/config']?['expertiz_enabled'] == true;
+          body = {
+            'tester': false,
+            'cities': [
+              {
+                'il': 'İstanbul',
+                'durum': enabled ? 'acik' : 'kapali',
+                'talep_acabilir': enabled,
+              },
+            ],
           };
         }
         if (path.endsWith('/credits/balance')) body = {'credits': 5};
@@ -106,18 +122,22 @@ class AppFixture {
         }
         return http.Response(
           jsonEncode(body),
-          status,
+          statuses[path] ?? status,
           headers: {'content-type': 'application/json; charset=utf-8'},
         );
       }),
     );
   }
-  Future<ProviderContainer> pump(WidgetTester tester) async {
+  Future<ProviderContainer> pump(
+    WidgetTester tester, {
+    List<Override> overrides = const [],
+  }) async {
     await initializeDateFormatting('tr_TR');
     final container = ProviderContainer(
       overrides: [
         apiProvider.overrideWithValue(api),
         platformProvider.overrideWithValue(platform),
+        ...overrides,
       ],
     );
     addTearDown(container.dispose);

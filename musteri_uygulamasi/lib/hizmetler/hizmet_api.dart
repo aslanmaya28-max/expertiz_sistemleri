@@ -6,6 +6,8 @@ import '../api/providers.dart';
 class HizmetRepository {
   final ApiClient api;
   HizmetRepository(this.api);
+  Future<HizmetBolgesi> hizmetBolgesi() async =>
+      HizmetBolgesi.fromJson(await api.get('/expertiz/service-area'));
   Future<Json> katalog() => api.get('/expertiz/packages');
   Future<Json> teklif(String firma, String paket) async {
     final result = await api.get(
@@ -28,23 +30,33 @@ class HizmetRepository {
     return result;
   }
 
-  Future<Json> talep(Json body) async {
+  Future<Json> talep(Json body, {bool odemesiz = false}) async {
     final epoch = api.sessionEpoch;
-    final config = await api.get('/app/config', authenticated: false);
+    final bolge = await hizmetBolgesi();
     if (epoch != api.sessionEpoch) {
       throw const ApiFailure(
         'Oturum değişti. Tekrar giriş yapın.',
         status: 401,
       );
     }
-    if (config['expertiz_enabled'] != true) {
+    if (!bolge.iller.any((il) => il.il == body['city'] && il.talepAcabilir)) {
       throw const ApiFailure(
-        'Yerinde ekspertiz henüz açılmadı.',
-        status: 403,
-        code: 'expertiz_disabled',
+        'Bu ilde henüz hizmet yok.',
+        status: 422,
+        code: 'il_kapali',
       );
     }
-    return api.post('/expertiz/requests', body);
+    if (odemesiz && !bolge.tester) {
+      throw const ApiFailure(
+        'Ödemesiz talep yalnız test kullanıcılarına açıktır.',
+        status: 403,
+        code: 'odemesiz_talep_yetkisi_yok',
+      );
+    }
+    return api.post(
+      odemesiz ? '/expertiz/requests/unpaid' : '/expertiz/requests',
+      body,
+    );
   }
 
   Future<Json> siparis(String id) =>
@@ -168,3 +180,38 @@ final hizmetTeklifProvider = FutureProvider.autoDispose
       ref.watch(sessionProvider.select((s) => s.user?.id));
       return ref.watch(hizmetRepositoryProvider).teklif(secim.$1, secim.$2);
     });
+
+class HizmetIli {
+  final String il, durum;
+  final bool talepAcabilir;
+  HizmetIli.fromJson(Json j)
+    : il = text(j['il']),
+      durum = text(j['durum']),
+      talepAcabilir = j['talep_acabilir'] == true;
+  String get etiket =>
+      '$il${durum == 'test'
+          ? ' (test)'
+          : !talepAcabilir
+          ? ' (yakında)'
+          : ''}';
+}
+
+class HizmetBolgesi {
+  final List<HizmetIli> iller;
+  final bool tester;
+  HizmetBolgesi.fromJson(Json j)
+    : iller = objects(j['cities']).map(HizmetIli.fromJson).toList(),
+      tester = j['tester'] == true;
+  bool get talepAcabilir => iller.any((il) => il.talepAcabilir);
+}
+
+final hizmetBolgesiProvider = FutureProvider<HizmetBolgesi>((ref) {
+  ref.watch(sessionProvider.select((s) => s.user?.id));
+  return ref.watch(hizmetRepositoryProvider).hizmetBolgesi();
+});
+final ekspertizAcikProvider = Provider<bool>((ref) {
+  final bolge = ref.watch(hizmetBolgesiProvider);
+  return !bolge.isLoading &&
+      !bolge.hasError &&
+      bolge.valueOrNull?.talepAcabilir == true;
+});

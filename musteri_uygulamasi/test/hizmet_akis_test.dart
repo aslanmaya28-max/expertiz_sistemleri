@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yerimebak/app.dart';
 import 'package:yerimebak/hizmetler/hizmet_tanitim.dart';
+import 'package:yerimebak/hizmetler/randevu.dart';
 import 'package:yerimebak/tema/tema.dart';
 import 'app_flow_test.dart' show AppFixture;
 
@@ -202,20 +203,23 @@ void main() {
             .text,
         '960000',
       );
-      final district = find.byType(DropdownButtonFormField<String>);
-      await tester.ensureVisible(district);
-      await tester.pumpAndSettle();
-      await tester.tap(district);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Adalar').last);
-      await tester.pumpAndSettle();
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Aracın bulunduğu açık adres'),
+        find.byKey(const ValueKey('talep-ilce')),
+        'Adalar',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('talep-adres')),
         'Örnek sokak 1',
       );
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Uygun gün ve saat aralığı'),
-        'Yarın 10–12',
+        find.byKey(const ValueKey('talep-satici_telefon')),
+        '05551234567',
+      );
+      final appointment = tester.widget<TextFormField>(
+        find.byKey(const ValueKey('talep-zaman')),
+      );
+      appointment.controller!.text = randevuDegeri(
+        ilkRandevu(DateTime.now()).add(const Duration(hours: 1)),
       );
       await press('Devam et');
       final legal = find.text('Ön Bilgilendirme Formu');
@@ -227,10 +231,14 @@ void main() {
         app.platform.opened.last,
         'https://www.yerimebak.com.tr/mesafeli-satis',
       );
-      final check = find.byType(CheckboxListTile);
+      final check = find.byType(CheckboxListTile).first;
       await tester.ensureVisible(check);
       await tester.pumpAndSettle();
       await tester.tap(check);
+      await tester.pumpAndSettle();
+      final absent = find.byKey(const ValueKey('bulunamama-onayi'));
+      await tester.ensureVisible(absent);
+      await tester.tap(absent);
       await tester.pumpAndSettle();
       await press('Ödemeye geç');
       expect(find.text('Deneme ödeme modu'), findsOneWidget);
@@ -246,7 +254,10 @@ void main() {
       expect(body['city'], 'İstanbul');
       expect(body['district'], 'Adalar');
       expect(body['vehicle']['price'], 960000);
-      expect(body['note'], contains('Örnek sokak 1'));
+      expect(body['address'], 'Örnek sokak 1');
+      expect(body['not_found_accepted'], true);
+      expect(body['seller_phone'], '05551234567');
+      expect(randevuHatasi(body['appointment_at'], DateTime.now()), isNull);
       expect(body.containsKey('total_tl'), false);
       container.read(routerProvider).go('/talepler');
       await tester.pumpAndSettle();
