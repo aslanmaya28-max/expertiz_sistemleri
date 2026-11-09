@@ -137,7 +137,7 @@ class PaymentService:
         finally:
             DatabaseConfig.return_connection(conn)
         if not user:
-            return {"error": "Kullanici bulunamadi"}
+            return {"error": "Kullanıcı bulunamadı"}
 
         return {
             "user_id": user['id'],
@@ -239,12 +239,12 @@ class PaymentService:
 
     def create_payment_order(self, user_id: int, package_key: str, payment_method: str = "havale", payment_ref: str = None) -> Dict[str, Any]:
         if package_key not in CREDIT_PACKAGES:
-            return {"error": f"Gecersiz paket: {package_key}. Gecerli paketler: {list(CREDIT_PACKAGES.keys())}"}
+            return {"error": f"Geçersiz paket: {package_key}. Geçerli paketler: {list(CREDIT_PACKAGES.keys())}"}
 
         pkg = CREDIT_PACKAGES[package_key]
         user = self.get_user_by_id(user_id)
         if not user:
-            return {"error": "Kullanici bulunamadi"}
+            return {"error": "Kullanıcı bulunamadı"}
 
         order_id = f"ORD-{uuid.uuid4().hex[:12].upper()}"
 
@@ -266,7 +266,7 @@ class PaymentService:
                 "package": pkg,
                 "payment_method": payment_method,
                 "status": "pending",
-                "message": "Siparis olusturuldu. Odeme bekleniyor."
+                "message": "Sipariş oluşturuldu. Ödeme bekleniyor."
             }
         finally:
             DatabaseConfig.return_connection(conn)
@@ -279,12 +279,12 @@ class PaymentService:
             order = cursor.fetchone()
 
             if not order:
-                return {"error": "Siparis bulunamadi"}
+                return {"error": "Sipariş bulunamadı"}
 
             order = dict(order)
 
             if order['status'] != 'pending':
-                return {"error": f"Siparis zaten '{order['status']}' durumunda"}
+                return {"error": f"Sipariş zaten '{order['status']}' durumunda"}
 
             cursor.execute(f"""
                 UPDATE payment_orders
@@ -307,7 +307,7 @@ class PaymentService:
                 "credits_added": order['credits'],
                 "new_balance": updated_user['credits'] if updated_user else None,
                 "approved_by": approved_by,
-                "message": f"{order['credits']} kredi yuklendi."
+                "message": f"{order['credits']} kredi yüklendi."
             }
         finally:
             DatabaseConfig.return_connection(conn)
@@ -320,12 +320,12 @@ class PaymentService:
             order = cursor.fetchone()
 
             if not order:
-                return {"error": "Siparis bulunamadi"}
+                return {"error": "Sipariş bulunamadı"}
 
             order = dict(order)
 
             if order['status'] != 'pending':
-                return {"error": f"Siparis zaten '{order['status']}' durumunda"}
+                return {"error": f"Sipariş zaten '{order['status']}' durumunda"}
 
             cursor.execute(f"""
                 UPDATE payment_orders
@@ -335,7 +335,7 @@ class PaymentService:
 
             conn.commit()
 
-            return {"success": True, "order_id": order_id, "message": "Siparis reddedildi."}
+            return {"success": True, "order_id": order_id, "message": "Sipariş reddedildi."}
         finally:
             DatabaseConfig.return_connection(conn)
 

@@ -236,21 +236,21 @@ def update_pricing_settings(payload: Dict[str, Any], admin: Dict[str, Any]) -> D
     fee = payload.get("service_fee_tl")
     inflation = payload.get("vehicle_inflation_monthly_pct")
     if fee is None and inflation is None:
-        return _error("Guncellenecek alan yok")
+        return _error("Güncellenecek alan yok")
     if fee is not None:
         try:
             fee = float(fee)
         except (TypeError, ValueError):
-            return _error("Hizmet bedeli sayi olmali")
+            return _error("Hizmet bedeli sayı olmalı")
         if not 0 <= fee <= 1_000_000:
-            return _error("Hizmet bedeli 0 - 1.000.000 TL araliginda olmali")
+            return _error("Hizmet bedeli 0 - 1.000.000 TL aralığında olmalı")
     if inflation is not None:
         try:
             inflation = float(inflation)
         except (TypeError, ValueError):
-            return _error("Enflasyon orani sayi olmali")
+            return _error("Enflasyon oranı sayı olmalı")
         if not -20 <= inflation <= 30:
-            return _error("Aylik arac enflasyonu -%20 ile %30 arasinda olmali")
+            return _error("Aylık araç enflasyonu -%20 ile %30 arasında olmalı")
 
     conn = DatabaseConfig.get_connection()
     try:
@@ -368,14 +368,14 @@ def save_firm(payload: Dict[str, Any], firm_id: Optional[str] = None) -> Dict[st
     ensure_schema()
     name = str(payload.get("name") or "").strip()
     if not firm_id and not name:
-        return _error("Firma adi zorunlu")
+        return _error("Firma adı zorunlu")
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
         if firm_id:
             cursor.execute("SELECT id FROM expertiz_firms WHERE id = %s", (firm_id,))
             if not cursor.fetchone():
-                return _error("Firma bulunamadi", 404)
+                return _error("Firma bulunamadı", 404)
             fields, values = [], []
             for key in ("name", "active", "sort_order", "source_url", "verified"):
                 if key in payload:
@@ -384,7 +384,7 @@ def save_firm(payload: Dict[str, Any], firm_id: Optional[str] = None) -> Dict[st
                     if key == "name":
                         value = str(value or "").strip()
                         if not value:
-                            return _error("Firma adi bos olamaz")
+                            return _error("Firma adı boş olamaz")
                     values.append(value)
             if fields:
                 cursor.execute(
@@ -422,26 +422,26 @@ def save_package(firm_id: str, payload: Dict[str, Any], package_id: Optional[str
         cursor = conn.cursor()
         cursor.execute("SELECT id FROM expertiz_firms WHERE id = %s", (firm_id,))
         if not cursor.fetchone():
-            return _error("Firma bulunamadi", 404)
+            return _error("Firma bulunamadı", 404)
 
         price = payload.get("price")
         if price is not None:
             try:
                 price = round(float(price), 2)
             except (TypeError, ValueError):
-                return _error("Paket fiyati sayi olmali")
+                return _error("Paket fiyatı sayı olmalı")
             if not 0 < price <= 1_000_000:
-                return _error("Paket fiyati 0 - 1.000.000 TL araliginda olmali")
+                return _error("Paket fiyatı 0 - 1.000.000 TL aralığında olmalı")
 
         if package_id:
             cursor.execute("SELECT id FROM expertiz_packages WHERE id = %s AND firm_id = %s", (package_id, firm_id))
             if not cursor.fetchone():
-                return _error("Paket bulunamadi", 404)
+                return _error("Paket bulunamadı", 404)
             fields, values = [], []
             if "name" in payload:
                 name = str(payload["name"] or "").strip()
                 if not name:
-                    return _error("Paket adi bos olamaz")
+                    return _error("Paket adı boş olamaz")
                 fields.append("name = %s"); values.append(name)
             if price is not None:
                 fields.append("price_tl = %s"); values.append(price)
@@ -458,7 +458,7 @@ def save_package(firm_id: str, payload: Dict[str, Any], package_id: Optional[str
         else:
             name = str(payload.get("name") or "").strip()
             if not name or price is None:
-                return _error("Paket adi ve fiyati zorunlu")
+                return _error("Paket adı ve fiyatı zorunlu")
             package_id = f"{firm_id}--{_slug(name)}"
             cursor.execute("SELECT 1 FROM expertiz_packages WHERE id = %s", (package_id,))
             if cursor.fetchone():

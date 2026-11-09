@@ -95,7 +95,7 @@ def get_customer(customer_id: int) -> Dict[str, Any]:
         cursor = conn.cursor()
         customer = _get_customer(cursor, customer_id, lock=True)
         if not customer:
-            return _error("Musteri bulunamadi", 404)
+            return _error("Müşteri bulunamadı", 404)
         cursor.execute("""SELECT id, action, credits_used, description, created_at
                           FROM credit_usage_logs WHERE user_id=%s
                           ORDER BY created_at DESC, id DESC LIMIT 20""", (customer_id,))
@@ -137,7 +137,7 @@ def set_customer_active(customer_id: int, active: bool, reason: str, admin: Dict
         cursor = conn.cursor()
         customer = _get_customer(cursor, customer_id, lock=True)
         if not customer:
-            return _error("Musteri bulunamadi", 404)
+            return _error("Müşteri bulunamadı", 404)
         if customer.get('deleted_at'):
             return _error('Silinmiş hesap yeniden etkinleştirilemez.', 409)
         cursor.execute("UPDATE users SET is_active = %s WHERE id = %s", (1 if active else 0, customer_id))

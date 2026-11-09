@@ -40,13 +40,13 @@ def _validate_email(email: str) -> bool:
 def _validate_password_strength(password: str) -> Optional[str]:
     """🔒 Sifre gucunu kontrol eder. Hata mesaji doner veya None."""
     if len(password) < 8:
-        return "Sifre en az 8 karakter olmalidir"
+        return "Şifre en az 8 karakter olmalıdır"
     if not re.search(r'[A-Z]', password):
-        return "Sifre en az bir buyuk harf icermelidir"
+        return "Şifre en az bir büyük harf içermelidir"
     if not re.search(r'[a-z]', password):
-        return "Sifre en az bir kucuk harf icermelidir"
+        return "Şifre en az bir küçük harf içermelidir"
     if not re.search(r'[0-9]', password):
-        return "Sifre en az bir rakam icermelidir"
+        return "Şifre en az bir rakam içermelidir"
     return None
 
 
@@ -99,7 +99,7 @@ class AuthService:
     def register(self, email: str, password: str, full_name: str = None, phone: str = None) -> Dict[str, Any]:
         # 🔒 Email validasyonu
         if not email or not _validate_email(email):
-            return {"error": "Gecersiz email formati"}
+            return {"error": "Geçersiz email formatı"}
         
         # 🔒 Sifre gucu validasyonu
         pw_error = _validate_password_strength(password)
@@ -112,7 +112,7 @@ class AuthService:
             cursor = conn.cursor()
             cursor.execute(f"SELECT id FROM users WHERE email = {self._p}", (email,))
             if cursor.fetchone():
-                return {"error": "Bu email adresi zaten kayitli"}
+                return {"error": "Bu email adresi zaten kayıtlı"}
 
             hashed_pw = _hash_password(password)
 
@@ -133,13 +133,13 @@ class AuthService:
             token = _create_user_jwt(user)
             account_service.send_verification(user["id"], email, full_name or "")
 
-            bonus = f" Dogrulamadan sonra {FREE_CREDITS_ON_REGISTER} ucretsiz kredi yuklenir." if FREE_CREDITS_ON_REGISTER else ""
+            bonus = f" Doğrulamadan sonra {FREE_CREDITS_ON_REGISTER} ücretsiz kredi yüklenir." if FREE_CREDITS_ON_REGISTER else ""
             return {
                 "success": True,
                 "user": user,
                 "token": token,
                 "email_verification_required": True,
-                "message": f"Kayit basarili. E-posta adresinize dogrulama baglantisi gonderdik.{bonus}"
+                "message": f"Kayıt başarılı. E-posta adresinize doğrulama bağlantısı gönderdik.{bonus}"
             }
         finally:
             DatabaseConfig.return_connection(conn)  # 🔒 DÜZELTİLDİ: conn.close() -> pool'a geri ver
@@ -198,15 +198,15 @@ class AuthService:
             row = cursor.fetchone()
 
             if not row:
-                return {"error": "Gecersiz email veya sifre"}
+                return {"error": "Geçersiz email veya şifre"}
 
             user = dict(row)
 
             if not user.get('password') or not _verify_password(password, user['password']):
-                return {"error": "Gecersiz email veya sifre"}
+                return {"error": "Geçersiz email veya şifre"}
 
             if not user.get('is_active', 1) or user.get('deleted_at'):
-                return {"error": "Hesabiniz devre disi birakilmis"}
+                return {"error": "Hesabınız devre dışı bırakılmış"}
 
             cursor.execute(f"""
                 UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = {self._p}
@@ -231,9 +231,9 @@ class AuthService:
     def change_password(self, user_id: Any, current_password: str, new_password: str) -> Dict[str, Any]:
         """Mevcut sifre dogrulanarak yeni sifre kaydedilir."""
         if not current_password or not new_password:
-            return {"error": "Mevcut ve yeni sifre zorunludur"}
+            return {"error": "Mevcut ve yeni şifre zorunludur"}
         if current_password == new_password:
-            return {"error": "Yeni sifre mevcut sifreden farkli olmalidir"}
+            return {"error": "Yeni şifre mevcut şifreden farklı olmalıdır"}
         strength_error = _validate_password_strength(new_password)
         if strength_error:
             return {"error": strength_error}
@@ -244,10 +244,10 @@ class AuthService:
             cursor.execute(f"SELECT id, password FROM users WHERE id = {self._p}", (user_id,))
             row = cursor.fetchone()
             if not row:
-                return {"error": "Kullanici bulunamadi", "http_status": 404}
+                return {"error": "Kullanıcı bulunamadı", "http_status": 404}
             user = dict(row)
             if not user.get('password') or not _verify_password(current_password, user['password']):
-                return {"error": "Mevcut sifre hatali", "http_status": 403}
+                return {"error": "Mevcut şifre hatalı", "http_status": 403}
 
             # Gecici sifre ile giren personel sifresini degistirince zorunluluk kalkar
             cursor.execute(
@@ -264,10 +264,10 @@ class AuthService:
         # 🔒 GÜVENLİK: Varsayilan admin key kaldirildi. Ortam degiskeni zorunlu.
         expected_key = os.getenv("ADMIN_SECRET_KEY")
         if not expected_key:
-            return {"error": "Sunucu yapilandirma hatasi: ADMIN_SECRET_KEY tanimlanmamis"}
+            return {"error": "Sunucu yapılandırma hatası: ADMIN_SECRET_KEY tanımlanmamış"}
         
         if not hmac.compare_digest(str(admin_key or ""), expected_key):
-            return {"error": "Gecersiz admin anahtari"}
+            return {"error": "Geçersiz admin anahtarı"}
 
         return self._insert_admin(email, password)
 
@@ -302,7 +302,7 @@ class AuthService:
             cursor.execute(f"SELECT id FROM users WHERE lower(email) = lower({self._p})", (email,))
             if cursor.fetchone():
                 conn.commit()
-                return {"error": "Bu email zaten kayitli"}
+                return {"error": "Bu email zaten kayıtlı"}
 
             hashed_pw = _hash_password(password)
 
@@ -313,7 +313,7 @@ class AuthService:
             """, (email, hashed_pw))
             conn.commit()
 
-            return {"success": True, "message": "Admin hesabi olusturuldu"}
+            return {"success": True, "message": "Admin hesabı oluşturuldu"}
         finally:
             DatabaseConfig.return_connection(conn)  # 🔒 DÜZELTİLDİ: conn.close() -> pool'a geri ver
 

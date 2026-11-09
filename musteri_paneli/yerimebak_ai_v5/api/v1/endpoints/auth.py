@@ -24,16 +24,16 @@ class RegisterRequest(BaseModel):
     @classmethod
     def validate_email(cls, v: str) -> str:
         if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', v):
-            raise ValueError("Gecersiz email formatı")
+            raise ValueError("Geçersiz email formatı")
         return v.lower().strip()
 
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
         if len(v) < 6:
-            raise ValueError("Sifre en az 6 karakter olmalidir")
+            raise ValueError("Şifre en az 6 karakter olmalıdır")
         if len(v) > 128:
-            raise ValueError("Sifre en fazla 128 karakter olabilir")
+            raise ValueError("Şifre en fazla 128 karakter olabilir")
         return v
 
 
@@ -55,7 +55,7 @@ class LoginRequest(BaseModel):
     @classmethod
     def validate_email(cls, v: str) -> str:
         if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', v):
-            raise ValueError("Gecersiz email formatı")
+            raise ValueError("Geçersiz email formatı")
         return v.lower().strip()
 
 
@@ -81,14 +81,14 @@ class AdminCreateRequest(BaseModel):
     @classmethod
     def validate_email(cls, v: str) -> str:
         if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', v):
-            raise ValueError("Gecersiz email formatı")
+            raise ValueError("Geçersiz email formatı")
         return v.lower().strip()
 
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
         if len(v) < 6:
-            raise ValueError("Sifre en az 6 karakter olmalidir")
+            raise ValueError("Şifre en az 6 karakter olmalıdır")
         return v
 
 
@@ -200,7 +200,7 @@ def get_authenticated_user(
         if supabase_user:
             return supabase_user
 
-    raise HTTPException(status_code=401, detail="Gecerli bir Bearer token gerekli")
+    raise HTTPException(status_code=401, detail="Geçerli bir Bearer token gerekli")
 
 
 def _is_admin_role(value: Any) -> bool:
@@ -302,7 +302,7 @@ async def get_profile(user: Dict[str, Any] = Depends(get_current_user)) -> Dict[
         cursor.execute("SELECT * FROM users WHERE id = %s", (user["id"],))
         row = cursor.fetchone()
         if not row:
-            raise HTTPException(status_code=404, detail="Kullanici bulunamadi")
+            raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
         return {"success": True, "profile": _public_profile(dict(row))}
     finally:
         if conn is not None:
@@ -355,7 +355,7 @@ async def update_profile(
 @router.post("/register")
 async def register(request: RegisterRequest, http_request: Request) -> Dict[str, Any]:
     if not request.terms_accepted:
-        raise HTTPException(status_code=400, detail="Kullanim Kosullari ve KVKK Aydinlatma Metni onaylanmalidir")
+        raise HTTPException(status_code=400, detail="Kullanım Koşulları ve KVKK Aydınlatma Metni onaylanmalıdır")
     auth = get_auth_service()
     result = auth.register(email=request.email, password=request.password, full_name=request.full_name, phone=request.phone)
     if "error" in result:
@@ -454,7 +454,7 @@ async def refresh_token(user: Dict[str, Any] = Depends(get_authenticated_user)) 
     auth = get_auth_service()
     new_token = auth.refresh_token(user["id"])
     if not new_token:
-        raise HTTPException(status_code=401, detail="Token yenileme basarisiz")
+        raise HTTPException(status_code=401, detail="Token yenileme başarısız")
     return {"success": True, "token": new_token}
 
 

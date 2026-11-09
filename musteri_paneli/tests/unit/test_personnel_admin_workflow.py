@@ -115,7 +115,7 @@ class PersonnelAdminWorkflowTests(unittest.TestCase):
                 {"email": "admin@yerimebak.ai"},
             )
 
-        self.assertEqual(result["error"], "Bu e-posta ile kayitli bir kullanici zaten var")
+        self.assertEqual(result["error"], "Bu e-posta ile kayıtlı bir kullanıcı zaten var")
         self.assertEqual(result["http_status"], 409)
         self.assertFalse(conn.committed)
 

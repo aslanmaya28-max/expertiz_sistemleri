@@ -177,7 +177,7 @@ def resend_verification(user: Dict[str, Any]) -> Dict[str, Any]:
         cursor.execute("SELECT id, email, full_name, email_verified FROM users WHERE id::text = %s", (str(user.get("id")),))
         row = cursor.fetchone()
         if not row:
-            return _error("Kullanici bulunamadi", 404)
+            return _error("Kullanıcı bulunamadı", 404)
         row = dict(row)
         if row.get("email_verified"):
             return {"success": True, "already_verified": True}
@@ -187,7 +187,7 @@ def resend_verification(user: Dict[str, Any]) -> Dict[str, Any]:
         )
         last = cursor.fetchone()
         if last and dict(last)["created_at"] > datetime.now(timezone.utc) - RESEND_COOLDOWN:
-            return _error("Dogrulama e-postasi az once gonderildi; birkac dakika sonra tekrar deneyin", 429)
+            return _error("Doğrulama e-postası az önce gönderildi; birkaç dakika sonra tekrar deneyin", 429)
     finally:
         DatabaseConfig.return_connection(conn)
     send_verification(row["id"], row["email"], row.get("full_name") or "")
@@ -203,7 +203,7 @@ def verify_email(token: str) -> Dict[str, Any]:
         user_id = _consume_token(cursor, token, "verify_email")
         if user_id is None:
             conn.rollback()
-            return _error("Dogrulama baglantisi gecersiz veya suresi dolmus", 400)
+            return _error("Doğrulama bağlantısı geçersiz veya süresi dolmuş", 400)
         cursor.execute(
             """
             UPDATE users SET email_verified = TRUE
@@ -245,7 +245,7 @@ def request_password_reset(email: str) -> Dict[str, Any]:
     ensure_schema()
     response = {
         "success": True,
-        "message": "Bu e-posta adresi kayitliysa sifre sifirlama baglantisi gonderildi.",
+        "message": "Bu e-posta adresi kayıtlıysa şifre sıfırlama bağlantısı gönderildi.",
     }
     email = (email or "").strip()
     if not email:
@@ -302,7 +302,7 @@ def reset_password(token: str, new_password: str) -> Dict[str, Any]:
         user_id = _consume_token(cursor, token, "reset_password")
         if user_id is None:
             conn.rollback()
-            return _error("Sifre sifirlama baglantisi gecersiz veya suresi dolmus", 400)
+            return _error("Şifre sıfırlama bağlantısı geçersiz veya süresi dolmuş", 400)
         cursor.execute(
             "UPDATE users SET password = %s, must_change_password = FALSE WHERE id = %s",
             (_hash_password(new_password), user_id),

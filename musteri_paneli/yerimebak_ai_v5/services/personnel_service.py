@@ -259,15 +259,15 @@ def create_personnel(payload: Dict[str, Any], admin: Dict[str, Any]) -> Dict[str
     firm_id = str(payload.get("firm_id") or "").strip() or None
 
     if not full_name or not email or not temporary_password or not payload.get("city") or not district:
-        return _error("Ad soyad, e-posta, gecici sifre, il ve ilce zorunludur", 400)
+        return _error("Ad soyad, e-posta, geçici şifre, il ve ilçe zorunludur", 400)
     if "@" not in email or "." not in email.split("@")[-1]:
-        return _error("Gecerli bir e-posta adresi girin", 400)
+        return _error("Geçerli bir e-posta adresi girin", 400)
     if len(temporary_password) < MIN_PASSWORD_LENGTH:
-        return _error(f"Gecici sifre en az {MIN_PASSWORD_LENGTH} karakter olmali", 400)
+        return _error(f"Geçici şifre en az {MIN_PASSWORD_LENGTH} karakter olmalı", 400)
 
     location = _resolve_location(payload.get("city"))
     if not location:
-        return _error("Gecersiz il. Lutfen listeden bir il secin", 400)
+        return _error("Geçersiz il. Lütfen listeden bir il seçin", 400)
 
     _ensure_schema()
     conn = DatabaseConfig.get_connection()
@@ -275,14 +275,14 @@ def create_personnel(payload: Dict[str, Any], admin: Dict[str, Any]) -> Dict[str
         cursor = conn.cursor()
         cursor.execute("SELECT id FROM users WHERE lower(email) = lower(%s) LIMIT 1", (email,))
         if cursor.fetchone():
-            return _error("Bu e-posta ile kayitli bir kullanici zaten var", 409)
+            return _error("Bu e-posta ile kayıtlı bir kullanıcı zaten var", 409)
         if phone:
             cursor.execute("SELECT id FROM users WHERE phone = %s LIMIT 1", (phone,))
             if cursor.fetchone():
-                return _error("Bu telefon numarasi baska bir kullanicida kayitli", 409)
+                return _error("Bu telefon numarası başka bir kullanıcıda kayıtlı", 409)
         firma_adi = _firm_name(cursor, firm_id)
         if firma_adi is None:
-            return _error("Gecersiz firma secimi", 400)
+            return _error("Geçersiz firma seçimi", 400)
 
         cursor.execute(
             """
@@ -353,7 +353,7 @@ def create_personnel(payload: Dict[str, Any], admin: Dict[str, Any]) -> Dict[str
         }
     except psycopg2.IntegrityError:
         conn.rollback()
-        return _error("E-posta veya telefon baska bir kullanicida kayitli", 409)
+        return _error("E-posta veya telefon başka bir kullanıcıda kayıtlı", 409)
     finally:
         DatabaseConfig.return_connection(conn)
 
@@ -434,11 +434,11 @@ def update_personnel(personnel_id: str, payload: Dict[str, Any], admin: Dict[str
     if "firm_id" in updates:
         updates["firm_id"] = updates["firm_id"] or None
     if not updates:
-        return _error("Guncellenecek alan bulunamadi", 400)
+        return _error("Güncellenecek alan bulunamadı", 400)
     if updates.get("full_name") == "":
-        return _error("Ad soyad bos olamaz", 400)
+        return _error("Ad soyad boş olamaz", 400)
     if updates.get("city") == "" or updates.get("district") == "":
-        return _error("Il ve ilce bos olamaz", 400)
+        return _error("İl ve ilçe boş olamaz", 400)
     if "phone" in updates and updates["phone"] == "":
         updates["phone"] = None
 
@@ -446,7 +446,7 @@ def update_personnel(personnel_id: str, payload: Dict[str, Any], admin: Dict[str
     if "city" in updates:
         location = _resolve_location(updates["city"])
         if not location:
-            return _error("Gecersiz il. Lutfen listeden bir il secin", 400)
+            return _error("Geçersiz il. Lütfen listeden bir il seçin", 400)
         updates["city"] = location["city"]
         updates["il_id"] = location["il_id"]
         updates["region_id"] = location["region_id"]
@@ -457,16 +457,16 @@ def update_personnel(personnel_id: str, payload: Dict[str, Any], admin: Dict[str
         cursor = conn.cursor()
         personnel = _get_personnel(cursor, personnel_id)
         if not personnel:
-            return _error("Personel bulunamadi", 404)
+            return _error("Personel bulunamadı", 404)
         user_id = personnel["id"]
         email = personnel.get("email")
 
         if "firm_id" in updates and _firm_name(cursor, updates["firm_id"]) is None:
-            return _error("Gecersiz firma secimi", 400)
+            return _error("Geçersiz firma seçimi", 400)
         if updates.get("phone"):
             cursor.execute("SELECT id FROM users WHERE phone = %s AND id <> %s LIMIT 1", (updates["phone"], user_id))
             if cursor.fetchone():
-                return _error("Bu telefon numarasi baska bir kullanicida kayitli", 409)
+                return _error("Bu telefon numarası başka bir kullanıcıda kayıtlı", 409)
 
         assignments = ", ".join(f"{key} = %s" for key in updates)
         cursor.execute(
@@ -497,7 +497,7 @@ def update_personnel(personnel_id: str, payload: Dict[str, Any], admin: Dict[str
         return {"success": True, "personnel": _public_personnel({**personnel, **updates})}
     except psycopg2.IntegrityError:
         conn.rollback()
-        return _error("Telefon numarasi baska bir kullanicida kayitli", 409)
+        return _error("Telefon numarası başka bir kullanıcıda kayıtlı", 409)
     finally:
         DatabaseConfig.return_connection(conn)
 
@@ -515,7 +515,7 @@ def deactivate_personnel(personnel_id: str, reason: str, admin: Dict[str, Any]) 
         cursor = conn.cursor()
         personnel = _get_personnel(cursor, personnel_id)
         if not personnel:
-            return _error("Personel bulunamadi", 404)
+            return _error("Personel bulunamadı", 404)
         user_id = personnel["id"]
         email = personnel.get("email")
         cursor.execute("UPDATE users SET is_active = 0 WHERE id = %s", (user_id,))
@@ -552,7 +552,7 @@ def activate_personnel(personnel_id: str, admin: Dict[str, Any]) -> Dict[str, An
         cursor = conn.cursor()
         personnel = _get_personnel(cursor, personnel_id)
         if not personnel:
-            return _error("Personel bulunamadi", 404)
+            return _error("Personel bulunamadı", 404)
         user_id = personnel["id"]
         email = personnel.get("email")
         cursor.execute("UPDATE users SET is_active = 1 WHERE id = %s", (user_id,))
@@ -582,7 +582,7 @@ def delete_personnel(personnel_id: str, admin: Dict[str, Any], reason: Optional[
         cursor = conn.cursor()
         personnel = _get_personnel(cursor, personnel_id)
         if not personnel:
-            return _error("Personel bulunamadi", 404)
+            return _error("Personel bulunamadı", 404)
         user_id = personnel["id"]
         email = personnel.get("email")
         note = (reason or "").strip() or "Personel sistemden cikarildi"
@@ -614,14 +614,14 @@ def delete_personnel(personnel_id: str, admin: Dict[str, Any], reason: Optional[
 
 def reset_personnel_password(personnel_id: str, new_password: str, admin: Dict[str, Any]) -> Dict[str, Any]:
     if len(new_password or "") < MIN_PASSWORD_LENGTH:
-        return _error(f"Yeni sifre en az {MIN_PASSWORD_LENGTH} karakter olmali", 400)
+        return _error(f"Yeni şifre en az {MIN_PASSWORD_LENGTH} karakter olmalı", 400)
     _ensure_schema()
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
         personnel = _get_personnel(cursor, personnel_id)
         if not personnel:
-            return _error("Personel bulunamadi", 404)
+            return _error("Personel bulunamadı", 404)
         user_id = personnel["id"]
         email = personnel.get("email")
         cursor.execute(
@@ -653,9 +653,9 @@ def set_duty(personnel_id: str, on_duty: bool, actor: Dict[str, Any], by_admin: 
         cursor = conn.cursor()
         personnel = _get_personnel(cursor, personnel_id)
         if not personnel:
-            return _error("Personel bulunamadi", 404)
+            return _error("Personel bulunamadı", 404)
         if not _is_active_value(personnel.get("is_active")):
-            return _error("Hesabi pasif personelin gorev durumu degistirilemez", 409)
+            return _error("Hesabı pasif personelin görev durumu değiştirilemez", 409)
         on_duty = bool(on_duty)
         if (personnel.get("on_duty") is not False) != on_duty:
             cursor.execute(
@@ -689,7 +689,7 @@ def get_me(user: Dict[str, Any]) -> Dict[str, Any]:
         cursor = conn.cursor()
         rows = _personnel_rows(cursor, "AND u.id::text = %s", (str(user.get("id") or ""),))
         if not rows:
-            return _error("Personel kaydi bulunamadi", 404)
+            return _error("Personel kaydı bulunamadı", 404)
         return {"success": True, "personnel": _public_personnel(rows[0])}
     finally:
         DatabaseConfig.return_connection(conn)

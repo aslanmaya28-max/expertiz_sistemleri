@@ -162,7 +162,7 @@ def _saha(result: Dict[str, Any]) -> Dict[str, Any]:
 
 def get_personnel_user(user: Dict[str, Any] = Depends(get_authenticated_user)) -> Dict[str, Any]:
     if not dispatch_service.is_personnel(user):
-        raise HTTPException(status_code=403, detail="Bu islem sadece saha personeli icindir")
+        raise HTTPException(status_code=403, detail="Bu işlem sadece saha personeli içindir")
     return user
 
 
@@ -508,7 +508,7 @@ async def admin_invoice_export(
     try:
         rows = invoice_export.collect_rows(start, end)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Tarih formati YYYY-AA-GG olmali")
+        raise HTTPException(status_code=400, detail="Tarih formatı YYYY-AA-GG olmalı")
     filename = f"yerimebak_tahsilatlar_{start or 'bu-ay'}_{end or 'bugun'}.csv"
     return Response(
         content=invoice_export.to_csv(rows),

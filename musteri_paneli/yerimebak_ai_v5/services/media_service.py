@@ -249,18 +249,18 @@ def store_media(
 ) -> Dict[str, Any]:
     """Dosyayı seçili depoya yazar ve kaydını oluşturur. Commit çağırana aittir."""
     if category not in CATEGORIES:
-        return {"error": "Gecersiz dosya kategorisi", "http_status": 400}
+        return {"error": "Geçersiz dosya kategorisi", "http_status": 400}
     if section and section not in SECTIONS:
-        return {"error": "Gecersiz bolum", "http_status": 400}
+        return {"error": "Geçersiz bölüm", "http_status": 400}
     if not content:
-        return {"error": "Dosya bos", "http_status": 400}
+        return {"error": "Dosya boş", "http_status": 400}
     if len(content) > MAX_UPLOAD_BYTES:
         return {"error": f"Dosya en fazla {MAX_UPLOAD_BYTES // (1024 * 1024)} MB olabilir", "http_status": 413}
     content_type = detect_content_type(content[:16])
     if not content_type:
-        return {"error": "Sadece JPG, PNG, WEBP, HEIC fotograf veya PDF yuklenebilir", "http_status": 415}
+        return {"error": "Sadece JPG, PNG, WEBP, HEIC fotoğraf veya PDF yüklenebilir", "http_status": 415}
     if category == "inspection_photo" and not content_type.startswith("image/"):
-        return {"error": "Hasar kaydi icin fotograf yukleyin", "http_status": 415}
+        return {"error": "Hasar kaydı için fotoğraf yükleyin", "http_status": 415}
 
     media_id = str(uuid.uuid4())
     file_name = f"{media_id}{_EXTENSIONS[content_type]}"
@@ -323,9 +323,9 @@ def open_media(media_id: str, expires_at: int, signature: str) -> Dict[str, Any]
     try:
         uuid.UUID(str(media_id))
     except ValueError:
-        return {"error": "Dosya bulunamadi", "http_status": 404}
+        return {"error": "Dosya bulunamadı", "http_status": 404}
     if not verify_signature(str(media_id), int(expires_at or 0), signature or ""):
-        return {"error": "Baglantinin suresi dolmus veya gecersiz", "http_status": 403}
+        return {"error": "Bağlantının süresi dolmuş veya geçersiz", "http_status": 403}
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
@@ -337,7 +337,7 @@ def open_media(media_id: str, expires_at: int, signature: str) -> Dict[str, Any]
     finally:
         DatabaseConfig.return_connection(conn)
     if not row:
-        return {"error": "Dosya bulunamadi", "http_status": 404}
+        return {"error": "Dosya bulunamadı", "http_status": 404}
     row = dict(row)
     if row.get("archived_at"):
         return {"error": "Dosya arşivlendi", "http_status": 410}
@@ -347,7 +347,7 @@ def open_media(media_id: str, expires_at: int, signature: str) -> Dict[str, Any]
         else:
             path = media_root() / str(row["report_id"]) / str(row["file_name"])
             if not path.is_file():
-                return {"error": "Dosya bulunamadi", "http_status": 404}
+                return {"error": "Dosya bulunamadı", "http_status": 404}
             stored_file = {"path": str(path)}
     except _MediaStorageError:
         return {"error": "Dosya depolama hizmetinden okunamadı. Lütfen tekrar deneyin.", "http_status": 502}

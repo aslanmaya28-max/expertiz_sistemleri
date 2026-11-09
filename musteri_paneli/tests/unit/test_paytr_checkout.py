@@ -4,6 +4,7 @@ import hmac
 import json
 import os
 import unittest
+import pytest
 from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -90,6 +91,28 @@ class ProductionSafetyTests(unittest.TestCase):
             {(v["price"], v["credits"]) for v in CREDIT_PACKAGES.values()},
             {(100, 1), (400, 5), (750, 10)},
         )
+
+
+@pytest.mark.parametrize("prefix", ["CR", "EX"])
+@pytest.mark.parametrize("stored,shown", [
+    ("Odeme basarisiz", "Ödeme başarısız"),
+    ("Simulasyon", "Simülasyon"),
+    (None, None),
+    ("Iade tutari hatali", "Iade tutari hatali"),  # Sağlayıcının serbest yanıtı değişmez.
+    ("Odeme basarisiz: banka reddetti", "Odeme basarisiz: banka reddetti"),
+])
+def test_odeme_hatasi_yalniz_sunumda_duzelir_kayit_korunur(prefix, stored, shown):
+    row = {"id": "039", "status": "failed", "payment_status": "failed", "credits": 5,
+           "amount_tl": 500, "total_tl": 6000, "failed_reason": stored}
+    conn = MagicMock()
+    conn.cursor.return_value.fetchone.side_effect = [row, {"credits": 2}]
+    with patch.object(checkout_service, "ensure_schema"), \
+         patch.object(checkout_service.DatabaseConfig, "get_connection", return_value=conn), \
+         patch.object(checkout_service.DatabaseConfig, "return_connection"):
+        result = checkout_service.get_order_status(prefix + "039", {"id": 39})
+    assert result["failed_reason"] == shown
+    assert row["failed_reason"] == stored
+    assert result["status"] == "failed"
 
 
 class InflationProjectionTests(unittest.TestCase):

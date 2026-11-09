@@ -116,11 +116,11 @@ def _start_credit_purchase(user: Dict[str, Any], package_key: str, user_ip: str,
     ensure_schema()
     pkg = CREDIT_PACKAGES.get(package_key)
     if not pkg:
-        return _error(f"Gecersiz paket. Gecerli paketler: {', '.join(CREDIT_PACKAGES)}")
+        return _error(f"Geçersiz paket. Geçerli paketler: {', '.join(CREDIT_PACKAGES)}")
     if not user.get("email"):
-        return _error("Odeme icin hesabinizda e-posta adresi olmali")
+        return _error("Ödeme için hesabınızda e-posta adresi olmalı")
     if not contract_accepted:
-        return _error("Ön Bilgilendirme Formu ve Mesafeli Satış Sözleşmesi onaylanmalidir")
+        return _error("Ön Bilgilendirme Formu ve Mesafeli Satış Sözleşmesi onaylanmalıdır")
 
     oid = _new_oid(CREDIT_PREFIX)
     _record_contract(user, oid, user_ip)
@@ -223,7 +223,7 @@ def _clean_vehicle(raw: Any) -> Dict[str, Any]:
 def quote_expertiz(firm_id: str, package_id: str) -> Dict[str, Any]:
     selected = pricing_service.find_package(firm_id, package_id)
     if not selected:
-        return _error("Gecersiz veya artik sunulmayan ekspertiz firma/paket secimi")
+        return _error("Geçersiz veya artık sunulmayan ekspertiz firma/paket seçimi")
     fee = pricing_service.get_service_fee_tl()
     package_price = float(selected["package"]["price"])
     totals = pricing_service.expertiz_totals(fee, package_price)
@@ -240,14 +240,14 @@ def _start_expertiz_checkout(payload: Dict[str, Any], user: Dict[str, Any], user
     ensure_schema()
     vehicle = _clean_vehicle(payload.get("vehicle"))
     if not payload.get("listing_id") and not payload.get("listing_url") and not (vehicle.get("brand") and vehicle.get("model")):
-        return _error("Arac icin ilan linki paylasin veya marka/model bilgilerini girin")
+        return _error("Araç için ilan linki paylaşın veya marka/model bilgilerini girin")
     if not user.get("email"):
-        return _error("Odeme icin hesabinizda e-posta adresi olmali")
+        return _error("Ödeme için hesabınızda e-posta adresi olmalı")
     # Talep, aracin bulundugu il/ilcedeki gorev icin aktif personele yonlendirilir
     if not str(payload.get("city") or "").strip() or not str(payload.get("district") or "").strip():
-        return _error("Aracin bulundugu il ve ilce zorunludur")
+        return _error("Aracın bulunduğu il ve ilçe zorunludur")
     if not payload.get("contract_accepted"):
-        return _error("Ön Bilgilendirme Formu ve Mesafeli Satış Sözleşmesi onaylanmalidir")
+        return _error("Ön Bilgilendirme Formu ve Mesafeli Satış Sözleşmesi onaylanmalıdır")
     from yerimebak_ai_v5.services import service_area
     ekler, hata = service_area.talep_dogrula(payload, user)
     if hata:
@@ -466,12 +466,18 @@ def handle_paytr_callback(form: Dict[str, Any]) -> bool:
 def simulate_payment(oid: str, user: Dict[str, Any], success: bool = True) -> Dict[str, Any]:
     """Sadece PAYMENT_SIMULATION=true iken: musteri kendi siparisini 'oder'."""
     if not paytr_service.simulation_enabled():
-        return _error("Odeme simulasyonu kapali", 403)
+        return _error("Ödeme simülasyonu kapalı", 403)
     status = get_order_status(oid, user)
     if "error" in status:
         return status
     complete_payment(oid, success=success, total_kurus=None, reason="Simulasyon")
     return get_order_status(oid, user)
+
+
+def _public_failure_reason(reason: Optional[str]) -> Optional[str]:
+    # Kalıcı eski değerleri değiştirmeden yalnız müşteri sunumunu düzeltir.
+    # PayTR'nin serbest hata açıklamaları aynen korunur.
+    return {"Odeme basarisiz": "Ödeme başarısız", "Simulasyon": "Simülasyon"}.get(reason, reason)
 
 
 def get_order_status(oid: str, user: Dict[str, Any]) -> Dict[str, Any]:
@@ -483,7 +489,7 @@ def get_order_status(oid: str, user: Dict[str, Any]) -> Dict[str, Any]:
             cursor.execute("SELECT * FROM payment_orders WHERE paytr_oid = %s AND user_id = %s", (oid, user.get("id")))
             row = cursor.fetchone()
             if not row:
-                return _error("Siparis bulunamadi", 404)
+                return _error("Sipariş bulunamadı", 404)
             row = dict(row)
             cursor.execute("SELECT credits FROM users WHERE id = %s", (user.get("id"),))
             balance = cursor.fetchone()
@@ -491,18 +497,18 @@ def get_order_status(oid: str, user: Dict[str, Any]) -> Dict[str, Any]:
             return {"success": True, "order_id": oid, "kind": "credits", "status": state,
                     "credits": row["credits"], "amount_tl": float(row["amount_tl"]),
                     "credit_balance": dict(balance)["credits"] if balance else None,
-                    "failed_reason": row.get("failed_reason")}
+                    "failed_reason": _public_failure_reason(row.get("failed_reason"))}
         if oid.startswith(EXPERTIZ_PREFIX):
             cursor.execute("SELECT * FROM expertiz_requests WHERE paytr_oid = %s AND user_id = %s", (oid, str(user.get("id"))))
             row = cursor.fetchone()
             if not row:
-                return _error("Siparis bulunamadi", 404)
+                return _error("Sipariş bulunamadı", 404)
             row = dict(row)
             state = {"paid": "paid", "pending": "pending"}.get(row["payment_status"], "failed")
             return {"success": True, "order_id": oid, "kind": "expertiz", "status": state,
                     "request_id": row["id"], "amount_tl": float(row["total_tl"] or 0),
                     "firm_name": row.get("firm_name"), "package_name": row.get("package_name"),
-                    "failed_reason": row.get("failed_reason")}
-        return _error("Siparis bulunamadi", 404)
+                    "failed_reason": _public_failure_reason(row.get("failed_reason"))}
+        return _error("Sipariş bulunamadı", 404)
     finally:
         DatabaseConfig.return_connection(conn)
