@@ -62,7 +62,17 @@ def test_listing_link_does_not_replace_required_manual_brand_model(monkeypatch):
     database.assert_not_called()
 
 
+def _kontroller_gecer(monkeypatch):
+    from yerimebak_ai_v5.services import service_area
+    monkeypatch.setattr(service_area, 'test_yetkisi_var_mi', lambda user: True)
+    monkeypatch.setattr(service_area, 'talep_dogrula', lambda payload, user: (
+        {'city': 'İstanbul', 'randevu': {'tarih_saat': '2026-12-01T10:00', 'adres': 'Moda Cad. No 10',
+                                         'satici_adi': '', 'satici_telefon': '05321112233'},
+         'bulunamama_onayi': True}, None))
+
+
 def test_unpaid_request_enters_queue_without_payment(monkeypatch):
+    _kontroller_gecer(monkeypatch)
     conn = MagicMock()
     cursor = conn.cursor.return_value
     monkeypatch.setattr(expertiz_service.DatabaseConfig, 'get_connection', lambda: conn)
@@ -89,6 +99,7 @@ def test_unpaid_request_enters_queue_without_payment(monkeypatch):
     assert report.call_args.kwargs['request_id'] == result['request_id']
     assert report.call_args.kwargs['payload']['listing_url'] == 'https://www.sahibinden.com/ilan/test-1347633467/detay'
     assert report.call_args.kwargs['payload']['vehicle'] == {'brand': 'Ford', 'model': 'Focus'}
+    assert report.call_args.kwargs['payload']['randevu']['satici_telefon'] == '05321112233'
     notify.assert_called_once()
     conn.commit.assert_called_once()
     assert cursor.execute.called
@@ -121,6 +132,7 @@ def test_unpaid_report_is_not_marked_paid(monkeypatch):
 
 
 def test_unpaid_request_rolls_back_when_report_creation_fails(monkeypatch):
+    _kontroller_gecer(monkeypatch)
     conn = MagicMock()
     monkeypatch.setattr(expertiz_service.DatabaseConfig, 'get_connection', lambda: conn)
     monkeypatch.setattr(expertiz_service.DatabaseConfig, 'return_connection', lambda _: None)

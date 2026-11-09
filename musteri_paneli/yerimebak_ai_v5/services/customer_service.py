@@ -29,6 +29,7 @@ def _public_customer(row: Dict[str, Any]) -> Dict[str, Any]:
         "phone": row.get("phone") or "",
         "credits": int(row.get("credits") or 0),
         "is_active": bool(row.get("is_active", 1)),
+        "tester": bool(row.get("is_tester")),
         "created_at": str(row["created_at"]) if row.get("created_at") else None,
         "last_login": str(row["last_login"]) if row.get("last_login") else None,
         "request_count": int(row.get("request_count") or 0),
@@ -53,7 +54,7 @@ def list_customers(search: Optional[str] = None, limit: int = 200) -> Dict[str, 
         _ensure_expertiz_requests_schema(cursor)
         cursor.execute(
             f"""
-            SELECT u.id, u.email, u.full_name, u.phone, u.credits, u.is_active,
+            SELECT u.id, u.email, u.full_name, u.phone, u.credits, u.is_active, u.is_tester,
                    u.created_at, u.last_login,
                    COUNT(q.id) FILTER (WHERE coalesce(q.status, '') <> 'Iptal' AND q.payment_status IN ('paid', 'paid_simulation')) AS request_count,
                    COALESCE(SUM(q.total_tl) FILTER (WHERE coalesce(q.status, '') <> 'Iptal' AND q.payment_status IN ('paid', 'paid_simulation')), 0) AS total_spent_tl,

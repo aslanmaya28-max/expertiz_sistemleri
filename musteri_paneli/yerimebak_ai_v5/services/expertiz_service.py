@@ -261,12 +261,20 @@ def create_unpaid_request(payload: Dict[str, Any], user: Dict[str, Any]) -> Dict
     """Talebi tahsilat yapmadan yonetici atama kuyruguna ekler."""
     from yerimebak_ai_v5.services import checkout_service, notification_service
 
+    from yerimebak_ai_v5.services import service_area
+
     vehicle = checkout_service._clean_vehicle(payload.get("vehicle"))
     listing_url = str(payload.get("listing_url") or "").strip()[:500]
     if not vehicle.get("brand") or not vehicle.get("model"):
         return {"error": "Aracin marka ve model bilgileri zorunludur"}
     if not str(payload.get("city") or "").strip() or not str(payload.get("district") or "").strip():
         return {"error": "Aracin bulundugu il ve ilce zorunludur"}
+    # Ödemesiz talep yalnız test içindir (sözleşme 2026-11-09 bölüm 5): müşteri PayTR ile öder.
+    if not service_area.test_yetkisi_var_mi(user):
+        return {"error": "Talep ödeme adımıyla oluşturulur", "http_status": 403, "code": "odemesiz_talep_yetkisi_yok"}
+    ekler, hata = service_area.talep_dogrula(payload, user)
+    if hata:
+        return hata
     quote = checkout_service.quote_expertiz(str(payload.get("firm_id") or ""), str(payload.get("package_id") or ""))
     if "error" in quote:
         return quote
@@ -277,9 +285,10 @@ def create_unpaid_request(payload: Dict[str, Any], user: Dict[str, Any]) -> Dict
         "firm_id": selected["firm"]["id"], "package_id": selected["package"]["id"],
         "listing_id": payload.get("listing_id"), "listing_url": listing_url,
         "plate": str(payload.get("plate") or "").strip()[:20],
-        "city": str(payload.get("city") or "").strip()[:80],
+        "city": ekler["city"],
         "district": str(payload.get("district") or "").strip()[:80],
         "note": str(payload.get("note") or "").strip()[:1000], "vehicle": vehicle,
+        "randevu": ekler["randevu"], "bulunamama_onayi": True,
     }
     snapshot = {"payload": clean, "selected": selected, "totals": totals,
                 "user": {k: user.get(k) for k in ("id", "email", "full_name", "phone")}}
@@ -351,6 +360,8 @@ def _upsert_report_from_request(
         "expertiz_package_id": selected["package"]["id"],
         "firm_id": selected["firm"]["id"],
         "note": payload.get("note") or "",
+        "randevu": payload.get("randevu") or None,
+        "bulunamama_onayi": bool(payload.get("bulunamama_onayi")),
         "talep": {
             "id": request_id,
             "musteriAdi": user.get("full_name") or user.get("email") or "YerimeBak Musteri",
@@ -371,6 +382,8 @@ def _upsert_report_from_request(
             "toplamTutar": totals["total_tl"],
             "hasarTutar": 0.0,
             "isPaid": payment_status in ("paid", "paid_simulation"),
+            "randevu": payload.get("randevu") or None,
+            "bulunamamaOnayi": bool(payload.get("bulunamama_onayi")),
         },
         "vehicle_snapshot": {
             "listing_id": payload.get("listing_id"),
@@ -458,6 +471,8 @@ def _public_request(row: Dict[str, Any]) -> Dict[str, Any]:
         "updated_at": row.get("updated_at") or row.get("status_updated_at"),
         "vehicle": vehicle,
         "progress": _customer_progress(row, data),
+        "randevu": data.get("randevu") or (talep or {}).get("randevu"),
+        "durum_kodu": data.get("durum_kodu") or None,
     }
 
 

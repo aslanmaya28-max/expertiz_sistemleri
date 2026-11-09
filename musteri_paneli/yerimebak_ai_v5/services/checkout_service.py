@@ -248,6 +248,10 @@ def _start_expertiz_checkout(payload: Dict[str, Any], user: Dict[str, Any], user
         return _error("Aracin bulundugu il ve ilce zorunludur")
     if not payload.get("contract_accepted"):
         return _error("Ön Bilgilendirme Formu ve Mesafeli Satış Sözleşmesi onaylanmalidir")
+    from yerimebak_ai_v5.services import service_area
+    ekler, hata = service_area.talep_dogrula(payload, user)
+    if hata:
+        return hata
 
     quote = quote_expertiz(str(payload.get("firm_id") or ""), str(payload.get("package_id") or ""))
     if "error" in quote:
@@ -264,10 +268,12 @@ def _start_expertiz_checkout(payload: Dict[str, Any], user: Dict[str, Any], user
         "listing_id": payload.get("listing_id"),
         "listing_url": (payload.get("listing_url") or "").strip()[:500],
         "plate": (payload.get("plate") or "").strip()[:20],
-        "city": (payload.get("city") or "").strip()[:80],
+        "city": ekler["city"],
         "district": (payload.get("district") or "").strip()[:80],
         "note": (payload.get("note") or "").strip()[:1000],
         "vehicle": vehicle,
+        "randevu": ekler["randevu"],
+        "bulunamama_onayi": True,
     }
     snapshot = {
         "payload": clean_payload,

@@ -219,6 +219,10 @@ def _admin_request(row: Dict[str, Any]) -> Dict[str, Any]:
         "is_paid": bool(row.get("odendi_mi")),
         "payment_status": row.get("payment_status") or data.get("payment_status"),
         "note": data.get("note") or "",
+        # Randevu (müşteri satıcıyla ayarlar) — yönetici ve atanan saha personeli görür (sözleşme 2026-11-09)
+        "randevu": data.get("randevu") or talep.get("randevu"),
+        "durum_kodu": data.get("durum_kodu") or None,
+        "firm_id": data.get("firm_id") or "",
         "corporate_required": corporate["required"],
         "stage": stage,
         "stage_label": task_progress.STAGE_LABELS.get(stage, stage),

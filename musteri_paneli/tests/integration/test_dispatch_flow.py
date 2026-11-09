@@ -36,6 +36,8 @@ def client():
     os.environ["AI_WORKER_ENABLED"] = "false"
     # Odeme, PayTR yerine test simulasyonuyla tamamlanir
     os.environ["PAYMENT_SIMULATION"] = "true"
+    # Yerinde ekspertiz (sözleşme 2026-11-09): genel anahtar açık; iller aşağıda açılır
+    os.environ["APP_EXPERTIZ_ENABLED"] = "true"
 
     import psycopg2
 
@@ -63,7 +65,30 @@ def client():
     manual_market._schema_ready = False
 
     with TestClient(app, base_url="http://localhost") as test_client:
+        from psycopg2.extras import Json
+        from yerimebak_ai_v5.services import service_area
+        seed = psycopg2.connect(TEST_DB)
+        seed.autocommit = True
+        with seed.cursor() as cur:
+            cur.execute("INSERT INTO system_settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+                        (service_area.SETTING_KEY, Json({il: "acik" for il in service_area.ILLER})))
+        seed.close()
         yield test_client
+
+
+def _randevu(**ek):
+    """Talep formunun randevu alanları (sözleşme 2026-11-09 bölüm 2)."""
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+    zaman = (datetime.now(ZoneInfo("Europe/Istanbul")) + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M")
+    return {"appointment_at": zaman, "address": "Caferağa Mah. Moda Cad. No: 10 önü", "seller_name": "Satıcı Bey",
+            "seller_phone": "0532 111 22 33", "not_found_accepted": True, **ek}
+
+
+def _tester_yap(client, admin_token, token):
+    uid = client.get("/api/v1/auth/me", headers=_auth(token)).json()["user"]["id"]
+    r = client.post(f"/api/v1/expertiz/admin/customers/{uid}/tester", headers=_auth(admin_token), json={"tester": True})
+    assert r.status_code == 200, r.text
 
 
 def _auth(token):
@@ -197,6 +222,7 @@ def _create_paid_request(client, token, plate, city, note=None, package_index=0,
         "firm_id": firm["id"], "package_id": package["id"], "plate": plate, "city": city, "district": district,
         "contract_accepted": True,
         "vehicle": vehicle or {"brand": "Fiat", "model": "Egea", "year": 2020, "km": 60000, "price": 850000},
+        **_randevu(),
     }
     if note:
         body["note"] = note
@@ -568,9 +594,11 @@ def test_unpaid_customer_to_staff_to_approved_customer_report(client, admin_toke
     catalog = client.get('/api/v1/expertiz/packages').json()
     firm = catalog['firms'][0]
     package = firm['packages'][0]
+    _tester_yap(client, admin_token, customer_token)
     created = client.post('/api/v1/expertiz/requests/unpaid', headers=_auth(customer_token), json={
         'firm_id': firm['id'], 'package_id': package['id'], 'city': 'İstanbul', 'district': 'Kadıköy',
         'plate': '34 TEST 01', 'vehicle': {'brand': 'Fiat', 'model': 'Egea', 'year': 2021, 'km': 45000},
+        **_randevu(),
     })
     assert created.status_code == 200, created.text
     assert created.json()['payment_status'] == 'not_collected'
@@ -1049,11 +1077,13 @@ def test_link_request_saved_listing_and_comparables_valuation(client, admin_toke
     person = _create_personnel(client, admin_token, "emsal@yerimebak.test", "İstanbul", "Üsküdar", "Emsal Personel")
     staff = _login(client, "emsal@yerimebak.test", "Personel123")
     firm = client.get("/api/v1/expertiz/packages").json()["firms"][0]
+    _tester_yap(client, admin_token, customer_token)
     created = client.post("/api/v1/expertiz/requests/unpaid", headers=_auth(customer_token), json={
         "firm_id": firm["id"], "package_id": firm["packages"][0]["id"],
         "city": "İstanbul", "district": "Üsküdar", "listing_url": link,
         # Musteri formu marka/modeli ister; fiyat, km ve satici beyani kaydedilmis ilandan gelir
         "vehicle": {"brand": "Renault", "model": "Clio"},
+        **_randevu(),
     })
     assert created.status_code == 200, created.text
     report_id = created.json()["request_id"]

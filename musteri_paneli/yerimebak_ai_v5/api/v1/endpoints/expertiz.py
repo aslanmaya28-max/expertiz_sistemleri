@@ -12,7 +12,7 @@ from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, StrictInt
 
-from yerimebak_ai_v5.api.v1.endpoints.auth import get_admin_user, get_authenticated_user
+from yerimebak_ai_v5.api.v1.endpoints.auth import get_admin_user, get_authenticated_user, get_current_user_optional
 from yerimebak_ai_v5.services import (
     checkout_service,
     customer_service,
@@ -54,6 +54,12 @@ class CreateExpertizRequest(BaseModel):
     vehicle: Optional[Dict[str, Any]] = None
     # On Bilgilendirme Formu + Mesafeli Satis Sozlesmesi onayi (zorunlu)
     contract_accepted: bool = False
+    # Randevu (müşteri satıcıyla ayarlar) ve araç bulunamama onayı — sözleşme 2026-11-09 bölüm 2
+    appointment_at: Optional[str] = None
+    address: Optional[str] = None
+    seller_name: Optional[str] = None
+    seller_phone: Optional[str] = None
+    not_found_accepted: bool = False
 
 
 class PricingSettingsRequest(BaseModel):
@@ -134,7 +140,9 @@ class TaskReportPayload(BaseModel):
 
 def _raise_if_error(result: Dict[str, Any]) -> Dict[str, Any]:
     if "error" in result:
-        raise HTTPException(status_code=int(result.get("http_status") or 400), detail=result["error"])
+        # Kodlu hatalar {"message", "code"} döner: formlar alanın altında gösterir (sözleşme 2026-11-09).
+        detail: Any = {"message": result["error"], "code": result["code"]} if result.get("code") else result["error"]
+        raise HTTPException(status_code=int(result.get("http_status") or 400), detail=detail)
     return result
 
 
@@ -363,6 +371,49 @@ async def admin_set_customer_status(
     return _raise_if_error(
         customer_service.set_customer_active(customer_id, payload.active, payload.reason or "", admin)
     )
+
+
+class TesterRequest(BaseModel):
+    tester: bool
+
+
+class ServiceAreaRequest(BaseModel):
+    cities: list
+
+
+@router.post("/admin/customers/{customer_id}/tester")
+async def admin_set_customer_tester(
+    customer_id: int,
+    payload: TesterRequest,
+    admin: Dict[str, Any] = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    """Test kullanıcısı: 'test' durumundaki illerde ve genel anahtar kapalıyken talep açabilir."""
+    from yerimebak_ai_v5.services import service_area
+    return _raise_if_error(await run_in_threadpool(service_area.test_kullanicisi_yap, customer_id, payload.tester))
+
+
+# ---------------------------------------------------------------------------
+# Hizmet bölgesi: il başına acik / test / kapali (sözleşme 2026-11-09 bölüm 1)
+# ---------------------------------------------------------------------------
+
+@router.get("/service-area")
+async def service_area_public(user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)) -> Dict[str, Any]:
+    from yerimebak_ai_v5.services import service_area
+    return await run_in_threadpool(service_area.bolge_durumu, user)
+
+
+@router.get("/admin/service-area")
+async def service_area_admin(admin: Dict[str, Any] = Depends(get_admin_user)) -> Dict[str, Any]:
+    from yerimebak_ai_v5.services import service_area
+    return await run_in_threadpool(service_area.bolge_durumu, admin)
+
+
+@router.put("/admin/service-area")
+async def service_area_update(
+    payload: ServiceAreaRequest, admin: Dict[str, Any] = Depends(get_admin_user)
+) -> Dict[str, Any]:
+    from yerimebak_ai_v5.services import service_area
+    return _raise_if_error(await run_in_threadpool(service_area.bolgeleri_guncelle, payload.model_dump(), admin))
 
 
 # ---------------------------------------------------------------------------

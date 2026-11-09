@@ -101,6 +101,14 @@ async def lifespan(app: FastAPI):
         account_service.ensure_schema()
         from yerimebak_ai_v5.services import google_play_service
         google_play_service.ensure_schema()
+        # Yerinde ekspertiz: test kullanıcısı sütunu (istek sırasında DDL yapılmaz)
+        from yerimebak_ai_v5.services import service_area
+        _conn = DatabaseConfig.get_connection()
+        try:
+            service_area.ensure_schema(_conn.cursor())
+            _conn.commit()
+        finally:
+            DatabaseConfig.return_connection(_conn)
         google_play_service.warn_simulation_config()
         # Ilk admin (.env: INITIAL_ADMIN_EMAIL / INITIAL_ADMIN_PASSWORD); varsa dokunulmaz
         from yerimebak_ai_v5.services.auth_service import get_auth_service
