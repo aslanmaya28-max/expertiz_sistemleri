@@ -1,0 +1,65 @@
+[
+  {
+    "file": "ekranlar/01-ana.png",
+    "width": 1080,
+    "height": 1920,
+    "bytes": 139946,
+    "sha256": "21111fe70ff6746de97a851a3e9294ba0237a46040594bcc5b599bcfc6f84fd1"
+  },
+  {
+    "file": "ekranlar/02-ilan-okuma.png",
+    "width": 1080,
+    "height": 1920,
+    "bytes": 80447,
+    "sha256": "ce5f0b3de69e28d6c501d0ab1b454cce2797a28ec525ddc36676937439a8a48b"
+  },
+  {
+    "file": "ekranlar/03-rapor-basi.png",
+    "width": 1080,
+    "height": 1920,
+    "bytes": 188491,
+    "sha256": "999e6f89ba444127fea5e1d15f609a4a7a216bf14782674f85e6f0fc4a09c3fa"
+  },
+  {
+    "file": "ekranlar/04-fiyat-ve-pazarlik.png",
+    "width": 1080,
+    "height": 1920,
+    "bytes": 230128,
+    "sha256": "40e0588e59464ea6610c8f4d30266eedd72ef7f270e1a233af510e81e2409802"
+  },
+  {
+    "file": "ekranlar/05-satici-mesaji.png",
+    "width": 1080,
+    "height": 1920,
+    "bytes": 230909,
+    "sha256": "ef0b7568215a408ae954ad27ca610585c8e85bd85edc58758ca22d1f5cd01e7c"
+  },
+  {
+    "file": "ekranlar/06-enflasyon.png",
+    "width": 1080,
+    "height": 1920,
+    "bytes": 238220,
+    "sha256": "057db3c8c2f287cf1aa91f0322dd1bc1ddeb619cd35e6dea45236c434544f341"
+  },
+  {
+    "file": "ekranlar/07-model-riskleri.png",
+    "width": 1080,
+    "height": 1920,
+    "bytes": 238961,
+    "sha256": "65ba99b509dee683618800c57828e4ba560d41ec683fbda30201d9b87bb4303d"
+  },
+  {
+    "file": "ekranlar/08-raporlarim.png",
+    "width": 1080,
+    "height": 1920,
+    "bytes": 54715,
+    "sha256": "1753122549180f086549c0e5760176aeec3b0ebd383bb1098b6b8f49e6c0f43d"
+  },
+  {
+    "file": "one-cikan-1024x500.png",
+    "width": 1024,
+    "height": 500,
+    "bytes": 156928,
+    "sha256": "8cf90df7cdac73a783235fb13c153a3d178344b01da624945e017b422e2b1efa"
+  }
+]
