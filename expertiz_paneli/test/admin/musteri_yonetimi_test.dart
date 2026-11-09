@@ -170,4 +170,29 @@ void main() {
     expect(gonderilen, {'active': false, 'reason': 'Sahte hesap'});
     expect(find.text('Müşteri durumu güncellendi'), findsOneWidget);
   });
+
+  testWidgets('test kullanıcısı: listede rozet, detayda anahtar (037)', (tester) async {
+    Map<String, dynamic>? gonderilen;
+    await tester.pumpWidget(_app(MockClient((request) async {
+      if (request.method == 'POST') {
+        expect(request.url.path, '/api/v1/expertiz/admin/customers/1/tester');
+        gonderilen = jsonDecode(request.body) as Map<String, dynamic>;
+        return _json({'success': true, 'tester': true});
+      }
+      if (request.url.path.endsWith('/1')) {
+        return _json({'customer': _musteri, 'requests': [], 'credit_movements': []});
+      }
+      return _json({'customers': [_musteri, {..._musteri, 'id': 2, 'full_name': 'Test Kişi', 'tester': true}], 'active': 2});
+    })));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('test-rozeti')), findsOneWidget);
+    await tester.tap(find.text('Ali Veli'));
+    await tester.pumpAndSettle();
+    final anahtar = find.byKey(const Key('test-kullanicisi'));
+    expect(tester.widget<SwitchListTile>(anahtar).value, isFalse);
+    await tester.tap(anahtar);
+    await tester.pumpAndSettle();
+    expect(gonderilen, {'tester': true});
+    expect(tester.widget<SwitchListTile>(anahtar).value, isTrue);
+  });
 }

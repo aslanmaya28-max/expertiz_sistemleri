@@ -6,6 +6,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import '../../services/yerimebak_expertiz_api_service.dart';
 
 import '../../core/constants/roles.dart';
 import '../../core/mappers/location_mapper.dart';
@@ -218,6 +219,19 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
   // Dialoglar
   // ---------------------------------------------------------------------------
 
+  /// Anlaşmalı firmalar (id → ad). Yüklenemezse boş: form yine firmasız seçenekle açılır.
+  Future<Map<String, String>> _firmalariGetir() async {
+    try {
+      final yanit = await YerimebakExpertizApiService().getAdminPricing();
+      return {
+        for (final f in (yanit['firms'] as List? ?? const []).whereType<Map>())
+          f['id'].toString(): f['name']?.toString() ?? f['id'].toString(),
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
   Future<void> _showPersonelDialog([PersonelModel? personel]) async {
     final isEdit = personel != null;
     final formKey = GlobalKey<FormState>();
@@ -233,6 +247,13 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
     }
     String selectedIlce = personel?.ilce ?? '';
     final ilIds = _ilIdsSortedByName;
+    // Firma: '' = firmasız (YerimeBak personeli). Liste yüklenemezse mevcut değer korunur.
+    String selectedFirmaId = personel?.firmaId ?? '';
+    final firmalar = await _firmalariGetir();
+    if (!mounted) return;
+    if (selectedFirmaId.isNotEmpty && !firmalar.containsKey(selectedFirmaId)) {
+      firmalar[selectedFirmaId] = personel?.firmaAdi ?? selectedFirmaId;
+    }
 
     final result = await showDialog<PersonelModel>(
       context: context,
@@ -318,6 +339,22 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
                           onChanged: (value) => setDialogState(() => selectedIlce = value ?? ''),
                         ),
                         const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          key: const Key('personel-firma'),
+                          initialValue: selectedFirmaId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Firma',
+                            helperText: 'Firma personeli yalnız kendi firmasının talebine atanır',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: [
+                            const DropdownMenuItem<String>(value: '', child: Text('Firmasız (YerimeBak personeli)')),
+                            for (final f in firmalar.entries) DropdownMenuItem<String>(value: f.key, child: Text(f.value)),
+                          ],
+                          onChanged: (value) => setDialogState(() => selectedFirmaId = value ?? ''),
+                        ),
+                        const SizedBox(height: 12),
                         TextFormField(
                           controller: expertiseController,
                           decoration: const InputDecoration(labelText: 'Uzmanlık (ör. Kaporta, Mekanik)'),
@@ -367,6 +404,9 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
                         ilce: selectedIlce,
                         bolge: _locationMapper.getBolgeAdi(bolgeId),
                         uzmanlikAlani: expertise,
+                        gorevAktif: personel?.gorevAktif ?? true,
+                        firmaId: selectedFirmaId,
+                        firmaAdi: selectedFirmaId.isEmpty ? '' : firmalar[selectedFirmaId],
                       ),
                     );
                   },
@@ -983,6 +1023,7 @@ class _PersonnelTable extends StatelessWidget {
           DataColumn(label: Text('Bölge')),
           DataColumn(label: Text('Telefon')),
           DataColumn(label: Text('Uzmanlık')),
+          DataColumn(label: Text('Firma')),
           DataColumn(label: Text('Açık Görev'), numeric: true),
           DataColumn(label: Text('Görev')),
           DataColumn(label: Text('Hesap')),
@@ -1002,6 +1043,7 @@ class _PersonnelTable extends StatelessWidget {
             DataCell(Text(personel.bolge ?? '-')),
             DataCell(Text((personel.telefon ?? '').isEmpty ? '-' : personel.telefon!)),
             DataCell(Text((personel.uzmanlikAlani ?? '').isEmpty ? personel.unvan : personel.uzmanlikAlani!)),
+            DataCell(Text((personel.firmaAdi ?? '').isEmpty ? 'YerimeBak' : personel.firmaAdi!)),
             DataCell(Text('${openTaskCount(personel.id)}')),
             DataCell(Row(
               mainAxisSize: MainAxisSize.min,

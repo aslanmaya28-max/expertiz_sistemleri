@@ -102,6 +102,10 @@ class PersonelModel extends Equatable {
   /// Görev için aktif mi (hesap aktifliğinden ayrı). Pasif personele görev atanmaz.
   final bool gorevAktif;
 
+  /// Anlaşmalı firma (kurumsal firma modeli, 9 Kasım 2026). Boş/null: firmasız YerimeBak personeli.
+  final String? firmaId;
+  final String? firmaAdi;
+
   const PersonelModel({
     required this.id,
     required this.ad,
@@ -134,6 +138,8 @@ class PersonelModel extends Equatable {
     this.profilFotografUrl,
     this.kimlikFotografUrl,
     this.gorevAktif = true,
+    this.firmaId,
+    this.firmaAdi,
   });
 
   /// Create PersonelModel from Map
@@ -185,6 +191,8 @@ class PersonelModel extends Equatable {
       profilFotografUrl: map['profilFotografUrl']?.toString(),
       kimlikFotografUrl: map['kimlikFotografUrl']?.toString(),
       gorevAktif: map['gorevAktif'] as bool? ?? map['on_duty'] as bool? ?? true,
+      firmaId: (map['firmaId'] ?? map['firm_id'])?.toString(),
+      firmaAdi: (map['firmaAdi'] ?? map['firm_name'])?.toString(),
     );
   }
 
@@ -227,6 +235,8 @@ class PersonelModel extends Equatable {
       'profilFotografUrl': profilFotografUrl,
       'kimlikFotografUrl': kimlikFotografUrl,
       'gorevAktif': gorevAktif,
+      'firmaId': firmaId,
+      'firmaAdi': firmaAdi,
     };
   }
 
@@ -271,6 +281,8 @@ class PersonelModel extends Equatable {
     String? profilFotografUrl,
     String? kimlikFotografUrl,
     bool? gorevAktif,
+    String? firmaId,
+    String? firmaAdi,
   }) {
     return PersonelModel(
       id: id ?? this.id,
@@ -305,6 +317,8 @@ class PersonelModel extends Equatable {
       profilFotografUrl: profilFotografUrl ?? this.profilFotografUrl,
       kimlikFotografUrl: kimlikFotografUrl ?? this.kimlikFotografUrl,
       gorevAktif: gorevAktif ?? this.gorevAktif,
+      firmaId: firmaId ?? this.firmaId,
+      firmaAdi: firmaAdi ?? this.firmaAdi,
     );
   }
 
@@ -345,5 +359,6 @@ class PersonelModel extends Equatable {
         ortalamaPuan,
         profilFotografUrl,
         kimlikFotografUrl,
+        firmaId,
       ];
 }

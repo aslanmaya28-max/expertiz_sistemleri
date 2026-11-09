@@ -415,6 +415,51 @@ class YerimebakExpertizApiService {
   // Personel saha raporu, fotoğraflar, kurumsal rapor
   // ---------------------------------------------------------------------------
 
+  // ---------------------------------------------------------------------------
+  // Hizmet bölgesi, test kullanıcısı, kontrol merkezi, araç bulunamadı (037; sözleşme 2026-11-09)
+  // ---------------------------------------------------------------------------
+
+  Future<Map<String, dynamic>> getServiceArea() => _get('/expertiz/admin/service-area');
+
+  /// Yalnız değişen iller gönderilir: [{'il': 'Ankara', 'durum': 'test'}]
+  Future<Map<String, dynamic>> updateServiceArea(List<Map<String, String>> cities) {
+    return _put('/expertiz/admin/service-area', body: {'cities': cities});
+  }
+
+  Future<Map<String, dynamic>> setCustomerTester(int customerId, bool tester) {
+    return _post('/expertiz/admin/customers/$customerId/tester', body: {'tester': tester});
+  }
+
+  Future<Map<String, dynamic>> getControlCenter() => _get('/expertiz/control-center');
+
+  Future<Map<String, dynamic>> updateControlCenter({required String phone, String? hours}) {
+    return _put('/expertiz/admin/control-center', body: {'telefon': phone, 'calisma_saatleri': hours ?? ''});
+  }
+
+  Future<Map<String, dynamic>> getControlCenterTasks() => _get('/expertiz/admin/control-center/tasks');
+
+  Future<Map<String, dynamic>> getContactLog(String requestId) => _get('/expertiz/admin/requests/$requestId/contact-log');
+
+  /// [target]: musteri | satici | personel; [result]: ulasildi | ulasilamadi | mesaj_birakildi | baglandi
+  Future<Map<String, dynamic>> addContactLog(String requestId, {required String target, required String result, String? note}) {
+    return _post('/expertiz/admin/requests/$requestId/contact-log',
+        body: {'hedef': target, 'sonuc': result, 'note': (note ?? '').trim()});
+  }
+
+  Future<Map<String, dynamic>> notFoundRefund(String requestId, {required String reason}) {
+    return _post('/expertiz/admin/requests/$requestId/not-found-refund', body: {'reason': reason.trim()});
+  }
+
+  /// Saha: kontrol merkezine not (personel müşteriye/satıcıya doğrudan bağlanmaz).
+  Future<Map<String, dynamic>> sendControlNote(String taskId, String note) {
+    return _post('/expertiz/personnel/tasks/$taskId/control-note', body: {'note': note.trim()});
+  }
+
+  /// Saha: araç randevu adresinde yok (yalnız yoldayken / araç başındayken; not ≥ 10 karakter).
+  Future<Map<String, dynamic>> reportVehicleNotFound(String taskId, String note) {
+    return _post('/expertiz/personnel/tasks/$taskId/not-found', body: {'note': note.trim()});
+  }
+
   Future<Map<String, dynamic>> getTaskReport(String taskId) {
     return _get('/expertiz/personnel/tasks/$taskId/report');
   }
@@ -500,7 +545,12 @@ class YerimebakExpertizApiService {
   Map<String, dynamic> _handle(http.Response response) {
     final decoded = _decodeResponse(response.body);
     if (response.statusCode >= 400) {
-      throw ApiException(_errorMessage(decoded, response.statusCode), response.statusCode);
+      final detail = decoded['detail'];
+      throw ApiException(
+        _errorMessage(decoded, response.statusCode),
+        response.statusCode,
+        code: detail is Map ? detail['code']?.toString() : null,
+      );
     }
     return decoded;
   }
@@ -508,6 +558,8 @@ class YerimebakExpertizApiService {
   String _errorMessage(Map<String, dynamic> decoded, int statusCode) {
     final detail = decoded['detail'];
     if (detail is String && detail.isNotEmpty) return detail;
+    // Kodlu sunucu hatası: {"message": "...", "code": "..."} (ekspertiz sözleşmesi 2026-11-09)
+    if (detail is Map && (detail['message']?.toString() ?? '').isNotEmpty) return detail['message'].toString();
     if (detail is List && detail.isNotEmpty) {
       // FastAPI doğrulama hatası: [{loc: [...], msg: '...'}]
       return detail
@@ -570,10 +622,13 @@ class YerimebakExpertizApiService {
 
 /// Merkezi API hatası. [message] kullanıcıya gösterilebilir Türkçe mesajdır.
 class ApiException implements Exception {
-  ApiException(this.message, this.statusCode);
+  ApiException(this.message, this.statusCode, {this.code});
 
   final String message;
   final int statusCode;
+
+  /// Sunucunun hata kodu (ör. `firma_uyusmuyor`, `il_kapali`); kodsuz hatalarda null.
+  final String? code;
 
   @override
   String toString() => message;

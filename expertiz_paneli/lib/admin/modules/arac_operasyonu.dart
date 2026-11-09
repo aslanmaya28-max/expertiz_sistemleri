@@ -274,6 +274,7 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
         final refunded = (_map(request['cancellation'])['refunded_tl'] as num?) ?? 0;
         return (label: refunded > 0 ? 'İptal + iade edildi' : 'İptal edildi', color: Colors.grey);
     }
+    if (_aracBulunamadi(request)) return (label: 'Araç adreste yok', color: Colors.deepOrangeAccent);
     if (request['needs_revision'] == true) return (label: 'Düzeltme bekliyor', color: Colors.redAccent);
     switch (assignment['status']) {
       case 'accepted':
@@ -291,11 +292,24 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
     }
   }
 
+  /// Saha "araç adreste yok" bildirdi; görev yönetim kararını (paket ücreti iadesi) bekliyor.
+  bool _aracBulunamadi(Map<String, dynamic> request) =>
+      request['durum_kodu'] == 'vehicle_not_found' && request['bucket'] != 'cancelled';
+
+  String _randevuOzeti(Map<String, dynamic> request) {
+    final randevu = _map(request['randevu']);
+    if (randevu.isEmpty) return '';
+    final zaman = _formatDate(randevu['tarih_saat']);
+    final adres = (randevu['adres'] ?? '').toString().trim();
+    return [if (zaman != '-') zaman, if (adres.isNotEmpty) adres].join(' • ');
+  }
+
   Widget _buildRequestCard(Map<String, dynamic> request) {
     final vehicle = _map(request['vehicle']);
     final customer = _map(request['customer']);
     final assignment = _map(request['assignment']);
     final status = _statusOf(request);
+    final randevuOzeti = _randevuOzeti(request);
     final bucket = request['bucket'];
     final district = request['district']?.toString() ?? '';
     final city = [request['city']?.toString() ?? '', district].where((e) => e.isNotEmpty).join(' / ');
@@ -315,7 +329,16 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
         style: TextStyle(color: Colors.white54, fontSize: 12),
       ));
     }
-    if (bucket == 'in_progress') {
+    if (_aracBulunamadi(request)) {
+      actions.add(FilledButton.icon(
+        key: Key('bulunamadi-iade-${request['id']}'),
+        style: FilledButton.styleFrom(backgroundColor: Colors.deepOrange.shade700),
+        onPressed: () => _confirmNotFoundRefund(request),
+        icon: const Icon(Icons.currency_exchange, size: 18),
+        label: const Text('Paket ücretini iade et'),
+      ));
+    }
+    if (bucket == 'in_progress' && !_aracBulunamadi(request)) {
       actions.addAll([
         OutlinedButton.icon(
           onPressed: () => _openAssignDialog(request),
@@ -385,6 +408,7 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
                   _info(Icons.location_on, region.isEmpty ? _orDash(city) : '$city • $region'),
                   _info(Icons.inventory_2_outlined, '${_orDash(request['firm_name'])} – ${_orDash(request['package_name'])}'),
                   _info(Icons.schedule, _formatDate(request['created_at'])),
+                  if (randevuOzeti.isNotEmpty) _info(Icons.event, 'Randevu: $randevuOzeti', color: Colors.amberAccent),
                   if (assignedName.isNotEmpty) _info(Icons.badge, 'Personel: $assignedName', color: Colors.purpleAccent),
                 ],
               ),
@@ -452,7 +476,19 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
     final customer = _map(request['customer']);
     final assignment = _map(request['assignment']);
     final history = (assignment['history'] as List? ?? const []).whereType<Map>().toList();
+    final randevu = _map(request['randevu']);
+    final bulunamadiNotu = history.reversed
+            .where((h) => h['action'] == 'vehicle_not_found')
+            .map((h) => (h['note'] ?? '').toString().trim())
+            .firstOrNull ??
+        '';
+    // İletişim geçmişi yalnız kontrol merkezinin aradığı/not düşülen talepler için dolu gelir.
+    final iletisim = _api
+        .getContactLog(request['id'].toString())
+        .then((r) => (r['kayitlar'] as List? ?? const []).whereType<Map>().toList())
+        .catchError((Object _) => <Map>[]);
     const actionLabels = {
+      'vehicle_not_found': 'Araç adreste yok bildirildi',
       'assigned': 'Atandı',
       'reassigned': 'Yeniden atandı',
       'unassigned': 'Atama kaldırıldı',
@@ -515,6 +551,54 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
             _detailRow('Tutar', '${NumberFormat.decimalPattern('tr').format(request['total_tl'] ?? 0)} TL'),
             _detailRow('Müşteri notu', _orDash(request['note'])),
             _detailRow('Oluşturma', _formatDate(request['created_at'])),
+            if (randevu.isNotEmpty) ...[
+              const Divider(color: Colors.white12, height: 28),
+              const Text('Randevu', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              _detailRow('Tarih / saat', _formatDate(randevu['tarih_saat'])),
+              _detailRow('Adres', _orDash(randevu['adres'])),
+              _detailRow('Satıcı', _orDash(randevu['satici_adi'])),
+              _detailRow('Satıcı tel.', _orDash(randevu['satici_telefon'])),
+            ],
+            if (_aracBulunamadi(request)) ...[
+              const Divider(color: Colors.white12, height: 28),
+              Container(
+                key: const Key('bulunamadi-uyarisi'),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.deepOrange.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.deepOrangeAccent),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Saha personeli aracın randevu adresinde olmadığını bildirdi.',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    if (bulunamadiNotu.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text('Personel notu: $bulunamadiNotu', style: const TextStyle(color: Colors.white70)),
+                    ],
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Müşteri ödeme öncesi bu koşulu onayladı: yalnız kurumsal paket ücreti iade edilir, '
+                      'hizmet bedeli iade edilmez.',
+                      style: TextStyle(color: Colors.white54, fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(backgroundColor: Colors.deepOrange.shade700),
+                      onPressed: () {
+                        Navigator.pop(sheetContext);
+                        _confirmNotFoundRefund(request);
+                      },
+                      icon: const Icon(Icons.currency_exchange, size: 18),
+                      label: const Text('Paket ücretini iade et'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if ((assignment['personnel_name'] ?? '').toString().isNotEmpty) ...[
               const Divider(color: Colors.white12, height: 28),
               _detailRow('Atanan personel', _orDash(assignment['personnel_name'])),
@@ -553,10 +637,75 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
                     ),
                   )),
             ],
+            FutureBuilder<List<Map>>(
+              future: iletisim,
+              builder: (context, snapshot) {
+                final kayitlar = snapshot.data ?? const <Map>[];
+                if (kayitlar.isEmpty) return const SizedBox.shrink();
+                return Column(
+                  key: const Key('iletisim-gecmisi'),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Divider(color: Colors.white12, height: 28),
+                    const Text('Kontrol merkezi iletişim geçmişi',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    for (final k in kayitlar)
+                      ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.support_agent, color: Colors.white38, size: 18),
+                        title: Text(
+                          '${_iletisimHedefleri[k['hedef']] ?? k['hedef']} · '
+                          '${_iletisimSonuclari[k['sonuc']] ?? k['sonuc']}',
+                          style: const TextStyle(color: Colors.white70, fontSize: 13),
+                        ),
+                        subtitle: Text(
+                          '${_formatDate(k['created_at'])} • ${_orDash(k['actor_name'])}'
+                          '${(k['note'] ?? '').toString().isNotEmpty ? ' • ${k['note']}' : ''}',
+                          style: const TextStyle(color: Colors.white38, fontSize: 11),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
           ],
         ),
       ),
     );
+  }
+
+  static const _iletisimHedefleri = {
+    'musteri': 'Müşteri',
+    'satici': 'Satıcı',
+    'personel': 'Personel',
+    'kontrol_merkezi': 'Saha notu',
+  };
+  static const _iletisimSonuclari = {
+    'ulasildi': 'Ulaşıldı',
+    'ulasilamadi': 'Ulaşılamadı',
+    'mesaj_birakildi': 'Mesaj bırakıldı',
+    'baglandi': 'Personelle bağlandı',
+    'not': 'Not',
+  };
+
+  /// Araç adreste bulunamadı: yalnız kurumsal paket ücreti PayTR ile iade edilir, hizmet bedeli kalır.
+  Future<void> _confirmNotFoundRefund(Map<String, dynamic> request) async {
+    final reason = await showDialog<String>(context: context, builder: (_) => const _BulunamadiIadeDialog());
+    if (reason == null) return;
+    try {
+      final yanit = await _api.notFoundRefund(request['id'].toString(), reason: reason);
+      final iade = (yanit['refund_tl'] as num?)?.toDouble() ?? 0;
+      final kalan = (yanit['kept_tl'] as num?)?.toDouble() ?? 0;
+      final tl = NumberFormat.decimalPattern('tr');
+      _toast(iade > 0
+          ? 'Talep kapandı. ${tl.format(iade)} TL paket ücreti iade edildi, ${tl.format(kalan)} TL hizmet bedeli kaldı.'
+          : 'Talep kapandı. İade edilecek paket ücreti yoktu.');
+      await _load(silent: true);
+    } catch (e) {
+      _toast('İade yapılamadı: ${e is ApiException ? e.message : e}', error: true);
+    }
   }
 
   Widget _detailRow(String label, String value) {
@@ -674,6 +823,8 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
   bool _saving = false;
   bool _showOtherRegions = false;
   String? _error;
+  // Kurumsal firma modeli: talebin firması varsa yalnız o firmanın ve firmasız personel listelenir.
+  String _firmaId = '';
 
   String get _requestId => widget.request['id'].toString();
 
@@ -705,6 +856,7 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
       final current = rows.where((c) => c['is_current'] == true).map((c) => c['id'].toString()).firstOrNull;
       setState(() {
         _candidates = rows;
+        _firmaId = response['firm_id']?.toString() ?? '';
         // Mevcut atama varsa (yeniden atama) öneriyi farklı bir personelden seç
         _selectedId = rows
             .where((c) => c['id'].toString() != current && c['assignable'] != false)
@@ -737,7 +889,9 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
       if (!mounted) return;
       setState(() {
         _saving = false;
-        _error = e.toString();
+        _error = e is ApiException && e.code == 'firma_uyusmuyor'
+            ? 'Bu personel başka bir firmaya bağlı. Talebin firmasının personelini ya da firmasız YerimeBak personelini seçin.'
+            : e.toString();
       });
     }
   }
@@ -774,6 +928,15 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
                     'Görev için pasif personel seçilemez.',
                     style: TextStyle(fontSize: 12),
                   ),
+                  if (_firmaId.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      key: const Key('atama-firma-basligi'),
+                      'Talep firması: ${(widget.request['firm_name'] ?? '').toString().isEmpty ? _firmaId : widget.request['firm_name']}'
+                      ' • Önce firmanın personeli, sonra firmasız YerimeBak personeli listelenir.',
+                      style: const TextStyle(fontSize: 12, color: Colors.cyanAccent),
+                    ),
+                  ],
                   if (current != null) ...[
                     const SizedBox(height: 6),
                     Text(
@@ -813,7 +976,8 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
                                   style: const TextStyle(fontWeight: FontWeight.w600),
                                 ),
                                 subtitle: Text(
-                                  '${c['city'] ?? '-'} / ${c['district'] ?? '-'} • ${c['region'] ?? '-'}\n'
+                                  '${c['city'] ?? '-'} / ${c['district'] ?? '-'} • ${c['region'] ?? '-'} • '
+                                  '${(c['firm_name'] ?? '').toString().isEmpty ? 'YerimeBak (firmasız)' : c['firm_name']}\n'
                                   '${assignable ? '' : 'GÖREV İÇİN PASİF • '}$openTasks açık görev'
                                   '${(c['expertise'] ?? '').toString().isNotEmpty ? ' • ${c['expertise']}' : ''}',
                                 ),
@@ -869,6 +1033,66 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
   }
 }
 
+
+/// "Araç adreste yok" sonrası paket ücreti iadesi: neden zorunlu; onaylanırsa nedeni döner.
+class _BulunamadiIadeDialog extends StatefulWidget {
+  const _BulunamadiIadeDialog();
+
+  @override
+  State<_BulunamadiIadeDialog> createState() => _BulunamadiIadeDialogState();
+}
+
+class _BulunamadiIadeDialogState extends State<_BulunamadiIadeDialog> {
+  final TextEditingController _reason = TextEditingController(text: 'Araç randevu adresinde bulunamadı');
+  String? _error;
+
+  @override
+  void dispose() {
+    _reason.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Paket ücretini iade et'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Talep kapanır. Kurumsal ekspertiz paket ücreti karta iade edilir; '
+                'hizmet bedeli müşterinin ödeme öncesi onayı gereği iade edilmez. Müşteriye bildirim gider.'),
+            const SizedBox(height: 12),
+            TextField(
+              key: const Key('bulunamadi-neden'),
+              controller: _reason,
+              maxLines: 2,
+              decoration: InputDecoration(labelText: 'Neden *', border: const OutlineInputBorder(), errorText: _error),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Vazgeç')),
+        FilledButton(
+          key: const Key('bulunamadi-iade-onay'),
+          style: FilledButton.styleFrom(backgroundColor: Colors.deepOrange.shade700),
+          onPressed: () {
+            final reason = _reason.text.trim();
+            if (reason.isEmpty) {
+              setState(() => _error = 'Neden zorunludur');
+              return;
+            }
+            Navigator.pop(context, reason);
+          },
+          child: const Text('İade et ve kapat'),
+        ),
+      ],
+    );
+  }
+}
 
 /// İptal nedeni + iade seçimi. Ödeme iadesi PayTR üzerinden yapılır.
 class _IptalDialog extends StatefulWidget {

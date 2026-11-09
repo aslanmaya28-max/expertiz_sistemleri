@@ -118,6 +118,8 @@ class PersonelService extends ChangeNotifier {
       'city': city,
       'district': personel.ilce ?? '',
       'expertise': personel.uzmanlikAlani ?? personel.unvan,
+      // Kurumsal firma modeli: boş = firmasız YerimeBak personeli
+      'firm_id': personel.firmaId ?? '',
       if (includePassword) 'temporary_password': personel.sifre,
     };
   }

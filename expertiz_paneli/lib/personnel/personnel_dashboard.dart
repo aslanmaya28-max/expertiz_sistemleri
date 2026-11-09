@@ -7,6 +7,8 @@
 ///   Kurumsal ekspertizdeyim → Rapora başla. Her adım müşteriye ve admine
 ///   anlık bildirim olarak düşer.
 /// - Bildirimler: yeni görev, red (nedeniyle), onay.
+/// - Kontrol merkezi (9 Kasım 2026): personel müşteriye/satıcıya doğrudan bağlanmaz; ekranda müşteri/satıcı
+///   numarası yoktur. "Kontrol merkezini ara", "Kontrol merkezine not" ve (yolda/araç başında) "Araç adreste yok".
 library;
 
 import 'dart:async';
@@ -15,6 +17,7 @@ import '../core/widgets/yerimebak_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/theme/futuristic_theme.dart';
 import '../core/widgets/glass_card.dart';
@@ -50,14 +53,28 @@ const Map<String, String> _asamaEtiketleri = {
   'at_corporate': 'Kurumsal ekspertizde',
   'in_progress': 'Rapor hazırlanıyor',
   'submitted': 'Rapor gönderildi',
+  'vehicle_not_found': 'Araç adreste yok',
 };
 
+/// "Araç adreste yok" yalnız bu aşamalarda bildirilebilir (sunucu da aynı kuralı uygular).
+const Set<String> kBulunamadiAsamalari = {'on_the_way', 'at_vehicle'};
+
+const List<String> kKontrolNotSecenekleri = ['Satıcı telefonu açmıyor', 'Gecikeceğim', 'Adreste sorun var'];
+
 class PersonnelDashboard extends StatefulWidget {
-  const PersonnelDashboard({super.key, this.apiService, this.refreshInterval = const Duration(seconds: 20)});
+  const PersonnelDashboard({
+    super.key,
+    this.apiService,
+    this.refreshInterval = const Duration(seconds: 20),
+    this.baglantiAc,
+  });
 
   /// Testlerde sahte servis vermek için.
   final YerimebakExpertizApiService? apiService;
   final Duration refreshInterval;
+
+  /// tel: ve harita bağlantılarını açar; testlerde yakalanır.
+  final Future<bool> Function(Uri uri)? baglantiAc;
 
   @override
   State<PersonnelDashboard> createState() => _PersonnelDashboardState();
@@ -72,6 +89,7 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
   Map<String, dynamic> _me = const {};
   List<Map<String, dynamic>> _tasks = [];
   List<Map<String, dynamic>> _notifications = [];
+  Map<String, dynamic> _kontrolMerkezi = const {};
   int _unread = 0;
   int? _lastNotificationId;
   bool _dutyBusy = false;
@@ -109,6 +127,7 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
       setState(() {
         _me = Map<String, dynamic>.from(results[0]['personnel'] as Map? ?? const {});
         _tasks = _rows(results[1]['tasks']);
+        _kontrolMerkezi = Map<String, dynamic>.from(results[1]['kontrol_merkezi'] as Map? ?? const {});
         _notifications = notifications;
         _unread = (results[2]['unread'] as num?)?.toInt() ?? 0;
         _lastNotificationId = newestId ?? _lastNotificationId;
@@ -157,6 +176,51 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
       if (action == 'start') _openReport(task);
     } catch (e) {
       _snack('İşlem başarısız: ${e is ApiException ? e.message : e}', error: true);
+    } finally {
+      if (mounted) setState(() => _busyTasks.remove(id));
+    }
+  }
+
+  String get _kontrolTelefonu => (_kontrolMerkezi['telefon'] ?? '').toString().trim();
+
+  Future<void> _ac(Uri uri) async {
+    bool acildi;
+    try {
+      acildi = await (widget.baglantiAc?.call(uri) ?? launchUrl(uri, mode: LaunchMode.externalApplication));
+    } catch (_) {
+      acildi = false;
+    }
+    if (!acildi) _snack('Bağlantı açılamadı: ${uri.path.isEmpty ? uri : uri.path}', error: true);
+  }
+
+  Future<void> _kontrolMerkeziniAra() async {
+    final tel = _kontrolTelefonu.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (tel.isEmpty) return;
+    await _ac(Uri(scheme: 'tel', path: tel));
+  }
+
+  Future<void> _kontrolNotu(Map<String, dynamic> task) async {
+    final not = await showDialog<String>(context: context, builder: (_) => const _KontrolNotuDialog());
+    if (not == null) return;
+    try {
+      await _api.sendControlNote(task['id']?.toString() ?? '', not);
+      _snack('Not kontrol merkezine iletildi');
+    } catch (e) {
+      _snack('Not gönderilemedi: ${e is ApiException ? e.message : e}', error: true);
+    }
+  }
+
+  Future<void> _aracYok(Map<String, dynamic> task) async {
+    final not = await showDialog<String>(context: context, builder: (_) => const _AracYokDialog());
+    if (not == null) return;
+    final id = task['id']?.toString() ?? '';
+    setState(() => _busyTasks.add(id));
+    try {
+      await _api.reportVehicleNotFound(id, not);
+      _snack('Bildirildi. Görev kapandı; karar kontrol merkezinde.');
+      await _load();
+    } catch (e) {
+      _snack('Bildirilemedi: ${e is ApiException ? e.message : e}', error: true);
     } finally {
       if (mounted) setState(() => _busyTasks.remove(id));
     }
@@ -408,6 +472,10 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
     final actions = (task['next_actions'] as List? ?? const []).map((e) => e.toString()).toList();
     final busy = _busyTasks.contains(id);
     final place = [task['city'], task['district']].where((e) => (e?.toString() ?? '').isNotEmpty).join(' / ');
+    final randevu = Map<String, dynamic>.from(task['randevu'] as Map? ?? const {});
+    final adres = (randevu['adres'] ?? '').toString().trim();
+    final saticiAdi = (randevu['satici_adi'] ?? '').toString().trim();
+    final acik = bucket == 'active' || bucket == 'rejected';
 
     final (chipText, chipColor) = switch (bucket) {
       'pending' => ('Admin kontrolünde', Colors.orangeAccent),
@@ -455,7 +523,27 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
           if ((vehicle['plate']?.toString() ?? '').isNotEmpty)
             Text(vehicle['plate'].toString(), style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
           _line(Icons.location_on, place.isEmpty ? 'Konum belirtilmedi' : place),
-          _line(Icons.person_outline, [customer['name'], customer['phone']].where((e) => (e?.toString() ?? '').isNotEmpty).join(' • ')),
+          // Müşteri/satıcı numarası gösterilmez; bağlantı kontrol merkezi üzerinden.
+          _line(Icons.person_outline, customer['name']?.toString() ?? ''),
+          if (randevu.isNotEmpty) ...[
+            _line(Icons.event, 'Randevu: ${_date(randevu['tarih_saat'])}'),
+            if (adres.isNotEmpty)
+              Row(
+                children: [
+                  Expanded(child: _line(Icons.home_outlined, adres)),
+                  TextButton.icon(
+                    key: Key('harita-$id'),
+                    onPressed: () => _ac(Uri.https('www.google.com', '/maps/search/', {
+                      'api': '1',
+                      'query': [adres, place].where((e) => e.isNotEmpty).join(', '),
+                    })),
+                    icon: const Icon(Icons.map_outlined, size: 16),
+                    label: const Text('Harita'),
+                  ),
+                ],
+              ),
+            if (saticiAdi.isNotEmpty) _line(Icons.storefront_outlined, 'Satıcı: $saticiAdi'),
+          ],
           if ((task['firm_name']?.toString() ?? '').isNotEmpty)
             _line(Icons.business, '${task['firm_name']} — ${task['package_name'] ?? ''}'),
           if ((task['note']?.toString() ?? '').isNotEmpty) _line(Icons.notes, task['note'].toString()),
@@ -516,9 +604,63 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
                       icon: const Icon(Icons.edit_document),
                       label: const Text('Rapora Devam Et'),
                     ),
+                  if (bucket == 'active' && kBulunamadiAsamalari.contains(stage))
+                    OutlinedButton.icon(
+                      key: Key('bulunamadi-$id'),
+                      style: OutlinedButton.styleFrom(foregroundColor: Colors.deepOrangeAccent),
+                      onPressed: () => _aracYok(task),
+                      icon: const Icon(Icons.location_off_outlined),
+                      label: const Text('Araç adreste yok'),
+                    ),
                 ],
               ),
           ],
+          if (acik || stage == 'vehicle_not_found') _kontrolMerkeziSatiri(task),
+        ],
+      ),
+    );
+  }
+
+  Widget _kontrolMerkeziSatiri(Map<String, dynamic> task) {
+    final id = task['id']?.toString() ?? '';
+    final tel = _kontrolTelefonu;
+    final saatler = (_kontrolMerkezi['calisma_saatleri'] ?? '').toString().trim();
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: FuturisticTheme.neon.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: FuturisticTheme.neon.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            tel.isEmpty
+                ? 'Kontrol merkezi numarası henüz girilmedi'
+                : 'Müşteri ve satıcıyla bağlantıyı kontrol merkezi kurar${saatler.isEmpty ? '' : ' • $saatler'}',
+            style: TextStyle(color: tel.isEmpty ? Colors.orangeAccent : Colors.white60, fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.icon(
+                key: Key('kontrol-ara-$id'),
+                onPressed: tel.isEmpty ? null : _kontrolMerkeziniAra,
+                icon: const Icon(Icons.support_agent),
+                label: const Text('Kontrol merkezini ara'),
+              ),
+              OutlinedButton.icon(
+                key: Key('kontrol-not-$id'),
+                onPressed: () => _kontrolNotu(task),
+                icon: const Icon(Icons.edit_note),
+                label: const Text('Kontrol merkezine not'),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -586,6 +728,146 @@ class _NotificationList extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Kontrol merkezine not: hazır seçenekler + serbest metin. Onaylanırsa notu döner.
+class _KontrolNotuDialog extends StatefulWidget {
+  const _KontrolNotuDialog();
+
+  @override
+  State<_KontrolNotuDialog> createState() => _KontrolNotuDialogState();
+}
+
+class _KontrolNotuDialogState extends State<_KontrolNotuDialog> {
+  final TextEditingController _not = TextEditingController();
+  String? _hata;
+
+  @override
+  void dispose() {
+    _not.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Kontrol merkezine not'),
+      content: SizedBox(
+        width: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final secenek in kKontrolNotSecenekleri)
+                  ActionChip(label: Text(secenek), onPressed: () => setState(() => _not.text = secenek)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              key: const Key('kontrol-not-metni'),
+              controller: _not,
+              maxLines: 3,
+              maxLength: 500,
+              decoration: InputDecoration(labelText: 'Not', border: const OutlineInputBorder(), errorText: _hata),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Vazgeç')),
+        FilledButton(
+          key: const Key('kontrol-not-gonder'),
+          onPressed: () {
+            final not = _not.text.trim();
+            if (not.length < 3) {
+              setState(() => _hata = 'Notu yazın ya da bir seçenek seçin');
+              return;
+            }
+            Navigator.pop(context, not);
+          },
+          child: const Text('Gönder'),
+        ),
+      ],
+    );
+  }
+}
+
+/// "Araç adreste yok": not ≥ 10 karakter ve onay. Görev kapanır; karar yönetimdedir.
+class _AracYokDialog extends StatefulWidget {
+  const _AracYokDialog();
+
+  @override
+  State<_AracYokDialog> createState() => _AracYokDialogState();
+}
+
+class _AracYokDialogState extends State<_AracYokDialog> {
+  final TextEditingController _not = TextEditingController();
+  bool _onay = false;
+  String? _hata;
+
+  @override
+  void dispose() {
+    _not.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Araç adreste yok'),
+      content: SizedBox(
+        width: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Satıcıyı aradınız mı? Bu işlem görevi kapatır. '
+                'Önce kontrol merkezini arayıp satıcıya ulaşılmasını isteyin.'),
+            const SizedBox(height: 12),
+            TextField(
+              key: const Key('bulunamadi-notu'),
+              controller: _not,
+              maxLines: 3,
+              decoration: InputDecoration(
+                labelText: 'Ne oldu? (en az 10 karakter)',
+                border: const OutlineInputBorder(),
+                errorText: _hata,
+              ),
+            ),
+            CheckboxListTile(
+              key: const Key('bulunamadi-onay'),
+              contentPadding: EdgeInsets.zero,
+              value: _onay,
+              onChanged: (v) => setState(() => _onay = v ?? false),
+              title: const Text('Kontrol merkezi satıcıya ulaşmayı denedi; araç adreste yok'),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Vazgeç')),
+        FilledButton(
+          key: const Key('bulunamadi-gonder'),
+          style: FilledButton.styleFrom(backgroundColor: Colors.deepOrange.shade700),
+          onPressed: !_onay
+              ? null
+              : () {
+                  final not = _not.text.trim();
+                  if (not.length < 10) {
+                    setState(() => _hata = 'En az 10 karakterle ne olduğunu yazın');
+                    return;
+                  }
+                  Navigator.pop(context, not);
+                },
+          child: const Text('Bildir ve görevi kapat'),
+        ),
+      ],
     );
   }
 }

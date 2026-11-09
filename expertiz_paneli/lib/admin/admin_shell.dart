@@ -31,6 +31,7 @@ import 'modules/fiyatlandirma_module.dart';
 import 'modules/finans_yonetimi.dart';
 import 'modules/ayarlar_module.dart';
 import 'modules/piyasa_takibi_module.dart';
+import 'modules/kontrol_merkezi_module.dart';
 
 /// Admin Shell
 /// 
@@ -50,7 +51,7 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 9, vsync: this);
+    _tabController = TabController(length: 10, vsync: this);
   }
 
   @override
@@ -89,6 +90,8 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
               children: [
                 // 9 Modül - Her biri kendi işini halleder
                 const DashboardModule(),
+                // Kontrol merkezi (9 Kasım 2026): saha ↔ müşteri/satıcı bağlantısı buradan kurulur
+                const KontrolMerkeziModule(),
                 const AracOperasyonu(),
                 _buildPersonelModule(context),
                 const MusteriYonetimiModule(),
@@ -171,6 +174,7 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
         isScrollable: true,
         tabs: const [
           Tab(icon: Icon(Icons.dashboard), text: 'Dashboard'),
+          Tab(icon: Icon(Icons.support_agent), text: 'Kontrol Merkezi'),
           Tab(icon: Icon(Icons.directions_car), text: 'Araç Operasyonu'),
           Tab(icon: Icon(Icons.people), text: 'Personel'),
           Tab(icon: Icon(Icons.person), text: 'Müşteriler'),
@@ -178,6 +182,8 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
           Tab(icon: Icon(Icons.attach_money), text: 'Finans Yönetimi'),
           Tab(icon: Icon(Icons.sell), text: 'Fiyatlandırma'),
           Tab(icon: Icon(Icons.settings), text: 'Ayarlar'),
+          // Eksikti: denetleyici uzunluğu sekme sayısıyla eşleşmeli (9 Kasım 2026)
+          Tab(icon: Icon(Icons.query_stats), text: 'Piyasa takibi'),
         ],
         onTap: (index) => setState(() => _selectedIndex = index),
       ),
@@ -280,14 +286,15 @@ class _AdminShellState extends State<AdminShell> with SingleTickerProviderStateM
 
                 // NAVIGATION ITEMS
                 _buildDrawerItem(Icons.dashboard, 'Dashboard', 0, isDarkMode),
-                _buildDrawerItem(Icons.directions_car, 'Araç Operasyonu', 1, isDarkMode),
-                _buildDrawerItem(Icons.people, 'Personel', 2, isDarkMode),
-                _buildDrawerItem(Icons.person, 'Müşteriler', 3, isDarkMode),
-                _buildDrawerItem(Icons.description, 'Raporlar', 4, isDarkMode),
-                _buildDrawerItem(Icons.attach_money, 'Finans Yönetimi', 5, isDarkMode),
-                _buildDrawerItem(Icons.sell, 'Fiyatlandırma', 6, isDarkMode),
-                _buildDrawerItem(Icons.settings, 'Ayarlar', 7, isDarkMode),
-                _buildDrawerItem(Icons.query_stats, 'Piyasa takibi', 8, isDarkMode),
+                _buildDrawerItem(Icons.support_agent, 'Kontrol Merkezi', 1, isDarkMode),
+                _buildDrawerItem(Icons.directions_car, 'Araç Operasyonu', 2, isDarkMode),
+                _buildDrawerItem(Icons.people, 'Personel', 3, isDarkMode),
+                _buildDrawerItem(Icons.person, 'Müşteriler', 4, isDarkMode),
+                _buildDrawerItem(Icons.description, 'Raporlar', 5, isDarkMode),
+                _buildDrawerItem(Icons.attach_money, 'Finans Yönetimi', 6, isDarkMode),
+                _buildDrawerItem(Icons.sell, 'Fiyatlandırma', 7, isDarkMode),
+                _buildDrawerItem(Icons.settings, 'Ayarlar', 8, isDarkMode),
+                _buildDrawerItem(Icons.query_stats, 'Piyasa takibi', 9, isDarkMode),
 
                 // DIVIDER
                 Divider(color: Colors.white.withAlpha(25), thickness: 1),

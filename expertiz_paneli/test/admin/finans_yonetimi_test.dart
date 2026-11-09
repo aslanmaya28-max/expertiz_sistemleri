@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -61,6 +63,24 @@ void main() {
     expect(iade, isNotNull);
     expect(iade!.url.path, '/api/v1/payments/admin/orders/CRX1/refund');
     expect(iade!.body, contains('Musteri talebi'));
+  });
+
+  testWidgets('firma hak edis tablosu firmasiz satiri adlandirir (037)', (tester) async {
+    final ozet = jsonDecode(_ozetJson) as Map<String, dynamic>;
+    ozet['firmalar'] = [
+      {'firm_id': 'otorapor', 'firm_name': 'Otorapor', 'is_sayisi': 3, 'bulunamadi_sayisi': 1,
+       'hakedis_tl': 2500.0, 'paket_tl': 4000.0, 'odenecek_tl': 6500.0},
+      {'firm_id': 'firmasiz', 'firm_name': '', 'is_sayisi': 1, 'bulunamadi_sayisi': 0,
+       'hakedis_tl': 1000.0, 'paket_tl': 0.0, 'odenecek_tl': 1000.0},
+    ];
+    await tester.pumpWidget(_app(MockClient((request) async =>
+        _json(request.url.path.endsWith('/payments/admin/orders') ? _siparisJson : jsonEncode(ozet)))));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byKey(const Key('firma-hakedis-tablosu')), 200,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.text('Otorapor'), findsOneWidget);
+    expect(find.text('6.500,00 TL'), findsOneWidget);
+    expect(find.text('YerimeBak (firmasız)'), findsOneWidget);
   });
 
   testWidgets('API hatasinda tekrar dene ekrani gosterilir', (tester) async {

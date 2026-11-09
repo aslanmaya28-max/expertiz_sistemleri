@@ -202,9 +202,17 @@ class _MusteriYonetimiModuleState extends State<MusteriYonetimiModule> {
                 '${c['request_count'] ?? 0} talep • ${_tl((c['total_spent_tl'] as num?) ?? 0)} • ${c['credits'] ?? 0} kredi',
               ),
               isThreeLine: true,
-              trailing: aktif
-                  ? null
-                  : const Chip(label: Text('Pasif'), visualDensity: VisualDensity.compact),
+              trailing: (!aktif || c['tester'] == true)
+                  ? Wrap(spacing: 4, children: [
+                      if (c['tester'] == true)
+                        const Chip(
+                          key: Key('test-rozeti'),
+                          label: Text('Test'),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      if (!aktif) const Chip(label: Text('Pasif'), visualDensity: VisualDensity.compact),
+                    ])
+                  : null,
             ),
           );
         },
@@ -310,6 +318,21 @@ class _MusteriDetayState extends State<_MusteriDetay> {
     }
   }
 
+  /// Test kullanıcısı: 'test' durumundaki illerde ve genel anahtar kapalıyken talep açabilir (037).
+  Future<void> _toggleTester(bool value) async {
+    setState(() => _saving = true);
+    try {
+      await widget.api.setCustomerTester(_id, value);
+      if (!mounted) return;
+      setState(() => _customer = {..._customer, 'tester': value});
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('İşlem başarısız: $e')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<String?> _askReason() {
     return showDialog<String>(context: context, builder: (_) => const _PasifNedeniDialog());
   }
@@ -361,6 +384,15 @@ class _MusteriDetayState extends State<_MusteriDetay> {
           _row(Icons.calendar_today, 'Kayıt', widget.date(c['created_at'])),
           _row(Icons.login, 'Son giriş', widget.date(c['last_login'])),
           _row(Icons.payments, 'Toplam harcama', widget.tl((c['total_spent_tl'] as num?) ?? 0)),
+          SwitchListTile(
+            key: const Key('test-kullanicisi'),
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Test kullanıcısı'),
+            subtitle: const Text('Test illerinde ve hizmet genel olarak kapalıyken yerinde ekspertiz talebi '
+                'açabilir; ödemesiz test talebi seçeneğini görür.'),
+            value: c['tester'] == true,
+            onChanged: _saving ? null : _toggleTester,
+          ),
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,

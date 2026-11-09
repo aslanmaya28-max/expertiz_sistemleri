@@ -30,6 +30,8 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
   Map<String, dynamic> _kredi = const {};
   Map<String, dynamic> _personel = const {};
   Map<String, dynamic> _iade = const {};
+  // Kurumsal firma modeli (sözleşme 2026-11-09 bölüm 3): firma bazında hak ediş ve ödenecek tutar.
+  List<Map<String, dynamic>> _firmalar = const [];
   List<Map<String, dynamic>> _orders = const [];
   bool _exporting = false;
 
@@ -55,6 +57,10 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
         _kredi = _map(response['kredi_satislari']);
         _personel = _map(response['personel']);
         _iade = _map(response['iadeler']);
+        _firmalar = (response['firmalar'] as List? ?? const [])
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
         _orders = (results[1]['orders'] as List? ?? const [])
             .whereType<Map>()
             .map((e) => Map<String, dynamic>.from(e))
@@ -323,6 +329,45 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
                 );
               }),
             const SizedBox(height: 30),
+            Text('Firma Hak Edişleri',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)),
+            const SizedBox(height: 8),
+            Text(
+              'Ödenecek = tamamlanan işlerin kurumsal paket ücreti + %25 saha payı (KDV hariç; firma faturasına KDV eklenir). '
+              'Araç adreste bulunamadığında paket iade edilir, saha payı firmaya kalır.',
+              style: TextStyle(fontSize: 12, color: isDarkMode ? Colors.grey[400] : Colors.grey[600]),
+            ),
+            const SizedBox(height: 12),
+            if (_firmalar.isEmpty)
+              Text('Henüz firma işi yok.', style: TextStyle(color: isDarkMode ? Colors.grey[400] : Colors.grey[600]))
+            else
+              SingleChildScrollView(
+                key: const Key('firma-hakedis-tablosu'),
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  columns: const [
+                    DataColumn(label: Text('Firma')),
+                    DataColumn(label: Text('İş'), numeric: true),
+                    DataColumn(label: Text('Bulunamadı'), numeric: true),
+                    DataColumn(label: Text('Saha payı'), numeric: true),
+                    DataColumn(label: Text('Paket'), numeric: true),
+                    DataColumn(label: Text('Ödenecek'), numeric: true),
+                  ],
+                  rows: [
+                    for (final f in _firmalar)
+                      DataRow(cells: [
+                        DataCell(Text(_firmaAdi(f), style: TextStyle(color: textColor))),
+                        DataCell(Text('${f['is_sayisi'] ?? 0}', style: TextStyle(color: textColor))),
+                        DataCell(Text('${f['bulunamadi_sayisi'] ?? 0}', style: TextStyle(color: textColor))),
+                        DataCell(Text(_tl(_num(f, 'hakedis_tl')), style: TextStyle(color: textColor))),
+                        DataCell(Text(_tl(_num(f, 'paket_tl')), style: TextStyle(color: textColor))),
+                        DataCell(Text(_tl(_num(f, 'odenecek_tl')),
+                            style: TextStyle(color: textColor, fontWeight: FontWeight.bold))),
+                      ]),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 30),
             Text('Personel Hakedişleri',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)),
             const SizedBox(height: 8),
@@ -357,6 +402,13 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
         ),
       ),
     );
+  }
+
+  String _firmaAdi(Map<String, dynamic> f) {
+    final ad = (f['firm_name'] ?? '').toString().trim();
+    if (ad.isNotEmpty) return ad;
+    final id = (f['firm_id'] ?? '').toString();
+    return id.isEmpty || id == 'firmasiz' ? 'YerimeBak (firmasız)' : id;
   }
 
   Widget _buildError(bool isDarkMode) {

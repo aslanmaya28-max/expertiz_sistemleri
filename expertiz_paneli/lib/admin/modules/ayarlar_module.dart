@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../../providers/theme_provider.dart';
 import '../../../services/yerimebak_expertiz_api_service.dart';
 import '../services/admin_preferences.dart';
+import '../widgets/hizmet_ayarlari.dart';
 
 /// Ayarlar Module
 class AyarlarModule extends StatefulWidget {
@@ -118,6 +119,37 @@ class _AyarlarModuleState extends State<AyarlarModule> {
                 ),
                 value: _newReportAlerts ?? true,
                 onChanged: _newReportAlerts == null ? null : _setNewReportAlerts,
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // YERİNDE EKSPERTİZ (037): hizmet bölgeleri ve kontrol merkezi — tıklanınca yüklenir
+          _section(
+            'Yerinde Ekspertiz',
+            cardColor,
+            textColor,
+            [
+              ListTile(
+                key: const Key('ayar-hizmet-bolgeleri'),
+                leading: Icon(Icons.map, color: subColor),
+                title: Text('Hizmet bölgeleri', style: TextStyle(color: textColor)),
+                subtitle: Text('81 il için Açık / Test / Kapalı (pilot: İstanbul)', style: TextStyle(color: subColor)),
+                trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => HizmetBolgeleriSayfasi(api: _api)),
+                ),
+              ),
+              ListTile(
+                key: const Key('ayar-kontrol-merkezi'),
+                leading: Icon(Icons.support_agent, color: subColor),
+                title: Text('Kontrol merkezi', style: TextStyle(color: textColor)),
+                subtitle: Text('Saha personelinin aradığı telefon ve çalışma saatleri', style: TextStyle(color: subColor)),
+                trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
+                onTap: () async {
+                  final kaydedildi = await kontrolMerkeziAyariAc(context, _api);
+                  if (kaydedildi == true) _showMessage('Kontrol merkezi kaydedildi');
+                },
               ),
             ],
           ),

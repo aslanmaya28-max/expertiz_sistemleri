@@ -136,4 +136,95 @@ void main() {
     expect(find.text('Raporunuz düzeltme için geri gönderildi'), findsOneWidget);
     expect(find.text('Yeni görev atandı'), findsOneWidget);
   });
+
+  testWidgets('saha yalniz kontrol merkezine baglanir; arac adreste yok yalniz uygun asamada ve not zorunlu (037)',
+      (tester) async {
+    final gonderilen = <String, Object?>{};
+    final acilan = <Uri>[];
+    var telefon = '0850 111 22 33';
+    final client = MockClient((request) async {
+      final path = request.url.path;
+      if (path.endsWith('/expertiz/personnel/me')) {
+        return _json({'personnel': {'full_name': 'Kemal Saha', 'on_duty': true}});
+      }
+      if (path.endsWith('/expertiz/personnel/tasks')) {
+        return _json({
+          'kontrol_merkezi': {'telefon': telefon, 'calisma_saatleri': 'Her gün 08.00–20.00', 'tanimli': telefon.isNotEmpty},
+          'tasks': [
+            _task('A', 'active', 'accepted', ['depart']),
+            {
+              ..._task('B', 'active', 'at_vehicle', ['corporate', 'start']),
+              'customer': {'name': 'Ayşe M.'},
+              'randevu': {'tarih_saat': '2026-11-10T14:30:00+03:00', 'adres': 'Bostanlı Mah. 1. Sok. No 3', 'satici_adi': 'Mehmet Bey'},
+            },
+          ],
+        });
+      }
+      if (path.endsWith('/expertiz/notifications')) return _json({'unread': 0, 'notifications': []});
+      if (request.method == 'POST') {
+        gonderilen[path] = jsonDecode(request.body);
+        return _json({'success': true});
+      }
+      return _json({'detail': 'Not Found'}, 404);
+    });
+    final api = YerimebakExpertizApiService(baseUrl: 'http://api.test/api/v1', client: client, accessToken: 'p');
+    await tester.pumpWidget(MaterialApp(
+      home: PersonnelDashboard(
+        refreshInterval: const Duration(hours: 1),
+        apiService: api,
+        baglantiAc: (uri) async {
+          acilan.add(uri);
+          return true;
+        },
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    // Müşteri/satıcı numarası yok; randevu ve satıcı adı var
+    expect(find.textContaining('0555'), findsNothing);
+    expect(find.text('Satıcı: Mehmet Bey'), findsOneWidget);
+    expect(find.textContaining('Randevu: '), findsOneWidget);
+    await tester.tap(find.byKey(const Key('harita-B')));
+    await tester.pumpAndSettle();
+    expect(acilan.last.host, 'www.google.com');
+    expect(acilan.last.queryParameters['query'], contains('Bostanlı Mah.'));
+
+    // Kontrol merkezini ara
+    await tester.tap(find.byKey(const Key('kontrol-ara-B')));
+    await tester.pumpAndSettle();
+    expect(acilan.last.toString(), 'tel:08501112233');
+
+    // Kontrol merkezine not: hazır seçenek
+    await tester.tap(find.byKey(const Key('kontrol-not-B')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Gecikeceğim'));
+    await tester.tap(find.byKey(const Key('kontrol-not-gonder')));
+    await tester.pumpAndSettle();
+    expect(gonderilen['/api/v1/expertiz/personnel/tasks/B/control-note'], {'note': 'Gecikeceğim'});
+
+    // Araç adreste yok: kabul aşamasında yok, araç başında var
+    expect(find.byKey(const Key('bulunamadi-A')), findsNothing);
+    await tester.tap(find.byKey(const Key('bulunamadi-B')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Satıcıyı aradınız mı? Bu işlem görevi kapatır.'), findsOneWidget);
+    expect(tester.widget<FilledButton>(find.byKey(const Key('bulunamadi-gonder'))).onPressed, isNull);
+    await tester.tap(find.byKey(const Key('bulunamadi-onay')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('bulunamadi-notu')), 'Yok');
+    await tester.tap(find.byKey(const Key('bulunamadi-gonder')));
+    await tester.pumpAndSettle();
+    expect(find.text('En az 10 karakterle ne olduğunu yazın'), findsOneWidget);
+    expect(gonderilen.keys.where((k) => k.endsWith('/not-found')), isEmpty);
+    await tester.enterText(find.byKey(const Key('bulunamadi-notu')), 'Satıcı aracı başka şehre götürmüş');
+    await tester.tap(find.byKey(const Key('bulunamadi-gonder')));
+    await tester.pumpAndSettle();
+    expect(gonderilen['/api/v1/expertiz/personnel/tasks/B/not-found'], {'note': 'Satıcı aracı başka şehre götürmüş'});
+
+    // Numara tanımlı değilse düğme pasif ve uyarı görünür
+    telefon = '';
+    await tester.tap(find.byTooltip('Yenile'));
+    await tester.pumpAndSettle();
+    expect(find.text('Kontrol merkezi numarası henüz girilmedi'), findsWidgets);
+    expect(tester.widget<FilledButton>(find.byKey(const Key('kontrol-ara-A'))).onPressed, isNull);
+  });
 }
