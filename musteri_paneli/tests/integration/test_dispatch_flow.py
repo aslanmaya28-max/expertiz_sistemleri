@@ -1025,6 +1025,14 @@ def test_accounts_refunds_invoices_and_emails(client, admin_token):
         dash = dash.json()
         assert dash["stats"]["total_reports"] >= 1 and dash["status_distribution"]["cancelled"] >= 1
         assert len(dash["weekly_published"]) == 7 and len(dash["ai_confidence_trend"]) == 7
+        ozet = dash["ozet"]
+        assert ozet["musteriler"]["toplam"] >= 1 and ozet["musteriler"]["bugun"] >= 1
+        assert ozet["musteriler"]["son7"] >= ozet["musteriler"]["bugun"]
+        assert set(ozet["degerlemeler"]) == {"toplam", "bugun", "son7"}
+        assert set(ozet["kredi_satisi"]) == {"son30_tl", "son30_adet", "bekleyen_havale", "play_son30_adet"}
+        assert ozet["ekspertiz"]["cancelled"] >= 1 and "waiting_assignment" in ozet["ekspertiz"]
+        assert "arac_bulunamadi" in ozet["ekspertiz"]
+        assert len(ozet["gunluk"]) == 14 and ozet["gunluk"][-1]["yeni_musteri"] >= 1
         assert any(a["title"] == "Talep iptal edildi" for a in dash["recent_activities"]) or dash["recent_activities"]
         assert client.get("/api/v1/expertiz/admin/dashboard", headers=_auth(token)).status_code == 403
 

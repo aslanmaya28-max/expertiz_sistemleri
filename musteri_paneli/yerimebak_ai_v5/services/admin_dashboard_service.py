@@ -82,10 +82,107 @@ def _table_exists(cursor: Any, name: str) -> bool:
     return bool(dict(cursor.fetchone()).get("found"))
 
 
+GUNLUK_GUN = 14
+_MUSTERI_ROLLERI = ("user", "customer", "musteri")
+
+
+def _ist_tarih(cursor: Any, table: str, column: str) -> str:
+    """Sütunu İstanbul takvim gününe çeviren SQL ifadesi (saat dilimli/dilimsiz sütun ayrımıyla)."""
+    cursor.execute(
+        "SELECT data_type FROM information_schema.columns "
+        "WHERE table_schema = 'public' AND table_name = %s AND column_name = %s",
+        (table, column),
+    )
+    row = cursor.fetchone()
+    kind = str(dict(row).get("data_type") or "") if row else ""
+    if "with time zone" in kind:
+        return f"({column} AT TIME ZONE 'Europe/Istanbul')::date"
+    # Dilimsiz sütunlar sunucuda UTC (CURRENT_TIMESTAMP) olarak yazılır
+    return f"(({column} AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Istanbul')::date"
+
+
+def _gun_sayilari(cursor: Any, table: str, where: str, params: tuple, ilk_gun: date) -> Dict[str, int]:
+    gun = _ist_tarih(cursor, table, "created_at")
+    cursor.execute(
+        f"SELECT {gun} AS gun, COUNT(*) AS n FROM {table} WHERE {where} AND {gun} >= %s GROUP BY 1",
+        (*params, ilk_gun),
+    )
+    return {dict(r)["gun"].isoformat(): int(dict(r)["n"]) for r in cursor.fetchall()}
+
+
+def _sayac(gunluk: Dict[str, int], bugun: date, toplam: int) -> Dict[str, int]:
+    son7 = {(bugun - timedelta(days=i)).isoformat() for i in range(7)}
+    return {
+        "toplam": toplam,
+        "bugun": gunluk.get(bugun.isoformat(), 0),
+        "son7": sum(n for d, n in gunluk.items() if d in son7),
+    }
+
+
+def _is_ozeti(cursor: Any, bugun: date) -> Dict[str, Any]:
+    """Asıl iş kalemleri: müşteri, değerleme, kredi satışı, ekspertiz talepleri (İstanbul günü)."""
+    ilk_gun = bugun - timedelta(days=GUNLUK_GUN - 1)
+
+    musteri_kosul = "role IN %s AND deleted_at IS NULL AND COALESCE(is_tester, FALSE) = FALSE"
+    cursor.execute(f"SELECT COUNT(*) AS n FROM users WHERE {musteri_kosul}", (_MUSTERI_ROLLERI,))
+    musteri_toplam = int(dict(cursor.fetchone())["n"])
+    cursor.execute(
+        "SELECT COUNT(*) AS n FROM users WHERE role IN %s AND deleted_at IS NULL AND COALESCE(is_tester, FALSE) = TRUE",
+        (_MUSTERI_ROLLERI,),
+    )
+    test_musteri = int(dict(cursor.fetchone())["n"])
+    musteri_gun = _gun_sayilari(cursor, "users", musteri_kosul, (_MUSTERI_ROLLERI,), ilk_gun)
+
+    degerleme_toplam, degerleme_gun = 0, {}
+    if _table_exists(cursor, "analysis_history"):
+        cursor.execute("SELECT COUNT(*) AS n FROM analysis_history")
+        degerleme_toplam = int(dict(cursor.fetchone())["n"])
+        degerleme_gun = _gun_sayilari(cursor, "analysis_history", "TRUE", (), ilk_gun)
+
+    kredi = {"son30_tl": 0, "son30_adet": 0, "bekleyen_havale": 0, "play_son30_adet": 0}
+    if _table_exists(cursor, "payment_orders"):
+        cursor.execute(
+            "SELECT COUNT(*) AS adet, COALESCE(SUM(amount_tl), 0) AS tl FROM payment_orders "
+            "WHERE status = 'approved' AND COALESCE(approved_at, created_at) >= NOW() - INTERVAL '30 days'"
+        )
+        row = dict(cursor.fetchone())
+        kredi["son30_adet"], kredi["son30_tl"] = int(row["adet"]), int(row["tl"])
+        cursor.execute("SELECT COUNT(*) AS n FROM payment_orders WHERE status = 'pending' AND payment_method = 'havale'")
+        kredi["bekleyen_havale"] = int(dict(cursor.fetchone())["n"])
+    if _table_exists(cursor, "google_play_purchases"):
+        cursor.execute(
+            "SELECT COUNT(*) AS n FROM google_play_purchases WHERE created_at >= NOW() - INTERVAL '30 days'"
+        )
+        kredi["play_son30_adet"] = int(dict(cursor.fetchone())["n"])
+
+    arac_bulunamadi = 0
+    cursor.execute("SELECT data FROM reports WHERE COALESCE(status, 'draft') NOT IN ('cancelled', 'published')")
+    for r in cursor.fetchall():
+        if _load(dict(r).get("data")).get("durum_kodu") == "vehicle_not_found":
+            arac_bulunamadi += 1
+
+    gunler = [(ilk_gun + timedelta(days=i)).isoformat() for i in range(GUNLUK_GUN)]
+    return {
+        "musteriler": {**_sayac(musteri_gun, bugun, musteri_toplam), "test": test_musteri},
+        "degerlemeler": _sayac(degerleme_gun, bugun, degerleme_toplam),
+        "kredi_satisi": kredi,
+        "ekspertiz": {"arac_bulunamadi": arac_bulunamadi},
+        "gunluk": [
+            {"tarih": g, "degerleme": degerleme_gun.get(g, 0), "yeni_musteri": musteri_gun.get(g, 0)} for g in gunler
+        ],
+    }
+
+
 def get_dashboard() -> Dict[str, Any]:
     from yerimebak_ai_v5.services import dispatch_service
 
     dispatch_service.ensure_workflow_schema_once()
+    try:
+        from zoneinfo import ZoneInfo
+
+        ist_bugun = datetime.now(ZoneInfo("Europe/Istanbul")).date()
+    except Exception:  # pragma: no cover - tzdata yoksa
+        ist_bugun = (datetime.now(timezone.utc) + timedelta(hours=3)).date()
     today = date.today()
     week_start = today - timedelta(days=6)
     conn = DatabaseConfig.get_connection()
@@ -117,9 +214,13 @@ def get_dashboard() -> Dict[str, Any]:
             "ORDER BY created_at DESC LIMIT 8"
         )
         audits = [dict(r) for r in cursor.fetchall()]
+        ozet = _is_ozeti(cursor, ist_bugun)
         conn.commit()
     finally:
         DatabaseConfig.return_connection(conn)
+
+    talep_listesi = dispatch_service.list_admin_requests(limit=1000)
+    ozet["ekspertiz"].update(talep_listesi.get("counts") or {})
 
     distribution = {s: 0 for s in STATUSES}
     weekly = {(week_start + timedelta(days=i)).isoformat(): 0 for i in range(7)}
@@ -187,6 +288,7 @@ def get_dashboard() -> Dict[str, Any]:
 
     return {
         "success": True,
+        "ozet": ozet,
         "stats": {
             "total_vehicles": total_vehicles,
             "active_reports": active,
