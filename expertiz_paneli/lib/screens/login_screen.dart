@@ -75,20 +75,48 @@ class _LoginScreenState extends State<LoginScreen> {
     // Marka bandı iki temada da koyu yeşil: koyu temada rapor yeşili, açık temada marka bandı
     final band = light ? colors.markaBandi : colors.raporKoyu;
     final soluk = YbRenkler.acik.markaBandiMetin;
-    Widget madde(IconData icon, String text) => Padding(
-        padding: const EdgeInsets.only(bottom: Olcu.s16),
-        child: Row(children: [
-          Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                  color: colors.beyaz.withValues(alpha: .08),
-                  borderRadius: BorderRadius.circular(10)),
-              child: Icon(icon, size: 18, color: YbRenkler.acik.markaBandiVurgu)),
-          const SizedBox(width: Olcu.s12),
-          Expanded(
-              child: Text(text,
-                  style: Yazilar.govdeKucuk.copyWith(color: colors.beyaz))),
+    final vurgu = YbRenkler.acik.markaBandiVurgu;
+    // Kurucuların motivasyon yazısı (kullanıcı metni; değiştirilmeden gösterilir)
+    const satirlar = [
+      'Seni anlamayacaklar; anlamak için de uğraşmayacaklar.',
+      'Fikirlerin, betona çarpar gibi çarpıp dağılacak yüzlerinde.',
+      'Sen susup, yoluna bakacaksın...',
+      'Cebindeki umutlara sıkı sıkıya sarılıp, inandığın hiçbir tutkunun peşini bırakmayacaksın ve başaracaksın!',
+      'İşte o zaman, sadece sana inananlarla yan yana olacaksın.',
+    ];
+    final yazi = ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                  padding: const EdgeInsets.only(bottom: Olcu.s16),
+                  child: Icon(LucideIcons.quote, size: 34, color: vurgu))),
+          for (final satir in satirlar)
+            Padding(
+                padding: const EdgeInsets.only(bottom: Olcu.s8),
+                child: Text(satir,
+                    style: TextStyle(
+                        fontSize: 19,
+                        height: 1.55,
+                        letterSpacing: -0.1,
+                        color: colors.beyaz,
+                        fontWeight: FontWeight.w400))),
+          const SizedBox(height: Olcu.s20),
+          Align(
+              alignment: Alignment.centerRight,
+              child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Container(width: 40, height: 2, color: vurgu),
+                const SizedBox(height: Olcu.s12),
+                Text('Maya Teknoloji ve Dijital Hizmetler',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w600, color: colors.beyaz)),
+                const SizedBox(height: Olcu.s4),
+                Text('Kurucular: Ali ASLAN & Meliha ASLAN',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(fontSize: 13, color: soluk)),
+              ])),
         ]));
     final content = Padding(
         padding: EdgeInsets.all(wide ? PanelOlcu.sayfa * 2 : Olcu.s28),
@@ -98,22 +126,10 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisSize: wide ? MainAxisSize.max : MainAxisSize.min,
             children: [
               const YerimeBakLogo(height: 40, onDark: true),
-              SizedBox(height: wide ? Olcu.s28 * 2 : Olcu.s20),
-              Text('Operasyonun her adımı,\ntek bir yerde.',
-                  style: Yazilar.baslik1.copyWith(
-                      color: colors.beyaz,
-                      height: 1.25,
-                      fontSize: wide ? 34 : 25,
-                      letterSpacing: -0.6)),
-              const SizedBox(height: Olcu.s16),
-              Text(
-                  'Ekspertiz taleplerini, saha ekibini ve müşteri süreçlerini güvenle yönetin.',
-                  style: Yazilar.govdeKucuk.copyWith(color: soluk)),
+              // Telefonda form öne çıksın diye yazı yalnız geniş ekranda
               if (wide) ...[
-                const SizedBox(height: Olcu.s28 + Olcu.s12),
-                madde(LucideIcons.headset, 'Kontrol merkezi: randevular ve saha iletişimi tek ekranda'),
-                madde(LucideIcons.carFront, 'Talepler, personel ataması ve rapor onayı'),
-                madde(LucideIcons.chartLine, 'Müşteri, değerleme ve kredi satışı özeti'),
+                const SizedBox(height: Olcu.s28 * 2),
+                yazi,
               ],
             ]));
     return Container(width: double.infinity, color: band, child: content);
