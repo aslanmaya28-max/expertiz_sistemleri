@@ -37,6 +37,10 @@ class CorporateExperience(unittest.TestCase):
 
     def api(self, route):
         request = route.request
+        if '/expertiz/service-area' in request.url:
+            # 036: il durumu sunucudan; bu senaryodaki hesap test kullanıcısı (ödemesiz talep açabilir)
+            return route.fulfill(status=200, json={'pilot': 'İstanbul', 'tester': True, 'cities': [
+                {'il': 'İstanbul', 'durum': 'acik', 'talep_acabilir': True}]})
         if request.url.endswith('/auth/login') and request.method == 'POST':
             self.calls.append(request.post_data_json)
             payload = base64.urlsafe_b64encode(json.dumps({'sub':'preview-only','email':'preview@example.test','exp':int(time.time())+3600,'role':'user'}).encode()).decode().rstrip('=')
@@ -90,11 +94,20 @@ class CorporateExperience(unittest.TestCase):
         self.page.get_by_label('Model (zorunlu)',exact=True).fill('Arona')
         self.page.get_by_label('Aracın bulunduğu il (zorunlu)').select_option(label='İstanbul')
         self.page.get_by_label('İlçe (zorunlu)',exact=True).fill('Kadıköy')
+        # 036: randevuyu müşteri satıcıyla ayarlar; tarih-saat, açık adres ve satıcı telefonu zorunlu
+        from datetime import datetime, timedelta
+        yarin = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%dT10:30')
+        self.page.get_by_label('Randevu tarihi ve saati', exact=False).fill(yarin)
+        self.page.get_by_label('Açık adres / buluşma noktası', exact=False).fill('Caferağa Mah. Moda Cad. No: 10')
+        self.page.get_by_label('Satıcı telefonu', exact=False).fill('0532 111 22 33')
         self.page.get_by_role('button',name='Devam',exact=True).click()
         self.page.get_by_role('button',name='Devam',exact=True).click()
         self.page.get_by_role('button').filter(has_text='Test paketi').first.click()
         self.page.get_by_role('button',name='Devam',exact=True).click()
-        self.page.get_by_role('button',name='Talep oluştur',exact=True).click()
+        self.page.get_by_text('Araç belirtilen adreste bulunamazsa', exact=False).click()
+        self.page.get_by_text('okudum ve kabul ediyorum', exact=False).click()
+        self.page.get_by_text('Ödemesiz test talebi', exact=True).click()
+        self.page.get_by_role('button',name='Ödemesiz test talebi oluştur',exact=True).click()
         expect(self.page.get_by_role('heading',name='Ekspertiz talebiniz alındı',exact=True)).to_be_visible()
         self.page.get_by_role('link',name='Panelde takip et',exact=True).click()
         expect(self.page).to_have_url(BASE+'/panel')

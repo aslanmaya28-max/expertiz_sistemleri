@@ -25,6 +25,11 @@ def reply(route):
         return route.fulfill(status=401, json={'detail': 'Test giriş hatası'})
     elif '/valuation/generation' in path:
         data = {'bulundu': False}
+    elif '/expertiz/service-area' in path:
+        # 036: talep formu illeri sunucudan alır; İstanbul açık (pilot)
+        data = {'pilot': 'İstanbul', 'tester': False, 'cities': [
+            {'il': 'Ankara', 'durum': 'test', 'talep_acabilir': False},
+            {'il': 'İstanbul', 'durum': 'acik', 'talep_acabilir': True}]}
     route.fulfill(status=200, json=data)
 
 
