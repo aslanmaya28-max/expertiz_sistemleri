@@ -17,14 +17,17 @@ YerimeBak, ikinci el araç ilanını ve girdiğiniz araç bilgilerini değerlend
 İlan bağlantısını yapıştırın veya ilan uygulamasında Paylaş → YerimeBak seçeneğini kullanın. Okunan bilgileri kontrol edin; araç yılı, kilometre, ilan fiyatı, hasar kaydı ve kaporta durumlarını tamamlayın. İsterseniz bilgileri elle de girebilirsiniz.
 
 Raporunuzda neler var?
-• Hesaplanan araç değeri ve adil fiyat aralığı
-• Benzer ilanlar ve fiyatın piyasadaki konumu
-• Hasar ve kaporta bilgilerine göre değer kaybı
-• Pazarlık planı ve satıcıya iletebileceğiniz mesaj
-• Kaynağı bulunan model riskleri, kontrol edilecek bakımlar ve satıcıya sorulacak sorular
+• İlan fiyatının piyasaya göre konumu: piyasanın altında mı, uyumlu mu, üstünde mi
+• Hesaplanan araç değeri, adil fiyat aralığı ve tavsiye alım fiyatı
+• Aynı model, kasa, yakıt ve vites türündeki benzer ilanlar; aracınızın yılına ve kilometresine göre düzeltilmiş
+• Boyalı, değişen parça ve hasar kaydına göre değer kaybı, kalem kalem
+• Pazarlık planı: açılış teklifi, hedef fiyat ve üst sınır
+• Satıcıya gönderebileceğiniz hazır mesaj: tek dokunuşla kopyalayın ya da WhatsApp'ta paylaşın
+• Araç enflasyonuna göre 6 ay ve 1 yıl sonraki tahmini değer
+• Kaynağı bulunan model sorunları ve kullanıcı şikâyetleri, bu kilometrede kontrol edilecek bakımlar ve satıcıya sorulacak sorular
 • Bilgilerin dayandığı kaynaklar
 
-Raporlarınızı hesabınızda saklayın, daha sonra tekrar açın ve PDF olarak görüntüleyin. Aynı hesabın kredi bakiyesi web sitesi ve uygulamada birlikte kullanılır.
+Raporlarınızı hesabınızda saklayın, daha sonra tekrar açın, PDF olarak görüntüleyin ya da listenizden silin. Aynı hesabın kredi bakiyesi web sitesi ve uygulamada birlikte kullanılır. Yeterli benzer ilan bulunamazsa rapor üretilmez ve krediniz düşülmez.
 
 Araç analizleri krediyle sunulur. Kredi paketleri uygulama içinde Google Play üzerinden satın alınır. Güncel fiyatları ödeme öncesinde görebilirsiniz. Uygulama reklam göstermez.
 

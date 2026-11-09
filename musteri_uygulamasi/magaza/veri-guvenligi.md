@@ -1,6 +1,6 @@
 # Veri güvenliği — Console cevapları
 
-5 Kasım 2026 kod incelemesine göre hazırlanmıştır. Kapsam: bu Android sürümü; web sitesindeki farklı akışlar otomatik olarak bu sürümün özelliği sayılmaz. Formu göndermeden önce üretim sunucusunun fiilî saklama/sağlayıcı sözleşmelerini ve gizlilik metnini bu envanterle eşleştirin.
+5 Kasım 2026 kod incelemesine göre hazırlanmış, 9 Kasım 2026'da yeniden kontrol edilmiştir: uygulamada fotoğraf/ekran görüntüsü yükleme yok (yalnız web sitesinde), medya izinleri manifestte kaldırılmış durumda. Raporlarım'daki "Sil" raporu kullanıcının listesinden kaldırır; kayıt doğrulama ve muhasebe için sunucuda tutulur (hesap silme akışı ayrıdır). Kapsam: bu Android sürümü; web sitesindeki farklı akışlar otomatik olarak bu sürümün özelliği sayılmaz. Formu göndermeden önce üretim sunucusunun fiilî saklama/sağlayıcı sözleşmelerini ve gizlilik metnini bu envanterle eşleştirin.
 
 ## Genel cevaplar
 
