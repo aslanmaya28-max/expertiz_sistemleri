@@ -154,6 +154,12 @@ def _raise_if_error(result: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
+def _saha(result: Dict[str, Any]) -> Dict[str, Any]:
+    """Personele giden görev yanıtı: müşteri/satıcı iletişim bilgisi yok (kontrol merkezi, 9 Kasım 2026)."""
+    from yerimebak_ai_v5.services import control_center
+    return control_center.personel_gorunumu(result)
+
+
 def get_personnel_user(user: Dict[str, Any] = Depends(get_authenticated_user)) -> Dict[str, Any]:
     if not dispatch_service.is_personnel(user):
         raise HTTPException(status_code=403, detail="Bu islem sadece saha personeli icindir")
@@ -526,29 +532,33 @@ async def admin_unassign_request(
 
 @router.get("/personnel/tasks")
 async def personnel_tasks(user: Dict[str, Any] = Depends(get_personnel_user)) -> Dict[str, Any]:
-    return dispatch_service.list_personnel_tasks(user)
+    from yerimebak_ai_v5.services import control_center
+    sonuc = control_center.personel_gorunumu(dispatch_service.list_personnel_tasks(user))
+    # Personel yalnız kontrol merkezine bağlanır (9 Kasım 2026)
+    sonuc["kontrol_merkezi"] = control_center.ayarlar()
+    return sonuc
 
 
 @router.post("/personnel/tasks/{report_id}/accept")
 async def personnel_accept_task(report_id: str, user: Dict[str, Any] = Depends(get_personnel_user)) -> Dict[str, Any]:
-    return _raise_if_error(dispatch_service.update_task_progress(report_id, user, "accept"))
+    return _saha(_raise_if_error(dispatch_service.update_task_progress(report_id, user, "accept")))
 
 
 @router.post("/personnel/tasks/{report_id}/start")
 async def personnel_start_task(report_id: str, user: Dict[str, Any] = Depends(get_personnel_user)) -> Dict[str, Any]:
-    return _raise_if_error(dispatch_service.update_task_progress(report_id, user, "start"))
+    return _saha(_raise_if_error(dispatch_service.update_task_progress(report_id, user, "start")))
 
 
 @router.post("/personnel/tasks/{report_id}/depart")
 async def personnel_depart_task(report_id: str, user: Dict[str, Any] = Depends(get_personnel_user)) -> Dict[str, Any]:
     """Harekete gecti: musteri ve admine anlik bildirim."""
-    return _raise_if_error(dispatch_service.update_task_progress(report_id, user, "depart"))
+    return _saha(_raise_if_error(dispatch_service.update_task_progress(report_id, user, "depart")))
 
 
 @router.post("/personnel/tasks/{report_id}/arrive")
 async def personnel_arrive_task(report_id: str, user: Dict[str, Any] = Depends(get_personnel_user)) -> Dict[str, Any]:
     """Arac basinda."""
-    return _raise_if_error(dispatch_service.update_task_progress(report_id, user, "arrive"))
+    return _saha(_raise_if_error(dispatch_service.update_task_progress(report_id, user, "arrive")))
 
 
 @router.post("/personnel/tasks/{report_id}/not-found")
@@ -559,10 +569,71 @@ async def personnel_vehicle_not_found(
     return _raise_if_error(await run_in_threadpool(dispatch_service.report_vehicle_not_found, report_id, user, payload.note))
 
 
+class ControlNote(BaseModel):
+    note: str = ""
+
+
+class ContactLogPayload(BaseModel):
+    hedef: str
+    sonuc: str
+    note: Optional[str] = None
+
+
+class ControlCenterSettings(BaseModel):
+    telefon: str
+    calisma_saatleri: Optional[str] = None
+
+
+@router.post("/personnel/tasks/{report_id}/control-note")
+async def personnel_control_note(
+    report_id: str, payload: ControlNote, user: Dict[str, Any] = Depends(get_personnel_user)
+) -> Dict[str, Any]:
+    """Saha personeli kontrol merkezine not bırakır; yöneticilere bildirim gider."""
+    from yerimebak_ai_v5.services import control_center
+    return _raise_if_error(await run_in_threadpool(control_center.personel_notu, report_id, user, payload.note))
+
+
+@router.get("/control-center")
+async def control_center_info(user: Dict[str, Any] = Depends(get_authenticated_user)) -> Dict[str, Any]:
+    """Kontrol merkezi telefonu ve çalışma saatleri (personel ve müşteri panelleri)."""
+    from yerimebak_ai_v5.services import control_center
+    return await run_in_threadpool(control_center.ayarlar)
+
+
+@router.put("/admin/control-center")
+async def control_center_update(
+    payload: ControlCenterSettings, admin: Dict[str, Any] = Depends(get_admin_user)
+) -> Dict[str, Any]:
+    from yerimebak_ai_v5.services import control_center
+    return _raise_if_error(await run_in_threadpool(control_center.ayarlari_guncelle, payload.model_dump(), admin))
+
+
+@router.get("/admin/control-center/tasks")
+async def control_center_tasks(admin: Dict[str, Any] = Depends(get_admin_user)) -> Dict[str, Any]:
+    """Kontrol merkezi ekranı: açık görevler randevu saatine göre, numaralar ve son iletişim."""
+    from yerimebak_ai_v5.services import control_center
+    return await run_in_threadpool(control_center.gunun_gorevleri)
+
+
+@router.get("/admin/requests/{report_id}/contact-log")
+async def control_center_log(report_id: str, admin: Dict[str, Any] = Depends(get_admin_user)) -> Dict[str, Any]:
+    from yerimebak_ai_v5.services import control_center
+    return await run_in_threadpool(control_center.kayitlar, report_id)
+
+
+@router.post("/admin/requests/{report_id}/contact-log")
+async def control_center_log_add(
+    report_id: str, payload: ContactLogPayload, admin: Dict[str, Any] = Depends(get_admin_user)
+) -> Dict[str, Any]:
+    """Kontrol merkezinin yaptığı arama: hedef musteri/satici/personel, sonuç ulasildi/ulasilamadi/…"""
+    from yerimebak_ai_v5.services import control_center
+    return _raise_if_error(await run_in_threadpool(control_center.yonetim_kaydi, report_id, admin, payload.model_dump()))
+
+
 @router.post("/personnel/tasks/{report_id}/corporate")
 async def personnel_corporate_task(report_id: str, user: Dict[str, Any] = Depends(get_personnel_user)) -> Dict[str, Any]:
     """Kurumsal ekspertiz noktasinda."""
-    return _raise_if_error(dispatch_service.update_task_progress(report_id, user, "corporate"))
+    return _saha(_raise_if_error(dispatch_service.update_task_progress(report_id, user, "corporate")))
 
 
 @router.get("/personnel/me")
@@ -630,7 +701,7 @@ async def admin_read_notifications(
 
 @router.get("/personnel/tasks/{report_id}/report")
 async def personnel_task_report(report_id: str, user: Dict[str, Any] = Depends(get_personnel_user)) -> Dict[str, Any]:
-    return _raise_if_error(dispatch_service.get_task_report(report_id, user))
+    return _saha(_raise_if_error(dispatch_service.get_task_report(report_id, user)))
 
 
 @router.put("/personnel/tasks/{report_id}/draft")
@@ -682,7 +753,7 @@ async def personnel_submit_report(
     # Merkezi AI analizi yanit dondukten sonra calisir; rapor bu arada
     # admin panelinde "Onay Bekleyen" sekmesinde gorunur.
     background_tasks.add_task(dispatch_service.run_central_ai, report_id)
-    return result
+    return _saha(result)
 
 
 # ---------------------------------------------------------------------------

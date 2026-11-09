@@ -103,9 +103,11 @@ async def lifespan(app: FastAPI):
         google_play_service.ensure_schema()
         # Yerinde ekspertiz: test kullanıcısı sütunu (istek sırasında DDL yapılmaz)
         from yerimebak_ai_v5.services import service_area
+        from yerimebak_ai_v5.services import control_center
         _conn = DatabaseConfig.get_connection()
         try:
             service_area.ensure_schema(_conn.cursor())
+            control_center.ensure_schema(_conn.cursor())
             _conn.commit()
         finally:
             DatabaseConfig.return_connection(_conn)

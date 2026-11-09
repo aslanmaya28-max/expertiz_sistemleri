@@ -38,11 +38,38 @@ def test_firma_personeli_ve_arac_bulunamadi_kismi_iade(client, admin_token, cust
                        json={'personnel_id': pa['id']}).status_code == 200
 
     saha = _login(client, 'firma-a@yerimebak.test', 'Personel123')
-    # "Müşteriyi ara" (kullanıcı isteği 9 Kasım 2026): görevde talep sahibinin telefonu ve randevu bilgisi
-    gorev = next(t for t in client.get('/api/v1/expertiz/personnel/tasks', headers=_auth(saha)).json()['tasks']
-                 if t['id'] == report_id)
-    assert gorev['customer']['phone'] == '05551112233'
-    assert gorev['randevu']['satici_telefon'] == '05321112233' and gorev['randevu']['adres']
+    # Kontrol merkezi (kullanıcı kararı 9 Kasım 2026): personel müşteriye/satıcıya doğrudan bağlanmaz;
+    # görevde numara yok, yalnız kontrol merkezinin numarası. Numaraları yönetici (kontrol merkezi) görür.
+    assert client.put('/api/v1/expertiz/admin/control-center', headers=_auth(admin_token),
+                      json={'telefon': '123'}).status_code == 422
+    assert client.put('/api/v1/expertiz/admin/control-center', headers=_auth(saha),
+                      json={'telefon': '0850 111 22 33'}).status_code == 403
+    ayar = client.put('/api/v1/expertiz/admin/control-center', headers=_auth(admin_token),
+                      json={'telefon': '0850 111 22 33', 'calisma_saatleri': 'Her gün 08.00–20.00'}).json()
+    assert ayar['telefon'] == '08501112233' and ayar['tanimli'] is True
+    liste = client.get('/api/v1/expertiz/personnel/tasks', headers=_auth(saha)).json()
+    assert liste['kontrol_merkezi']['telefon'] == '08501112233'
+    gorev = next(t for t in liste['tasks'] if t['id'] == report_id)
+    assert gorev['customer'] == {'name': 'Ayse M.'}
+    assert 'satici_telefon' not in gorev['randevu'] and gorev['randevu']['adres']
+    import json as _json
+    assert '05551112233' not in _json.dumps(liste) and '05321112233' not in _json.dumps(liste)
+    rapor = client.get(f'/api/v1/expertiz/personnel/tasks/{report_id}/report', headers=_auth(saha)).json()
+    assert '05551112233' not in _json.dumps(rapor) and 'musteri@yerimebak.test' not in _json.dumps(rapor)
+    # Personel kontrol merkezine not bırakır; kontrol merkezi müşteriyi arar ve kaydeder
+    assert client.post(f'/api/v1/expertiz/personnel/tasks/{report_id}/control-note', headers=_auth(saha),
+                       json={'note': 'Satıcı telefonu açmıyor, 10 dk sonra adresteyim'}).status_code == 200
+    merkez = client.get('/api/v1/expertiz/admin/control-center/tasks', headers=_auth(admin_token)).json()
+    satir = next(g for g in merkez['gorevler'] if g['id'] == report_id)
+    assert satir['customer']['phone'] == '05551112233' and satir['randevu']['satici_telefon'] == '05321112233'
+    assert satir['son_iletisim']['note'].startswith('Satıcı telefonu açmıyor')
+    assert client.post(f'/api/v1/expertiz/admin/requests/{report_id}/contact-log', headers=_auth(admin_token),
+                       json={'hedef': 'satici', 'sonuc': 'mesaj_birakildi', 'note': 'SMS atıldı'}).status_code == 200
+    assert client.post(f'/api/v1/expertiz/admin/requests/{report_id}/contact-log', headers=_auth(admin_token),
+                       json={'hedef': 'kimse', 'sonuc': 'ulasildi'}).status_code == 422
+    kayitlar = client.get(f'/api/v1/expertiz/admin/requests/{report_id}/contact-log', headers=_auth(admin_token)).json()
+    assert [k['hedef'] for k in kayitlar['kayitlar']] == ['satici', 'kontrol_merkezi']
+    assert client.get(f'/api/v1/expertiz/admin/requests/{report_id}/contact-log', headers=_auth(saha)).status_code == 403
     # Kabul aşamasında 'araç yok' bildirilemez; yoldayken bildirilebilir
     assert client.post(f'/api/v1/expertiz/personnel/tasks/{report_id}/accept', headers=_auth(saha)).status_code == 200
     erken = client.post(f'/api/v1/expertiz/personnel/tasks/{report_id}/not-found', headers=_auth(saha),
