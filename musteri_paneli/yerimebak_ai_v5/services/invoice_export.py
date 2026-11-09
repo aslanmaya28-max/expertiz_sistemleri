@@ -114,7 +114,7 @@ def collect_rows(start: Optional[str] = None, end: Optional[str] = None) -> List
                 base = {
                     "tarih": str(o.get("approved_at") or o.get("created_at") or "")[:19],
                     "siparis_no": o.get("paytr_oid") or o.get("id"),
-                    "aciklama": f"Arac analizi kredi paketi: {o.get('package_name') or ''} ({o.get('credits')} kredi)",
+                    "aciklama": f"Araç analizi kredi paketi: {o.get('package_name') or ''} ({o.get('credits')} kredi)",
                     **_billing(u),
                 }
                 rows.append({**base, "islem": "satis", "kdv_haric_tl": _money(net), "kdv_tl": _money(total - net), "toplam_tl": _money(total)})

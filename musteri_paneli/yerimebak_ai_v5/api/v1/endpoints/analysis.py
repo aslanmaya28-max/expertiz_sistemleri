@@ -48,19 +48,19 @@ async def trigger_ai_analysis(
 
     report = bridge.read_report_data(request.report_id)
     if not report:
-        raise HTTPException(status_code=404, detail="Rapor bulunamadi")
+        raise HTTPException(status_code=404, detail="Rapor bulunamadı")
 
     if report.get("status") not in ("pending_ai", "pending_admin"):
         raise HTTPException(
             status_code=400,
-            detail=f"Rapor durumu uygun degil: {report.get('status')}. Gerekli: pending_ai veya pending_admin"
+            detail=f"Rapor durumu uygun değil: {report.get('status')}. Gerekli: pending_ai veya pending_admin"
         )
 
     worker = get_ai_analysis_worker()
     success = await worker.process_single_report(request.report_id)
 
     if not success:
-        raise HTTPException(status_code=500, detail="AI analiz basarisiz")
+        raise HTTPException(status_code=500, detail="AI analiz başarısız")
 
     updated = bridge.read_report_data(request.report_id)
     return {
@@ -83,7 +83,7 @@ async def get_analysis_status(
     report = bridge.read_report_data(report_id)
 
     if not report:
-        raise HTTPException(status_code=404, detail="Rapor bulunamadi")
+        raise HTTPException(status_code=404, detail="Rapor bulunamadı")
 
     return {
         "success": True,

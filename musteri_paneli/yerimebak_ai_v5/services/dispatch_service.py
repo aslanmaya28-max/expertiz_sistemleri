@@ -337,7 +337,7 @@ def list_admin_requests(
     limit: int = 300,
 ) -> Dict[str, Any]:
     if bucket and bucket not in BUCKETS:
-        return _error(f"Gecersiz bucket. Secenekler: {', '.join(BUCKETS)}", 400)
+        return _error(f"Geçersiz bucket. Seçenekler: {', '.join(BUCKETS)}", 400)
     ensure_workflow_schema_once()
     conn = DatabaseConfig.get_connection()
     try:
@@ -370,7 +370,7 @@ def get_admin_request(report_id: str) -> Dict[str, Any]:
         cursor.execute("SELECT * FROM reports WHERE id::text = %s", (str(report_id),))
         row = cursor.fetchone()
         if not row:
-            return _error("Talep bulunamadi", 404)
+            return _error("Talep bulunamadı", 404)
         return {"success": True, "request": _admin_request(dict(row))}
     finally:
         DatabaseConfig.return_connection(conn)
@@ -429,34 +429,34 @@ def list_candidates(report_id: str) -> Dict[str, Any]:
 def assign_request(report_id: str, personnel_id: str, admin: Dict[str, Any], note: Optional[str] = None) -> Dict[str, Any]:
     personnel_id = str(personnel_id or "").strip()
     if not personnel_id:
-        return _error("Personel secimi zorunludur", 400)
+        return _error("Personel seçimi zorunludur", 400)
     ensure_workflow_schema_once()
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
         row = _lock_report(cursor, report_id)
         if not row:
-            return _error("Talep bulunamadi", 404)
+            return _error("Talep bulunamadı", 404)
         status = row.get("status") or "draft"
         if status not in ASSIGNABLE_STATUSES:
-            return _error(f"Bu talep su an atanamaz (durum: {status})", 409)
+            return _error(f"Bu talep şu an atanamaz (durum: {status})", 409)
 
         personnel = personnel_service._get_personnel(cursor, personnel_id)
         if not personnel:
-            return _error("Personel bulunamadi", 404)
+            return _error("Personel bulunamadı", 404)
         if not personnel_service._is_active_value(personnel.get("is_active")):
-            return _error("Hesabi pasif personele gorev atanamaz", 409)
+            return _error("Hesabı pasif personele görev atanamaz", 409)
         if personnel.get("on_duty") is False:
-            return _error("Personel su an gorev icin pasif; aktif bir personel secin", 409)
+            return _error("Personel şu an görev için pasif; aktif bir personel seçin", 409)
 
         data = _load_data(row.get("data"))
         if data.get("firm_id") and personnel.get("firm_id") and personnel["firm_id"] != data["firm_id"]:
-            return {"error": "Bu talep secilen firmanin personeline atanabilir", "http_status": 409,
+            return {"error": "Bu talep seçilen firmanın personeline atanabilir", "http_status": 409,
                     "code": "firma_uyusmuyor"}
         previous_id = _assigned_id(data)
         new_id = str(personnel["id"])
         if previous_id == new_id:
-            return _error("Talep zaten bu personele atanmis", 409)
+            return _error("Talep zaten bu personele atanmış", 409)
 
         public_person = personnel_service._public_personnel(personnel)
         request_location = _request_location(row, data)
@@ -533,13 +533,13 @@ def unassign_request(report_id: str, admin: Dict[str, Any], reason: Optional[str
         cursor = conn.cursor()
         row = _lock_report(cursor, report_id)
         if not row:
-            return _error("Talep bulunamadi", 404)
+            return _error("Talep bulunamadı", 404)
         if (row.get("status") or "draft") not in ASSIGNABLE_STATUSES:
-            return _error("Rapor onay surecindeki talebin atamasi kaldirilamaz", 409)
+            return _error("Rapor onay sürecindeki talebin ataması kaldırılamaz", 409)
         data = _load_data(row.get("data"))
         previous_id = _assigned_id(data)
         if not previous_id:
-            return _error("Talep zaten atanmamis", 409)
+            return _error("Talep zaten atanmamış", 409)
         note = (reason or "").strip() or "Admin atamayi kaldirdi"
         data = _clear_assignment(data, admin, note, "unassigned")
         _save_report_data(cursor, row, data, DURUM_BY_ASSIGNMENT["unassigned"])
@@ -648,7 +648,7 @@ def update_task_progress(report_id: str, user: Dict[str, Any], action: str) -> D
     Her adim zaman damgasi alir; musteri ve admin anlik bildirim alir.
     """
     if action not in task_progress.ACTIONS:
-        return _error("Gecersiz islem", 400)
+        return _error("Geçersiz işlem", 400)
     target, stamp = task_progress.ACTIONS[action]
     ensure_workflow_schema_once()
     personnel_id = str(user.get("id") or "")
@@ -657,22 +657,22 @@ def update_task_progress(report_id: str, user: Dict[str, Any], action: str) -> D
         cursor = conn.cursor()
         row = _lock_report(cursor, report_id)
         if not row:
-            return _error("Gorev bulunamadi", 404)
+            return _error("Görev bulunamadı", 404)
         data = _load_data(row.get("data"))
         if _assigned_id(data) != personnel_id:
-            return _error("Bu gorev size atanmamis", 403)
+            return _error("Bu görev size atanmamış", 403)
         if data.get("durum_kodu") == "vehicle_not_found":
             return _error("Araç adreste bulunamadı bildirildi; görev yönetim kararını bekliyor", 409)
         report_status = row.get("status") or "draft"
         if report_status not in ASSIGNABLE_STATUSES:
-            return _error("Bu gorev artik guncellenemez", 409)
+            return _error("Bu görev artık güncellenemez", 409)
 
         current = _assignment_status(data)
         if current == target:
             return {"success": True, "task": _admin_request(row), "unchanged": True}
         if not task_progress.can_transition(current, target, report_status):
             return _error(
-                f"Gorev bu adima gecemez (mevcut: {task_progress.STAGE_LABELS.get(current, current)})", 409
+                f"Görev bu adıma geçemez (mevcut: {task_progress.STAGE_LABELS.get(current, current)})", 409
             )
         corporate = corporate_info(row, data)
         if action == "corporate" and not corporate["required"]:
@@ -753,11 +753,11 @@ def _load_owned_task(cursor: Any, report_id: str, user: Dict[str, Any], lock: bo
     )
     row = cursor.fetchone()
     if not row:
-        return _error("Gorev bulunamadi", 404)
+        return _error("Görev bulunamadı", 404)
     row = dict(row)
     data = _load_data(row.get("data"))
     if _assigned_id(data) != str(user.get("id") or ""):
-        return _error("Bu gorev size atanmamis", 403)
+        return _error("Bu görev size atanmamış", 403)
     return {"row": row, "data": data}
 
 
@@ -792,9 +792,9 @@ def get_task_report(report_id: str, user: Dict[str, Any]) -> Dict[str, Any]:
 
 def _validate_report_payload(tam_rapor: Any) -> Optional[Dict[str, Any]]:
     if not isinstance(tam_rapor, dict):
-        return _error("Rapor verisi gecersiz", 400)
+        return _error("Rapor verisi geçersiz", 400)
     if len(json.dumps(tam_rapor, ensure_ascii=False, default=str).encode("utf-8")) > MAX_REPORT_JSON_BYTES:
-        return _error("Rapor verisi cok buyuk", 413)
+        return _error("Rapor verisi çok büyük", 413)
     return None
 
 
@@ -811,7 +811,7 @@ def save_task_draft(report_id: str, user: Dict[str, Any], tam_rapor: Any) -> Dic
             return loaded
         row, data = loaded["row"], loaded["data"]
         if not _task_is_open(row):
-            return _error("Gonderilmis rapor degistirilemez", 409)
+            return _error("Gönderilmiş rapor değiştirilemez", 409)
         data["tam_rapor_draft"] = tam_rapor
         data["tam_rapor_draft_at"] = _now()
         cursor.execute(
@@ -844,7 +844,7 @@ def upload_task_media(
             return loaded
         row = loaded["row"]
         if not _task_is_open(row):
-            return _error("Gonderilmis rapora dosya eklenemez", 409)
+            return _error("Gönderilmiş rapora dosya eklenemez", 409)
         result = media_service.store_media(
             cursor, str(row["id"]), user, content, original_name, category, section, item_key, item_label, note
         )
@@ -874,9 +874,9 @@ def delete_task_media(report_id: str, media_id: str, user: Dict[str, Any]) -> Di
             return loaded
         row = loaded["row"]
         if not _task_is_open(row):
-            return _error("Gonderilmis rapordan dosya silinemez", 409)
+            return _error("Gönderilmiş rapordan dosya silinemez", 409)
         if not media_service.soft_delete_media(cursor, str(row["id"]), media_id):
-            return _error("Dosya bulunamadi", 404)
+            return _error("Dosya bulunamadı", 404)
         _write_audit(cursor, "MEDIA_DELETED", str(row["id"]), user, {"media_id": str(media_id)})
         conn.commit()
         return {"success": True}
@@ -898,7 +898,7 @@ def submit_task_report(report_id: str, user: Dict[str, Any], tam_rapor: Any) -> 
         return invalid
     missing = [key for key in REPORT_SECTIONS if not isinstance(tam_rapor.get(key), dict)]
     if missing:
-        return _error(f"Rapor eksik bolum iceriyor: {', '.join(missing)}", 400)
+        return _error(f"Rapor eksik bölüm içeriyor: {', '.join(missing)}", 400)
 
     ensure_workflow_schema_once()
     conn = DatabaseConfig.get_connection()
@@ -909,14 +909,14 @@ def submit_task_report(report_id: str, user: Dict[str, Any], tam_rapor: Any) -> 
             return loaded
         row, data = loaded["row"], loaded["data"]
         if not _task_is_open(row):
-            return _error("Bu rapor zaten gonderilmis", 409)
+            return _error("Bu rapor zaten gönderilmiş", 409)
 
         counts = media_service.count_media(cursor, str(row["id"]))
         corporate = corporate_info(row, data)
         if corporate["required"] and counts.get("corporate_report", 0) == 0:
             return _error(
-                f"Musteri kurumsal ekspertiz talep etti ({corporate['firm_name'] or 'anlasmali firma'}). "
-                "Firmanin raporunu dosyaya ekleyin.",
+                f"Müşteri kurumsal ekspertiz talep etti ({corporate['firm_name'] or 'anlaşmalı firma'}). "
+                "Firmanın raporunu dosyaya ekleyin.",
                 409,
             )
 
@@ -1010,13 +1010,13 @@ async def reanalyze_report(report_id: str, admin: Dict[str, Any]) -> Dict[str, A
     status = current["report"].get("status")
     if status not in APPROVAL_STATUSES:
         return {
-            "error": "Yalnizca onay bekleyen (pending_ai / pending_admin) raporlar yeniden analiz edilebilir",
+            "error": "Yalnızca onay bekleyen (pending_ai / pending_admin) raporlar yeniden analiz edilebilir",
             "http_status": 400,
         }
     ok = await run_central_ai(report_id)
     refreshed = get_admin_report(report_id)
     if not ok:
-        return {"error": "AI analizi tamamlanamadi; rapor verisini kontrol edip tekrar deneyin", "http_status": 502}
+        return {"error": "AI analizi tamamlanamadı; rapor verisini kontrol edip tekrar deneyin", "http_status": 502}
     return {"success": True, "report": refreshed.get("report")}
 
 
@@ -1033,7 +1033,7 @@ async def set_market_value_override(
     """
     note = (note or "").strip()[:500]
     if value is not None and not MIN_MARKET_VALUE <= int(value) <= MAX_MARKET_VALUE:
-        return _error("Piyasa degeri 50.000 TL ile 100.000.000 TL arasinda olmali", 400)
+        return _error("Piyasa değeri 50.000 TL ile 100.000.000 TL arasında olmalı", 400)
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
@@ -1042,11 +1042,11 @@ async def set_market_value_override(
         row = cursor.fetchone()
         if not row:
             conn.rollback()
-            return _error("Rapor bulunamadi", 404)
+            return _error("Rapor bulunamadı", 404)
         row = dict(row)
         if row.get("status") not in APPROVAL_STATUSES:
             conn.rollback()
-            return _error("Yalnizca onay bekleyen raporlarin piyasa degeri duzeltilebilir", 400)
+            return _error("Yalnızca onay bekleyen raporların piyasa değeri düzeltilebilir", 400)
         data = row.get("data") or {}
         data = json.loads(data) if isinstance(data, str) else (data if isinstance(data, dict) else {})
         ai = row.get("ai_analiz_detay") or {}
@@ -1087,7 +1087,7 @@ async def set_market_value_override(
     ok = await run_central_ai(report_id)
     refreshed = expertiz_service.get_admin_report(report_id)
     if not ok:
-        return _error("Deger kaydedildi ama degerleme yeniden hesaplanamadi; tekrar deneyin", 502)
+        return _error("Değer kaydedildi ama değerleme yeniden hesaplanamadı; tekrar deneyin", 502)
     return {"success": True, "report": refreshed.get("report")}
 
 
@@ -1129,7 +1129,7 @@ def report_vehicle_not_found(report_id: str, user: Dict[str, Any], note: str) ->
             return task
         row = task["row"]
         if not _task_is_open(row):
-            return _error("Bu gorev artik acik degil", 409)
+            return _error("Bu görev artık açık değil", 409)
         data = _load_data(row.get("data"))
         stage = _assignment_status(data)
         if stage not in NOT_FOUND_STAGES:

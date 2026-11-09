@@ -80,7 +80,7 @@ def _do_refund(oid: Optional[str], amount: float, payment_status: str) -> Dict[s
 def cancel_expertiz_request(report_id: str, admin: Dict[str, Any], reason: str, refund: bool = True) -> Dict[str, Any]:
     reason = (reason or "").strip()
     if not reason:
-        return _error("Iptal nedeni zorunludur")
+        return _error("İptal nedeni zorunludur")
     from yerimebak_ai_v5.services import dispatch_service
 
     dispatch_service.ensure_workflow_schema_once()
@@ -90,13 +90,13 @@ def cancel_expertiz_request(report_id: str, admin: Dict[str, Any], reason: str, 
         cursor.execute("SELECT * FROM reports WHERE id::text = %s FOR UPDATE", (str(report_id),))
         row = cursor.fetchone()
         if not row:
-            return _error("Talep bulunamadi", 404)
+            return _error("Talep bulunamadı", 404)
         row = dict(row)
         status = row.get("status") or "draft"
         if status == "cancelled":
-            return _error("Talep zaten iptal edilmis", 409)
+            return _error("Talep zaten iptal edilmiş", 409)
         if status == "published":
-            return _error("Musteriye gonderilmis rapor iptal edilemez", 409)
+            return _error("Müşteriye gönderilmiş rapor iptal edilemez", 409)
         data = _load(row.get("data"))
         request_id = str(data.get("expertiz_request_id") or row["id"])
         cursor.execute("SELECT * FROM expertiz_requests WHERE id = %s FOR UPDATE", (request_id,))
@@ -168,7 +168,7 @@ def cancel_expertiz_request(report_id: str, admin: Dict[str, Any], reason: str, 
 def refund_credit_order(order_id: str, admin: Dict[str, Any], reason: str) -> Dict[str, Any]:
     reason = (reason or "").strip()
     if not reason:
-        return _error("Iade nedeni zorunludur")
+        return _error("İade nedeni zorunludur")
     conn = DatabaseConfig.get_connection()
     try:
         cursor = conn.cursor()
@@ -181,21 +181,21 @@ def refund_credit_order(order_id: str, admin: Dict[str, Any], reason: str) -> Di
         )
         order = cursor.fetchone()
         if not order:
-            return _error("Siparis bulunamadi", 404)
+            return _error("Sipariş bulunamadı", 404)
         order = dict(order)
         if order.get('payment_method') == 'google_play':
             return _error('Google Play iadelerini Play Console üzerinden yapın; ardından iade senkronunu çalıştırın.', 400)
         if order.get("status") == "refunded":
-            return _error("Siparis zaten iade edilmis", 409)
+            return _error("Sipariş zaten iade edilmiş", 409)
         if order.get("status") != "approved":
-            return _error("Sadece odemesi tamamlanmis siparis iade edilebilir", 409)
+            return _error("Sadece ödemesi tamamlanmış sipariş iade edilebilir", 409)
         credits = int(order.get("credits") or 0)
         cursor.execute("SELECT id, credits FROM users WHERE id = %s FOR UPDATE", (order["user_id"],))
         user = cursor.fetchone()
         balance = int(dict(user)["credits"] or 0) if user else 0
         if balance < credits:
             return _error(
-                f"Paketteki kredilerin bir kismi kullanilmis (bakiye {balance}, paket {credits}); iade yapilamaz", 409
+                f"Paketteki kredilerin bir kısmı kullanılmış (bakiye {balance}, paket {credits}); iade yapılamaz", 409
             )
         amount = float(order.get("amount_tl") or 0)
         result = _do_refund(order.get("paytr_oid"), amount, "paid" if order.get("paytr_oid") else "paid_simulation")
@@ -246,14 +246,14 @@ def not_found_refund(report_id: str, admin: Dict[str, Any], reason: str) -> Dict
         cursor.execute("SELECT * FROM reports WHERE id::text = %s FOR UPDATE", (str(report_id),))
         row = cursor.fetchone()
         if not row:
-            return _error("Talep bulunamadi", 404)
+            return _error("Talep bulunamadı", 404)
         row = dict(row)
         data = _load(row.get("data"))
         if data.get("durum_kodu") != "vehicle_not_found":
             return {"error": "Bu işlem yalnız saha 'araç adreste yok' bildirdiğinde yapılabilir",
                     "http_status": 409, "code": "arac_bulunamadi_bildirimi_yok"}
         if (row.get("status") or "") in ("cancelled", "published"):
-            return _error("Talep zaten kapanmis", 409)
+            return _error("Talep zaten kapanmış", 409)
         request_id = str(data.get("expertiz_request_id") or row["id"])
         cursor.execute("SELECT * FROM expertiz_requests WHERE id = %s FOR UPDATE", (request_id,))
         req = cursor.fetchone()

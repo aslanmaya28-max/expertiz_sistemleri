@@ -75,7 +75,7 @@ def build_token_request(
 ) -> Dict[str, str]:
     """get-token istegi govdesini (imzali) olusturur; saf fonksiyon, test edilebilir."""
     if not merchant_oid.isalnum():
-        raise PaytrError("merchant_oid sadece harf/rakam icerebilir")
+        raise PaytrError("merchant_oid sadece harf/rakam içerebilir")
     merchant_id = _env("PAYTR_MERCHANT_ID")
     salt = _env("PAYTR_MERCHANT_SALT")
     payment_amount = str(to_kurus(amount_tl))
@@ -117,7 +117,7 @@ def create_payment(merchant_oid: str, email: str, amount_tl: float, basket: Sequ
     if simulation_enabled():
         return {"provider": "simulation", "merchant_oid": merchant_oid, "iframe_url": None}
     if not is_configured():
-        raise PaytrError("Odeme altyapisi yapilandirilmamis (PAYTR_MERCHANT_ID/KEY/SALT)")
+        raise PaytrError("Ödeme altyapısı yapılandırılmamış (PAYTR_MERCHANT_ID/KEY/SALT)")
 
     body = build_token_request(merchant_oid, email, amount_tl, basket, user_ip, user_name, user_phone)
     try:
@@ -125,10 +125,10 @@ def create_payment(merchant_oid: str, email: str, amount_tl: float, basket: Sequ
         result = response.json()
     except Exception as exc:  # ag / json hatasi
         logger.error("[PAYTR] get-token istegi basarisiz: %s", exc)
-        raise PaytrError("Odeme sayfasi olusturulamadi, lutfen tekrar deneyin") from exc
+        raise PaytrError("Ödeme sayfası oluşturulamadı, lütfen tekrar deneyin") from exc
     if result.get("status") != "success" or not result.get("token"):
         logger.error("[PAYTR] get-token reddedildi: %s", result.get("reason"))
-        raise PaytrError(f"Odeme baslatilamadi: {result.get('reason') or 'bilinmeyen hata'}")
+        raise PaytrError(f"Ödeme başlatılamadı: {result.get('reason') or 'bilinmeyen hata'}")
     token = result["token"]
     return {"provider": "paytr", "merchant_oid": merchant_oid, "token": token, "iframe_url": IFRAME_URL.format(token=token)}
 
@@ -157,14 +157,14 @@ def refund(merchant_oid: str, amount_tl: float) -> Dict[str, Any]:
     if simulation_enabled():
         return {"status": "success", "simulated": True, "return_amount": f"{float(amount_tl):.2f}"}
     if not is_configured():
-        raise PaytrError("Odeme altyapisi yapilandirilmamis; iade yapilamadi")
+        raise PaytrError("Ödeme altyapısı yapılandırılmamış; iade yapılamadı")
     body = build_refund_request(merchant_oid, amount_tl)
     try:
         response = requests.post(REFUND_URL, data=body, timeout=30)
         result = response.json()
     except Exception as exc:
         logger.error("[PAYTR] iade istegi basarisiz: %s", exc)
-        raise PaytrError("PayTR'ye ulasilamadi; iade yapilamadi, tekrar deneyin") from exc
+        raise PaytrError("PayTR'ye ulaşılamadı; iade yapılamadı, tekrar deneyin") from exc
     if result.get("status") != "success":
         logger.error("[PAYTR] iade reddedildi: %s", result)
         raise PaytrError(f"PayTR iadeyi reddetti: {result.get('err_msg') or result.get('err_no') or 'bilinmeyen hata'}")

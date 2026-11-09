@@ -55,7 +55,7 @@ class ChangePasswordTests(unittest.TestCase):
         result, conn = self._run([], "EskiSifre1", "kisa")
         self.assertIn("8 karakter", result["error"])
         result, _ = self._run([], "EskiSifre1", "EskiSifre1")
-        self.assertIn("farkli", result["error"])
+        self.assertIn("farklı", result["error"])
         self.assertEqual(conn.cursor_instance.executed, [])
 
     def test_route_registered(self):

@@ -266,9 +266,9 @@ def create_unpaid_request(payload: Dict[str, Any], user: Dict[str, Any]) -> Dict
     vehicle = checkout_service._clean_vehicle(payload.get("vehicle"))
     listing_url = str(payload.get("listing_url") or "").strip()[:500]
     if not vehicle.get("brand") or not vehicle.get("model"):
-        return {"error": "Aracin marka ve model bilgileri zorunludur"}
+        return {"error": "Aracın marka ve model bilgileri zorunludur"}
     if not str(payload.get("city") or "").strip() or not str(payload.get("district") or "").strip():
-        return {"error": "Aracin bulundugu il ve ilce zorunludur"}
+        return {"error": "Aracın bulunduğu il ve ilçe zorunludur"}
     # Ödemesiz talep yalnız test içindir (sözleşme 2026-11-09 bölüm 5): müşteri PayTR ile öder.
     if not service_area.test_yetkisi_var_mi(user):
         return {"error": "Talep ödeme adımıyla oluşturulur", "http_status": 403, "code": "odemesiz_talep_yetkisi_yok"}
@@ -749,7 +749,7 @@ def get_customer_report(report_id: str, user: Dict[str, Any]) -> Dict[str, Any]:
         )
         row = _row_to_dict(cursor.fetchone())
         if not row:
-            return {"error": "Rapor bulunamadi veya henuz yayinlanmadi"}
+            return {"error": "Rapor bulunamadı veya henüz yayınlanmadı"}
         report = _public_report(row)
         # Musteri sadece yayinlanmis raporun fotograflarini ve kurumsal raporunu gorur
         _attach_media(cursor, [report], ["inspection_photo", "corporate_report"])
@@ -802,7 +802,7 @@ def get_admin_report(report_id: str) -> Dict[str, Any]:
         cursor.execute("SELECT * FROM reports WHERE id::text = %s LIMIT 1", (str(report_id),))
         row = _row_to_dict(cursor.fetchone())
         if not row:
-            return {"error": "Rapor bulunamadi"}
+            return {"error": "Rapor bulunamadı"}
         report = _admin_report(row)
         _attach_media(cursor, [report])
         return {"success": True, "report": report}
@@ -884,17 +884,17 @@ def publish_admin_report(report_id: str, admin: Dict[str, Any], admin_note: Opti
         cursor.execute("SELECT * FROM reports WHERE id::text = %s LIMIT 1 FOR UPDATE", (str(report_id),))
         row = _row_to_dict(cursor.fetchone())
         if not row:
-            return {"error": "Rapor bulunamadi", "http_status": 404}
+            return {"error": "Rapor bulunamadı", "http_status": 404}
 
         if row.get("status") == "published":
             return {"success": True, "report": _admin_report(row), "idempotent": True}
 
         if row.get("status") != "pending_admin":
-            return {"error": "Sadece admin onayi bekleyen rapor yayinlanabilir", "http_status": 400}
+            return {"error": "Sadece admin onayı bekleyen rapor yayınlanabilir", "http_status": 400}
 
         if not _has_official_central_ai(row):
             return {
-                "error": "Resmi rapor yayinlamak icin merkezi AI analizi gereklidir",
+                "error": "Resmî rapor yayınlamak için merkezi AI analizi gereklidir",
                 "http_status": 400,
             }
 
@@ -923,7 +923,7 @@ def publish_admin_report(report_id: str, admin: Dict[str, Any], admin_note: Opti
         )
         updated = _row_to_dict(cursor.fetchone())
         if not updated:
-            return {"error": "Rapor durumu degisti, islem tekrar denenmeli", "http_status": 409}
+            return {"error": "Rapor durumu değişti, işlem tekrar denenmeli", "http_status": 409}
         _write_audit(cursor, "REPORT_PUBLISHED", "report", report_id, admin, {
             "old_status": row.get("status"), "new_status": "published",
         })
@@ -946,7 +946,7 @@ def reject_admin_report(report_id: str, reason: str, admin: Dict[str, Any]) -> D
         cursor.execute("SELECT * FROM reports WHERE id::text = %s LIMIT 1", (str(report_id),))
         row = _row_to_dict(cursor.fetchone())
         if not row:
-            return {"error": "Rapor bulunamadi", "http_status": 404}
+            return {"error": "Rapor bulunamadı", "http_status": 404}
         # pending_ai: AI analizi bitmeden de admin hatayi gorup personele geri gonderebilir
         if row.get("status") not in ("pending_ai", "pending_admin"):
             return {"error": "Sadece onay bekleyen rapor reddedilebilir", "http_status": 400}
@@ -973,7 +973,7 @@ def reject_admin_report(report_id: str, reason: str, admin: Dict[str, Any]) -> D
         )
         updated = _row_to_dict(cursor.fetchone())
         if not updated:
-            return {"error": "Rapor durumu degisti, islem tekrar denenmeli", "http_status": 409}
+            return {"error": "Rapor durumu değişti, işlem tekrar denenmeli", "http_status": 409}
         _write_audit(cursor, "REPORT_REJECTED", "report", report_id, admin, {
             "old_status": row.get("status"), "rejection_reason": clean_reason,
         })

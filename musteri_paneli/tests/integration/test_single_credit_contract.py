@@ -150,7 +150,7 @@ def test_verification_preserves_existing_balance_and_campaign_is_once(
         content = " ".join(part.get_content() for part in outbox[-1].walk()
                            if part.get_content_type() in ("text/plain", "text/html"))
         assert ("ücretsiz" in content.lower()) is bool(campaign)
-        assert ("ucretsiz" in registration.json()["message"].lower()) is bool(campaign)
+        assert ("ücretsiz" in registration.json()["message"].lower()) is bool(campaign)
         sql("UPDATE users SET credits=%s, welcome_credits_granted=%s WHERE id=%s",
             (balance, already_granted, user["id"]))
         vtoken = _link_token(outbox[-1], "/eposta-dogrula")

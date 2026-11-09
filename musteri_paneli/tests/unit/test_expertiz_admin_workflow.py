@@ -142,7 +142,7 @@ class ExpertizAdminWorkflowTests(unittest.TestCase):
              patch.object(expertiz_service.DatabaseConfig, "return_connection"):
             result = expertiz_service.publish_admin_report(report_id, {"email": "admin@yerimebak.ai"})
 
-        self.assertEqual(result["error"], "Resmi rapor yayinlamak icin merkezi AI analizi gereklidir")
+        self.assertEqual(result["error"], "Resmî rapor yayınlamak için merkezi AI analizi gereklidir")
         self.assertEqual(result.get("http_status"), 400)
         self.assertFalse(conn.committed)
         self.assertIsNone(conn.cursor_instance.updated_data)

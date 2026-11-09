@@ -780,7 +780,7 @@ def test_field_flow_duty_district_live_status_and_notifications(client, admin_to
         json={"firm_id": firm["id"], "package_id": firm["packages"][0]["id"], "city": "İzmir",
               "vehicle": {"brand": "Fiat", "model": "Egea"}, "contract_accepted": True},
     )
-    assert no_district.status_code == 400 and "ilce" in no_district.json()["detail"]
+    assert no_district.status_code == 400 and "ilçe" in no_district.json()["detail"]
 
     # Personel kendini gorev icin pasif yapar -> admin bildirimi
     me = client.get("/api/v1/expertiz/personnel/me", headers=_auth(c_token)).json()["personnel"]
