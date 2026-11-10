@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   REHBER_ADIMLARI,
@@ -49,7 +49,8 @@ export default function IlkKullanimRehberi({ hazir, bakiye, acKomutu }: { hazir:
     if (!hazir) setAdim(null);
   }, [hazir]);
 
-  useEffect(() => {
+  // Yuva boyanmadan önce bulunur (eski bölümde yeni metin görünmesin).
+  useLayoutEffect(() => {
     if (adim === null) {
       setYuva(null);
       return;
@@ -63,14 +64,23 @@ export default function IlkKullanimRehberi({ hazir, bakiye, acKomutu }: { hazir:
     }
     setYuva(yer);
     bolum.dataset.rehberAktif = "true";
-    const azHareket = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    bolum.scrollIntoView({ block: "start", behavior: azHareket ? "auto" : "smooth" });
-    const odak = window.setTimeout(() => baslik.current?.focus({ preventScroll: true }), 60);
     return () => {
-      window.clearTimeout(odak);
       delete bolum.dataset.rehberAktif;
     };
   }, [adim]);
+
+  // Kaydırma, önceki baloncuk kalkıp yenisi yerleştikten sonra yapılır; yoksa sayfa kayar ve başlık menünün
+  // altında kalırdı (10.11.2026 görsel denetim).
+  useEffect(() => {
+    if (adim === null || !yuva) return;
+    const bolum = yuva.closest<HTMLElement>("[data-rehber]");
+    const azHareket = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const kare = window.requestAnimationFrame(() => {
+      bolum?.scrollIntoView({ block: "start", behavior: azHareket ? "auto" : "smooth" });
+      baslik.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(kare);
+  }, [adim, yuva]);
 
   useEffect(() => {
     if (adim === null) return;

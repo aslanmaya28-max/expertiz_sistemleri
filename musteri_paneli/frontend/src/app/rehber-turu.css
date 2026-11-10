@@ -26,6 +26,8 @@
   border: 1px solid var(--yb-green, #0b7a64); color: var(--yb-green, #0b7a64);
   font: italic 700 12px/1 Georgia, serif; background: #fff; cursor: help;
 }
+/* Formdaki "button { min-height: 44px }" kuralı yuvarlağı hapa çeviriyordu; görünen düğme küçük kalır. */
+.yb-analysis-page form .yb-bilgi-dugme { min-height: 20px; height: 20px; padding: 0; font-size: 12px; }
 /* Görünen düğme küçük, dokunma alanı 36 px. */
 .yb-bilgi-dugme::before { content: ""; position: absolute; inset: -8px; }
 .yb-bilgi-dugme:focus-visible { outline: 2px solid var(--yb-green, #0b7a64); outline-offset: 2px; }
