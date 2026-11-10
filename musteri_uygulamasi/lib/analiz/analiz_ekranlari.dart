@@ -119,8 +119,6 @@ class _AnalizBaslatEkraniState extends ConsumerState<IlanLinkKutusu> {
               'İlan uygulamasında Paylaş → YerimeBak ile de gönderebilirsiniz.',
               style: TextStyle(color: r.metinIkincil),
             ),
-            const SizedBox(height: Olcu.s16),
-            const EkranGoruntusuKutusu(),
           ],
         ),
         TextButton(
@@ -159,6 +157,12 @@ class _IlanOkunuyorEkraniState extends ConsumerState<IlanOkunuyorEkrani> {
   final sure = Stopwatch();
   _Asama asama = _Asama.aciliyor;
   bool sayfaGorunur = false, bitti = false;
+
+  /// Site bot koruması / doğrulama gösterdi: uyarı ve ekran görüntüsü önerilir; okuma arkada sürer.
+  bool engellendi = false;
+
+  /// Müşteri uyarıdan "sayfayı açıp dene" dedi: doğrulama sayfası gösterilir.
+  bool sayfaIstendi = false;
   String? hata;
 
   Uri get uri => paylasimdanLink(widget.link)!;
@@ -235,18 +239,24 @@ class _IlanOkunuyorEkraniState extends ConsumerState<IlanOkunuyorEkrani> {
         });
         await _metniGonder(metin);
       case SayfaDurumu.dogrulamaGerekli:
-        if (!sayfaGorunur) setState(() => sayfaGorunur = true);
+        if (sayfaIstendi) {
+          if (!sayfaGorunur) setState(() => sayfaGorunur = true);
+        } else if (!engellendi) {
+          setState(() => engellendi = true);
+        }
       case SayfaDurumu.yukleniyor:
-        if (!sayfaGorunur && sure.elapsed > _sayfayiGosterme) {
-          setState(() => sayfaGorunur = true);
+        if (!sayfaIstendi && !engellendi && sure.elapsed > _sayfayiGosterme) {
+          setState(() => engellendi = true);
         }
         // Sayfa müşteriye açıkken (çerez onayı, doğrulama, başka ilana geçiş) süre sınırı işlemez.
         if (!sayfaGorunur && sure.elapsed > _vazgec) {
           bitti = true;
           yoklama?.cancel();
-          _hata(
-            'İlan okunamadı. İlan metnini kopyalayıp yapıştırarak devam edebilirsiniz.',
-          );
+          if (!engellendi) {
+            _hata(
+              'İlan okunamadı. İlanın ekran görüntüsünü yükleyin ya da bilgileri elle girin.',
+            );
+          }
         }
     }
   }
@@ -288,7 +298,13 @@ class _IlanOkunuyorEkraniState extends ConsumerState<IlanOkunuyorEkrani> {
     final r = YbRenkler.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(sayfaGorunur ? 'İlanı doğrulayın' : 'İlan okunuyor'),
+        title: Text(
+          sayfaGorunur
+              ? 'İlanı doğrulayın'
+              : engellendi
+              ? 'İlan okunamadı'
+              : 'İlan okunuyor',
+        ),
       ),
       body: Stack(
         children: [
@@ -339,7 +355,16 @@ class _IlanOkunuyorEkraniState extends ConsumerState<IlanOkunuyorEkrani> {
                   children: [
                     Text(uri.host, style: TextStyle(color: r.metinIkincil)),
                     const SizedBox(height: Olcu.s12),
-                    if (hata == null) ...[
+                    if (hata == null && engellendi)
+                      _EngelUyarisi(
+                        uri: uri,
+                        sayfayiAc: () => setState(() {
+                          sayfaIstendi = true;
+                          engellendi = false;
+                          sayfaGorunur = true;
+                        }),
+                      )
+                    else if (hata == null) ...[
                       Text(
                         'Birkaç saniye sürer. Bilgiler hazır olunca kontrol edip analizi başlatacaksınız.',
                         style: TextStyle(color: r.metinIkincil),
@@ -354,9 +379,12 @@ class _IlanOkunuyorEkraniState extends ConsumerState<IlanOkunuyorEkrani> {
                       Panel('İlan okunamadı', [
                         Text(hata!),
                         const SizedBox(height: Olcu.s12),
-                        EkranGoruntusuDugmesi(
-                          link: uri.toString(),
-                          yerineGec: true,
+                        CanliBelirme(
+                          child: EkranGoruntusuDugmesi(
+                            link: uri.toString(),
+                            yerineGec: true,
+                            ana: true,
+                          ),
                         ),
                         const SizedBox(height: Olcu.s8),
                         TextButton(
@@ -427,50 +455,170 @@ class AsamaListesi extends StatelessWidget {
 
 /// Telefonda ilan metni kopyalanamıyor (Sahibinden): ilanın fiyat ve özellikler kısmının 1–4 ekran
 /// görüntüsü yüklenir, bilgiler sunucuda okunup forma dolar (sitedeki "Ekran görüntüsü yükle", 11.11.2026).
-class EkranGoruntusuKutusu extends StatelessWidget {
-  const EkranGoruntusuKutusu({super.key});
+class _EngelUyarisi extends ConsumerWidget {
+  final Uri uri;
+  final VoidCallback sayfayiAc;
+  const _EngelUyarisi({required this.uri, required this.sayfayiAc});
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final r = YbRenkler.of(context);
-    return Container(
-      padding: const EdgeInsets.all(Olcu.s12),
-      decoration: BoxDecoration(
-        color: r.birincilYuzey,
-        borderRadius: BorderRadius.circular(Olcu.s12),
-        border: Border.all(color: r.birincil.withValues(alpha: .35)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            'İlan metni kopyalanmıyor mu?',
-            style: Yazilar.bolumBaslik,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(Olcu.s16),
+          decoration: BoxDecoration(
+            color: r.uyariYuzey,
+            borderRadius: BorderRadius.circular(Olcu.s12),
+            border: Border.all(color: r.uyariKenar),
           ),
-          const SizedBox(height: Olcu.s4),
-          Text(
-            'İlanın fiyat ve özellikler kısmının ekran görüntüsünü alın (1–4 adet), buradan yükleyin; bilgileri biz okuyalım.',
-            style: TextStyle(color: r.metinIkincil),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(LucideIcons.shieldAlert, color: r.uyari),
+              const SizedBox(width: Olcu.s12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Site erişim vermiyor',
+                      style: Yazilar.bolumBaslik,
+                    ),
+                    const SizedBox(height: Olcu.s4),
+                    Text(
+                      '${uri.host.replaceFirst('www.', '')} ilan bilgilerine otomatik erişime izin vermiyor. '
+                      'İlanın fiyat ve özellikler kısmının ekran görüntüsünü (1–4 adet) yükleyin; bilgileri biz okuyalım.',
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: Olcu.s12),
-          const EkranGoruntusuDugmesi(),
-        ],
-      ),
+        ),
+        const SizedBox(height: Olcu.s16),
+        CanliBelirme(
+          child: EkranGoruntusuDugmesi(
+            link: uri.toString(),
+            yerineGec: true,
+            ana: true,
+          ),
+        ),
+        const SizedBox(height: Olcu.s8),
+        TextButton(
+          onPressed: sayfayiAc,
+          child: const Text('Sayfayı açıp doğrulamayı deneyin'),
+        ),
+        TextButton(
+          onPressed: () {
+            ref.read(analizTaslagiProvider.notifier).state = AnalizTaslagi(
+              AracFormu(link: uri.toString()),
+            );
+            context.pushReplacement('/analiz/form');
+          },
+          child: const Text('Bilgileri elle girin'),
+        ),
+      ],
     );
   }
 }
 
+/// Düğme kendini gösterir: aşağıdan kayarak belirir, sonra iki kez hafifçe nabız atar.
+/// Hareket azaltma açıksa düz görünür.
+class CanliBelirme extends StatefulWidget {
+  final Widget child;
+  const CanliBelirme({super.key, required this.child});
+  @override
+  State<CanliBelirme> createState() => _CanliBelirmeState();
+}
+
+class _CanliBelirmeState extends State<CanliBelirme>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController k = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2200),
+  );
+  late final Animation<double> gorunurluk = CurvedAnimation(
+    parent: k,
+    curve: const Interval(0, .2, curve: Curves.easeOut),
+  );
+  late final Animation<Offset> kayma =
+      Tween(begin: const Offset(0, .35), end: Offset.zero).animate(
+        CurvedAnimation(
+          parent: k,
+          curve: const Interval(0, .25, curve: Curves.easeOutBack),
+        ),
+      );
+  late final Animation<double> nabiz = TweenSequence<double>([
+    TweenSequenceItem(tween: ConstantTween(1), weight: 25),
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 1.0,
+        end: 1.05,
+      ).chain(CurveTween(curve: Curves.easeInOut)),
+      weight: 18,
+    ),
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 1.05,
+        end: 1.0,
+      ).chain(CurveTween(curve: Curves.easeInOut)),
+      weight: 18,
+    ),
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 1.0,
+        end: 1.05,
+      ).chain(CurveTween(curve: Curves.easeInOut)),
+      weight: 18,
+    ),
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 1.05,
+        end: 1.0,
+      ).chain(CurveTween(curve: Curves.easeInOut)),
+      weight: 21,
+    ),
+  ]).animate(k);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      k.value = 1;
+    } else if (!k.isAnimating && k.value == 0) {
+      k.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    k.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+    opacity: gorunurluk,
+    child: SlideTransition(
+      position: kayma,
+      child: ScaleTransition(scale: nabiz, child: widget.child),
+    ),
+  );
+}
+
 class EkranGoruntusuDugmesi extends ConsumerWidget {
   final String link;
-  final bool yerineGec;
+  final bool yerineGec, ana;
   const EkranGoruntusuDugmesi({
     super.key,
     this.link = '',
     this.yerineGec = false,
+    this.ana = false,
   });
   @override
-  Widget build(BuildContext context, WidgetRef ref) => IkincilButon(
-    'Ekran görüntüsü yükle',
-    () async {
+  Widget build(BuildContext context, WidgetRef ref) {
+    Future<void> eylem() async {
       final secilen = await ImagePicker().pickMultiImage(
         limit: 4,
         maxWidth: 2000,
@@ -495,9 +643,16 @@ class EkranGoruntusuDugmesi extends ConsumerWidget {
       } else {
         context.push('/analiz/form');
       }
-    },
-    icon: LucideIcons.image,
-  );
+    }
+
+    return ana
+        ? AnaButon(
+            'İlanın ekran görüntüsünü yükle',
+            eylem,
+            icon: LucideIcons.image,
+          )
+        : IkincilButon('Ekran görüntüsü yükle', eylem, icon: LucideIcons.image);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -526,6 +681,45 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
   };
   String? hata;
 
+  /// Hatalı/eksik alan: kırmızı yazı alanın altında, sayfa oraya kayar ve imleç oraya konur.
+  String? hataAlani;
+  final anahtarlar = {
+    for (final k in ['marka', 'model', 'yil', 'km', 'hp', 'fiyat'])
+      k: GlobalKey(),
+  };
+  final odaklar = {
+    for (final k in ['marka', 'model', 'yil', 'km', 'hp', 'fiyat'])
+      k: FocusNode(),
+  };
+
+  void _alanaGit(String alan) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final ctx = anahtarlar[alan]?.currentContext;
+      if (ctx != null && ctx.mounted) {
+        await Scrollable.ensureVisible(
+          ctx,
+          alignment: .25,
+          duration: MediaQuery.disableAnimationsOf(ctx)
+              ? Duration.zero
+              : const Duration(milliseconds: 350),
+          curve: Curves.easeOut,
+        );
+      }
+      odaklar[alan]?.requestFocus();
+    });
+  }
+
+  String? _alanHatasi(String alan) => hataAlani == alan ? hata : null;
+
+  void _duzeltildi(String alan) {
+    if (hataAlani == alan) {
+      setState(() {
+        hataAlani = null;
+        hata = null;
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -539,6 +733,9 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
   void dispose() {
     for (final x in c.values) {
       x.dispose();
+    }
+    for (final o in odaklar.values) {
+      o.dispose();
     }
     super.dispose();
   }
@@ -557,12 +754,19 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
 
   Future<void> _baslat() async {
     _oku();
-    final h = f.hata;
-    if (h != null) {
-      setState(() => hata = h);
+    final eksik = f.eksik;
+    if (eksik != null) {
+      setState(() {
+        hata = eksik.mesaj;
+        hataAlani = eksik.alan;
+      });
+      _alanaGit(eksik.alan);
       return;
     }
-    setState(() => hata = null);
+    setState(() {
+      hata = null;
+      hataAlani = null;
+    });
     final repo = ref.read(analizRepositoryProvider);
     try {
       final secenekler = await repo.kasaSecenekleri(f.marka, f.model, f.yil);
@@ -645,14 +849,18 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
   }) {
     final r = YbRenkler.of(context);
     return Padding(
+      key: anahtarlar[anahtar],
       padding: const EdgeInsets.only(bottom: Olcu.s12),
       child: TextField(
         controller: c[anahtar],
+        focusNode: odaklar[anahtar],
         keyboardType: klavye,
+        onChanged: (_) => _duzeltildi(anahtar),
         decoration: InputDecoration(
           labelText: etiket,
           hintText: ipucu,
           suffixText: sonEk,
+          errorText: _alanHatasi(anahtar),
           helperText: f.ilandanOkunan.contains(anahtar)
               ? 'İlandan okundu · kontrol edin'
               : null,
@@ -701,6 +909,8 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
     return Scaffold(
       appBar: AppBar(title: const Text('Araç bilgileri')),
       body: ListView(
+        // Kısa form: bütün alanlar önceden kurulur ki "Analizi başlat" en alttaki eksik alana da kaydırabilsin.
+        cacheExtent: 6000,
         padding: const EdgeInsets.all(Olcu.sayfa),
         children: [
           if (f.ilandanOkunan.isNotEmpty)
@@ -714,7 +924,7 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
                 ),
               ),
             ),
-          if (hata != null)
+          if (hata != null && hataAlani == null)
             Card(
               color: r.tehlikeYuzey,
               child: ListTile(
@@ -723,15 +933,23 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
             ),
           Panel('Araç', [
             KatalogAlani(
+              key: anahtarlar['marka'],
               etiket: 'Marka',
               denetleyici: c['marka']!,
+              odak: odaklar['marka'],
+              hataMetni: _alanHatasi('marka'),
+              degisti: () => _duzeltildi('marka'),
               secenekler: (sorgu) => katalogAra(markalar, sorgu, sinir: 8),
               ilandan: f.ilandanOkunan.contains('marka'),
             ),
             const SizedBox(height: Olcu.s12),
             KatalogAlani(
+              key: anahtarlar['model'],
               etiket: 'Model',
               denetleyici: c['model']!,
+              odak: odaklar['model'],
+              hataMetni: _alanHatasi('model'),
+              degisti: () => _duzeltildi('model'),
               secenekler: (sorgu) =>
                   katalogAra(modelleri(c['marka']!.text), sorgu, sinir: 8),
               ilandan: f.ilandanOkunan.contains('model'),
@@ -844,22 +1062,29 @@ class KatalogAlani extends StatefulWidget {
   final TextEditingController denetleyici;
   final List<String> Function(String sorgu) secenekler;
   final bool ilandan;
+  final FocusNode? odak;
+  final String? hataMetni;
+  final VoidCallback? degisti;
   const KatalogAlani({
     super.key,
     required this.etiket,
     required this.denetleyici,
     required this.secenekler,
     this.ilandan = false,
+    this.odak,
+    this.hataMetni,
+    this.degisti,
   });
   @override
   State<KatalogAlani> createState() => _KatalogAlaniState();
 }
 
 class _KatalogAlaniState extends State<KatalogAlani> {
-  final odak = FocusNode();
+  final _kendiOdak = FocusNode();
+  FocusNode get odak => widget.odak ?? _kendiOdak;
   @override
   void dispose() {
-    odak.dispose();
+    _kendiOdak.dispose();
     super.dispose();
   }
 
@@ -875,8 +1100,10 @@ class _KatalogAlaniState extends State<KatalogAlani> {
         controller: ctrl,
         focusNode: odakNoktasi,
         onSubmitted: (_) => gonder(),
+        onChanged: (_) => widget.degisti?.call(),
         decoration: InputDecoration(
           labelText: widget.etiket,
+          errorText: widget.hataMetni,
           helperText: widget.ilandan ? 'İlandan okundu · kontrol edin' : null,
           helperStyle: TextStyle(color: r.birincilMetin),
         ),

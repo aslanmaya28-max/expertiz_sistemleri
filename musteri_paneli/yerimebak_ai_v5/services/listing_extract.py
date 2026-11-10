@@ -20,6 +20,7 @@ Bilmediğini null bırak, tahmin veya hesap yapma. Yalnız JSON döndür:
 {"brand":null,"model":null,"package":null,"year":null,"km":null,"price":null,
 "fuel":null,"transmission":null,"location":null,"tramer_amount":null,
 "painted_count":null,"changed_count":null,"parts":{},"evidence":{}}
+location: ilanın bulunduğu ilin adı (ör. "İstanbul"); ilçe/mahalle yazma.
 parts: parça anahtarı -> boyali | lokal_boyali | degisen.
 Parça anahtarları: %s.
 evidence: her parts.<anahtar>, painted_count, changed_count, tramer_amount için
@@ -72,6 +73,43 @@ def numeric_in_text(value, text):
     return False
 
 
+def _il_sozlugu():
+    from yerimebak_ai_v5.core import turkey_regions
+    return {web.fold(ad): ad for ad, _bolge in turkey_regions.PROVINCES.values()}
+
+
+def il_adi(value, folded_text):
+    """Şehir alanı: yapay zekâ "İstanbul / Kadıköy", "Kadıköy, İstanbul" gibi birleşik yazar; ilan metninde
+    sıra/ayraç farklı olduğundan birebir eşleşme hep düşüyordu (11.11.2026, şehir hep boş). Değerdeki il adı
+    81 il listesinden bulunur ve ilan metninde geçiyorsa resmî adıyla kabul edilir."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    iller = _il_sozlugu()
+
+    def metinde(anahtar):
+        # Sadeleştirilmiş metinde il adı ayrı kelime olarak geçmeli ("izmirli" İzmir sayılmaz).
+        return re.search(r"(?<![a-z0-9])" + re.escape(anahtar) + r"(?![a-z0-9])", folded_text) is not None
+
+    adaylar = [p.strip() for p in re.split(r"[,/|\-–—()]+", value)]
+    adaylar += [k.strip(" .,;:") for k in value.split()]  # "Kadıköy İstanbul"
+    for aday in adaylar:
+        anahtar = web.fold(aday)
+        if anahtar in iller and metinde(anahtar):
+            return iller[anahtar]
+    return None
+
+
+def konum_satirindan_il(text):
+    """Yapay zekâ şehri döndürmezse: sahibinden/arabam konum satırı "İstanbul / Kadıköy / Caferağa Mh."."""
+    iller = _il_sozlugu()
+    # Türkiye'de il adları tek kelimedir; "İl / İlçe" kalıbında ilk kelime aranır.
+    for eslesme in re.finditer(r"([^\W\d_]+)\s*/\s*[^\W\d_]", text or ""):
+        anahtar = web.fold(eslesme.group(1))
+        if anahtar in iller:
+            return iller[anahtar]
+    return None
+
+
 def field(value, source, verified=True):
     return {"deger": value, "kaynak": source, "dogrulandi": verified}
 
@@ -86,6 +124,11 @@ def verify(data, text, source):
     evidence = data.get("evidence") if isinstance(data.get("evidence"), dict) else {}
     for key in TEXT_FIELDS:
         value = data.get(key)
+        if key == "location":
+            il = il_adi(value, folded)
+            if il:
+                fields[key] = field(il, source)
+            continue
         if isinstance(value, str) and value.strip() and web.fold(value.strip()) in folded:
             fields[key] = field(value.strip(), source)
     for key in NUMBER_FIELDS:
@@ -120,6 +163,10 @@ def verify(data, text, source):
         if (proof and proof in folded and matched
                 and not re.search(r"\b(yok\w*|degil\w*|degisensiz|boyasiz)\b", proof)):
             fields["parts." + key] = field(status, source)
+    if "location" not in fields:
+        il = konum_satirindan_il(text)
+        if il:
+            fields["location"] = field(il, source)
     return fields
 
 
@@ -216,6 +263,9 @@ def labeled_fields(text):
 def from_text(text):
     if not os.getenv("OPENROUTER_API_KEY"):
         labeled = labeled_fields(text)
+        il = konum_satirindan_il(text)
+        if il and "location" not in labeled:
+            labeled["location"] = field(il, "ilan_metni")
         if labeled:  # anahtar yokken de sahibinden/arabam satırları okunur
             return response(labeled)
         return {**response({}), "message": "İlan metninden çıkarım şu anda kullanılamıyor; bilgileri elle girin."}

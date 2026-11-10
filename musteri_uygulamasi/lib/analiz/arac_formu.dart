@@ -116,14 +116,28 @@ class AracFormu {
   }) : ilandanOkunan = ilandanOkunan ?? <String>{},
        parcalar = parcalar ?? <String, String>{};
 
-  String? get hata {
-    final h = formHatasi(yil: yil, km: km, fiyat: fiyat);
-    if (h != null) return h;
+  String? get hata => eksik?.mesaj;
+
+  /// İlk eksik/hatalı alan, ekrandaki sırayla. "Analizi başlat" müşteriyi doğrudan bu alana götürür
+  /// (11.11.2026 kullanıcı isteği: ayrıca "eksik yoksa" gibi yazı gösterilmez).
+  ({String alan, String mesaj})? get eksik {
+    if (marka.trim().isEmpty) return (alan: 'marka', mesaj: 'Markayı girin.');
+    if (model.trim().isEmpty) return (alan: 'model', mesaj: 'Modeli girin.');
+    final yilSiniri = DateTime.now().year + 1;
+    final y = int.tryParse(yil) ?? 0;
+    if (yil.isEmpty || y < 1980 || y > yilSiniri) {
+      return (alan: 'yil', mesaj: 'Model yılı 1980 ile $yilSiniri arasında olmalı.');
+    }
+    if (km.isEmpty) return (alan: 'km', mesaj: 'Kilometreyi girin.');
+    if ((int.tryParse(km) ?? 0) > 2000000) {
+      return (alan: 'km', mesaj: 'Kilometre en fazla 2.000.000 olabilir.');
+    }
     final g = int.tryParse(hp);
     if (hp.isNotEmpty && (g == null || g < 40 || g > 800)) {
-      return 'Motor gücü 40 ile 800 hp arasında olmalı ya da boş kalmalı.';
+      return (alan: 'hp', mesaj: 'Motor gücü 40 ile 800 hp arasında olmalı ya da boş kalmalı.');
     }
-    if (marka.trim().isEmpty || model.trim().isEmpty) return 'Marka ve modeli girin.';
+    final h = formHatasi(yil: yil, km: km, fiyat: fiyat);
+    if (h != null) return (alan: 'fiyat', mesaj: h);
     return null;
   }
 

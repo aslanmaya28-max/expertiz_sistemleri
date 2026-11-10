@@ -163,4 +163,25 @@ void main() {
       expect(govde, contains('filename="ilan-1.png"'));
     });
   });
+
+  group('analiz düğmesi eksik alana götürür', () {
+    test('ilk eksik alan ekrandaki sırayla bulunur', () {
+      final f = AracFormu();
+      expect(f.eksik?.alan, 'marka');
+      f.marka = 'Seat';
+      expect(f.eksik?.alan, 'model');
+      f.model = 'Ibiza';
+      expect(f.eksik?.alan, 'yil');
+      f.yil = '2024';
+      expect(f.eksik?.alan, 'km');
+      f.km = '30000';
+      expect(f.eksik?.alan, 'fiyat');
+      f.hp = '20';
+      expect(f.eksik?.alan, 'hp');
+      f.hp = '';
+      f.fiyat = '960000';
+      expect(f.eksik, isNull);
+      expect(f.hata, isNull);
+    });
+  });
 }
