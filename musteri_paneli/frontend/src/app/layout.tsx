@@ -5,6 +5,7 @@ import "./scroll-deneyimi.css";
 import "./tasarim-temel.css";
 import "./ana-sayfa.css";
 import "./ic-sayfalar.css";
+import "./rehber-turu.css";
 import UstCubuk from "@/bilesenler/UstCubuk";
 import AltBilgi from "@/bilesenler/AltBilgi";
 import { ISLETME, SITE_URL } from "@/lib/hizmetBilgisi";

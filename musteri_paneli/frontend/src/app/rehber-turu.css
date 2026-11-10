@@ -1,0 +1,42 @@
+/* Araç değerleme ilk kullanım rehberi ve alan bilgi baloncukları (041). */
+.yb-rehber-hedef { scroll-margin-top: 112px; border-radius: 20px; transition: box-shadow 200ms ease; }
+.yb-rehber-hedef[data-rehber-aktif="true"] { box-shadow: 0 0 0 3px var(--yb-mint), 0 0 0 7px color-mix(in srgb, var(--yb-mint) 28%, transparent); }
+
+.yb-rehber-baloncuk {
+  margin: 0 0 16px; padding: 16px 18px; border-radius: 16px;
+  background: var(--yb-brand-band, #00574c); color: #fff;
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--yb-brand-band, #00574c) 25%, transparent);
+  animation: yb-rehber-gir 220ms ease-out;
+}
+.yb-rehber-ust { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; font-weight: 600; color: var(--yb-mint, #5cebc6); }
+.yb-rehber-ust button { min-height: 32px; padding: 4px 8px; border-radius: 8px; color: #d8efe9; text-decoration: underline; }
+.yb-rehber-baloncuk h3 { margin-top: 6px; font-size: 18px; font-weight: 750; letter-spacing: -.01em; color: #fff; outline: none; }
+.yb-rehber-baloncuk p { margin-top: 6px; font-size: 14.5px; line-height: 1.55; color: #e3f3ef; }
+.yb-rehber-dugmeler { margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.yb-rehber-dugmeler button { min-height: 40px; padding: 8px 16px; border-radius: 999px; font-size: 14px; font-weight: 700; border: 1px solid color-mix(in srgb, #fff 45%, transparent); color: #fff; }
+.yb-rehber-dugmeler button:disabled { opacity: .4; }
+.yb-rehber-dugmeler .yb-rehber-ileri { background: var(--yb-mint, #5cebc6); border-color: transparent; color: var(--yb-ink, #102c36); }
+.yb-rehber-baloncuk button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.yb-rehber-ac { font-weight: 700; color: var(--yb-mint, #5cebc6); text-decoration: underline; min-height: 32px; }
+@keyframes yb-rehber-gir { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+.yb-bilgi-dugme {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle;
+  width: 20px; height: 20px; margin-left: 6px; border-radius: 999px;
+  border: 1px solid var(--yb-green, #0b7a64); color: var(--yb-green, #0b7a64);
+  font: italic 700 12px/1 Georgia, serif; background: #fff; cursor: help;
+}
+/* Görünen düğme küçük, dokunma alanı 36 px. */
+.yb-bilgi-dugme::before { content: ""; position: absolute; inset: -8px; }
+.yb-bilgi-dugme:focus-visible { outline: 2px solid var(--yb-green, #0b7a64); outline-offset: 2px; }
+.yb-bilgi-kutu {
+  position: fixed; z-index: 80; display: grid; gap: 4px; padding: 12px 14px; border-radius: 12px;
+  background: var(--yb-ink, #102c36); color: #fff; font-size: 13.5px; line-height: 1.5;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .18);
+}
+.yb-bilgi-kutu strong { color: var(--yb-mint, #5cebc6); font-size: 13px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .yb-rehber-baloncuk { animation: none; }
+  .yb-rehber-hedef { transition: none; }
+}
