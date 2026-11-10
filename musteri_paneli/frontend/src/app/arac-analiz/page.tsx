@@ -4,6 +4,8 @@ import Link from "next/link";
 import { tekrarliIstek } from "@/lib/tekrarliIstek";
 import DegerlemeSonucu from "@/bilesenler/DegerlemeSonucu";
 import EkspertizFotografi from "@/bilesenler/EkspertizFotografi";
+import BilgiBaloncugu from "@/bilesenler/BilgiBaloncugu";
+import IlkKullanimRehberi, { RehberYuvasi } from "@/bilesenler/IlkKullanimRehberi";
 import { fotoOnDolum } from "@/lib/ekspertizFotografi";
 import { AnalizBekleme } from "@/bilesenler/AkilliAliciBolumleri";
 import { AracSemasi, AramaliSecim, SayiAlani } from "@/bilesenler/AracFormAlanlari";
@@ -59,6 +61,7 @@ export default function AracAnalizSayfasi() {
   const metinKutusu = useRef<HTMLTextAreaElement>(null);
   const ekranGirdisi = useRef<HTMLInputElement>(null);
   const [panoVar, setPanoVar] = useState(false);
+  const [rehberKomutu, setRehberKomutu] = useState(0);
   useEffect(() => {
     setPanoVar(typeof navigator !== "undefined" && !!navigator.clipboard?.readText);
   }, []);
@@ -311,10 +314,13 @@ export default function AracAnalizSayfasi() {
           </p>
         </div>
         <div className="text-sm text-metin-ikincil">
+          <button type="button" onClick={() => setRehberKomutu((n) => n + 1)} className="yb-rehber-ac mr-3">Nasıl kullanılır?</button>
           Bakiye: <strong className="text-metin-birincil">{bakiye ?? "-"} kredi</strong>{" "}
           <Link href="/kredi-yukle" className="ml-2 font-semibold text-birincil underline">Kredi yükle</Link>
         </div>
       </div>
+
+      <IlkKullanimRehberi hazir={!authLoading && !!user && !sonuc} bakiye={bakiye} acKomutu={rehberKomutu} />
 
       {sonuc && <DegerlemeSonucu sonuc={sonuc} onYeni={() => setSonuc(null)} />}
 
@@ -329,7 +335,8 @@ export default function AracAnalizSayfasi() {
 
       {!sonuc && (
         <form onSubmit={analizEt} className="mt-8 space-y-6">
-          <section className="yb-card yb-analysis-step">
+          <section className="yb-card yb-analysis-step yb-rehber-hedef" data-rehber="ilan">
+            <RehberYuvasi hedef="ilan" />
             <h2 className="text-lg font-semibold text-metin-birincil"><span className="yb-form-step-badge">1.</span>{" "}İlan linki (isteğe bağlı)</h2>
             <p className="text-sm text-metin-ikincil mt-1">Linki yapıştırın, bilgileri otomatik dolduralım; ya da aşağıya elle girin.</p>
             <div className="mt-3 flex gap-2">
@@ -375,16 +382,17 @@ export default function AracAnalizSayfasi() {
             </details>
           </section>
 
-          <section className="yb-card yb-analysis-step">
+          <section className="yb-card yb-analysis-step yb-rehber-hedef" data-rehber="bilgiler">
+            <RehberYuvasi hedef="bilgiler" />
             <h2 className="text-lg font-semibold text-metin-birincil"><span className="yb-form-step-badge">2.</span>{" "}Araç bilgileri</h2>
             <div className="mt-4 grid grid-cols-2 gap-4">
-              <div><label className={label}>Paket / motor{badge("package")}</label><input value={form.package} onChange={set("package")} className={input} /></div>
-              <div><label className={label}>Motor gücü (hp, isteğe bağlı){badge("hp")}</label><SayiAlani ariaLabel="Motor gücü" binlik={false} enFazlaHane={3} value={form.hp} onChange={setValue("hp")} className={input} placeholder="ör. 170" /></div>
+              <div><label className={label}>Paket / motor{badge("package")}<BilgiBaloncugu baslik="Paket / motor">İlandaki donanım ya da motor adı (ör. 1.0 TSI Style). Bilmiyorsanız boş bırakın; benzer ilanlar yine bulunur.</BilgiBaloncugu></label><input value={form.package} onChange={set("package")} className={input} /></div>
+              <div><label className={label}>Motor gücü (hp, isteğe bağlı){badge("hp")}<BilgiBaloncugu baslik="Motor gücü">Biliyorsanız girin; aynı modelin farklı motorlu ilanlarını ayırmamıza yardım eder.</BilgiBaloncugu></label><SayiAlani ariaLabel="Motor gücü" binlik={false} enFazlaHane={3} value={form.hp} onChange={setValue("hp")} className={input} placeholder="ör. 170" /></div>
               <div><label className={label}>Şehir{badge("location")}</label><input value={form.location} onChange={set("location")} className={input} /></div>
               <div><label className={label}>Marka{badge("brand")}</label><AramaliSecim required ariaLabel="Marka" value={form.brand} onChange={setValue("brand")} secenekler={MARKALAR} className={input} placeholder="Marka yazın veya seçin" /></div>
               <div><label className={label}>Model{badge("model")}</label><AramaliSecim required ariaLabel="Model" value={form.model} onChange={setValue("model")} secenekler={modelleri(form.brand)} className={input} placeholder={form.brand ? "Model yazın veya seçin" : "Önce marka"} /></div>
-              <div><label className={label}>Model yılı{badge("year")}</label><SayiAlani required ariaLabel="Model yılı" binlik={false} enFazlaHane={4} value={form.year} onChange={setValue("year")} className={input} placeholder="2020" /></div>
-              <div><label className={label}>Kilometre{badge("km")}</label><SayiAlani required ariaLabel="Kilometre" enFazlaHane={7} value={form.km} onChange={setValue("km")} className={input} placeholder="85.000" /></div>
+              <div><label className={label}>Model yılı{badge("year")}<BilgiBaloncugu baslik="Model yılı">Ruhsattaki model yılı; ilandaki yılla aynı olmalı.</BilgiBaloncugu></label><SayiAlani required ariaLabel="Model yılı" binlik={false} enFazlaHane={4} value={form.year} onChange={setValue("year")} className={input} placeholder="2020" /></div>
+              <div><label className={label}>Kilometre{badge("km")}<BilgiBaloncugu baslik="Kilometre">İlandaki kilometre. Rapor, benzer ilanları kilometre farkına göre düzeltir.</BilgiBaloncugu></label><SayiAlani required ariaLabel="Kilometre" enFazlaHane={7} value={form.km} onChange={setValue("km")} className={input} placeholder="85.000" /></div>
               {kasaBilgisi?.gecisYili && (
                 <div className="col-span-2 rounded-lg border border-yellow-300 bg-yellow-50 p-4" role="group" aria-label="Kasa seçimi">
                   <p className="text-sm font-medium text-yellow-900">{form.year} yılı {form.model} için kasa geçiş yılıdır: o yıl iki farklı kasa satıldı. Aracınız hangi kasa?</p>
@@ -414,13 +422,17 @@ export default function AracAnalizSayfasi() {
                   <option value="">Seçiniz</option><option>Otomatik</option><option>Manuel</option><option>Yarı Otomatik</option>
                 </select>
               </div>
-              <div className="col-span-2"><label className={label}>İlan fiyatı (₺){badge("price")}</label><SayiAlani required ariaLabel="İlan fiyatı" enFazlaHane={10} value={form.price} onChange={setValue("price")} className={input} placeholder="1.250.000" /></div>
+              <div className="col-span-2"><label className={label}>İlan fiyatı (₺){badge("price")}<BilgiBaloncugu baslik="İlan fiyatı">Satıcının istediği fiyat. Rapor bu fiyatın piyasadaki yerini ve pazarlık hedefinizi hesaplar.</BilgiBaloncugu></label><SayiAlani required ariaLabel="İlan fiyatı" enFazlaHane={10} value={form.price} onChange={setValue("price")} className={input} placeholder="1.250.000" /></div>
             </div>
           </section>
 
+          <div className="yb-rehber-hedef" data-rehber="fotograf">
+          <RehberYuvasi hedef="fotograf" />
           <EkspertizFotografi key={user?.id} disabled={busy !== null || !meta} onBusy={(value) => setBusy(value ? "photo" : null)} onApply={applyPhoto} onReset={resetPhoto}
             labels={Object.fromEntries((meta?.parts || []).map((part) => [part.key, part.label]))} />
-          <section className="yb-card yb-analysis-step">
+          </div>
+          <section className="yb-card yb-analysis-step yb-rehber-hedef" data-rehber="kaporta">
+            <RehberYuvasi hedef="kaporta" />
             <h2 className="text-lg font-semibold text-metin-birincil"><span className="yb-form-step-badge">3.</span>{" "}Boya / değişen ve hasar kaydı</h2>
             <p className="text-sm text-metin-ikincil mt-1">{photo ? "Okunmayan parçalar belirtilmedi olarak kalır. Her eksik parçanın durumunu kendiniz doğrulayın ve şemada işaretleyin." : "İlandaki ekspertiz bilgisine göre parçaları araç üzerinde işaretleyin. İşaretlemedikleriniz orijinal sayılır."}</p>
             {(["painted_count", "changed_count"] as const).map((key) => origins[key] && (
@@ -445,15 +457,18 @@ export default function AracAnalizSayfasi() {
               <button type="button" onClick={resetPhoto} className="text-birincil underline">Fotoğraf bilgilerini kaldır ve elle doldur</button>
             </div>}
             <div className="mt-4 max-w-xs">
-              <label className={label}>Tramer / hasar kaydı tutarı (₺){badge("tramer")}</label>
+              <label className={label}>Tramer / hasar kaydı tutarı (₺){badge("tramer")}<BilgiBaloncugu baslik="Tramer / hasar kaydı">Sigorta hasar kayıtlarının toplam tutarı. Kayıt yoksa 0 girin; bilmiyorsanız satıcıdan TRAMER sorgusu isteyin.</BilgiBaloncugu></label>
               <SayiAlani ariaLabel="Tramer tutarı" enFazlaHane={9} value={form.tramer} onChange={setValue("tramer")} className={input} placeholder="0" />
             </div>
           </section>
 
+          <div className="yb-rehber-hedef" data-rehber="degerle">
+          <RehberYuvasi hedef="degerle" />
           <button type="submit" disabled={busy !== null}
             className="yb-btn yb-btn-green yb-analysis-submit disabled:opacity-50">
             {busy === "analyze" ? "Analiz ediliyor..." : `Analiz Et (${meta?.cost_credits ?? 1} kredi)`}
           </button>
+          </div>
           {busy === "analyze" && <AnalizBekleme />}
         </form>
       )}
