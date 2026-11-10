@@ -200,12 +200,24 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
-    if (_loading) return const Padding(padding: EdgeInsets.all(24), child: Column(children: [YbIskelet(height: 80), SizedBox(height: 16), YbIskelet(height: 80), SizedBox(height: 16), YbIskelet(height: 80)]));
+    if (_loading) {
+      return const Padding(
+          padding: EdgeInsets.all(24),
+          child: Column(children: [
+            YbIskelet(height: 80),
+            SizedBox(height: 16),
+            YbIskelet(height: 80),
+            SizedBox(height: 16),
+            YbIskelet(height: 80)
+          ]));
+    }
     if (_error != null) return _buildError(isDarkMode);
 
-    final gorunenSiparisler = _orders.where((o) => _bekleyenHavaleler
-      ? o['status'] == 'pending'
-      : ['approved', 'refunded'].contains(o['status'])).toList();
+    final gorunenSiparisler = _orders
+        .where((o) => _bekleyenHavaleler
+            ? o['status'] == 'pending'
+            : ['approved', 'refunded'].contains(o['status']))
+        .toList();
     final bekleyenAdedi = _orders.where((o) => o['status'] == 'pending').length;
     final ciro = _num(_ekspertiz, 'ciro_tl');
     final kdv = _num(_ekspertiz, 'kdv_tl');
@@ -233,17 +245,16 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Expanded(
-                  child: Text(
-                    'Finans Yönetimi',
+                Text('Finans Yönetimi',
                     style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: textColor),
-                  ),
-                ),
+                        color: textColor)),
                 OutlinedButton.icon(
                   key: const Key('exportCsvButton'),
                   onPressed: _exporting ? null : _exportCsv,
@@ -270,33 +281,43 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
             ],
             const SizedBox(height: 20),
             LayoutBuilder(builder: (context, constraints) {
-              final sutunlar = constraints.maxWidth >= 1100 ? 4 : constraints.maxWidth >= 600 ? 2 : 1;
+              final sutunlar = constraints.maxWidth >= 1100
+                  ? 4
+                  : constraints.maxWidth >= 600
+                      ? 2
+                      : 1;
               return GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: sutunlar,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: ((constraints.maxWidth - (sutunlar - 1) * 10) / sutunlar) / 144,
-              children: [
-                _buildFinansKart(
-                    'Ekspertiz Cirosu',
-                    _tl(ciro),
-                    LucideIcons.trendingUp,
-                    context.renkler.birincil,
-                    isDarkMode),
-                _buildFinansKart('KDV', _tl(kdv), LucideIcons.receiptText,
-                    context.renkler.bilgi, isDarkMode),
-                _buildFinansKart(
-                    'Personel Hakedişi (%$paylasimOrani)',
-                    _tl(hakedis),
-                    LucideIcons.wallet,
-                    context.renkler.uyari,
-                    isDarkMode),
-                _buildFinansKart('Kredi Satışları', _tl(krediOnayli),
-                    LucideIcons.creditCard, context.renkler.bilgi, isDarkMode),
-              ],
-            );
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: sutunlar,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio:
+                    ((constraints.maxWidth - (sutunlar - 1) * 10) / sutunlar) /
+                        144,
+                children: [
+                  _buildFinansKart(
+                      'Ekspertiz Cirosu',
+                      _tl(ciro),
+                      LucideIcons.trendingUp,
+                      context.renkler.birincil,
+                      isDarkMode),
+                  _buildFinansKart('KDV', _tl(kdv), LucideIcons.receiptText,
+                      context.renkler.bilgi, isDarkMode),
+                  _buildFinansKart(
+                      'Personel Hakedişi (%$paylasimOrani)',
+                      _tl(hakedis),
+                      LucideIcons.wallet,
+                      context.renkler.uyari,
+                      isDarkMode),
+                  _buildFinansKart(
+                      'Kredi Satışları',
+                      _tl(krediOnayli),
+                      LucideIcons.creditCard,
+                      context.renkler.bilgi,
+                      isDarkMode),
+                ],
+              );
             }),
             const SizedBox(height: 30),
             Card(
@@ -369,21 +390,31 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
               ),
             ),
             const SizedBox(height: 30),
-            Text('Kredi Paketi Satışları', key: _krediSatislariAnahtari,
+            Text('Kredi Paketi Satışları',
+                key: _krediSatislariAnahtari,
                 style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: textColor)),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 8, children: [
-              ChoiceChip(label: const Text('Ödenmiş ve iadeler'), selected: !_bekleyenHavaleler,
-                onSelected: (_) => setState(() => _bekleyenHavaleler = false)),
-              ChoiceChip(key: const Key('bekleyen-havale-suzgeci'), label: Text('Bekleyen havale ($bekleyenAdedi)'), selected: _bekleyenHavaleler,
-                onSelected: (_) => setState(() => _bekleyenHavaleler = true)),
+              ChoiceChip(
+                  label: const Text('Ödenmiş ve iadeler'),
+                  selected: !_bekleyenHavaleler,
+                  onSelected: (_) =>
+                      setState(() => _bekleyenHavaleler = false)),
+              ChoiceChip(
+                  key: const Key('bekleyen-havale-suzgeci'),
+                  label: Text('Bekleyen havale ($bekleyenAdedi)'),
+                  selected: _bekleyenHavaleler,
+                  onSelected: (_) => setState(() => _bekleyenHavaleler = true)),
             ]),
             const SizedBox(height: 12),
             if (gorunenSiparisler.isEmpty)
-              Text(_bekleyenHavaleler ? 'Bekleyen havale yok.' : 'Henüz ödenmiş kredi paketi yok.',
+              Text(
+                  _bekleyenHavaleler
+                      ? 'Bekleyen havale yok.'
+                      : 'Henüz ödenmiş kredi paketi yok.',
                   style: TextStyle(color: context.renkler.metinIkincil))
             else
               ...gorunenSiparisler.map((o) {
@@ -391,33 +422,38 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
                 return Card(
                   key: Key('order-${o['id']}'),
                   color: context.renkler.yuzey,
-                  child: ListTile(
-                    leading: Icon(
-                        refunded ? LucideIcons.undo2 : LucideIcons.creditCard,
-                        color: refunded
-                            ? context.renkler.metinIkincil
-                            : context.renkler.bilgi),
-                    title: Text(
-                        '${o['package_name'] ?? o['package_key'] ?? 'Paket'} • ${o['credits'] ?? 0} kredi',
-                        style: TextStyle(color: textColor)),
-                    subtitle: Text(
-                        '${o['user_email'] ?? ''} • ${'${o['approved_at'] ?? o['created_at'] ?? ''}'.split('.').first}'
-                        '${refunded ? ' • İADE EDİLDİ' : o['status'] == 'pending' ? ' • ONAY BEKLİYOR' : ''}'),
-                    trailing: Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 8,
-                      children: [
-                        Text(_tl(((o['amount_tl'] as num?) ?? 0).toDouble()),
-                            style:
-                                const TextStyle(fontWeight: FontWeight.bold)),
-                        if (o['status'] == 'approved')
-                          TextButton(
-                            key: Key('refund-${o['id']}'),
-                            onPressed: () => _refundOrder(o),
-                            child: const Text('İade Et'),
-                          ),
-                      ],
-                    ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                              '${o['package_name'] ?? o['package_key'] ?? 'Paket'} • ${o['credits'] ?? 0} kredi',
+                              style: TextStyle(
+                                  color: textColor,
+                                  fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 6),
+                          Text(
+                              '${o['user_email'] ?? ''} • ${'${o['approved_at'] ?? o['created_at'] ?? ''}'.split('.').first}'
+                              '${refunded ? ' • İADE EDİLDİ' : o['status'] == 'pending' ? ' • ONAY BEKLİYOR' : ''}'),
+                          const SizedBox(height: 8),
+                          Wrap(
+                              spacing: 12,
+                              runSpacing: 8,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                Text(
+                                    _tl(((o['amount_tl'] as num?) ?? 0)
+                                        .toDouble()),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold)),
+                                if (o['status'] == 'approved')
+                                  TextButton(
+                                      key: Key('refund-${o['id']}'),
+                                      onPressed: () => _refundOrder(o),
+                                      child: const Text('İade Et')),
+                              ]),
+                        ]),
                   ),
                 );
               }),
@@ -438,6 +474,28 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
             if (_firmalar.isEmpty)
               Text('Henüz firma işi yok.',
                   style: TextStyle(color: context.renkler.metinIkincil))
+            else if (MediaQuery.sizeOf(context).width < 1000)
+              Column(key: const Key('firma-hakedis-tablosu'), children: [
+                for (final f in _firmalar)
+                  Card(
+                      child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(_firmaAdi(f),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold)),
+                                Text(
+                                    'İş: ${f['is_sayisi'] ?? 0} • Bulunamadı: ${f['bulunamadi_sayisi'] ?? 0}'),
+                                Text(
+                                    'Saha payı: ${_tl(_num(f, 'hakedis_tl'))}'),
+                                Text('Paket: ${_tl(_num(f, 'paket_tl'))}'),
+                                Text('Ödenecek: ${_tl(_num(f, 'odenecek_tl'))}',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold)),
+                              ]))),
+              ])
             else
               SingleChildScrollView(
                 key: const Key('firma-hakedis-tablosu'),
@@ -492,20 +550,23 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
             else
               ...personelListesi.map((p) => Card(
                     color: context.renkler.yuzey,
-                    child: ListTile(
-                      leading: Icon(LucideIcons.badgeCheck,
-                          color: context.renkler.birincil),
-                      title: Text(
-                        (p['personnel_name'] as String?)?.isNotEmpty == true
-                            ? p['personnel_name'] as String
-                            : 'Personel #${p['personnel_id']}',
-                        style: TextStyle(color: textColor),
-                      ),
-                      subtitle: Text('${p['report_count'] ?? 0} rapor'),
-                      trailing: Text(
-                        _tl((p['hakedis_tl'] as num?)?.toDouble() ?? 0),
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                                (p['personnel_name'] as String?)?.isNotEmpty ==
+                                        true
+                                    ? p['personnel_name'] as String
+                                    : 'Personel #${p['personnel_id']}',
+                                style: TextStyle(color: textColor)),
+                            Text('${p['report_count'] ?? 0} rapor'),
+                            Text(
+                                _tl((p['hakedis_tl'] as num?)?.toDouble() ?? 0),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold)),
+                          ]),
                     ),
                   )),
           ],
@@ -573,14 +634,15 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: context.renkler.birincil
-            .withValues(alpha: isDarkMode ? 0.1 : 0.05),
+        color:
+            context.renkler.birincil.withValues(alpha: isDarkMode ? 0.1 : 0.05),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
             children: [
               Text('Net Kar',
                   style: TextStyle(
@@ -611,20 +673,29 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
 
   Widget _buildFinansKart(
       String title, String value, IconData icon, Color color, bool isDarkMode) {
-    return YbKart(padding: const EdgeInsets.all(16), child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(children: [
-          Expanded(child: Text(title, style: TextStyle(fontSize: 13, color: context.renkler.metinIkincil))),
-          const SizedBox(width: 8),
-          Icon(icon, size: 20, color: color),
-        ]),
-        const SizedBox(height: 16),
-        FittedBox(fit: BoxFit.scaleDown, child: Text(value,
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: context.renkler.metin, fontWeight: FontWeight.w600))),
-        const SizedBox(height: 8),
-      ],
-    ));
+    return YbKart(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Expanded(
+                  child: Text(title,
+                      style: TextStyle(
+                          fontSize: 13, color: context.renkler.metinIkincil))),
+              const SizedBox(width: 8),
+              Icon(icon, size: 20, color: color),
+            ]),
+            const SizedBox(height: 16),
+            FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(value,
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        color: context.renkler.metin,
+                        fontWeight: FontWeight.w600))),
+            const SizedBox(height: 8),
+          ],
+        ));
   }
 
   Widget _buildFinansDetayBolumu(String title, List<Widget> items,
@@ -659,21 +730,36 @@ class _FinansYonetimiState extends State<FinansYonetimi> {
   Widget _buildFinansSatir(String label, String value, IconData icon) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
+      child: LayoutBuilder(builder: (context, constraints) {
+        final labelWidget =
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Icon(icon, color: context.renkler.metinIkincil, size: 16),
           const SizedBox(width: 12),
           Expanded(
               child: Text(label,
                   style:
                       TextStyle(fontSize: 14, color: context.renkler.metin))),
-          Text(value,
-              style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: context.renkler.metin)),
-        ],
-      ),
+        ]);
+        final valueWidget = Text(value,
+            style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: context.renkler.metin));
+        if (constraints.maxWidth < 500) {
+          return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                labelWidget,
+                const SizedBox(height: 4),
+                valueWidget,
+              ]);
+        }
+        return Row(children: [
+          Expanded(child: labelWidget),
+          const SizedBox(width: 12),
+          valueWidget
+        ]);
+      }),
     );
   }
 }

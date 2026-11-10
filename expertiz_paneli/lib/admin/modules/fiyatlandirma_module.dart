@@ -160,6 +160,7 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(title),
+        scrollable: true,
         content: SizedBox(
           width: 420,
           child: Column(
@@ -271,7 +272,17 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
     final subColor = context.renkler.metinIkincil;
     final cardColor = context.renkler.yuzey;
 
-    if (_loading) return const Padding(padding: EdgeInsets.all(24), child: Column(children: [YbIskelet(height: 80), SizedBox(height: 16), YbIskelet(height: 80), SizedBox(height: 16), YbIskelet(height: 80)]));
+    if (_loading) {
+      return const Padding(
+          padding: EdgeInsets.all(24),
+          child: Column(children: [
+            YbIskelet(height: 80),
+            SizedBox(height: 16),
+            YbIskelet(height: 80),
+            SizedBox(height: 16),
+            YbIskelet(height: 80)
+          ]));
+    }
     if (_error != null) {
       return Center(
         child: Column(
@@ -349,7 +360,10 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
                       'KDV hariç tutardır; KDV %${(_vatRate * 100).round()} yalnız hizmet bedeline eklenir. Firma paket fiyatlarını KDV dahil girin.',
                       style: TextStyle(fontSize: 13, color: subColor)),
                   const SizedBox(height: 12),
-                  Row(
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       SizedBox(
                         width: 200,
@@ -364,7 +378,6 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
                               isDense: true),
                         ),
                       ),
-                      const SizedBox(width: 12),
                       FilledButton(
                           onPressed: _saving ? null : _saveFee,
                           child: const Text('Kaydet')),
@@ -508,89 +521,91 @@ class _FiyatlandirmaModuleState extends State<FiyatlandirmaModule> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(firm['name']?.toString() ?? '',
-                            style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: textColor)),
-                        if ((firm['source_url'] ?? '').toString().isNotEmpty)
-                          Text('Kaynak: ${firm['source_url']}',
-                              style: TextStyle(fontSize: 13, color: subColor),
-                              overflow: TextOverflow.ellipsis),
-                      ],
-                    ),
-                  ),
-                  FilterChip(
-                    label: Text(verified ? 'Doğrulandı' : 'Doğrulanmadı'),
-                    selected: verified,
-                    onSelected: _saving
-                        ? null
-                        : (v) => _run(
-                            () => _api.updateFirm(
-                                firm['id'] as String, {'verified': v}),
-                            v ? 'Fiyatlar doğrulandı' : 'Doğrulama kaldırıldı'),
-                  ),
-                  const SizedBox(width: 6),
-                  Switch(
-                    value: active,
-                    onChanged: _saving
-                        ? null
-                        : (v) => _run(
-                            () => _api.updateFirm(
-                                firm['id'] as String, {'active': v}),
-                            v ? 'Firma yayında' : 'Firma gizlendi'),
-                  ),
-                  IconButton(
-                      icon: const Icon(LucideIcons.pencil),
-                      tooltip: 'Düzenle',
-                      onPressed: _saving ? null : () => _editFirm(firm)),
-                ],
-              ),
-              const Divider(),
-              ...packages.map((pkg) {
-                final pActive = pkg['active'] == true;
-                return ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(pkg['name']?.toString() ?? '',
-                      style: TextStyle(
-                          color: textColor,
-                          decoration:
-                              pActive ? null : TextDecoration.lineThrough)),
-                  subtitle: ((pkg['features'] as List?) ?? const []).isEmpty
-                      ? null
-                      : Text((pkg['features'] as List).join(' • '),
-                          style: TextStyle(fontSize: 13, color: subColor)),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_tl((pkg['price'] as num?) ?? 0),
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, color: textColor)),
-                      Switch(
-                        value: pActive,
+              Text(firm['name']?.toString() ?? '',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: textColor)),
+              if ((firm['source_url'] ?? '').toString().isNotEmpty)
+                Text('Kaynak: ${firm['source_url']}',
+                    style: TextStyle(fontSize: 13, color: subColor)),
+              const SizedBox(height: 8),
+              Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    FilterChip(
+                        label: Text(verified ? 'Doğrulandı' : 'Doğrulanmadı'),
+                        selected: verified,
+                        onSelected: _saving
+                            ? null
+                            : (v) => _run(
+                                () => _api.updateFirm(
+                                    firm['id'] as String, {'verified': v}),
+                                v
+                                    ? 'Fiyatlar doğrulandı'
+                                    : 'Doğrulama kaldırıldı')),
+                    Switch(
+                        value: active,
                         onChanged: _saving
                             ? null
                             : (v) => _run(
-                                  () => _api.updatePackage(firm['id'] as String,
-                                      pkg['id'] as String, {'active': v}),
-                                  v ? 'Paket yayında' : 'Paket gizlendi',
-                                ),
-                      ),
-                      IconButton(
-                        icon: const Icon(LucideIcons.pencil, size: 18),
-                        tooltip: 'Paketi düzenle',
-                        onPressed:
-                            _saving ? null : () => _packageDialog(firm, pkg),
-                      ),
-                    ],
-                  ),
+                                () => _api.updateFirm(
+                                    firm['id'] as String, {'active': v}),
+                                v ? 'Firma yayında' : 'Firma gizlendi')),
+                    IconButton(
+                        icon: const Icon(LucideIcons.pencil),
+                        tooltip: 'Düzenle',
+                        onPressed: _saving ? null : () => _editFirm(firm)),
+                  ]),
+              const Divider(),
+              ...packages.map((pkg) {
+                final pActive = pkg['active'] == true;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(pkg['name']?.toString() ?? '',
+                            style: TextStyle(
+                                color: textColor,
+                                decoration: pActive
+                                    ? null
+                                    : TextDecoration.lineThrough)),
+                        if (((pkg['features'] as List?) ?? const []).isNotEmpty)
+                          Text((pkg['features'] as List).join(' • '),
+                              style: TextStyle(fontSize: 13, color: subColor)),
+                        Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(_tl((pkg['price'] as num?) ?? 0),
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: textColor)),
+                              Switch(
+                                  value: pActive,
+                                  onChanged: _saving
+                                      ? null
+                                      : (v) => _run(
+                                          () => _api.updatePackage(
+                                              firm['id'] as String,
+                                              pkg['id'] as String,
+                                              {'active': v}),
+                                          v
+                                              ? 'Paket yayında'
+                                              : 'Paket gizlendi')),
+                              IconButton(
+                                  icon:
+                                      const Icon(LucideIcons.pencil, size: 18),
+                                  tooltip: 'Paketi düzenle',
+                                  onPressed: _saving
+                                      ? null
+                                      : () => _packageDialog(firm, pkg)),
+                            ]),
+                      ]),
                 );
               }),
               Align(

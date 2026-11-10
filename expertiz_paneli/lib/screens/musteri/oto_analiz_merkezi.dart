@@ -143,11 +143,17 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Flex(
+            direction: MediaQuery.sizeOf(context).width < 600
+                ? Axis.vertical
+                : Axis.horizontal,
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const YerimeBakLogo(height: 40),
-              const SizedBox(width: 16),
-              Expanded(
+              const SizedBox(width: 16, height: 16),
+              Flexible(
+                fit: FlexFit.loose,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -336,19 +342,29 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
     return YbKart(
       baslik: 'Paket seçimi',
       child: _availablePackages.isEmpty
-        ? const YbBosDurum(mesaj: 'Bu model için paket bulunamadı')
-        : Column(children: [
-          for (final paket in _availablePackages)
-            Semantics(selected: _selectedPackageId == paket.id, child: ListTile(
-              contentPadding: EdgeInsets.zero,
-              minTileHeight: 52,
-              title: Text(paket.name),
-              subtitle: paket.description == null ? null : Text(paket.description!),
-              trailing: Icon(_selectedPackageId == paket.id ? LucideIcons.circleCheck : LucideIcons.circle,
-                color: _selectedPackageId == paket.id ? context.renkler.birincil : context.renkler.ikonPasif),
-              onTap: () => setState(() => _selectedPackageId = paket.id),
-            )),
-        ]),
+          ? const YbBosDurum(mesaj: 'Bu model için paket bulunamadı')
+          : Column(children: [
+              for (final paket in _availablePackages)
+                Semantics(
+                    selected: _selectedPackageId == paket.id,
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      minTileHeight: 52,
+                      title: Text(paket.name),
+                      subtitle: paket.description == null
+                          ? null
+                          : Text(paket.description!),
+                      trailing: Icon(
+                          _selectedPackageId == paket.id
+                              ? LucideIcons.circleCheck
+                              : LucideIcons.circle,
+                          color: _selectedPackageId == paket.id
+                              ? context.renkler.birincil
+                              : context.renkler.ikonPasif),
+                      onTap: () =>
+                          setState(() => _selectedPackageId = paket.id),
+                    )),
+            ]),
     );
   }
 
@@ -570,19 +586,54 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
 
   Widget _buildEquipmentOptions() {
     const gruplar = <String, List<String>>{
-      'Premium': ['Cam Tavan', 'Head-up Display', 'Isıtmalı Koltuk', 'Panoramik Tavan', 'Vakumlu Kapı', 'Soft Close Kapı', 'Adaptif Cruise Control', '360 Kamera'],
-      'Orta': ['LED Far', 'Deri Döşeme', 'Navigasyon', 'Bluetooth', 'USB Bağlantı', 'Klima', 'Park Sensörü'],
-      'Standart': ['Alarmlı Tekerlek', 'Yol Bilgisayarı', 'Hız Sabitleyici', 'Elektrikli Camlar', 'Merkezi Kilit', 'Radyo'],
+      'Premium': [
+        'Cam Tavan',
+        'Head-up Display',
+        'Isıtmalı Koltuk',
+        'Panoramik Tavan',
+        'Vakumlu Kapı',
+        'Soft Close Kapı',
+        'Adaptif Cruise Control',
+        '360 Kamera'
+      ],
+      'Orta': [
+        'LED Far',
+        'Deri Döşeme',
+        'Navigasyon',
+        'Bluetooth',
+        'USB Bağlantı',
+        'Klima',
+        'Park Sensörü'
+      ],
+      'Standart': [
+        'Alarmlı Tekerlek',
+        'Yol Bilgisayarı',
+        'Hız Sabitleyici',
+        'Elektrikli Camlar',
+        'Merkezi Kilit',
+        'Radyo'
+      ],
     };
-    return YbKart(baslik: 'Donanım seçenekleri', child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [for (final grup in gruplar.entries) ...[
-        Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Text(grup.key, style: Theme.of(context).textTheme.titleMedium)),
-        for (final ad in grup.value)
-          CheckboxListTile(contentPadding: EdgeInsets.zero, title: Text(ad), value: _selectedOptions[ad] ?? false,
-            onChanged: (secili) => setState(() => _selectedOptions[ad] = secili ?? false)),
-      ]],
-    ));
+    return YbKart(
+        baslik: 'Donanım seçenekleri',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final grup in gruplar.entries) ...[
+              Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(grup.key,
+                      style: Theme.of(context).textTheme.titleMedium)),
+              for (final ad in grup.value)
+                CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(ad),
+                    value: _selectedOptions[ad] ?? false,
+                    onChanged: (secili) =>
+                        setState(() => _selectedOptions[ad] = secili ?? false)),
+            ]
+          ],
+        ));
   }
 
   Widget _buildPaymentWall() {
@@ -760,29 +811,36 @@ class _OtoAnalizMerkeziState extends State<OtoAnalizMerkezi> {
             ],
           ),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 24,
+            runSpacing: 8,
             children: [
-              Icon(LucideIcons.gauge,
-                  color: context.renkler.birincil, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                '${vehicleInfo['km'].toString()} km',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: context.renkler.metinIkincil,
-                ),
-              ),
-              const SizedBox(width: 24),
-              Icon(LucideIcons.palette,
-                  color: context.renkler.birincil, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                vehicleInfo['color'],
-                style: TextStyle(
-                  fontSize: 16,
-                  color: context.renkler.metinIkincil,
-                ),
-              ),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(LucideIcons.gauge,
+                    color: context.renkler.birincil, size: 20),
+                const SizedBox(width: 8),
+                Flexible(
+                    child: Text(
+                  '${vehicleInfo['km'].toString()} km',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: context.renkler.metinIkincil,
+                  ),
+                )),
+              ]),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(LucideIcons.palette,
+                    color: context.renkler.birincil, size: 20),
+                const SizedBox(width: 8),
+                Flexible(
+                    child: Text(
+                  vehicleInfo['color'],
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: context.renkler.metinIkincil,
+                  ),
+                )),
+              ]),
             ],
           ),
         ],

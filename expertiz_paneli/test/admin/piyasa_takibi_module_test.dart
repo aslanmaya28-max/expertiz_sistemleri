@@ -266,7 +266,8 @@ void main() {
     expect(gets, 2);
   });
 
-  testWidgets('dar ekranda tablolar taşmadan kaydırılabilir', (tester) async {
+  testWidgets('dar ekranda ilan kartı ve çıkarma eylemi taşmadan görünür',
+      (tester) async {
     tester.view.physicalSize = const Size(390, 1000);
     await mount(
         tester,
@@ -293,7 +294,13 @@ void main() {
     await tester.ensureVisible(find.widgetWithText(FilledButton, 'Önizle'));
     await tester.tap(find.widgetWithText(FilledButton, 'Önizle'));
     await tester.pumpAndSettle();
-    expect(find.text('Luxury'), findsOneWidget);
+    expect(find.text('Model: Luxury'), findsOneWidget);
+    final remove = find.byKey(const Key('removeMarketRow-0'));
+    await tester.ensureVisible(remove);
+    await tester.tap(remove);
+    await tester.pump();
+    expect(find.text('Model: Luxury'), findsNothing);
+    expect(find.text('0 ilan hazır, 0 satır atlandı.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

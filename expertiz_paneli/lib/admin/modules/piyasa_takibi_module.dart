@@ -131,94 +131,159 @@ class _PiyasaTakibiModuleState extends State<PiyasaTakibiModule> {
             style: TextStyle(color: Theme.of(context).colorScheme.error)),
       );
 
-  Widget _gapsTable() => SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          key: const Key('marketGapsTable'),
-          columns: [
-            for (final label in [
-              'Marka',
-              'Model',
-              'Yıl',
-              'İstek sayısı',
-              'Son bulunan ilan',
-              'Takipteki ilan'
-            ])
-              DataColumn(label: Text(label))
-          ],
-          rows: [
+  Widget _gapsTable() => LayoutBuilder(builder: (context, constraints) {
+        if (constraints.maxWidth < 1100) {
+          return Column(key: const Key('marketGapsCards'), children: [
             for (final row in _gaps)
-              DataRow(
-                color: row['takip_ilan'] == 0
-                    ? WidgetStatePropertyAll(
-                        Theme.of(context)
-                            .colorScheme
-                            .errorContainer
-                            .withValues(alpha: .4),
-                      )
-                    : null,
-                cells: [
-                  for (final key in [
-                    'brand',
-                    'model',
-                    'year',
-                    'requests',
-                    'last_count',
-                    'takip_ilan'
-                  ])
-                    DataCell(Text(key == 'year'
-                        ? '${row[key] ?? '—'}'
-                        : _display(row[key])))
-                ],
-              )
-          ],
-        ),
-      );
-
-  Widget _previewTable() => SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          columns: [
-            for (final label in [
-              'Seri',
-              'Model',
-              'Yıl',
-              'Km',
-              'Fiyat',
-              'Beygir',
-              'İlan tarihi',
-              'İl',
-              ''
-            ])
-              DataColumn(label: Text(label))
-          ],
-          rows: [
-            for (var i = 0; i < _rows.length; i++)
-              DataRow(cells: [
-                for (final key in [
-                  'seri',
-                  'model',
-                  'yil',
-                  'km',
-                  'fiyat',
-                  'beygir',
-                  'ilan_tarihi',
-                  'il'
-                ])
-                  DataCell(Text(key == 'yil'
-                      ? '${_rows[i][key] ?? '—'}'
-                      : _display(_rows[i][key]))),
-                DataCell(IconButton(
-                  key: Key('removeMarketRow-$i'),
-                  tooltip: 'Satırı çıkar',
-                  icon: const Icon(LucideIcons.circleMinus),
-                  onPressed:
-                      _busy ? null : () => setState(() => _rows.removeAt(i)),
-                )),
+              _marketCard(
+                  row,
+                  const {
+                    'brand': 'Marka',
+                    'model': 'Model',
+                    'year': 'Yıl',
+                    'requests': 'İstek sayısı',
+                    'last_count': 'Son bulunan ilan',
+                    'takip_ilan': 'Takipteki ilan',
+                  },
+                  risk: row['takip_ilan'] == 0),
+          ]);
+        }
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            key: const Key('marketGapsTable'),
+            columns: [
+              for (final label in [
+                'Marka',
+                'Model',
+                'Yıl',
+                'İstek sayısı',
+                'Son bulunan ilan',
+                'Takipteki ilan'
               ])
-          ],
-        ),
-      );
+                DataColumn(label: Text(label))
+            ],
+            rows: [
+              for (final row in _gaps)
+                DataRow(
+                  color: row['takip_ilan'] == 0
+                      ? WidgetStatePropertyAll(
+                          Theme.of(context)
+                              .colorScheme
+                              .errorContainer
+                              .withValues(alpha: .4),
+                        )
+                      : null,
+                  cells: [
+                    for (final key in [
+                      'brand',
+                      'model',
+                      'year',
+                      'requests',
+                      'last_count',
+                      'takip_ilan'
+                    ])
+                      DataCell(Text(key == 'year'
+                          ? '${row[key] ?? '—'}'
+                          : _display(row[key])))
+                  ],
+                )
+            ],
+          ),
+        );
+      });
+
+  Widget _previewTable() => LayoutBuilder(builder: (context, constraints) {
+        if (constraints.maxWidth < 1100) {
+          return Column(children: [
+            for (var i = 0; i < _rows.length; i++)
+              _marketCard(
+                  _rows[i],
+                  const {
+                    'seri': 'Seri',
+                    'model': 'Model',
+                    'yil': 'Yıl',
+                    'km': 'Km',
+                    'fiyat': 'Fiyat',
+                    'beygir': 'Beygir',
+                    'ilan_tarihi': 'İlan tarihi',
+                    'il': 'İl',
+                  },
+                  action: IconButton(
+                      key: Key('removeMarketRow-$i'),
+                      tooltip: 'Satırı çıkar',
+                      icon: const Icon(LucideIcons.circleMinus),
+                      onPressed: _busy
+                          ? null
+                          : () => setState(() => _rows.removeAt(i)))),
+          ]);
+        }
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            columns: [
+              for (final label in [
+                'Seri',
+                'Model',
+                'Yıl',
+                'Km',
+                'Fiyat',
+                'Beygir',
+                'İlan tarihi',
+                'İl',
+                ''
+              ])
+                DataColumn(label: Text(label))
+            ],
+            rows: [
+              for (var i = 0; i < _rows.length; i++)
+                DataRow(cells: [
+                  for (final key in [
+                    'seri',
+                    'model',
+                    'yil',
+                    'km',
+                    'fiyat',
+                    'beygir',
+                    'ilan_tarihi',
+                    'il'
+                  ])
+                    DataCell(Text(key == 'yil'
+                        ? '${_rows[i][key] ?? '—'}'
+                        : _display(_rows[i][key]))),
+                  DataCell(IconButton(
+                    key: Key('removeMarketRow-$i'),
+                    tooltip: 'Satırı çıkar',
+                    icon: const Icon(LucideIcons.circleMinus),
+                    onPressed:
+                        _busy ? null : () => setState(() => _rows.removeAt(i)),
+                  )),
+                ])
+            ],
+          ),
+        );
+      });
+
+  Widget _marketCard(Map<String, dynamic> row, Map<String, String> labels,
+      {Widget? action, bool risk = false}) {
+    return Card(
+        color: risk
+            ? Theme.of(context).colorScheme.errorContainer.withValues(alpha: .4)
+            : null,
+        child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final entry in labels.entries)
+                    Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        child: Text(
+                            '${entry.value}: ${entry.key == 'year' || entry.key == 'yil' ? row[entry.key] ?? '—' : _display(row[entry.key])}')),
+                  if (action != null)
+                    Align(alignment: Alignment.centerLeft, child: action),
+                ])));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -232,7 +297,8 @@ class _PiyasaTakibiModuleState extends State<PiyasaTakibiModule> {
             'Yalnız rakamlar saklanır; ilan başlığı, açıklama, fotoğraf, satıcı ve link kaydedilmez. '
             'Bu veriler müşteriye tek tek gösterilmez.'),
         const SizedBox(height: 16),
-        YbKart(padding: EdgeInsets.zero,
+        YbKart(
+            padding: EdgeInsets.zero,
             child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -255,7 +321,8 @@ class _PiyasaTakibiModuleState extends State<PiyasaTakibiModule> {
                   ],
                 ))),
         const SizedBox(height: 16),
-        YbKart(padding: EdgeInsets.zero,
+        YbKart(
+            padding: EdgeInsets.zero,
             child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(

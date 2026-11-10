@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -53,7 +53,14 @@ class _LoginScreenState extends State<LoginScreen> {
         final wide = constraints.maxWidth >= 900;
         if (wide) {
           return Row(children: [
-            Expanded(flex: 5, child: _brand(wide: true)),
+            Expanded(
+                flex: 5,
+                child: LayoutBuilder(
+                    builder: (context, size) => SingleChildScrollView(
+                        child: ConstrainedBox(
+                            constraints:
+                                BoxConstraints(minHeight: size.maxHeight),
+                            child: _brand(wide: true))))),
             Expanded(
                 flex: 6,
                 child: Center(
@@ -86,7 +93,8 @@ class _LoginScreenState extends State<LoginScreen> {
     ];
     final yazi = ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Align(
               alignment: Alignment.centerLeft,
               child: Padding(
@@ -105,13 +113,16 @@ class _LoginScreenState extends State<LoginScreen> {
           const SizedBox(height: Olcu.s20),
           Align(
               alignment: Alignment.centerRight,
-              child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              child:
+                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Container(width: 40, height: 2, color: vurgu),
                 const SizedBox(height: Olcu.s12),
                 Text('Maya Teknoloji ve Dijital Hizmetler',
                     textAlign: TextAlign.right,
                     style: TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w600, color: colors.beyaz)),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: colors.beyaz)),
                 const SizedBox(height: Olcu.s4),
                 Text('Kurucular: Ali ASLAN & Meliha ASLAN',
                     textAlign: TextAlign.right,
@@ -211,4 +222,3 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: const Text('Hesabınız yok mu? Kayıt ol')),
                   ]))));
 }
-

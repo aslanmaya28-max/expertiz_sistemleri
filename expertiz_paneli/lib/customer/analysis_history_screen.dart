@@ -97,7 +97,15 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Padding(padding: EdgeInsets.all(24), child: Column(children: [YbIskelet(height: 80), SizedBox(height: 16), YbIskelet(height: 80), SizedBox(height: 16), YbIskelet(height: 80)]));
+      return const Padding(
+          padding: EdgeInsets.all(24),
+          child: Column(children: [
+            YbIskelet(height: 80),
+            SizedBox(height: 16),
+            YbIskelet(height: 80),
+            SizedBox(height: 16),
+            YbIskelet(height: 80)
+          ]));
     }
 
     if (_error != null) {
@@ -242,10 +250,11 @@ class _AnalysisHistoryScreenState extends State<AnalysisHistoryScreen> {
                           ),
                         ),
                       const SizedBox(height: 4),
-                      Row(
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
                         children: [
                           _buildStatusBadge(status),
-                          const SizedBox(width: 8),
                           if (createdAt.isNotEmpty)
                             Text(
                               _formatDate(createdAt),

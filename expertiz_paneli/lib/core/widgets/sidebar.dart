@@ -208,13 +208,15 @@ class _PanelYerlesimState extends State<PanelYerlesim> {
                 // Sayfanın kendi başlığı içerikte; üst çubuk yalnız konum gösterir (başlık iki kez yazılmaz)
                 Expanded(
                     child: Row(children: [
-                  Text('Yönetim',
-                      style: TextStyle(
-                          fontSize: 14, color: context.renkler.metinIkincil)),
-                  Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Icon(LucideIcons.chevronRight,
-                          size: 14, color: context.renkler.metinIkincil)),
+                  if (!mobile)
+                    Text('Yönetim',
+                        style: TextStyle(
+                            fontSize: 14, color: context.renkler.metinIkincil)),
+                  if (!mobile)
+                    Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Icon(LucideIcons.chevronRight,
+                            size: 14, color: context.renkler.metinIkincil)),
                   Flexible(
                       child: Text(panelBasliklari[widget.secili],
                           maxLines: 1,

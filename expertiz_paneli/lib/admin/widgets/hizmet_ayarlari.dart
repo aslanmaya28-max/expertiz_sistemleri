@@ -73,6 +73,7 @@ class _KontrolMerkeziAyariState extends State<_KontrolMerkeziAyari> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Kontrol merkezi'),
+      scrollable: true,
       content: _yukleniyor
           ? SizedBox(
               height: 80, child: Center(child: CircularProgressIndicator()))

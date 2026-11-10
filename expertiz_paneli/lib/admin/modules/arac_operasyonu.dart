@@ -23,7 +23,12 @@ import '../../services/yerimebak_expertiz_api_service.dart';
 /// atanamaz). İşlemdeki taleplerde personelin saha adımı (harekete geçti, araç
 /// başında, kurumsal ekspertizde) canlı görünür.
 class AracOperasyonu extends StatefulWidget {
-  const AracOperasyonu({super.key, this.apiService, this.openListing, this.initialBucket, this.refundOnly = false});
+  const AracOperasyonu(
+      {super.key,
+      this.apiService,
+      this.openListing,
+      this.initialBucket,
+      this.refundOnly = false});
 
   /// Testler için enjekte edilebilir.
   final YerimebakExpertizApiService? apiService;
@@ -35,9 +40,22 @@ class AracOperasyonu extends StatefulWidget {
   State<AracOperasyonu> createState() => _AracOperasyonuState();
 }
 
-class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProviderStateMixin {
-  static const _buckets = ['waiting_assignment', 'in_progress', 'pending_approval', 'completed', 'cancelled'];
-  static const _bucketTitles = ['Atama Bekleyen', 'İşlemdeki', 'Onay Bekleyen', 'Tamamlanan', 'İptal Edilen'];
+class _AracOperasyonuState extends State<AracOperasyonu>
+    with SingleTickerProviderStateMixin {
+  static const _buckets = [
+    'waiting_assignment',
+    'in_progress',
+    'pending_approval',
+    'completed',
+    'cancelled'
+  ];
+  static const _bucketTitles = [
+    'Atama Bekleyen',
+    'İşlemdeki',
+    'Onay Bekleyen',
+    'Tamamlanan',
+    'İptal Edilen'
+  ];
   static const _emptyMessages = [
     'Atama bekleyen talep yok',
     'İşlemde talep yok',
@@ -66,11 +84,16 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
     super.initState();
     _api = widget.apiService ?? YerimebakExpertizApiService();
     _refundOnly = widget.refundOnly;
-    final bucketIndex = _buckets.indexOf(widget.initialBucket ?? (_refundOnly ? 'in_progress' : 'waiting_assignment'));
-    _tabController = TabController(length: _buckets.length, vsync: this, initialIndex: bucketIndex < 0 ? 0 : bucketIndex);
+    final bucketIndex = _buckets.indexOf(widget.initialBucket ??
+        (_refundOnly ? 'in_progress' : 'waiting_assignment'));
+    _tabController = TabController(
+        length: _buckets.length,
+        vsync: this,
+        initialIndex: bucketIndex < 0 ? 0 : bucketIndex);
     _load();
     // Yeni müşteri talepleri admin açık ekranda beklerken de düşsün
-    _autoRefresh = Timer.periodic(const Duration(seconds: 30), (_) => _load(silent: true));
+    _autoRefresh =
+        Timer.periodic(const Duration(seconds: 30), (_) => _load(silent: true));
   }
 
   @override
@@ -83,9 +106,11 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
   @override
   void didUpdateWidget(covariant AracOperasyonu oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialBucket != widget.initialBucket || oldWidget.refundOnly != widget.refundOnly) {
+    if (oldWidget.initialBucket != widget.initialBucket ||
+        oldWidget.refundOnly != widget.refundOnly) {
       _refundOnly = widget.refundOnly;
-      final index = _buckets.indexOf(widget.initialBucket ?? (_refundOnly ? 'in_progress' : 'waiting_assignment'));
+      final index = _buckets.indexOf(widget.initialBucket ??
+          (_refundOnly ? 'in_progress' : 'waiting_assignment'));
       _tabController.index = index < 0 ? 0 : index;
     }
   }
@@ -99,7 +124,8 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
       });
     }
     try {
-      final response = await _api.getAdminRequests(regionId: _regionId == 0 ? null : _regionId);
+      final response = await _api.getAdminRequests(
+          regionId: _regionId == 0 ? null : _regionId);
       final rows = (response['requests'] as List? ?? const [])
           .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e))
@@ -107,7 +133,8 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
       final counts = <String, int>{};
       final rawCounts = response['counts'];
       if (rawCounts is Map) {
-        rawCounts.forEach((key, value) => counts['$key'] = (value as num?)?.toInt() ?? 0);
+        rawCounts.forEach(
+            (key, value) => counts['$key'] = (value as num?)?.toInt() ?? 0);
       }
       if (!mounted) return;
       setState(() {
@@ -128,22 +155,32 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
   }
 
   List<Map<String, dynamic>> _itemsFor(String bucket) => _requests.where((r) {
-    if (r['bucket'] != bucket || (_refundOnly && !_aracBulunamadi(r))) return false;
-    final search = _search.trim().toLowerCase();
-    if (search.isEmpty) return true;
-    final vehicle = _map(r['vehicle']);
-    final customer = _map(r['customer']);
-    final assignment = _map(r['assignment']);
-    return [vehicle['plate'], vehicle['title'], customer['name'], r['city'], r['firm_name'], assignment['personnel_name']]
-        .any((value) => (value ?? '').toString().toLowerCase().contains(search));
-  }).toList();
+        if (r['bucket'] != bucket || (_refundOnly && !_aracBulunamadi(r))) {
+          return false;
+        }
+        final search = _search.trim().toLowerCase();
+        if (search.isEmpty) return true;
+        final vehicle = _map(r['vehicle']);
+        final customer = _map(r['customer']);
+        final assignment = _map(r['assignment']);
+        return [
+          vehicle['plate'],
+          vehicle['title'],
+          customer['name'],
+          r['city'],
+          r['firm_name'],
+          assignment['personnel_name']
+        ].any(
+            (value) => (value ?? '').toString().toLowerCase().contains(search));
+      }).toList();
 
   void _toast(String message, {bool error = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: error ? context.renkler.tehlike : context.renkler.birincil,
+        backgroundColor:
+            error ? context.renkler.tehlike : context.renkler.birincil,
         duration: Duration(seconds: error ? 5 : 3),
       ),
     );
@@ -162,12 +199,18 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Talepler', style: Theme.of(context).textTheme.headlineSmall),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Talepler',
+                  style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 4),
-              Text('Ekspertiz taleplerini takip edin, personel atayın ve randevuları yönetin.', style: TextStyle(color: context.renkler.metinIkincil)),
+              Text(
+                  'Ekspertiz taleplerini takip edin, personel atayın ve randevuları yönetin.',
+                  style: TextStyle(color: context.renkler.metinIkincil)),
               const SizedBox(height: 16),
-              YbArama(ipucu: 'Plaka, araç, müşteri veya personel ara', onChanged: (value) => setState(() => _search = value)),
+              YbArama(
+                  ipucu: 'Plaka, araç, müşteri veya personel ara',
+                  onChanged: (value) => setState(() => _search = value)),
               const SizedBox(height: 12),
               // Süzgeçler aramanın altında, zeminle aynı (ayrı renkli şerit yok)
               Wrap(
@@ -184,7 +227,8 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(LucideIcons.mapPin, color: context.renkler.metinIkincil, size: 16),
+                      Icon(LucideIcons.mapPin,
+                          color: context.renkler.metinIkincil, size: 16),
                       const SizedBox(width: 8),
                       DropdownButtonHideUnderline(
                         child: DropdownButton<int>(
@@ -192,12 +236,18 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
                           isDense: true,
                           dropdownColor: context.renkler.yuzey,
                           borderRadius: BorderRadius.circular(10),
-                          icon: Icon(LucideIcons.chevronDown, size: 16, color: context.renkler.metinIkincil),
-                          style: TextStyle(color: context.renkler.metin, fontSize: 13),
+                          icon: Icon(LucideIcons.chevronDown,
+                              size: 16, color: context.renkler.metinIkincil),
+                          style: TextStyle(
+                              color: context.renkler.metin, fontSize: 13),
                           items: [
-                            const DropdownMenuItem(value: 0, child: Text('Tüm bölgeler')),
+                            const DropdownMenuItem(
+                                value: 0, child: Text('Tüm bölgeler')),
                             ..._locationMapper.getAllBolgeIds().map(
-                                  (id) => DropdownMenuItem(value: id, child: Text(_locationMapper.getBolgeAdi(id))),
+                                  (id) => DropdownMenuItem(
+                                      value: id,
+                                      child: Text(
+                                          _locationMapper.getBolgeAdi(id))),
                                 ),
                           ],
                           onChanged: (value) {
@@ -208,12 +258,18 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
                       ),
                     ]),
                   ),
-                  FilterChip(label: const Text('İade kararı bekleyen'), selected: _refundOnly,
-                    onSelected: (value) => setState(() { _refundOnly = value; if (value) _tabController.index = 1; })),
+                  FilterChip(
+                      label: const Text('İade kararı bekleyen'),
+                      selected: _refundOnly,
+                      onSelected: (value) => setState(() {
+                            _refundOnly = value;
+                            if (value) _tabController.index = 1;
+                          })),
                   if (_lastUpdated != null)
                     Text(
                       'Güncellendi ${DateFormat('HH:mm').format(_lastUpdated!)}',
-                      style: TextStyle(color: context.renkler.metinIkincil, fontSize: 13),
+                      style: TextStyle(
+                          color: context.renkler.metinIkincil, fontSize: 13),
                     ),
                   IconButton(
                     tooltip: 'Yenile',
@@ -232,7 +288,8 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
               isScrollable: true,
               tabAlignment: TabAlignment.start,
               tabs: List.generate(_buckets.length, (i) {
-                final count = _counts[_buckets[i]] ?? _itemsFor(_buckets[i]).length;
+                final count =
+                    _counts[_buckets[i]] ?? _itemsFor(_buckets[i]).length;
                 return Tab(text: '${_bucketTitles[i]} ($count)');
               }),
             ),
@@ -240,7 +297,8 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
           Expanded(
             child: TabBarView(
               controller: _tabController,
-              children: List.generate(_buckets.length, (i) => _buildListTab(_buckets[i], _emptyMessages[i])),
+              children: List.generate(_buckets.length,
+                  (i) => _buildListTab(_buckets[i], _emptyMessages[i])),
             ),
           ),
         ],
@@ -250,7 +308,10 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
 
   Widget _buildListTab(String bucket, String emptyMessage) {
     if (_error != null && _requests.isEmpty) {
-      return YbBosDurum(mesaj: _error ?? 'Talepler yüklenemedi', eylem: 'Tekrar dene', onPressed: _load);
+      return YbBosDurum(
+          mesaj: _error ?? 'Talepler yüklenemedi',
+          eylem: 'Tekrar dene',
+          onPressed: _load);
     }
     if (_isLoading && _requests.isEmpty) {
       return ListView.builder(
@@ -266,56 +327,81 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
     return RefreshIndicator(
       onRefresh: _load,
       child: items.isEmpty
-          ? ListView(children: [SizedBox(height: 420, child: _buildEmptyState(emptyMessage))])
-          : LayoutBuilder(builder: (context, constraints) => constraints.maxWidth >= 1000
-              ? SingleChildScrollView(padding: const EdgeInsets.all(16), child: _requestTable(items))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: items.length,
-                  itemBuilder: (context, index) => _buildRequestCard(items[index]),
-                )),
+          ? ListView(children: [
+              SizedBox(height: 420, child: _buildEmptyState(emptyMessage))
+            ])
+          : LayoutBuilder(
+              builder: (context, constraints) => constraints.maxWidth >= 1000
+                  ? SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: _requestTable(items))
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: items.length,
+                      itemBuilder: (context, index) =>
+                          _buildRequestCard(items[index]),
+                    )),
     );
   }
 
   Widget _buildEmptyState(String message) => YbBosDurum(mesaj: message);
 
   Widget _requestTable(List<Map<String, dynamic>> items) => YbTablo(
-    sayfa: _page,
-    onPageChanged: (value) => setState(() => _page = value),
-    columns: const [
-      DataColumn(label: Text('Talep / plaka')),
-      DataColumn(label: Text('İl / ilçe')),
-      DataColumn(label: Text('Firma / personel')),
-      DataColumn(label: Text('Durum')),
-      DataColumn(label: Text('Randevu')),
-      DataColumn(label: Text('Ayrıntı')),
-    ],
-    rows: items.map((request) {
-      final vehicle = _map(request['vehicle']);
-      final assignment = _map(request['assignment']);
-      final status = _statusOf(request);
-      return DataRow(cells: [
-        DataCell(Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(vehicle['title']?.toString() ?? 'Araç', style: const TextStyle(fontWeight: FontWeight.w600)),
-          Text(_orDash(vehicle['plate']), style: TextStyle(color: context.renkler.metinIkincil)),
-        ]), onTap: () => _showDetail(request)),
-        DataCell(Text([request['city'], request['district']].where((v) => v != null && v.toString().isNotEmpty).join(' / '))),
-        DataCell(Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(_orDash(request['firm_name'])),
-          Text(_orDash(assignment['personnel_name']), style: TextStyle(color: context.renkler.metinIkincil)),
-        ])),
-        DataCell(_chip(status.label, status.color)),
-        DataCell(Text('Randevu: ${_formatDate(_map(request['randevu'])['tarih_saat'])}')),
-        DataCell(IconButton(tooltip: 'Talep ayrıntısı', icon: const Icon(LucideIcons.chevronRight), onPressed: () => _showDetail(request))),
-      ]);
-    }).toList(),
-  );
+        sayfa: _page,
+        onPageChanged: (value) => setState(() => _page = value),
+        columns: const [
+          DataColumn(label: Text('Talep / plaka')),
+          DataColumn(label: Text('İl / ilçe')),
+          DataColumn(label: Text('Firma / personel')),
+          DataColumn(label: Text('Durum')),
+          DataColumn(label: Text('Randevu')),
+          DataColumn(label: Text('Ayrıntı')),
+        ],
+        rows: items.map((request) {
+          final vehicle = _map(request['vehicle']);
+          final assignment = _map(request['assignment']);
+          final status = _statusOf(request);
+          return DataRow(cells: [
+            DataCell(
+                Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(vehicle['title']?.toString() ?? 'Araç',
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                      Text(_orDash(vehicle['plate']),
+                          style:
+                              TextStyle(color: context.renkler.metinIkincil)),
+                    ]),
+                onTap: () => _showDetail(request)),
+            DataCell(Text([request['city'], request['district']]
+                .where((v) => v != null && v.toString().isNotEmpty)
+                .join(' / '))),
+            DataCell(Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_orDash(request['firm_name'])),
+                  Text(_orDash(assignment['personnel_name']),
+                      style: TextStyle(color: context.renkler.metinIkincil)),
+                ])),
+            DataCell(_chip(status.label, status.color)),
+            DataCell(Text(
+                'Randevu: ${_formatDate(_map(request['randevu'])['tarih_saat'])}')),
+            DataCell(IconButton(
+                tooltip: 'Talep ayrıntısı',
+                icon: const Icon(LucideIcons.chevronRight),
+                onPressed: () => _showDetail(request))),
+          ]);
+        }).toList(),
+      );
 
   // ---------------------------------------------------------------------------
   // Kart
   // ---------------------------------------------------------------------------
 
-  Map<String, dynamic> _map(dynamic value) => value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};
+  Map<String, dynamic> _map(dynamic value) =>
+      value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};
 
   String _formatDate(dynamic value) {
     final date = DateTime.tryParse(value?.toString() ?? '');
@@ -332,18 +418,32 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
       case 'pending_approval':
         return status == 'pending_ai'
             ? (label: 'AI analizi bekliyor', color: context.renkler.bilgi)
-            : (label: 'Admin onayı bekliyor', color: context.renkler.birincilMetin);
+            : (
+                label: 'Admin onayı bekliyor',
+                color: context.renkler.birincilMetin
+              );
       case 'completed':
         return (label: 'Yayınlandı', color: context.renkler.birincil);
       case 'cancelled':
-        final refunded = (_map(request['cancellation'])['refunded_tl'] as num?) ?? 0;
-        return (label: refunded > 0 ? 'İptal + iade edildi' : 'İptal edildi', color: context.renkler.metinIkincil);
+        final refunded =
+            (_map(request['cancellation'])['refunded_tl'] as num?) ?? 0;
+        return (
+          label: refunded > 0 ? 'İptal + iade edildi' : 'İptal edildi',
+          color: context.renkler.metinIkincil
+        );
     }
-    if (_aracBulunamadi(request)) return (label: 'Araç adreste yok', color: context.renkler.uyari);
-    if (request['needs_revision'] == true) return (label: 'Düzeltme bekliyor', color: context.renkler.tehlike);
+    if (_aracBulunamadi(request)) {
+      return (label: 'Araç adreste yok', color: context.renkler.uyari);
+    }
+    if (request['needs_revision'] == true) {
+      return (label: 'Düzeltme bekliyor', color: context.renkler.tehlike);
+    }
     switch (assignment['status']) {
       case 'accepted':
-        return (label: 'Personel kabul etti', color: context.renkler.birincilMetin);
+        return (
+          label: 'Personel kabul etti',
+          color: context.renkler.birincilMetin
+        );
       case 'on_the_way':
         return (label: 'Harekete geçti', color: context.renkler.uyari);
       case 'at_vehicle':
@@ -359,7 +459,8 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
 
   /// Saha "araç adreste yok" bildirdi; görev yönetim kararını (paket ücreti iadesi) bekliyor.
   bool _aracBulunamadi(Map<String, dynamic> request) =>
-      request['durum_kodu'] == 'vehicle_not_found' && request['bucket'] != 'cancelled';
+      request['durum_kodu'] == 'vehicle_not_found' &&
+      request['bucket'] != 'cancelled';
 
   String _randevuOzeti(Map<String, dynamic> request) {
     final randevu = _map(request['randevu']);
@@ -377,7 +478,9 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
     final randevuOzeti = _randevuOzeti(request);
     final bucket = request['bucket'];
     final district = request['district']?.toString() ?? '';
-    final city = [request['city']?.toString() ?? '', district].where((e) => e.isNotEmpty).join(' / ');
+    final city = [request['city']?.toString() ?? '', district]
+        .where((e) => e.isNotEmpty)
+        .join(' / ');
     final region = request['region']?.toString() ?? '';
     final assignedName = assignment['personnel_name']?.toString() ?? '';
 
@@ -398,14 +501,19 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: status.color.withValues(alpha: 0.2), shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                        color: status.color.withValues(alpha: 0.2),
+                        shape: BoxShape.circle),
                     child: Icon(LucideIcons.car, color: status.color),
                   ),
                   SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       vehicle['title']?.toString() ?? 'Araç',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: context.renkler.metin),
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: context.renkler.metin),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -418,27 +526,47 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
                 spacing: 18,
                 runSpacing: 4,
                 children: [
-                  _info(LucideIcons.hash, 'Plaka: ${_orDash(vehicle['plate'])}'),
-                  _info(LucideIcons.user, 'Müşteri: ${_orDash(customer['name'])}'),
+                  _info(
+                      LucideIcons.hash, 'Plaka: ${_orDash(vehicle['plate'])}'),
+                  _info(LucideIcons.user,
+                      'Müşteri: ${_orDash(customer['name'])}'),
                   _info(LucideIcons.phone, _orDash(customer['phone'])),
-                  _info(LucideIcons.mapPin, region.isEmpty ? _orDash(city) : '$city • $region'),
-                  _info(LucideIcons.package, '${_orDash(request['firm_name'])} – ${_orDash(request['package_name'])}'),
+                  _info(LucideIcons.mapPin,
+                      region.isEmpty ? _orDash(city) : '$city • $region'),
+                  _info(LucideIcons.package,
+                      '${_orDash(request['firm_name'])} – ${_orDash(request['package_name'])}'),
                   _info(LucideIcons.clock, _formatDate(request['created_at'])),
-                  if (randevuOzeti.isNotEmpty) _info(LucideIcons.calendarClock, 'Randevu: $randevuOzeti', color: context.renkler.uyari),
-                  if (assignedName.isNotEmpty) _info(LucideIcons.contact, 'Personel: $assignedName', color: context.renkler.bilgi),
+                  if (randevuOzeti.isNotEmpty)
+                    _info(LucideIcons.calendarClock, 'Randevu: $randevuOzeti',
+                        color: context.renkler.uyari),
+                  if (assignedName.isNotEmpty)
+                    _info(LucideIcons.contact, 'Personel: $assignedName',
+                        color: context.renkler.bilgi),
                 ],
               ),
-              if (bucket == 'cancelled' && _map(request['cancellation']).isNotEmpty) ...[
+              if (bucket == 'cancelled' &&
+                  _map(request['cancellation']).isNotEmpty) ...[
                 SizedBox(height: 6),
-                _info(LucideIcons.circleX, 'İptal nedeni: ${_orDash(_map(request['cancellation'])['reason'])}', color: context.renkler.metinIkincil),
+                _info(LucideIcons.circleX,
+                    'İptal nedeni: ${_orDash(_map(request['cancellation'])['reason'])}',
+                    color: context.renkler.metinIkincil),
               ],
-              if (request['needs_revision'] == true && (request['rejection_reason'] ?? '').toString().isNotEmpty) ...[
+              if (request['needs_revision'] == true &&
+                  (request['rejection_reason'] ?? '')
+                      .toString()
+                      .isNotEmpty) ...[
                 SizedBox(height: 6),
-                _info(LucideIcons.triangleAlert, 'Red nedeni: ${request['rejection_reason']}', color: context.renkler.tehlike),
+                _info(LucideIcons.triangleAlert,
+                    'Red nedeni: ${request['rejection_reason']}',
+                    color: context.renkler.tehlike),
               ],
               if (actions.isNotEmpty) ...[
                 SizedBox(height: 10),
-                Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.end, children: actions),
+                Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.end,
+                    children: actions),
               ],
             ],
           ),
@@ -448,11 +576,12 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
   }
 
   VoidCallback _action(VoidCallback action, bool closeDetail) => () {
-    if (closeDetail) Navigator.pop(context);
-    action();
-  };
+        if (closeDetail) Navigator.pop(context);
+        action();
+      };
 
-  List<Widget> _requestActions(Map<String, dynamic> request, {bool closeDetail = false}) {
+  List<Widget> _requestActions(Map<String, dynamic> request,
+      {bool closeDetail = false}) {
     final bucket = request['bucket'];
     final actions = <Widget>[];
     if (bucket == 'waiting_assignment') {
@@ -485,8 +614,10 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
         ),
         TextButton.icon(
           onPressed: _action(() => _confirmUnassign(request), closeDetail),
-          icon: Icon(LucideIcons.userMinus, size: 18, color: context.renkler.tehlike),
-          label: Text('Atamayı Kaldır', style: TextStyle(color: context.renkler.tehlike)),
+          icon: Icon(LucideIcons.userMinus,
+              size: 18, color: context.renkler.tehlike),
+          label: Text('Atamayı Kaldır',
+              style: TextStyle(color: context.renkler.tehlike)),
         ),
       ]);
     }
@@ -495,7 +626,8 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
         key: Key('cancel-${request['id']}'),
         onPressed: _action(() => _confirmCancel(request), closeDetail),
         icon: Icon(LucideIcons.ban, size: 18, color: context.renkler.uyari),
-        label: Text('İptal / İade', style: TextStyle(color: context.renkler.uyari)),
+        label: Text('İptal / İade',
+            style: TextStyle(color: context.renkler.uyari)),
       ));
     }
 
@@ -507,11 +639,17 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
     return text.isEmpty ? '-' : text;
   }
 
-  Widget _chip(String text, Color color) => YbRozet(text, tur:
-      color == context.renkler.tehlike ? YbRozetTuru.tehlike :
-      color == context.renkler.uyari ? YbRozetTuru.uyari :
-      color == context.renkler.birincil || color == context.renkler.birincilMetin ? YbRozetTuru.basari :
-      color == context.renkler.bilgi ? YbRozetTuru.bilgi : YbRozetTuru.notr);
+  Widget _chip(String text, Color color) => YbRozet(text,
+      tur: color == context.renkler.tehlike
+          ? YbRozetTuru.tehlike
+          : color == context.renkler.uyari
+              ? YbRozetTuru.uyari
+              : color == context.renkler.birincil ||
+                      color == context.renkler.birincilMetin
+                  ? YbRozetTuru.basari
+                  : color == context.renkler.bilgi
+                      ? YbRozetTuru.bilgi
+                      : YbRozetTuru.notr);
 
   Widget _info(IconData icon, String text, {Color? color}) {
     return Row(
@@ -519,9 +657,13 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
       children: [
         Icon(icon, size: 13, color: context.renkler.ikonPasif),
         SizedBox(width: 4),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 320),
-          child: Text(text, style: TextStyle(fontSize: 13, color: color ?? context.renkler.metinGovde), overflow: TextOverflow.ellipsis),
+        Flexible(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            child: Text(text,
+                style: TextStyle(
+                    fontSize: 13, color: color ?? context.renkler.metinGovde)),
+          ),
         ),
       ],
     );
@@ -534,13 +676,17 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
   void _showDetail(Map<String, dynamic> request) {
     final vehicle = _map(request['vehicle']);
     final listingUrl = (vehicle['listing_url'] ?? '').toString().trim();
-    final listingUri = Uri.tryParse(listingUrl.contains('://') ? listingUrl : 'https://$listingUrl');
-    final canOpenListing = listingUrl.isNotEmpty && listingUri != null &&
+    final listingUri = Uri.tryParse(
+        listingUrl.contains('://') ? listingUrl : 'https://$listingUrl');
+    final canOpenListing = listingUrl.isNotEmpty &&
+        listingUri != null &&
         (listingUri.scheme == 'https' || listingUri.scheme == 'http') &&
-        listingUri.host.isNotEmpty && listingUri.userInfo.isEmpty;
+        listingUri.host.isNotEmpty &&
+        listingUri.userInfo.isEmpty;
     final customer = _map(request['customer']);
     final assignment = _map(request['assignment']);
-    final history = (assignment['history'] as List? ?? const []).whereType<Map>().toList();
+    final history =
+        (assignment['history'] as List? ?? const []).whereType<Map>().toList();
     final randevu = _map(request['randevu']);
     final bulunamadiNotu = history.reversed
             .where((h) => h['action'] == 'vehicle_not_found')
@@ -550,7 +696,8 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
     // İletişim geçmişi yalnız kontrol merkezinin aradığı/not düşülen talepler için dolu gelir.
     final iletisim = _api
         .getContactLog(request['id'].toString())
-        .then((r) => (r['kayitlar'] as List? ?? const []).whereType<Map>().toList())
+        .then((r) =>
+            (r['kayitlar'] as List? ?? const []).whereType<Map>().toList())
         .catchError((Object _) => <Map>[]);
     const actionLabels = {
       'vehicle_not_found': 'Araç adreste yok bildirildi',
@@ -567,174 +714,228 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
       builder: (sheetContext) => Dialog(
         alignment: Alignment.centerRight,
         insetPadding: const EdgeInsets.all(20),
-        child: SizedBox(width: 480, child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            Text(vehicle['title']?.toString() ?? 'Talep',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: context.renkler.metin)),
-            SizedBox(height: 4),
-            Text('Talep No: ${request['request_id'] ?? request['id']}', style: TextStyle(color: context.renkler.ikonPasif, fontSize: 13)),
-            SizedBox(height: 16),
-            _detailRow('Durum', _statusOf(request).label),
-            _detailRow('Plaka', _orDash(vehicle['plate'])),
-            _detailRow('Marka', _orDash(vehicle['brand'])),
-            _detailRow('Model', _orDash(vehicle['model'])),
-            _detailRow('İlan', _orDash(vehicle['listing_url'])),
-            if (canOpenListing)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: OutlinedButton.icon(
-                  key: const Key('openListingButton'),
-                  icon: Icon(LucideIcons.externalLink),
-                  label: Text('İlanı aç'),
-                  onPressed: () async {
-                    bool opened;
-                    try {
-                      opened = await (widget.openListing?.call(listingUri) ??
-                          launchUrl(listingUri, mode: LaunchMode.externalApplication, webOnlyWindowName: '_blank'));
-                    } catch (_) {
-                      opened = false;
-                    }
-                    if (!opened && mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text('İlan açılamadı. Yukarıdaki bağlantıyı kopyalayıp tarayıcıda açabilirsiniz.'),
-                      ));
-                    }
-                  },
-                ),
-              ),
-            _detailRow('Müşteri', _orDash(customer['name'])),
-            _detailRow('Telefon', _orDash(customer['phone'])),
-            _detailRow('E-posta', _orDash(customer['email'])),
-            _detailRow('İl / İlçe / Bölge',
-                '${_orDash(request['city'])} / ${_orDash(request['district'])} / ${_orDash(request['region'])}'),
-            _detailRow('Firma / Paket', '${_orDash(request['firm_name'])} / ${_orDash(request['package_name'])}'),
-            _detailRow('Tutar', '${NumberFormat.decimalPattern('tr').format(request['total_tl'] ?? 0)} TL'),
-            _detailRow('Müşteri notu', _orDash(request['note'])),
-            _detailRow('Oluşturma', _formatDate(request['created_at'])),
-            if (randevu.isNotEmpty) ...[
-              Divider(color: context.renkler.ayirici, height: 28),
-              Text('Randevu', style: TextStyle(color: context.renkler.metin, fontWeight: FontWeight.bold)),
-              SizedBox(height: 8),
-              _detailRow('Tarih / saat', _formatDate(randevu['tarih_saat'])),
-              _detailRow('Adres', _orDash(randevu['adres'])),
-              _detailRow('Satıcı', _orDash(randevu['satici_adi'])),
-              _detailRow('Satıcı tel.', _orDash(randevu['satici_telefon'])),
-            ],
-            if (_aracBulunamadi(request)) ...[
-              Divider(color: context.renkler.ayirici, height: 28),
-              Container(
-                key: const Key('bulunamadi-uyarisi'),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: context.renkler.uyari.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: context.renkler.uyari),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Saha personeli aracın randevu adresinde olmadığını bildirdi.',
-                        style: TextStyle(color: context.renkler.metin, fontWeight: FontWeight.bold)),
-                    if (bulunamadiNotu.isNotEmpty) ...[
-                      SizedBox(height: 4),
-                      Text('Personel notu: $bulunamadiNotu', style: TextStyle(color: context.renkler.metinGovde)),
-                    ],
-                    SizedBox(height: 4),
-                    Text(
-                      'Müşteri ödeme öncesi bu koşulu onayladı: yalnız kurumsal paket ücreti iade edilir, '
-                      'hizmet bedeli iade edilmez.',
-                      style: TextStyle(color: context.renkler.metinIkincil, fontSize: 13),
-                    ),
-                    SizedBox(height: 8),
-                    FilledButton.icon(
-                      style: FilledButton.styleFrom(backgroundColor: context.renkler.uyari),
-                      onPressed: () {
-                        Navigator.pop(sheetContext);
-                        _confirmNotFoundRefund(request);
+        child: SizedBox(
+            width: 480,
+            child: ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                Text(vehicle['title']?.toString() ?? 'Talep',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: context.renkler.metin)),
+                SizedBox(height: 4),
+                Text('Talep No: ${request['request_id'] ?? request['id']}',
+                    style: TextStyle(
+                        color: context.renkler.ikonPasif, fontSize: 13)),
+                SizedBox(height: 16),
+                _detailRow('Durum', _statusOf(request).label),
+                _detailRow('Plaka', _orDash(vehicle['plate'])),
+                _detailRow('Marka', _orDash(vehicle['brand'])),
+                _detailRow('Model', _orDash(vehicle['model'])),
+                _detailRow('İlan', _orDash(vehicle['listing_url'])),
+                if (canOpenListing)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      key: const Key('openListingButton'),
+                      icon: Icon(LucideIcons.externalLink),
+                      label: Text('İlanı aç'),
+                      onPressed: () async {
+                        bool opened;
+                        try {
+                          opened =
+                              await (widget.openListing?.call(listingUri) ??
+                                  launchUrl(listingUri,
+                                      mode: LaunchMode.externalApplication,
+                                      webOnlyWindowName: '_blank'));
+                        } catch (_) {
+                          opened = false;
+                        }
+                        if (!opened && mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(
+                                'İlan açılamadı. Yukarıdaki bağlantıyı kopyalayıp tarayıcıda açabilirsiniz.'),
+                          ));
+                        }
                       },
-                      icon: Icon(LucideIcons.rotateCcw, size: 18),
-                      label: Text('Paket ücretini iade et'),
                     ),
-                  ],
-                ),
-              ),
-            ],
-            if ((assignment['personnel_name'] ?? '').toString().isNotEmpty) ...[
-              Divider(color: context.renkler.ayirici, height: 28),
-              _detailRow('Atanan personel', _orDash(assignment['personnel_name'])),
-              _detailRow('Personel tel.', _orDash(assignment['personnel_phone'])),
-              _detailRow('Atama zamanı', _formatDate(assignment['assigned_at'])),
-              _detailRow('Atayan', _orDash(assignment['assigned_by'])),
-              _detailRow('Admin notu', _orDash(assignment['note'])),
-              Divider(color: context.renkler.ayirici, height: 28),
-              Text('Saha durumu', style: TextStyle(color: context.renkler.metin, fontWeight: FontWeight.bold)),
-              SizedBox(height: 8),
-              _detailRow('Kabul', _formatDate(assignment['accepted_at'])),
-              _detailRow('Harekete geçti', _formatDate(assignment['departed_at'])),
-              _detailRow('Araç başında', _formatDate(assignment['arrived_at'])),
-              if (request['corporate_required'] == true)
-                _detailRow('Kurumsal ekspertizde', _formatDate(assignment['corporate_at'])),
-              _detailRow('Rapora başladı', _formatDate(assignment['started_at'])),
-              _detailRow('Rapor gönderildi', _formatDate(assignment['submitted_at'])),
-            ],
-            if (history.isNotEmpty) ...[
-              Divider(color: context.renkler.ayirici, height: 28),
-              Text('Atama geçmişi', style: TextStyle(color: context.renkler.metin, fontWeight: FontWeight.bold)),
-              SizedBox(height: 8),
-              ...history.reversed.map((h) => ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(LucideIcons.history, color: context.renkler.ikonPasif, size: 18),
-                    title: Text(
-                      '${actionLabels[h['action']] ?? h['action']}'
-                      '${(h['personnel_name'] ?? '').toString().isNotEmpty ? ' – ${h['personnel_name']}' : ''}',
-                      style: TextStyle(color: context.renkler.metinGovde, fontSize: 13),
+                  ),
+                _detailRow('Müşteri', _orDash(customer['name'])),
+                _detailRow('Telefon', _orDash(customer['phone'])),
+                _detailRow('E-posta', _orDash(customer['email'])),
+                _detailRow('İl / İlçe / Bölge',
+                    '${_orDash(request['city'])} / ${_orDash(request['district'])} / ${_orDash(request['region'])}'),
+                _detailRow('Firma / Paket',
+                    '${_orDash(request['firm_name'])} / ${_orDash(request['package_name'])}'),
+                _detailRow('Tutar',
+                    '${NumberFormat.decimalPattern('tr').format(request['total_tl'] ?? 0)} TL'),
+                _detailRow('Müşteri notu', _orDash(request['note'])),
+                _detailRow('Oluşturma', _formatDate(request['created_at'])),
+                if (randevu.isNotEmpty) ...[
+                  Divider(color: context.renkler.ayirici, height: 28),
+                  Text('Randevu',
+                      style: TextStyle(
+                          color: context.renkler.metin,
+                          fontWeight: FontWeight.bold)),
+                  SizedBox(height: 8),
+                  _detailRow(
+                      'Tarih / saat', _formatDate(randevu['tarih_saat'])),
+                  _detailRow('Adres', _orDash(randevu['adres'])),
+                  _detailRow('Satıcı', _orDash(randevu['satici_adi'])),
+                  _detailRow('Satıcı tel.', _orDash(randevu['satici_telefon'])),
+                ],
+                if (_aracBulunamadi(request)) ...[
+                  Divider(color: context.renkler.ayirici, height: 28),
+                  Container(
+                    key: const Key('bulunamadi-uyarisi'),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: context.renkler.uyari.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: context.renkler.uyari),
                     ),
-                    subtitle: Text(
-                      '${_formatDate(h['at'])} • ${_orDash(h['by'])}'
-                      '${(h['note'] ?? '').toString().isNotEmpty ? ' • ${h['note']}' : ''}',
-                      style: TextStyle(color: context.renkler.ikonPasif, fontSize: 13),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                            'Saha personeli aracın randevu adresinde olmadığını bildirdi.',
+                            style: TextStyle(
+                                color: context.renkler.metin,
+                                fontWeight: FontWeight.bold)),
+                        if (bulunamadiNotu.isNotEmpty) ...[
+                          SizedBox(height: 4),
+                          Text('Personel notu: $bulunamadiNotu',
+                              style:
+                                  TextStyle(color: context.renkler.metinGovde)),
+                        ],
+                        SizedBox(height: 4),
+                        Text(
+                          'Müşteri ödeme öncesi bu koşulu onayladı: yalnız kurumsal paket ücreti iade edilir, '
+                          'hizmet bedeli iade edilmez.',
+                          style: TextStyle(
+                              color: context.renkler.metinIkincil,
+                              fontSize: 13),
+                        ),
+                        SizedBox(height: 8),
+                        FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                              backgroundColor: context.renkler.uyari),
+                          onPressed: () {
+                            Navigator.pop(sheetContext);
+                            _confirmNotFoundRefund(request);
+                          },
+                          icon: Icon(LucideIcons.rotateCcw, size: 18),
+                          label: Text('Paket ücretini iade et'),
+                        ),
+                      ],
                     ),
-                  )),
-            ],
-            FutureBuilder<List<Map>>(
-              future: iletisim,
-              builder: (context, snapshot) {
-                final kayitlar = snapshot.data ?? const <Map>[];
-                if (kayitlar.isEmpty) return SizedBox.shrink();
-                return Column(
-                  key: const Key('iletisim-gecmisi'),
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Divider(color: context.renkler.ayirici, height: 28),
-                    Text('Kontrol merkezi iletişim geçmişi',
-                        style: TextStyle(color: context.renkler.metin, fontWeight: FontWeight.bold)),
-                    SizedBox(height: 8),
-                    for (final k in kayitlar)
-                      ListTile(
+                  ),
+                ],
+                if ((assignment['personnel_name'] ?? '')
+                    .toString()
+                    .isNotEmpty) ...[
+                  Divider(color: context.renkler.ayirici, height: 28),
+                  _detailRow(
+                      'Atanan personel', _orDash(assignment['personnel_name'])),
+                  _detailRow(
+                      'Personel tel.', _orDash(assignment['personnel_phone'])),
+                  _detailRow(
+                      'Atama zamanı', _formatDate(assignment['assigned_at'])),
+                  _detailRow('Atayan', _orDash(assignment['assigned_by'])),
+                  _detailRow('Admin notu', _orDash(assignment['note'])),
+                  Divider(color: context.renkler.ayirici, height: 28),
+                  Text('Saha durumu',
+                      style: TextStyle(
+                          color: context.renkler.metin,
+                          fontWeight: FontWeight.bold)),
+                  SizedBox(height: 8),
+                  _detailRow('Kabul', _formatDate(assignment['accepted_at'])),
+                  _detailRow(
+                      'Harekete geçti', _formatDate(assignment['departed_at'])),
+                  _detailRow(
+                      'Araç başında', _formatDate(assignment['arrived_at'])),
+                  if (request['corporate_required'] == true)
+                    _detailRow('Kurumsal ekspertizde',
+                        _formatDate(assignment['corporate_at'])),
+                  _detailRow(
+                      'Rapora başladı', _formatDate(assignment['started_at'])),
+                  _detailRow('Rapor gönderildi',
+                      _formatDate(assignment['submitted_at'])),
+                ],
+                if (history.isNotEmpty) ...[
+                  Divider(color: context.renkler.ayirici, height: 28),
+                  Text('Atama geçmişi',
+                      style: TextStyle(
+                          color: context.renkler.metin,
+                          fontWeight: FontWeight.bold)),
+                  SizedBox(height: 8),
+                  ...history.reversed.map((h) => ListTile(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
-                        leading: Icon(LucideIcons.headset, color: context.renkler.ikonPasif, size: 18),
+                        leading: Icon(LucideIcons.history,
+                            color: context.renkler.ikonPasif, size: 18),
                         title: Text(
-                          '${_iletisimHedefleri[k['hedef']] ?? k['hedef']} · '
-                          '${_iletisimSonuclari[k['sonuc']] ?? k['sonuc']}',
-                          style: TextStyle(color: context.renkler.metinGovde, fontSize: 13),
+                          '${actionLabels[h['action']] ?? h['action']}'
+                          '${(h['personnel_name'] ?? '').toString().isNotEmpty ? ' – ${h['personnel_name']}' : ''}',
+                          style: TextStyle(
+                              color: context.renkler.metinGovde, fontSize: 13),
                         ),
                         subtitle: Text(
-                          '${_formatDate(k['created_at'])} • ${_orDash(k['actor_name'])}'
-                          '${(k['note'] ?? '').toString().isNotEmpty ? ' • ${k['note']}' : ''}',
-                          style: TextStyle(color: context.renkler.ikonPasif, fontSize: 13),
+                          '${_formatDate(h['at'])} • ${_orDash(h['by'])}'
+                          '${(h['note'] ?? '').toString().isNotEmpty ? ' • ${h['note']}' : ''}',
+                          style: TextStyle(
+                              color: context.renkler.ikonPasif, fontSize: 13),
                         ),
-                      ),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 16),
-            Wrap(spacing: 8, runSpacing: 8, children: _requestActions(request, closeDetail: true)),
-          ],
-        )),
+                      )),
+                ],
+                FutureBuilder<List<Map>>(
+                  future: iletisim,
+                  builder: (context, snapshot) {
+                    final kayitlar = snapshot.data ?? const <Map>[];
+                    if (kayitlar.isEmpty) return SizedBox.shrink();
+                    return Column(
+                      key: const Key('iletisim-gecmisi'),
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Divider(color: context.renkler.ayirici, height: 28),
+                        Text('Kontrol merkezi iletişim geçmişi',
+                            style: TextStyle(
+                                color: context.renkler.metin,
+                                fontWeight: FontWeight.bold)),
+                        SizedBox(height: 8),
+                        for (final k in kayitlar)
+                          ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(LucideIcons.headset,
+                                color: context.renkler.ikonPasif, size: 18),
+                            title: Text(
+                              '${_iletisimHedefleri[k['hedef']] ?? k['hedef']} · '
+                              '${_iletisimSonuclari[k['sonuc']] ?? k['sonuc']}',
+                              style: TextStyle(
+                                  color: context.renkler.metinGovde,
+                                  fontSize: 13),
+                            ),
+                            subtitle: Text(
+                              '${_formatDate(k['created_at'])} • ${_orDash(k['actor_name'])}'
+                              '${(k['note'] ?? '').toString().isNotEmpty ? ' • ${k['note']}' : ''}',
+                              style: TextStyle(
+                                  color: context.renkler.ikonPasif,
+                                  fontSize: 13),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _requestActions(request, closeDetail: true)),
+              ],
+            )),
       ),
     );
   }
@@ -755,10 +956,12 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
 
   /// Araç adreste bulunamadı: yalnız kurumsal paket ücreti PayTR ile iade edilir, hizmet bedeli kalır.
   Future<void> _confirmNotFoundRefund(Map<String, dynamic> request) async {
-    final reason = await showDialog<String>(context: context, builder: (_) => const _BulunamadiIadeDialog());
+    final reason = await showDialog<String>(
+        context: context, builder: (_) => const _BulunamadiIadeDialog());
     if (reason == null) return;
     try {
-      final yanit = await _api.notFoundRefund(request['id'].toString(), reason: reason);
+      final yanit =
+          await _api.notFoundRefund(request['id'].toString(), reason: reason);
       final iade = (yanit['refund_tl'] as num?)?.toDouble() ?? 0;
       final kalan = (yanit['kept_tl'] as num?)?.toDouble() ?? 0;
       final tl = NumberFormat.decimalPattern('tr');
@@ -767,7 +970,8 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
           : 'Talep kapandı. İade edilecek paket ücreti yoktu.');
       await _load(silent: true);
     } catch (e) {
-      _toast('İade yapılamadı: ${e is ApiException ? e.message : e}', error: true);
+      _toast('İade yapılamadı: ${e is ApiException ? e.message : e}',
+          error: true);
     }
   }
 
@@ -777,8 +981,15 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 130, child: Text(label, style: TextStyle(color: context.renkler.metinIkincil, fontSize: 13))),
-          Expanded(child: SelectableText(value, style: TextStyle(color: context.renkler.metin, fontSize: 13))),
+          SizedBox(
+              width: 130,
+              child: Text(label,
+                  style: TextStyle(
+                      color: context.renkler.metinIkincil, fontSize: 13))),
+          Expanded(
+              child: SelectableText(value,
+                  style:
+                      TextStyle(color: context.renkler.metin, fontSize: 13))),
         ],
       ),
     );
@@ -806,14 +1017,16 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
     );
     if (result == null) return;
     try {
-      final response = await _api.cancelRequest(request['id'].toString(), reason: result.reason, refund: result.refund);
+      final response = await _api.cancelRequest(request['id'].toString(),
+          reason: result.reason, refund: result.refund);
       final refunded = (response['refunded_tl'] as num?)?.toDouble() ?? 0;
       _toast(refunded > 0
           ? 'Talep iptal edildi, ${NumberFormat.decimalPattern('tr').format(refunded)} TL müşteriye iade edildi'
           : 'Talep iptal edildi');
       await _load(silent: true);
     } catch (e) {
-      _toast('İptal edilemedi: ${e is ApiException ? e.message : e}', error: true);
+      _toast('İptal edilemedi: ${e is ApiException ? e.message : e}',
+          error: true);
     }
   }
 
@@ -825,27 +1038,35 @@ class _AracOperasyonuState extends State<AracOperasyonu> with SingleTickerProvid
       builder: (dialogContext) => YbDiyalog(
         baslik: 'Atamayı kaldır',
         eylemler: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text('Vazgeç')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text('Atamayı Kaldır')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text('Vazgeç')),
+          FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text('Atamayı Kaldır')),
         ],
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('${_orDash(assignment['personnel_name'])} bu talepten alınacak ve talep "Atama Bekleyen" listesine dönecek.'),
+            Text(
+                '${_orDash(assignment['personnel_name'])} bu talepten alınacak ve talep "Atama Bekleyen" listesine dönecek.'),
             SizedBox(height: 12),
             TextField(
               controller: reasonController,
-              decoration: const InputDecoration(labelText: 'Neden (isteğe bağlı)', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                  labelText: 'Neden (isteğe bağlı)',
+                  border: OutlineInputBorder()),
             ),
           ],
         ),
-),
+      ),
     );
     final reason = reasonController.text.trim();
     reasonController.dispose();
     if (confirmed != true) return;
     try {
-      await _api.unassignRequest(request['id'].toString(), reason: reason.isEmpty ? null : reason);
+      await _api.unassignRequest(request['id'].toString(),
+          reason: reason.isEmpty ? null : reason);
       _toast('Atama kaldırıldı');
       await _load(silent: true);
     } catch (e) {
@@ -873,11 +1094,11 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
     'other_region': 'Bölge dışı',
   };
   Map<String, Color> get _matchColors => {
-    'same_district': context.renkler.birincilMetin,
-    'same_city': context.renkler.birincil,
-    'same_region': context.renkler.uyari,
-    'other_region': context.renkler.metinIkincil,
-  };
+        'same_district': context.renkler.birincilMetin,
+        'same_city': context.renkler.birincil,
+        'same_region': context.renkler.uyari,
+        'other_region': context.renkler.metinIkincil,
+      };
 
   final TextEditingController _noteController = TextEditingController();
   List<Map<String, dynamic>> _candidates = [];
@@ -916,16 +1137,24 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
           .toList();
       if (!mounted) return;
       final recommended = response['recommended_id']?.toString();
-      final current = rows.where((c) => c['is_current'] == true).map((c) => c['id'].toString()).firstOrNull;
+      final current = rows
+          .where((c) => c['is_current'] == true)
+          .map((c) => c['id'].toString())
+          .firstOrNull;
       setState(() {
         _candidates = rows;
         _firmaId = response['firm_id']?.toString() ?? '';
         // Mevcut atama varsa (yeniden atama) öneriyi farklı bir personelden seç
         _selectedId = rows
-            .where((c) => c['id'].toString() != current && c['assignable'] != false)
+            .where((c) =>
+                c['id'].toString() != current && c['assignable'] != false)
             .map((c) => c['id'].toString())
             .firstOrNull;
-        if (_selectedId == null && recommended != null && recommended != current) _selectedId = recommended;
+        if (_selectedId == null &&
+            recommended != null &&
+            recommended != current) {
+          _selectedId = recommended;
+        }
         _showOtherRegions = !rows.any((c) => c['match'] != 'other_region');
         _loading = false;
       });
@@ -946,7 +1175,8 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
       _error = null;
     });
     try {
-      await widget.api.assignRequest(_requestId, selected, note: _noteController.text.trim());
+      await widget.api.assignRequest(_requestId, selected,
+          note: _noteController.text.trim());
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
@@ -961,24 +1191,39 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final vehicle = widget.request['vehicle'] is Map ? Map<String, dynamic>.from(widget.request['vehicle'] as Map) : {};
+    final vehicle = widget.request['vehicle'] is Map
+        ? Map<String, dynamic>.from(widget.request['vehicle'] as Map)
+        : {};
     final district = widget.request['district']?.toString() ?? '';
-    final city = [widget.request['city']?.toString() ?? '', district].where((e) => e.isNotEmpty).join(' / ');
+    final city = [widget.request['city']?.toString() ?? '', district]
+        .where((e) => e.isNotEmpty)
+        .join(' / ');
     final region = widget.request['region']?.toString() ?? '';
-    final onDutyCount = _candidates.where((c) => c['assignable'] != false && c['is_current'] != true).length;
-    final current = _candidates.where((c) => c['is_current'] == true).firstOrNull;
-    final selectable = _candidates.where((c) => c['is_current'] != true).toList();
-    final visible = _showOtherRegions ? selectable : selectable.where((c) => c['match'] != 'other_region').toList();
+    final onDutyCount = _candidates
+        .where((c) => c['assignable'] != false && c['is_current'] != true)
+        .length;
+    final current =
+        _candidates.where((c) => c['is_current'] == true).firstOrNull;
+    final selectable =
+        _candidates.where((c) => c['is_current'] != true).toList();
+    final visible = _showOtherRegions
+        ? selectable
+        : selectable.where((c) => c['match'] != 'other_region').toList();
     final hiddenCount = selectable.length - visible.length;
 
     return YbDiyalog(
       baslik: 'Personel Ata – ${vehicle['plate'] ?? vehicle['title'] ?? ''}',
       eylemler: [
-        TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: Text('İptal')),
+        TextButton(
+            onPressed: _saving ? null : () => Navigator.pop(context, false),
+            child: Text('İptal')),
         FilledButton.icon(
           onPressed: (_saving || _selectedId == null) ? null : _assign,
           icon: _saving
-              ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              ? SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2))
               : Icon(LucideIcons.send),
           label: Text('Personele Gönder'),
         ),
@@ -992,7 +1237,9 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    city.isEmpty ? 'Talebin ili belirtilmemiş' : 'Talep konumu: $city${region.isEmpty ? '' : ' ($region)'}',
+                    city.isEmpty
+                        ? 'Talebin ili belirtilmemiş'
+                        : 'Talep konumu: $city${region.isEmpty ? '' : ' ($region)'}',
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                   SizedBox(height: 4),
@@ -1007,14 +1254,16 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
                       key: const Key('atama-firma-basligi'),
                       'Talep firması: ${(widget.request['firm_name'] ?? '').toString().isEmpty ? _firmaId : widget.request['firm_name']}'
                       ' • Önce firmanın personeli, sonra firmasız YerimeBak personeli listelenir.',
-                      style: TextStyle(fontSize: 13, color: context.renkler.bilgi),
+                      style:
+                          TextStyle(fontSize: 13, color: context.renkler.bilgi),
                     ),
                   ],
                   if (current != null) ...[
                     SizedBox(height: 6),
                     Text(
                       'Şu an atanmış: ${current['full_name']} (${current['city'] ?? '-'})',
-                      style: TextStyle(fontSize: 13, color: context.renkler.bilgi),
+                      style:
+                          TextStyle(fontSize: 13, color: context.renkler.bilgi),
                     ),
                   ],
                   SizedBox(height: 12),
@@ -1034,12 +1283,15 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
                       child: SingleChildScrollView(
                         child: RadioGroup<String>(
                           groupValue: _selectedId,
-                          onChanged: (value) => setState(() => _selectedId = value),
+                          onChanged: (value) =>
+                              setState(() => _selectedId = value),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: visible.map((c) {
-                              final match = c['match']?.toString() ?? 'other_region';
-                              final openTasks = (c['open_task_count'] as num?)?.toInt() ?? 0;
+                              final match =
+                                  c['match']?.toString() ?? 'other_region';
+                              final openTasks =
+                                  (c['open_task_count'] as num?)?.toInt() ?? 0;
                               final assignable = c['assignable'] != false;
                               return RadioListTile<String>(
                                 value: c['id'].toString(),
@@ -1056,14 +1308,20 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
                                 ),
                                 isThreeLine: true,
                                 secondary: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: (_matchColors[match] ?? context.renkler.metinIkincil).withValues(alpha: .18),
+                                    color: (_matchColors[match] ??
+                                            context.renkler.metinIkincil)
+                                        .withValues(alpha: .18),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Text(
                                     _matchLabels[match] ?? match,
-                                    style: TextStyle(fontSize: 13, color: _matchColors[match], fontWeight: FontWeight.bold),
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        color: _matchColors[match],
+                                        fontWeight: FontWeight.bold),
                                   ),
                                 ),
                               );
@@ -1075,7 +1333,8 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
                   if (hiddenCount > 0)
                     TextButton(
                       onPressed: () => setState(() => _showOtherRegions = true),
-                      child: Text('Bölge dışındaki $hiddenCount personeli de göster'),
+                      child: Text(
+                          'Bölge dışındaki $hiddenCount personeli de göster'),
                     ),
                   SizedBox(height: 8),
                   TextField(
@@ -1087,15 +1346,15 @@ class _PersonelAtamaDialogState extends State<_PersonelAtamaDialog> {
                   ),
                   if (_error != null) ...[
                     SizedBox(height: 8),
-                    Text(_error!, style: TextStyle(color: context.renkler.tehlike)),
+                    Text(_error!,
+                        style: TextStyle(color: context.renkler.tehlike)),
                   ],
                 ],
               ),
       ),
-);
+    );
   }
 }
-
 
 /// "Araç adreste yok" sonrası paket ücreti iadesi: neden zorunlu; onaylanırsa nedeni döner.
 class _BulunamadiIadeDialog extends StatefulWidget {
@@ -1106,7 +1365,8 @@ class _BulunamadiIadeDialog extends StatefulWidget {
 }
 
 class _BulunamadiIadeDialogState extends State<_BulunamadiIadeDialog> {
-  final TextEditingController _reason = TextEditingController(text: 'Araç randevu adresinde bulunamadı');
+  final TextEditingController _reason =
+      TextEditingController(text: 'Araç randevu adresinde bulunamadı');
   String? _error;
 
   @override
@@ -1120,7 +1380,8 @@ class _BulunamadiIadeDialogState extends State<_BulunamadiIadeDialog> {
     return YbDiyalog(
       baslik: 'Paket ücretini iade et',
       eylemler: [
-        TextButton(onPressed: () => Navigator.pop(context), child: Text('Vazgeç')),
+        TextButton(
+            onPressed: () => Navigator.pop(context), child: Text('Vazgeç')),
         FilledButton(
           key: const Key('bulunamadi-iade-onay'),
           style: FilledButton.styleFrom(backgroundColor: context.renkler.uyari),
@@ -1141,19 +1402,23 @@ class _BulunamadiIadeDialogState extends State<_BulunamadiIadeDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Talep kapanır. Kurumsal ekspertiz paket ücreti karta iade edilir; '
+            Text(
+                'Talep kapanır. Kurumsal ekspertiz paket ücreti karta iade edilir; '
                 'hizmet bedeli müşterinin ödeme öncesi onayı gereği iade edilmez. Müşteriye bildirim gider.'),
             SizedBox(height: 12),
             TextField(
               key: const Key('bulunamadi-neden'),
               controller: _reason,
               maxLines: 2,
-              decoration: InputDecoration(labelText: 'Neden *', border: const OutlineInputBorder(), errorText: _error),
+              decoration: InputDecoration(
+                  labelText: 'Neden *',
+                  border: const OutlineInputBorder(),
+                  errorText: _error),
             ),
           ],
         ),
       ),
-);
+    );
   }
 }
 
@@ -1186,7 +1451,8 @@ class _IptalDialogState extends State<_IptalDialog> {
     return YbDiyalog(
       baslik: 'Talebi iptal et',
       eylemler: [
-        TextButton(onPressed: () => Navigator.pop(context), child: Text('Vazgeç')),
+        TextButton(
+            onPressed: () => Navigator.pop(context), child: Text('Vazgeç')),
         FilledButton(
           key: const Key('confirmCancelButton'),
           style: FilledButton.styleFrom(backgroundColor: context.renkler.uyari),
@@ -1207,13 +1473,15 @@ class _IptalDialogState extends State<_IptalDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Talep iptal edilir, personel ataması kaldırılır; müşteriye ve personele bildirim gider.'),
+            Text(
+                'Talep iptal edilir, personel ataması kaldırılır; müşteriye ve personele bildirim gider.'),
             SizedBox(height: 12),
             TextField(
               key: const Key('cancelReasonField'),
               controller: _reason,
               maxLines: 2,
-              decoration: const InputDecoration(labelText: 'İptal nedeni *', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                  labelText: 'İptal nedeni *', border: OutlineInputBorder()),
             ),
             if (paid)
               CheckboxListTile(
@@ -1221,12 +1489,14 @@ class _IptalDialogState extends State<_IptalDialog> {
                 contentPadding: EdgeInsets.zero,
                 value: _refund,
                 onChanged: (v) => setState(() => _refund = v ?? true),
-                title: Text('${NumberFormat.decimalPattern('tr').format(total)} TL ödemeyi karta iade et (PayTR)'),
+                title: Text(
+                    '${NumberFormat.decimalPattern('tr').format(total)} TL ödemeyi karta iade et (PayTR)'),
               ),
-            if (_error != null) Text(_error!, style: TextStyle(color: context.renkler.tehlike)),
+            if (_error != null)
+              Text(_error!, style: TextStyle(color: context.renkler.tehlike)),
           ],
         ),
       ),
-);
+    );
   }
 }

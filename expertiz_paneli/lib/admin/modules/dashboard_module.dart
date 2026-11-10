@@ -103,10 +103,15 @@ class _DashboardModuleState extends State<DashboardModule> {
   void _open(String page, [String? filter]) =>
       widget.onNavigate?.call(page, filter);
   String _number(num v) => NumberFormat.decimalPattern('tr_TR').format(v);
-  Widget _counter(num? value, {bool money = false}) =>
-      _AnimatedNumber(value: value, money: money, duration: _duration(700));
+  Widget _counter(num? value, {bool money = false}) => FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: _AnimatedNumber(
+          value: value, money: money, duration: _duration(700)));
   Widget _stat(String title, num? value, String detail, String page, int index,
-      {bool money = false, List<double> points = const [], required IconData icon}) {
+      {bool money = false,
+      List<double> points = const [],
+      required IconData icon}) {
     final r = context.renkler;
     final card = YbKart(
         onTap: () => _open(page),
@@ -129,8 +134,11 @@ class _DashboardModuleState extends State<DashboardModule> {
           const SizedBox(height: 10),
           _counter(value, money: money),
           const SizedBox(height: 8),
-          ConstrainedBox(constraints: BoxConstraints(minHeight: 40 * MediaQuery.textScalerOf(context).scale(1)),
-            child: Text(detail, style: TextStyle(fontSize: 13, color: r.metinIkincil))),
+          ConstrainedBox(
+              constraints: BoxConstraints(
+                  minHeight: 40 * MediaQuery.textScalerOf(context).scale(1)),
+              child: Text(detail,
+                  style: TextStyle(fontSize: 13, color: r.metinIkincil))),
           const SizedBox(height: 18),
           SizedBox(
               height: 32,
@@ -143,8 +151,11 @@ class _DashboardModuleState extends State<DashboardModule> {
         duration: _duration(220 + index * 60),
         curve: Curves.linear,
         builder: (context, v, child) {
-          final progress = MediaQuery.disableAnimationsOf(context) ? 1.0 : Curves.easeOutCubic.transform(
-              ((v * (220 + index * 60) - index * 60) / 220).clamp(0.0, 1.0));
+          final progress = MediaQuery.disableAnimationsOf(context)
+              ? 1.0
+              : Curves.easeOutCubic.transform(
+                  ((v * (220 + index * 60) - index * 60) / 220)
+                      .clamp(0.0, 1.0));
           return Opacity(
               opacity: progress,
               child: Transform.translate(
@@ -220,7 +231,9 @@ class _DashboardModuleState extends State<DashboardModule> {
                         interval: days.length > 7 ? 3 : 1,
                         getTitlesWidget: (v, m) {
                           final i = v.toInt();
-                          if (days.length > 7 && i == days.length - 1) return const SizedBox.shrink();
+                          if (days.length > 7 && i == days.length - 1) {
+                            return const SizedBox.shrink();
+                          }
                           return Padding(
                               padding: const EdgeInsets.only(top: 10),
                               child: Text(
@@ -336,36 +349,38 @@ class _DashboardModuleState extends State<DashboardModule> {
             const Text('Özet verisi henüz sunulmuyor')
           else if (rows.isEmpty)
             const Text('Bekleyen iş yok'),
-            for (final row in rows)
-              Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: InkWell(
-                      onTap: () => _open(row.page, row.filter),
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                              color: context.renkler.uyariYuzey,
-                              borderRadius: BorderRadius.circular(10)),
-                          child: Row(children: [
-                            Icon(LucideIcons.circleAlert,
-                                color: context.renkler.uyari, size: 18),
-                            const SizedBox(width: 10),
-                            Expanded(
-                                child: Text(row.text,
-                                    style: TextStyle(
-                                        fontSize: 13,
-                                        color: context.renkler.uyari))),
-                            Icon(LucideIcons.arrowUpRight,
-                                size: 16, color: context.renkler.uyari)
-                          ]))))
+          for (final row in rows)
+            Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: InkWell(
+                    onTap: () => _open(row.page, row.filter),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                            color: context.renkler.uyariYuzey,
+                            borderRadius: BorderRadius.circular(10)),
+                        child: Row(children: [
+                          Icon(LucideIcons.circleAlert,
+                              color: context.renkler.uyari, size: 18),
+                          const SizedBox(width: 10),
+                          Expanded(
+                              child: Text(row.text,
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      color: context.renkler.uyari))),
+                          Icon(LucideIcons.arrowUpRight,
+                              size: 16, color: context.renkler.uyari)
+                        ]))))
         ]));
   }
 
   Widget _donut() {
     final r = context.renkler;
     if (_ozet == null) {
-      return const YbKart(baslik: 'Ekspertiz talepleri', child: Text('Ekspertiz özeti henüz sunulmuyor'));
+      return const YbKart(
+          baslik: 'Ekspertiz talepleri',
+          child: Text('Ekspertiz özeti henüz sunulmuyor'));
     }
     const keys = [
       'waiting_assignment',

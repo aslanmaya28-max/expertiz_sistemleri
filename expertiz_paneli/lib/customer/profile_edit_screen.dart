@@ -225,6 +225,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     const SizedBox(height: 20),
                     // İl Seçimi - Dropdown
                     DropdownButtonFormField<int>(
+                      isExpanded: true,
                       initialValue: _selectedIlId > 0 ? _selectedIlId : null,
                       decoration: const InputDecoration(
                         labelText: 'İl',
@@ -246,6 +247,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     const SizedBox(height: 16),
                     // İlçe Seçimi - Dropdown
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
                       initialValue:
                           _selectedIlce.isNotEmpty ? _selectedIlce : null,
                       decoration: const InputDecoration(
