@@ -1,0 +1,75 @@
+4.
+YIL
+Anasayfa
+Vasıta
+Otomobil
+Seat
+Ibiza
+1.0
+Style
+İzmir / Balçova / Bahçelerarası Mh.
+İlan Bilgileri
+Açıklama
+Konumu
+Fiyat
+939.000 TL
+İlan Tarihi
+ 
+30 Ekim 2026
+İlan No
+ 
+1346016015
+Marka
+ 
+Seat 
+Seri
+ 
+Ibiza 1.0 
+Model
+ 
+Style 
+Yıl
+ 
+2021
+Yakıt / Motor Tipi
+ 
+Benzin
+Vites
+ 
+Manuel
+Araç Durumu
+ 
+İkinci El
+KM
+ 
+54.274
+Kasa Tipi
+ 
+Hatchback 5 kapı
+Motor Gücü
+ 
+80 hp
+Motor Hacmi
+ 
+999 cc
+Çekiş
+ 
+Önden Çekiş
+Renk
+ 
+Kırmızı
+Servis Garantisi
+ 
+Hayır
+Ağır Hasar Kayıtlı
+ 
+Hayır
+Plaka / Uyruk
+ 
+Türkiye (TR) Plakalı
+Kimden
+ 
+Galeriden
+Takas
+ 
+Evet 

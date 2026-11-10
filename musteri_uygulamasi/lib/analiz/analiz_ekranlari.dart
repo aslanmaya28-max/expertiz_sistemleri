@@ -277,11 +277,18 @@ class _IlanOkunuyorEkraniState extends ConsumerState<IlanOkunuyorEkrani> {
     }
   }
 
-  void _tamam(OnDoldurma od) {
+  Future<void> _tamam(OnDoldurma od) async {
     if (!mounted) return;
     ref.read(analizTaslagiProvider.notifier).state = AnalizTaslagi(
       od.forma(uri.toString()),
     );
+    // İlan sayfası (WebView) kapanırken odak formdaki bir alana geçip listeyi açıyor ve sayfayı
+    // kaydırıyordu (11.11.2026 emülatör): önce WebView kaldırılır, odak bırakılır.
+    yoklama?.cancel();
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() => web = null);
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
     context.pushReplacement('/analiz/form');
   }
 
@@ -681,6 +688,9 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
   };
   String? hata;
 
+  /// Form her açılışta baştan başlar (önceki ziyaretin kaydırma konumu hatırlanıyordu, 11.11.2026).
+  final kaydirma = ScrollController(keepScrollOffset: false);
+
   /// Hatalı/eksik alan: kırmızı yazı alanın altında, sayfa oraya kayar ve imleç oraya konur.
   String? hataAlani;
   final anahtarlar = {
@@ -694,6 +704,16 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
 
   void _alanaGit(String alan) {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Liste ekran dışındaki alanları kurmaz: alan bulunana kadar sayfa sayfa ilerlenir.
+      for (var i = 0; i < 12 && anahtarlar[alan]?.currentContext == null; i++) {
+        if (!kaydirma.hasClients) break;
+        final konum = kaydirma.position;
+        if (konum.pixels >= konum.maxScrollExtent) break;
+        kaydirma.jumpTo(
+          (konum.pixels + konum.viewportDimension * .8).clamp(0, konum.maxScrollExtent),
+        );
+        await WidgetsBinding.instance.endOfFrame;
+      }
       final ctx = anahtarlar[alan]?.currentContext;
       if (ctx != null && ctx.mounted) {
         await Scrollable.ensureVisible(
@@ -726,6 +746,9 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
     // Taslak her ekran açılışında provider'da kalır; kredi yükleyip dönen müşteri formunu kaybetmez.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(analizTaslagiProvider.notifier).state = taslak;
+      // Form baştan ve odaksız açılır (önceki ekrandan kalan odak listeyi açıp sayfayı kaydırmasın).
+      FocusManager.instance.primaryFocus?.unfocus();
+      if (kaydirma.hasClients) kaydirma.jumpTo(0);
     });
   }
 
@@ -737,6 +760,7 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
     for (final o in odaklar.values) {
       o.dispose();
     }
+    kaydirma.dispose();
     super.dispose();
   }
 
@@ -909,8 +933,7 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
     return Scaffold(
       appBar: AppBar(title: const Text('Araç bilgileri')),
       body: ListView(
-        // Kısa form: bütün alanlar önceden kurulur ki "Analizi başlat" en alttaki eksik alana da kaydırabilsin.
-        cacheExtent: 6000,
+        controller: kaydirma,
         padding: const EdgeInsets.all(Olcu.sayfa),
         children: [
           if (f.ilandanOkunan.isNotEmpty)
