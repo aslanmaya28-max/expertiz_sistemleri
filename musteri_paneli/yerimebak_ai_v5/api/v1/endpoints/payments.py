@@ -52,7 +52,8 @@ def google_play_sync_voided(admin: Dict[str, Any] = Depends(get_admin_user)):
 
 def _sync_get_packages() -> Dict[str, Any]:
     payment = get_payment_service()
-    return payment.get_packages()
+    # Site "Yakında" gösterir; PayTR anahtarları girilince kendiliğinden açılır.
+    return {**payment.get_packages(), "sales_open": paytr_service.sales_open()}
 
 
 def _sync_get_all_orders(status: Optional[str]) -> Dict[str, Any]:

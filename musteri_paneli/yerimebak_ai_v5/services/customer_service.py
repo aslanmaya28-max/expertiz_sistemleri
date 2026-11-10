@@ -176,6 +176,14 @@ def adjust_customer_credits(customer_id: int, amount: int, reason: str, admin: D
         _write_audit(cursor, 'CUSTOMER_CREDITS_ADJUSTED', 'user', str(customer_id), admin,
                      {'admin_id': admin.get('id'), 'amount': amount, 'reason': reason,
                       'credits_before': before, 'credits_after': customer['credits']})
+        if amount > 0:
+            # Hediye kredi müşteriye sistem bildirimi (+ e-posta) olarak gider; yöneticinin yazdığı neden
+            # iç kayıttır, müşteriye gösterilmez (10.11.2026 kullanıcı isteği). Düşümde bildirim yok.
+            from yerimebak_ai_v5.services import notification_service
+            notification_service.notify_user(
+                cursor, customer_id, 'credits_gifted', f'Hesabınıza {amount} hediye kredi tanımlandı',
+                f"YerimeBak hesabınıza {amount} kredi eklendi. Güncel bakiyeniz: {customer['credits']} kredi. "
+                'Her araç değerleme raporu 1 kredi kullanır; hemen değerlemeye başlayabilirsiniz.')
         conn.commit()
         return {'success': True, 'customer': _public_customer(customer)}
     finally:

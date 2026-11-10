@@ -718,7 +718,8 @@ export function updateProfile(payload: Partial<CustomerProfile>): Promise<Custom
 // Odeme (PayTR) ve kredi paketleri
 // ---------------------------------------------------------------------------
 
-export function getCreditPackages(): Promise<{ packages: Record<string, CreditPackage>; analysis_cost: number }> {
+/** sales_open=false: PayTR henüz açık değil, site "Yakında" gösterir (mevcut krediler harcanır). */
+export function getCreditPackages(): Promise<{ packages: Record<string, CreditPackage>; analysis_cost: number; sales_open?: boolean }> {
   return fetchAPI("/payments/packages");
 }
 

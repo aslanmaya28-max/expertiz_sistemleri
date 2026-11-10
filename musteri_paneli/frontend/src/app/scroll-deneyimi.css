@@ -254,3 +254,17 @@ a.bg-birincil.text-white, button.bg-birincil.text-white { background: var(--yb-b
   .yb-home [data-sc-act] { height: auto !important; }
   .yb-home .yb-dossier-stage { position: relative !important; height: auto !important; }
 }
+
+/* Hizmet sayfası yığını: kısa kart uzun kartın üstüne gelince alttakinin yazıları kenardan görünmesin.
+   Yığın yalnız kartlar ekrana sığınca açılır; o zaman bütün kartlar en uzun kart boyunda olur (10.11.2026). */
+@media(min-height:800px) {
+  .yb-home[data-motion="ready"] .yb-service-stack[data-stack-ready="true"] { grid-auto-rows: 1fr; }
+}
+.yb-stack-watermark { display: none; }
+@media(min-height:800px) {
+  .yb-home[data-motion="ready"] .yb-service-stack[data-stack-ready="true"] .yb-stack-watermark {
+    display: block; position: absolute; right: 36px; bottom: 28px; width: 132px; height: 132px;
+    color: var(--yb-green); opacity: .07; pointer-events: none;
+  }
+  .yb-home[data-motion="ready"] .yb-service-stack[data-stack-ready="true"] .yb-stack-watermark svg { width: 100%; height: 100%; }
+}

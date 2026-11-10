@@ -29,6 +29,16 @@ def _error(message: str, status: int = 400) -> Dict[str, Any]:
     return {"error": message, "http_status": status}
 
 
+ODEME_YAKINDA = "Kartla ödeme çok yakında açılıyor. Mevcut ve hediye kredilerinizi kullanmaya devam edebilirsiniz."
+
+
+def _odeme_kapali() -> Optional[Dict[str, Any]]:
+    """PayTR kurulana kadar satın alma başlamaz; sipariş ve sözleşme kaydı da açılmaz."""
+    if paytr_service.sales_open():
+        return None
+    return {"error": ODEME_YAKINDA, "http_status": 503, "code": "odeme_yakinda"}
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -121,6 +131,9 @@ def _start_credit_purchase(user: Dict[str, Any], package_key: str, user_ip: str,
         return _error("Ödeme için hesabınızda e-posta adresi olmalı")
     if not contract_accepted:
         return _error("Ön Bilgilendirme Formu ve Mesafeli Satış Sözleşmesi onaylanmalıdır")
+    kapali = _odeme_kapali()
+    if kapali:
+        return kapali
 
     oid = _new_oid(CREDIT_PREFIX)
     _record_contract(user, oid, user_ip)
@@ -257,6 +270,9 @@ def _start_expertiz_checkout(payload: Dict[str, Any], user: Dict[str, Any], user
     if "error" in quote:
         return quote
     selected, totals = quote["selected"], quote["totals"]
+    kapali = _odeme_kapali()
+    if kapali:
+        return kapali
 
     request_id = str(uuid.uuid4())
     oid = _new_oid(EXPERTIZ_PREFIX)

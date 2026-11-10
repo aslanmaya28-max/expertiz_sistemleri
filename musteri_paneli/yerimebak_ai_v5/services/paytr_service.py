@@ -46,10 +46,20 @@ def is_configured() -> bool:
     return all(_env(k) for k in ("PAYTR_MERCHANT_ID", "PAYTR_MERCHANT_KEY", "PAYTR_MERCHANT_SALT"))
 
 
+def sales_open() -> bool:
+    """Kartla satın alma açık mı? PayTR anahtarları girilene kadar kapalıdır ("Yakında").
+
+    Kapalıyken sipariş kaydı açılmaz (müşteri yarım kalan ödeme ekranında beklemesin, 10.11.2026);
+    mevcut ve yöneticinin hediye ettiği krediler harcanmaya devam eder.
+    """
+    return simulation_enabled() or is_configured()
+
+
 def provider_status() -> Dict[str, Any]:
     return {
         "provider": "simulation" if simulation_enabled() else "paytr",
         "configured": simulation_enabled() or is_configured(),
+        "sales_open": sales_open(),
         "test_mode": simulation_enabled() or _env("PAYTR_TEST_MODE", "1") != "0",
     }
 

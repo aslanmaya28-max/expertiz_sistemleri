@@ -6,6 +6,25 @@ import Ikon from "./Ikon";
 
 export interface HizmetBolumu { id: string; baslik: string; icerik: ReactNode }
 
+/** Kayan yığına giren ilk bölüm sayısı; sonrakiler normal akar. */
+const bolumIkonu = (id: string) =>
+  id === "kimler-icin" ? "kisi" : id === "nasil-isler" ? "yol" : id === "ucret" ? "etiket" : id === "bolge" ? "konum" : "belge";
+
+const YIGIN_KART = 4;
+
+function bolumKarti(b: HizmetBolumu, index: number, yigin: boolean) {
+  return (
+    <section key={b.id} id={b.id} aria-labelledby={`${b.id}-baslik`}
+      data-sc-in style={{ "--yb-stack-index": index, "--yb-entry-delay": `${50 + Math.min(index, 5) * 50}ms` } as React.CSSProperties}
+      className={`yb-card yb-service-section-card ${yigin ? "yb-stack-card" : ""} yb-service-${b.id} ${b.id === "kimler-icin" ? "yb-card-mint" : b.id === "teslim" ? "yb-card-accent" : b.id === "ucret" ? "yb-card-mint" : ""} scroll-mt-24`}>
+      <h2 id={`${b.id}-baslik`}><Ikon ad={bolumIkonu(b.id)} />{b.baslik}</h2>
+      {bolumIcerigi(b.icerik, b.id)}
+      {/* Yığında kartlar eşit boydadır; kısa kartın boşluğunu soluk büyük simge doldurur. */}
+      {yigin && <span className="yb-stack-watermark" aria-hidden="true"><Ikon ad={bolumIkonu(b.id)} /></span>}
+    </section>
+  );
+}
+
 /**
  * Hizmet sayfası iskeleti: "Kimler için, Neleri kapsar, Nasıl işler, Ne teslim edilir, Ücret, Bölge"
  * bölümleri düz metin (arama motorları ve yapay zekâlar okuyabilsin), sık sorulan sorular ve
@@ -72,16 +91,12 @@ export default function HizmetSayfasi({
             {onBolum.icerik}
           </section>
         )}
+        {/* Yalnız ilk dört kart yığılır ve kendi kapsayıcısındadır: yapışkan kartlar bu kapsayıcı bitince
+            birlikte kayar, sonraki bölümler üstlerinden geçmez (10.11.2026 "iç içe geçme" düzeltmesi). */}
         <div className="yb-service-stack" data-stack>
-        {bolumler.map((b, index) => (
-          <section key={b.id} id={b.id} aria-labelledby={`${b.id}-baslik`}
-            data-sc-in style={{ "--yb-stack-index": index, "--yb-entry-delay": `${50 + Math.min(index, 5) * 50}ms` } as React.CSSProperties}
-            className={`yb-card yb-service-section-card ${index < 4 ? "yb-stack-card" : ""} yb-service-${b.id} ${b.id === "kimler-icin" ? "yb-card-mint" : b.id === "teslim" ? "yb-card-accent" : b.id === "ucret" ? "yb-card-mint" : ""} scroll-mt-24`}>
-            <h2 id={`${b.id}-baslik`}><Ikon ad={b.id === "kimler-icin" ? "kisi" : b.id === "nasil-isler" ? "yol" : b.id === "ucret" ? "etiket" : b.id === "bolge" ? "konum" : "belge"} />{b.baslik}</h2>
-            {bolumIcerigi(b.icerik, b.id)}
-          </section>
-        ))}
+          {bolumler.slice(0, YIGIN_KART).map((b, index) => bolumKarti(b, index, true))}
         </div>
+        {bolumler.slice(YIGIN_KART).map((b, index) => bolumKarti(b, YIGIN_KART + index, false))}
 
         <section id="sorular" aria-labelledby="sorular-baslik" className="yb-card yb-service-faq scroll-mt-24">
           <h2 id="sorular-baslik">Sık sorulan sorular</h2>

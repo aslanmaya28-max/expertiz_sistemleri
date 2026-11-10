@@ -165,3 +165,39 @@ class ValuationInputTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OdemeYakindaTests(unittest.TestCase):
+    """PayTR kurulana kadar kartla satın alma kapalı: sipariş açılmaz, site 'Yakında' gösterir (10.11.2026)."""
+
+    KAPALI = {"PAYMENT_SIMULATION": "", "PAYTR_MERCHANT_ID": "", "PAYTR_MERCHANT_KEY": "", "PAYTR_MERCHANT_SALT": ""}
+
+    def test_anahtar_yokken_satis_kapali_simulasyon_ya_da_anahtarla_acik(self):
+        with patch.dict(os.environ, self.KAPALI, clear=False):
+            self.assertFalse(paytr_service.sales_open())
+            self.assertFalse(paytr_service.provider_status()["sales_open"])
+        with patch.dict(os.environ, {**self.KAPALI, "PAYMENT_SIMULATION": "true"}, clear=False):
+            self.assertTrue(paytr_service.sales_open())
+        with patch.dict(os.environ, {**self.KAPALI, **PAYTR_ENV}, clear=False):
+            self.assertTrue(paytr_service.sales_open())
+
+    def test_kredi_satin_alma_kapaliyken_siparis_ve_sozlesme_kaydi_acilmaz(self):
+        user = {"id": 7, "email": "a@b.com"}
+        with patch.dict(os.environ, self.KAPALI, clear=False), \
+                patch.object(checkout_service, "ensure_schema"), \
+                patch.object(checkout_service, "_record_contract") as sozlesme, \
+                patch.object(checkout_service.DatabaseConfig, "get_connection") as baglanti:
+            sonuc = checkout_service._start_credit_purchase(user, "paket1", "1.2.3.4", True)
+        self.assertEqual(sonuc["code"], "odeme_yakinda")
+        self.assertEqual(sonuc["http_status"], 503)
+        self.assertIn("Yakında".lower(), sonuc["error"].lower())
+        sozlesme.assert_not_called()
+        baglanti.assert_not_called()
+
+    def test_paket_listesi_satis_durumunu_bildirir(self):
+        from yerimebak_ai_v5.api.v1.endpoints import payments
+
+        with patch.dict(os.environ, self.KAPALI, clear=False):
+            self.assertIs(payments._sync_get_packages()["sales_open"], False)
+        with patch.dict(os.environ, {**self.KAPALI, "PAYMENT_SIMULATION": "true"}, clear=False):
+            self.assertIs(payments._sync_get_packages()["sales_open"], True)

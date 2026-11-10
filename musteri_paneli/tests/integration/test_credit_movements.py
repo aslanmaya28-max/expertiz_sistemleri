@@ -77,3 +77,25 @@ def test_legacy_missing_values_still_appear_after_dated_movements(client):
     assert result['movements'][1]['tarih'] is None
     assert result['movements'][1]['miktar'] == 0
     assert result['movements'][1]['tur'] == 'duzeltme'
+
+
+def test_hediye_kredi_musteriye_bildirim_olarak_gider_neden_gizli_kalir(client, customer_token, admin_token):
+    headers = _auth(customer_token)
+    uid = client.get('/api/v1/auth/me', headers=headers).json()['user']['id']
+    sql("DELETE FROM notifications WHERE user_id=%s AND kind='credits_gifted'", (str(uid),))
+    sql('UPDATE users SET credits=2 WHERE id=%s', (uid,))
+    added = client.post(f'/api/v1/expertiz/admin/customers/{uid}/credits', headers=_auth(admin_token),
+                        json={'amount': 3, 'reason': 'ic-not-gizli'})
+    assert added.status_code == 200, added.text
+    items = [n for n in client.get('/api/v1/expertiz/notifications', headers=headers).json()['notifications']
+             if n['kind'] == 'credits_gifted']
+    assert len(items) == 1
+    assert items[0]['title'] == 'Hesabınıza 3 hediye kredi tanımlandı'
+    assert 'Güncel bakiyeniz: 5 kredi' in items[0]['body']
+    assert 'ic-not-gizli' not in str(items)
+    # Düşümde müşteriye bildirim gitmez.
+    assert client.post(f'/api/v1/expertiz/admin/customers/{uid}/credits', headers=_auth(admin_token),
+                       json={'amount': -1, 'reason': 'duzeltme'}).status_code == 200
+    items = [n for n in client.get('/api/v1/expertiz/notifications', headers=headers).json()['notifications']
+             if n['kind'] == 'credits_gifted']
+    assert len(items) == 1

@@ -43,7 +43,7 @@ def ensure_schema(cursor: Any) -> None:
 EMAIL_KINDS = {
     # musteri
     "expert_assigned", "task_depart", "task_arrive", "task_corporate", "report_ready",
-    "request_cancelled",
+    "request_cancelled", "credits_gifted",
     # personel
     "task_assigned", "task_unassigned", "report_rejected", "report_approved",
 }
