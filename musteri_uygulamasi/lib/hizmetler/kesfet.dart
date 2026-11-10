@@ -206,7 +206,7 @@ class AracDegerlemeEkrani extends StatelessWidget {
               ),
               _Soru(
                 'Sahibinden ilanını değerletebilir miyim?',
-                'Evet. İlan uygulamasında Paylaş → YerimeBak deyin ya da ilan metnini yapıştırın; marka, model, paket, '
+                'Evet. İlan uygulamasında Paylaş → YerimeBak deyin ya da ilanın ekran görüntüsünü yükleyin; marka, model, paket, '
                     'yıl, kilometre ve fiyat otomatik dolar. İsterseniz kendiniz düzeltebilirsiniz.',
               ),
               _Soru(

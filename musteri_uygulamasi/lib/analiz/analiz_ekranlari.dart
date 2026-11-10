@@ -9,6 +9,8 @@ import '../api/providers.dart';
 import '../bilesenler/ortak.dart';
 import '../bilesenler/kaporta_semasi.dart';
 import '../bilesenler/ana_buton.dart';
+import '../bilesenler/ikincil_buton.dart';
+import 'package:image_picker/image_picker.dart';
 import '../bilesenler/kart.dart';
 import '../tema/yazi.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -117,11 +119,9 @@ class _AnalizBaslatEkraniState extends ConsumerState<IlanLinkKutusu> {
               'İlan uygulamasında Paylaş → YerimeBak ile de gönderebilirsiniz.',
               style: TextStyle(color: r.metinIkincil),
             ),
+            const SizedBox(height: Olcu.s16),
+            const EkranGoruntusuKutusu(),
           ],
-        ),
-        TextButton(
-          onPressed: () => context.push('/analiz/metin'),
-          child: const Text('Link yok mu? İlan metnini yapıştırın'),
         ),
         TextButton(
           onPressed: () {
@@ -130,7 +130,8 @@ class _AnalizBaslatEkraniState extends ConsumerState<IlanLinkKutusu> {
             );
             context.push('/analiz/form');
           },
-          child: const Text('Bilgileri elle girin'),
+          // İlanı olmayan ya da kendi aracını değerletmek isteyen müşteri için (11.11.2026).
+          child: const Text('İlan yok mu? Bilgileri elle girin'),
         ),
       ],
     );
@@ -257,7 +258,7 @@ class _IlanOkunuyorEkraniState extends ConsumerState<IlanOkunuyorEkrani> {
           .metindenOku(ilanMetniniKirp(metin));
       if (od.dogrulananSayisi == 0 && !od.yeterli) {
         return _hata(
-          'İlandan bilgi okunamadı. Bilgileri elle girebilir ya da ilan metnini yapıştırabilirsiniz.',
+          'İlandan bilgi okunamadı. İlanın ekran görüntüsünü yükleyebilir ya da bilgileri elle girebilirsiniz.',
         );
       }
       _tamam(od);
@@ -316,12 +317,10 @@ class _IlanOkunuyorEkraniState extends ConsumerState<IlanOkunuyorEkrani> {
                               const Text(
                                 'Sayfa bir onay ya da doğrulama istiyorsa tamamlayın. İlan sayfası açılınca okuma kendiliğinden başlar.',
                               ),
-                              TextButton(
-                                onPressed: () =>
-                                    context.pushReplacement('/analiz/metin'),
-                                child: const Text(
-                                  'Okunmazsa: ilan metnini yapıştırın',
-                                ),
+                              const SizedBox(height: Olcu.s8),
+                              EkranGoruntusuDugmesi(
+                                link: uri.toString(),
+                                yerineGec: true,
                               ),
                             ],
                           ),
@@ -355,11 +354,11 @@ class _IlanOkunuyorEkraniState extends ConsumerState<IlanOkunuyorEkrani> {
                       Panel('İlan okunamadı', [
                         Text(hata!),
                         const SizedBox(height: Olcu.s12),
-                        FilledButton(
-                          onPressed: () =>
-                              context.pushReplacement('/analiz/metin'),
-                          child: const Text('İlan metnini yapıştır'),
+                        EkranGoruntusuDugmesi(
+                          link: uri.toString(),
+                          yerineGec: true,
                         ),
+                        const SizedBox(height: Olcu.s8),
                         TextButton(
                           onPressed: () {
                             ref.read(analizTaslagiProvider.notifier).state =
@@ -423,59 +422,81 @@ class AsamaListesi extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// 3) İlan metnini yapıştırma
+// 3) Ekran görüntüsünden doldurma (ilan metni yapıştırma 11.11.2026'da kaldırıldı)
 // ---------------------------------------------------------------------------
 
-class MetinEkrani extends ConsumerStatefulWidget {
-  const MetinEkrani({super.key});
+/// Telefonda ilan metni kopyalanamıyor (Sahibinden): ilanın fiyat ve özellikler kısmının 1–4 ekran
+/// görüntüsü yüklenir, bilgiler sunucuda okunup forma dolar (sitedeki "Ekran görüntüsü yükle", 11.11.2026).
+class EkranGoruntusuKutusu extends StatelessWidget {
+  const EkranGoruntusuKutusu({super.key});
   @override
-  ConsumerState<MetinEkrani> createState() => _MetinEkraniState();
-}
-
-class _MetinEkraniState extends ConsumerState<MetinEkrani> {
-  final metin = TextEditingController();
-  @override
-  void dispose() {
-    metin.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('İlan metni')),
-    body: ListView(
-      padding: const EdgeInsets.all(Olcu.sayfa),
-      children: [
-        Panel('İlan metnini yapıştırın', [
+  Widget build(BuildContext context) {
+    final r = YbRenkler.of(context);
+    return Container(
+      padding: const EdgeInsets.all(Olcu.s12),
+      decoration: BoxDecoration(
+        color: r.birincilYuzey,
+        borderRadius: BorderRadius.circular(Olcu.s12),
+        border: Border.all(color: r.birincil.withValues(alpha: .35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           const Text(
-            'İlan sayfasındaki yazıların tamamını seçip kopyalayın ve buraya yapıştırın.',
+            'İlan metni kopyalanmıyor mu?',
+            style: Yazilar.bolumBaslik,
+          ),
+          const SizedBox(height: Olcu.s4),
+          Text(
+            'İlanın fiyat ve özellikler kısmının ekran görüntüsünü alın (1–4 adet), buradan yükleyin; bilgileri biz okuyalım.',
+            style: TextStyle(color: r.metinIkincil),
           ),
           const SizedBox(height: Olcu.s12),
-          TextField(
-            controller: metin,
-            minLines: 8,
-            maxLines: 16,
-            decoration: const InputDecoration(
-              labelText: 'İlan metni',
-              alignLabelWithHint: true,
-            ),
-          ),
-          const SizedBox(height: Olcu.s16),
-          ActionButton('Bilgileri çıkar', () async {
-            final t = metin.text.trim();
-            if (t.isEmpty) throw const ApiFailure('İlan metni boş olamaz.');
-            final od = await ref
-                .read(analizRepositoryProvider)
-                .metindenOku(ilanMetniniKirp(t));
-            final link = paylasimdanLink(t)?.toString() ?? '';
-            ref.read(analizTaslagiProvider.notifier).state = AnalizTaslagi(
-              od.forma(link),
-            );
-            if (context.mounted) context.pushReplacement('/analiz/form');
-          }),
-        ]),
-      ],
-    ),
+          const EkranGoruntusuDugmesi(),
+        ],
+      ),
+    );
+  }
+}
+
+class EkranGoruntusuDugmesi extends ConsumerWidget {
+  final String link;
+  final bool yerineGec;
+  const EkranGoruntusuDugmesi({
+    super.key,
+    this.link = '',
+    this.yerineGec = false,
+  });
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => IkincilButon(
+    'Ekran görüntüsü yükle',
+    () async {
+      final secilen = await ImagePicker().pickMultiImage(
+        limit: 4,
+        maxWidth: 2000,
+        maxHeight: 4000,
+        imageQuality: 90,
+      );
+      if (secilen.isEmpty) return;
+      if (secilen.length > 4) {
+        throw const ApiFailure('En fazla 4 ekran görüntüsü seçin.');
+      }
+      final dosyalar = [
+        for (final x in secilen)
+          DosyaParcasi('files', x.name, await x.readAsBytes()),
+      ];
+      final od = await ref.read(analizRepositoryProvider).ekrandanOku(dosyalar);
+      ref.read(analizTaslagiProvider.notifier).state = AnalizTaslagi(
+        od.forma(link),
+      );
+      if (!context.mounted) return;
+      if (yerineGec) {
+        context.pushReplacement('/analiz/form');
+      } else {
+        context.push('/analiz/form');
+      }
+    },
+    icon: LucideIcons.image,
   );
 }
 

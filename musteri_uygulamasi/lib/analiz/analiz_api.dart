@@ -95,6 +95,17 @@ class AnalizRepository {
     await api.get('/valuation/prefill?url=${Uri.encodeQueryComponent(link)}'),
   );
 
+  /// Telefonda ilan metni kopyalanamıyor (Sahibinden): ilanın 1–4 ekran görüntüsünden okunur.
+  /// Sitedeki "Ekran görüntüsü yükle" ile aynı uç (08.11.2026; uygulama 11.11.2026).
+  Future<OnDoldurma> ekrandanOku(List<DosyaParcasi> dosyalar) async =>
+      OnDoldurma.fromJson(
+        await api.postDosyalar(
+          '/valuation/prefill-screenshot',
+          dosyalar,
+          timeout: const Duration(seconds: 120),
+        ),
+      );
+
   Future<OnDoldurma> metindenOku(String metin) async => OnDoldurma.fromJson(
     await api.post('/valuation/prefill-text', {'text': metin}, timeout: const Duration(seconds: 90)),
   );

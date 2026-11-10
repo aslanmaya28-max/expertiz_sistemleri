@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -139,6 +140,27 @@ void main() {
       final s = await repo.kasaSecenekleri('Chery', 'Tiggo 7', '2024');
       expect(s.map((e) => e.kod), ['yeni', 'eski']);
       expect(s.last.ad, 'Önceki kasa (2019–2024)');
+    });
+  });
+
+  group('ekran görüntüsünden doldurma', () {
+    test('görüntüler files alanıyla çok parçalı olarak prefill-screenshot ucuna gider', () async {
+      late http.Request giden;
+      final repo = AnalizRepository(_api((r) async {
+        giden = r;
+        return http.Response(jsonEncode({'marka': {'deger': 'Seat', 'kaynak': 'ilan'}, 'metin': 'Seat Ibiza'}), 200);
+      }));
+      await repo.ekrandanOku([
+        DosyaParcasi('files', 'ilan-1.png', Uint8List.fromList([1, 2, 3])),
+        DosyaParcasi('files', 'ilan-2.png', Uint8List.fromList([4, 5])),
+      ]);
+      expect(giden.method, 'POST');
+      expect(giden.url.path, endsWith('/valuation/prefill-screenshot'));
+      expect(giden.headers['content-type'], startsWith('multipart/form-data; boundary='));
+      expect(giden.headers['Authorization'], startsWith('Bearer '));
+      final govde = utf8.decode(giden.bodyBytes, allowMalformed: true);
+      expect('name="files"'.allMatches(govde).length, 2);
+      expect(govde, contains('filename="ilan-1.png"'));
     });
   });
 }

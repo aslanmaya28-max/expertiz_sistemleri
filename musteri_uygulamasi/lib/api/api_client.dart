@@ -44,6 +44,18 @@ class InsufficientCredits extends ApiFailure {
     : super(status: 402, code: 'insufficient_credits');
 }
 
+/// Çok parçalı yüklemede tek dosya (ör. ilan ekran görüntüsü).
+class DosyaParcasi {
+  final String alan, ad;
+  final Uint8List bayt;
+  const DosyaParcasi(this.alan, this.ad, this.bayt);
+}
+
+class _CokParcali {
+  final List<DosyaParcasi> dosyalar;
+  const _CokParcali(this.dosyalar);
+}
+
 class ApiClient {
   final http.Client client;
   final TokenStore store;
@@ -112,12 +124,26 @@ class ApiClient {
       '${baseUri.toString().replaceAll(RegExp(r'/$'), '')}$path',
     );
     try {
-      final request = http.Request(method, url)
-        ..followRedirects = false
-        ..headers['Content-Type'] = 'application/json'
-        ..headers['Accept'] = 'application/json';
+      final http.BaseRequest request;
+      if (body is _CokParcali) {
+        final cok = http.MultipartRequest(method, url)
+          ..followRedirects = false
+          ..headers['Accept'] = 'application/json';
+        for (final d in body.dosyalar) {
+          cok.files.add(
+            http.MultipartFile.fromBytes(d.alan, d.bayt, filename: d.ad),
+          );
+        }
+        request = cok;
+      } else {
+        final tek = http.Request(method, url)
+          ..followRedirects = false
+          ..headers['Content-Type'] = 'application/json'
+          ..headers['Accept'] = 'application/json';
+        if (body != null) tek.body = jsonEncode(body);
+        request = tek;
+      }
       if (token != null) request.headers['Authorization'] = 'Bearer $token';
-      if (body != null) request.body = jsonEncode(body);
       return await client
           .send(request)
           .then(http.Response.fromStream)
@@ -238,6 +264,7 @@ class ApiClient {
 
   Future<Map<String, dynamic>> get(String path, {bool authenticated = true}) =>
       _json('GET', path, null, authenticated);
+
   /// [timeout] yalnız uzun süren işlerde (analiz 60–180 sn) varsayılan 30 sn'yi aşar.
   Future<Map<String, dynamic>> post(
     String path,
@@ -245,6 +272,13 @@ class ApiClient {
     bool authenticated = true,
     Duration? timeout,
   }) => _json('POST', path, body, authenticated, timeout: timeout);
+
+  /// Dosya yükleme (multipart/form-data); yanıt JSON'dur.
+  Future<Map<String, dynamic>> postDosyalar(
+    String path,
+    List<DosyaParcasi> dosyalar, {
+    Duration? timeout,
+  }) => _json('POST', path, _CokParcali(dosyalar), true, timeout: timeout);
   Future<Map<String, dynamic>> put(String path, Object body) =>
       _json('PUT', path, body, true);
   Future<Map<String, dynamic>> delete(String path) =>

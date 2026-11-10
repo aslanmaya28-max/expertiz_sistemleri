@@ -96,7 +96,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               : IlanOkunuyorEkrani(link);
         },
       ),
-      GoRoute(path: '/analiz/metin', builder: (_, _) => const MetinEkrani()),
       GoRoute(path: '/analiz/form', builder: (_, _) => const AracFormuEkrani()),
       GoRoute(
         path: '/analiz/bekle',
