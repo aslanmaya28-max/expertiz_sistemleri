@@ -15,7 +15,7 @@ export const REHBER_ADIMLARI: RehberAdimi[] = [
   {
     hedef: "ilan",
     baslik: "İlanı ekleyin",
-    metin: "İlan linkini yapıştırıp \"Bilgileri getir\"e basın ya da telefondaysanız ilanın ekran görüntüsünü yükleyin. Araç bilgileri otomatik dolar.",
+    metin: "İlan linkini yapıştırıp \"Bilgileri getir\"e basın; araç bilgileri otomatik dolar. İlan sitesi erişim vermezse ekran görüntüsü yükleme düğmesi çıkar.",
   },
   {
     hedef: "bilgiler",

@@ -58,6 +58,8 @@ export default function AracAnalizSayfasi() {
   const [listingText, setListingText] = useState("");
   const [textOpen, setTextOpen] = useState(false);
   const [yapistirUyarisi, setYapistirUyarisi] = useState(false);
+  // Link okunamayınca (site bot koruması / bilgi yok) uyarı ve ekran görüntüsü düğmesi çıkar (11.11.2026).
+  const [erisimYok, setErisimYok] = useState<{ baslik: string; site: string } | null>(null);
   const metinKutusu = useRef<HTMLTextAreaElement>(null);
   const ekranGirdisi = useRef<HTMLInputElement>(null);
   const [panoVar, setPanoVar] = useState(false);
@@ -160,15 +162,24 @@ export default function AracAnalizSayfasi() {
     </span>;
   }
 
-  function applyPrefill(res: ValuationPrefill) {
+  function siteAdi(link: string) {
+    try { return new URL(link).hostname.replace(/^www\./, ""); } catch { return "İlan sitesi"; }
+  }
+
+  function applyPrefill(res: ValuationPrefill, linktenMi = false) {
     if (res.paste_text) {
-      // Sahibinden: alanlara dokunma (müşterinin girdikleri kalsın), metin kutusuna yönlendir
+      // Sahibinden bot koruması: alanlara dokunma, ekran görüntüsü öner (metin yapıştırma telefonda zor).
       setForm((f) => ({ ...f, link: res.url || f.link }));
-      setPrefillMsg(res.message);
-      setYapistirUyarisi(true);
-      metinKutusunaGit();
+      setPrefillMsg(null);
+      setErisimYok({ baslik: "Site erişim vermiyor", site: siteAdi(res.url || form.link) });
       return;
     }
+    if (linktenMi && !res.verified_count) {
+      setPrefillMsg(null);
+      setErisimYok({ baslik: "İlan bilgileri okunamadı", site: siteAdi(res.url || form.link) });
+      return;
+    }
+    setErisimYok(null);
     setYapistirUyarisi(false);
     setPhoto(null); setBelirsiz([]); setPhotoChecked(false);
     const v = res.vehicle || {};
@@ -193,10 +204,13 @@ export default function AracAnalizSayfasi() {
     setHata(null);
     setPrefillMsg(null);
     try {
-      applyPrefill(await prefillValuation(form.link.trim()));
+      applyPrefill(await prefillValuation(form.link.trim()), true);
     } catch (err) {
-      setHata({ message: err instanceof Error ? err.message : "Link okunamadı" });
-      setTextOpen(true);
+      if (err instanceof ApiError && err.status === 429) {
+        setHata({ message: err.message });
+      } else {
+        setErisimYok({ baslik: "İlan bilgileri okunamadı", site: siteAdi(form.link.trim()) });
+      }
     } finally {
       setBusy(null);
     }
@@ -346,17 +360,24 @@ export default function AracAnalizSayfasi() {
                 {busy === "prefill" ? "Okunuyor..." : "Bilgileri getir"}
               </button>
             </div>
-            <div className="mt-3 rounded-lg border border-dashed border-birincil/40 bg-birincil/5 p-3">
-              <p className="text-sm text-metin-birincil">
-                <span className="font-semibold">Telefondan mı bakıyorsunuz?</span> İlanın fiyat ve özellikler kısmının
-                ekran görüntüsünü alın (1–4 adet), buradan yükleyin; bilgileri biz okuyalım.
-              </p>
-              <input ref={ekranGirdisi} type="file" accept="image/*" multiple hidden onChange={ekrandanDoldur} />
-              <button type="button" onClick={() => ekranGirdisi.current?.click()} disabled={busy !== null}
-                className="mt-2 w-full rounded-lg bg-birincil px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto">
-                {busy === "prefill" ? "Okunuyor..." : "Ekran görüntüsü yükle"}
-              </button>
-            </div>
+            <input ref={ekranGirdisi} type="file" accept="image/*" multiple hidden onChange={ekrandanDoldur} />
+            {erisimYok && (
+              <div className="yb-erisim-uyari mt-3" role="alert">
+                <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-900">
+                  <p className="font-semibold">{erisimYok.baslik}</p>
+                  <p className="mt-1">
+                    {erisimYok.baslik === "Site erişim vermiyor"
+                      ? `${erisimYok.site} ilan bilgilerine otomatik erişime izin vermiyor.`
+                      : `${erisimYok.site} ilanından bilgi okuyamadık.`}{" "}
+                    İlanın fiyat ve özellikler kısmının ekran görüntüsünü (1–4 adet) yükleyin; bilgileri biz okuyalım.
+                  </p>
+                </div>
+                <button type="button" onClick={() => ekranGirdisi.current?.click()} disabled={busy !== null}
+                  className="yb-btn yb-btn-green yb-canli-belirme mt-3 w-full disabled:opacity-50 sm:w-auto">
+                  {busy === "prefill" ? "Okunuyor..." : "İlanın ekran görüntüsünü yükle"}
+                </button>
+              </div>
+            )}
             {prefillMsg && (
               <p className={yapistirUyarisi ? "mt-3 rounded-lg bg-yellow-50 p-3 text-sm font-medium text-yellow-900" : "mt-2 text-sm text-metin-ikincil"}>
                 {prefillMsg}

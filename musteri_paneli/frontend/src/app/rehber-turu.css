@@ -42,3 +42,15 @@
   .yb-rehber-baloncuk { animation: none; }
   .yb-rehber-hedef { transition: none; }
 }
+
+/* Link okunamayınca ekran görüntüsü düğmesi kendini gösterir: kayarak belirir, iki kez nabız atar (11.11.2026). */
+.yb-erisim-uyari { animation: yb-erisim-gir 320ms ease-out; }
+.yb-canli-belirme { animation: yb-canli-nabiz 1.6s ease-in-out 350ms 2; }
+@keyframes yb-erisim-gir { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes yb-canli-nabiz {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 color-mix(in srgb, var(--yb-mint, #5cebc6) 0%, transparent); }
+  45% { transform: scale(1.04); box-shadow: 0 0 0 10px color-mix(in srgb, var(--yb-mint, #5cebc6) 35%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .yb-erisim-uyari, .yb-canli-belirme { animation: none; }
+}
