@@ -18,6 +18,7 @@ import 'oturum/session_controller.dart';
 import 'tema/tema.dart';
 import 'api/models.dart';
 import 'hizmetler/hizmet_tanitim.dart';
+import 'hizmetler/kesfet.dart';
 import 'hizmetler/hizmet_api.dart';
 import 'hizmetler/talep_ekrani.dart';
 import 'hizmetler/odeme_ekrani.dart';
@@ -139,6 +140,15 @@ final routerProvider = Provider<GoRouter>((ref) {
               arac: s.extra is Map ? object(s.extra) : null,
             ),
           ),
+          GoRoute(
+            path: '/arac-degerleme',
+            builder: (_, _) => const AracDegerlemeEkrani(),
+          ),
+          GoRoute(
+            path: '/ornek-rapor',
+            builder: (_, _) => const OrnekRaporEkrani(),
+          ),
+          GoRoute(path: '/fiyatlar', builder: (_, _) => const FiyatlarEkrani()),
           GoRoute(
             path: '/uzaktan-satin-alma',
             builder: (_, _) => const UzaktanSatinAlmaEkrani(),

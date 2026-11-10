@@ -152,10 +152,10 @@ class _KrediEkraniState extends ConsumerState<KrediEkrani> {
                 FailureView(e, () => ref.invalidate(krediVitriniProvider)),
             data: (v) {
               if (!v.magazaHazir || v.paketler.isEmpty) {
-                return Panel('Google Play şu an kullanılamıyor', [
+                return Panel('Kredi satın alma çok yakında', [
                   const Text(
-                    'Kredi paketleri Google Play üzerinden satılır. Telefonunuzda Google Play hesabının açık olduğundan '
-                    've uygulamanın Google Play’den yüklendiğinden emin olun, sonra tekrar deneyin.',
+                    'Kredi paketleri yakında Google Play üzerinden satışa açılacak. Bu sırada hesabınızdaki mevcut ve '
+                    'hediye kredilerle değerleme yapmaya devam edebilirsiniz.',
                   ),
                   const SizedBox(height: Olcu.s12),
                   OutlinedButton(

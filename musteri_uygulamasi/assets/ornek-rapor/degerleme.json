@@ -1,0 +1,293 @@
+{
+ "arac": {
+  "km": 18000,
+  "yil": 2025,
+  "marka": "Skoda",
+  "model": "Kamiq",
+  "paket": "1.0 TSI Premium",
+  "vites": "Otomatik",
+  "yakit": "Benzin",
+  "ilanLinki": "",
+  "ilanFiyati": 1795000,
+  "tramerTutari": 0,
+  "beyanEdilenParcalar": {}
+ },
+ "piyasa": {
+  "max": 1861431,
+  "min": 1783800,
+  "kaynak": "web_listings",
+  "medyan": 1808796,
+  "duzeltme": {
+   "kasa": "Kamiq",
+   "aracKm": 18000,
+   "aracYili": 2025,
+   "yilAraligi": [
+    2024,
+    2026
+   ],
+   "yillikOran": 0.04,
+   "ayniYilSayisi": 1
+  },
+  "ortalama": 1815705,
+  "uyarilar": [],
+  "gecisYili": null,
+  "guncelGun": null,
+  "kaynaklar": [
+   {
+    "km": 6750,
+    "url": "https://www.arabam.com/ikinci-el/arazi-suv-pick-up/skoda-kamiq",
+    "yil": 2026,
+    "site": "arabam.com",
+    "fiyat": 1875000,
+    "duzeltilmisFiyat": 1783800
+   },
+   {
+    "km": 29000,
+    "url": "https://www.arabam.com/ikinci-el/arazi-suv-pick-up/skoda-kamiq-1-0-tsi-ankara-otomatik-galeriden",
+    "yil": 2025,
+    "site": "arabam.com",
+    "fiyat": 1790000,
+    "duzeltilmisFiyat": 1805752
+   },
+   {
+    "km": 39467,
+    "url": "https://sensat.com/satilik-suv-pickup-skoda-kamiq",
+    "yil": 2024,
+    "site": "sensat.com",
+    "fiyat": 1710000,
+    "duzeltilmisFiyat": 1811840
+   },
+   {
+    "km": 37879,
+    "url": "https://www.renewturkiye.com/ilan/skoda-kamiq-1.0-tsi-premium-dsg-352458",
+    "yil": 2024,
+    "site": "renewturkiye.com",
+    "fiyat": 1759000,
+    "duzeltilmisFiyat": 1861431
+   }
+  ],
+  "guvenSkoru": 35,
+  "emsalSayisi": 4,
+  "takipIlanSayisi": 0,
+  "hasarsizEmsalSayisi": 1
+ },
+ "degerleme": {
+  "ozet": "Beyana göre araçta kaporta işlemi yok; bulguların toplam değer kaybı %0,0. Değer kaybı olmadığı için aracın değeri temiz piyasa değeri olan yaklaşık 1.810.000 TL kabul edildi (adil aralık 1.645.000 TL – 1.970.000 TL). İlan fiyatı 1.795.000 TL, hesaplanan değerin %0,8 altında: İlan fiyatı hesaplanan değerle uyumlu.",
+  "aiDegeri": 1810000,
+  "kalemler": [],
+  "agirHasar": false,
+  "tavsiyeFiyat": 1750000,
+  "hasarSeviyesi": "NONE",
+  "adilFiyatAraligi": {
+   "max": 1970000,
+   "min": 1645000
+  },
+  "temizPiyasaDegeri": 1808796,
+  "toplamDegerKaybiTutar": 0,
+  "toplamDegerKaybiYuzde": 0
+ },
+ "karar": {
+  "sonuc": "EK DOĞRULAMA GEREKLİ",
+  "aciklama": "Bu araç için bulunan piyasa verisi kesin karar vermeye yetmiyor. Aşağıdaki fiyatları yön gösterici kabul edin; satın almadan önce ilanı ve aracı uzman incelemesiyle doğrulayın.",
+  "guvenSeviyesi": "dusuk",
+  "ilanFarkiTutar": -13796,
+  "ilanFarkiYuzde": -0.8,
+  "hesaplananEgilim": "AL"
+ },
+ "getiri": {
+  "aylikEnflasyonYuzde": 0.58,
+  "altiAylikEnflasyonYuzde": 3.5,
+  "yillikEnflasyonYuzde": 7.2,
+  "kaynak": "Kaynak: VavaAI ikinci el araç fiyat endeksi, Ekim 2026 (yıllık %7,2)",
+  "gecerlilikTarihi": "2026-11-09",
+  "alisFiyati": 1750000,
+  "altiAy": {
+   "ay": 6,
+   "tahminiDeger": 1874000,
+   "getiriTl": 124000,
+   "getiriYuzde": 7.1,
+   "enflasyonKazanciTl": 64000,
+   "alimKazanciTl": 60000,
+   "enflasyonYuzde": 3.5
+  },
+  "birYil": {
+   "ay": 12,
+   "tahminiDeger": 1940000,
+   "getiriTl": 190000,
+   "getiriYuzde": 10.9,
+   "enflasyonKazanciTl": 130000,
+   "alimKazanciTl": 60000,
+   "enflasyonYuzde": 7.2
+  },
+  "aciklama": "Tahmini değer, aracın bugünkü bulgu düzeltmeli değerinin aylık araç enflasyonu ile büyütülmesiyle hesaplanır; getiri, tavsiye alım fiyatına göre beklenen değer artışıdır. Piyasa koşullarına göre değişebilir, yatırım tavsiyesi değildir."
+ },
+ "ozet": {
+  "riskler": [
+   "Yalnızca 4 doğrulanmış emsal ilan bulundu (hedef 5).",
+   "Boya, değişen ve tramer bilgileri ilan/müşteri beyanına dayanıyor; uzman tarafından doğrulanmadı."
+  ],
+  "adilFiyat": {
+   "max": 1970000,
+   "min": 1645000
+  },
+  "piyasaKonumu": {
+   "durum": "uyumlu",
+   "metin": "Piyasayla uyumlu (ilan fiyatı hesaplanan değerin %0,8 altında)"
+  },
+  "simdiNeYapmali": "Bu araç için piyasada az sayıda ve birbirinden farklı ilan var (4 ilan, 1 tanesi aynı model yılı). Fiyatlar bu yüzden yaklaşık ±%9 belirsizlik taşır; satın almadan önce yerinde ekspertiz özellikle önemlidir.",
+  "pazarlikGerekceleri": [
+   "Aynı yıl ya da daha yeni 1 benzer ilan 1.790.000 TL'den başlıyor."
+  ]
+ },
+ "bilgiKaynaklari": [
+  {
+   "alan": "Araç bilgileri (marka, model, yıl, km, fiyat)",
+   "kaynak": "musteri_beyani",
+   "aciklama": "Sizin girdiğiniz bilgiler"
+  },
+  {
+   "alan": "Boya, değişen ve tramer",
+   "kaynak": "musteri_beyani",
+   "aciklama": "İlan/müşteri beyanı; uzman tarafından doğrulanmadı"
+  },
+  {
+   "alan": "Piyasa değeri",
+   "kaynak": "internet_ilanlari",
+   "aciklama": "Fiyatı kaynak sayfada doğrulanan benzer ilanlar"
+  },
+  {
+   "alan": "Değer kaybı, adil fiyat ve tavsiye fiyat",
+   "kaynak": "hesaplama",
+   "aciklama": "Bulguların piyasa değerine etkisiyle hesaplandı"
+  },
+  {
+   "alan": "Gelecek değer",
+   "kaynak": "tahmin",
+   "aciklama": "Araç enflasyonu varsayımına dayanan tahmin; kesin değildir"
+  }
+ ],
+ "pazarlikPlani": {
+  "durum": "kucuk_pay",
+  "uyari": "Piyasa verisi sınırlı: rakamları yön gösterici kullanın, kesin fiyat olarak sunmayın.",
+  "adimlar": [
+   "İlan fiyatı aracın hesaplanan değerinin altında; pazarlık payı sınırlı. Fazla zorlamak aracı kaçırmanıza neden olabilir.",
+   "1.705.000 TL ile açın, 1.750.000 TL civarında anlaşmayı hedefleyin.",
+   "Üst sınırınız 1.785.000 TL: ilan fiyatını (1.795.000 TL) ödemeyin, bunun üstüne çıkmayın.",
+   "Son fiyatı ekspertiz sonucuna bağlayın: incelemede beyan dışı hasar çıkarsa fiyat yeniden konuşulur."
+  ],
+  "ustSinir": 1785000,
+  "gerekceler": [
+   "Aynı yıl ya da daha yeni 1 benzer ilan 1.790.000 TL'den başlıyor."
+  ],
+  "hedefFiyat": 1750000,
+  "kanitIlanlar": [
+   {
+    "km": 29000,
+    "url": "https://www.arabam.com/ikinci-el/arazi-suv-pick-up/skoda-kamiq-1-0-tsi-ankara-otomatik-galeriden",
+    "yil": 2025,
+    "site": "arabam.com",
+    "fiyat": 1790000
+   }
+  ],
+  "saticiMesaji": "Merhaba, Skoda Kamiq ilanınızı gördüm. Araç hoşuma gitti, açıkçası ciddi olarak düşünüyorum. Özellikle 2025 model ve 18.000 km olması benim aradığım özellikler.\n\nPiyasaya da biraz baktım, o yüzden size direkt net bir rakam söylemek istedim. 1.705.000 TL civarında anlaşabilirsek gelip aracı görürüm, ekspertizini yaptırırım. Her şey söylendiği gibiyse de uzatmadan alım tarafında ilerlemek isterim.\n\nSizin açınızdan da uygunsa konuşalım, belki ortak bir noktada buluşuruz.",
+  "acilisTeklifi": 1705000,
+  "potansiyelKazanc": 45000
+ },
+ "kullaniciSikayetleri": [
+  {
+   "onem": "orta",
+   "baslik": "Motor yağı seviyesi uyarısı / yağ tüketimi",
+   "aciklama": "Kullanıcılar, 1.0 TSI Premium benzinli Kamiq'te ilk bakımlardan önce yağ seviyesi uyarısı aldıklarını ve yağ tüketimi yaşadıklarını yazıyor.",
+   "kategori": "motor",
+   "kaynaklar": [
+    "https://otokarar.net/sifir/skoda/kamiq",
+    "https://arabayorum.com/arac/skoda/kamiq"
+   ],
+   "kaynakSayisi": 2
+  },
+  {
+   "onem": "orta",
+   "baslik": "Rölantide titreşim ve motorun kaba çalışması",
+   "aciklama": "1.0 motorun rölantide titreşimli çalıştığı, ilk çalıştırmada sarsıntı hissi verdiği ve bazen traktör benzeri seslerden söz edildiği belirtiliyor.",
+   "kategori": "diger",
+   "kaynaklar": [
+    "https://otokarar.net/sifir/skoda/kamiq",
+    "https://www.reddit.com/r/skoda/comments/1adqvbl/skoda_kamiq_10_tsi"
+   ],
+   "kaynakSayisi": 2
+  },
+  {
+   "onem": "dusuk",
+   "baslik": "Kablosuz Android Auto bağlantı sorunları",
+   "aciklama": "Kullanıcı beyanlarında kablosuz telefon bağlantısının sık kopması, eşleşme sorunları ve kullanım sırasında kararsızlık öne çıkıyor.",
+   "kategori": "diger",
+   "kaynaklar": [
+    "https://otokarar.net/sifir/skoda/kamiq",
+    "https://arabayorum.com/arac/skoda/kamiq"
+   ],
+   "kaynakSayisi": 2
+  },
+  {
+   "onem": "dusuk",
+   "baslik": "Multimedya ekran donması / sistem kararsızlığı",
+   "aciklama": "Dokunmatik ekranın donması, multimedya sisteminin tepki vermemesi veya zaman zaman yavaşlaması şikâyet ediliyor.",
+   "kategori": "elektronik",
+   "kaynaklar": [
+    "https://otokarar.net/sifir/skoda/kamiq",
+    "https://arabayorum.com/arac/skoda/kamiq"
+   ],
+   "kaynakSayisi": 2
+  },
+  {
+   "onem": "dusuk",
+   "baslik": "Erken LED far arızaları",
+   "aciklama": "Bazı kullanıcılar LED farlarda erken arıza veya aydınlatma tarafında sorun yaşadıklarını belirtiyor.",
+   "kategori": "diger",
+   "kaynaklar": [
+    "https://otokarar.net/sifir/skoda/kamiq",
+    "https://arabayorum.com/arac/skoda/kamiq"
+   ],
+   "kaynakSayisi": 2
+  }
+ ],
+ "modelRiskleri": {
+  "mesaj": "Üretici veya servis kaynağıyla doğrulanmış teknik sorun bulunamadı; kullanıcıların bildirdiği şikâyetler aşağıda ayrıca listelendi.",
+  "riskler": [],
+  "bulunamadi": true,
+  "gorunumSurumu": 2
+ },
+ "bakim": [
+  {
+   "baslik": "Fren ve lastik kontrolü",
+   "kontrol": "Lastik yanağındaki DOT kodunun son dört hanesi üretim haftası ve yılıdır; dört lastiğin yaşına ve diş derinliğine bakın.",
+   "aciklama": "Balata ve disklerin aşınmasını, lastiklerin diş derinliğini ve yaşını sorun; 18.000 km'de fren balatası en az bir kez değişmiş olabilir."
+  },
+  {
+   "baslik": "Periyodik bakım kayıtları",
+   "kontrol": "Servis kayıtlarını tarih sırasıyla dizin; kilometre her kayıtta artmalı, geriye gitmemeli.",
+   "aciklama": "18.000 km ve 1 yaşındaki araçta bakımların düzenli aralıklarla yapıldığını gösteren kayıtları isteyin; kayıtlar arasında uzun boşluk olmamalı."
+  }
+ ],
+ "saticiSorulari": [
+  "Ekspertize izin veriyor musunuz?",
+  "Servis ve bakım faturalarını tarih ve kilometreleriyle paylaşır mısınız?",
+  "Şasi numarasıyla açık geri çağırma ve servis kampanyası kontrolü yapabilir miyiz?",
+  "Fren balataları ve lastikler en son ne zaman değişti?",
+  "Aracı soğuk motorla çalıştırıp test sürüşü yapabilir miyiz?",
+  "Kilometreyi TÜVTÜRK ve servis kayıtlarıyla doğrulayabilir miyiz?",
+  "Bilinen arızalar, uyarı lambaları veya bekleyen onarımlar var mı?"
+ ],
+ "rapor": {
+  "id": "ornek",
+  "report_no": "ÖRNEK",
+  "verification_code": "YD-ORNEK-0000",
+  "created_at": "2026-11-08T17:36:56.427035+00:00",
+  "engine_version": "ekspertiz-degerleme-2026.11.02",
+  "verification_url": ""
+ },
+ "kredi": {
+  "dusulen": 1,
+  "kalan": 0
+ },
+ "success": true
+}
