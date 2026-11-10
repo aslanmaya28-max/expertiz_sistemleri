@@ -346,14 +346,17 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
       child: Scaffold(
         backgroundColor: context.renkler.zemin,
         appBar: AppBar(
-          title: MediaQuery.sizeOf(context).width < 760 ? const Text('Saha') : Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const YerimeBakLogo(height: 28),
-              SizedBox(width: 12),
-              if (MediaQuery.sizeOf(context).width >= 760) Text('Saha paneli'),
-            ],
-          ),
+          title: MediaQuery.sizeOf(context).width < 760
+              ? const Text('Saha')
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const YerimeBakLogo(height: 28),
+                    SizedBox(width: 12),
+                    if (MediaQuery.sizeOf(context).width >= 760)
+                      Text('Saha paneli'),
+                  ],
+                ),
           actions: [
             IconButton(
               key: const Key('notificationsButton'),
@@ -424,7 +427,15 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
                 },
               ),
         body: _loading
-            ? const Padding(padding: EdgeInsets.all(24), child: Column(children: [YbIskelet(height: 80), SizedBox(height: 16), YbIskelet(height: 80), SizedBox(height: 16), YbIskelet(height: 80)]))
+            ? const Padding(
+                padding: EdgeInsets.all(24),
+                child: Column(children: [
+                  YbIskelet(height: 80),
+                  SizedBox(height: 16),
+                  YbIskelet(height: 80),
+                  SizedBox(height: 16),
+                  YbIskelet(height: 80)
+                ]))
             : Column(
                 children: [
                   if (_error != null) _errorBanner(),
@@ -631,18 +642,17 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  vehicle['title']?.toString() ?? 'Araç',
-                  style: TextStyle(
-                      color: context.renkler.metin,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16),
-                ),
+              Text(
+                vehicle['title']?.toString() ?? 'Araç',
+                style: TextStyle(
+                    color: context.renkler.metin,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16),
               ),
+              const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -734,7 +744,12 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
           if (bucket == 'active' || bucket == 'rejected') ...[
             const SizedBox(height: 12),
             if (busy)
-              const SizedBox(height: 48, width: 48, child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2)))
+              const SizedBox(
+                  height: 48,
+                  width: 48,
+                  child: Padding(
+                      padding: EdgeInsets.all(12),
+                      child: CircularProgressIndicator(strokeWidth: 2)))
             else
               Wrap(
                 spacing: 8,
@@ -744,7 +759,10 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
                     action == actions.first
                         ? FilledButton.icon(
                             key: Key('action-$id-$action'),
-                            style: const ButtonStyle(minimumSize: WidgetStatePropertyAll(Size(44, 48)), visualDensity: VisualDensity.standard),
+                            style: const ButtonStyle(
+                                minimumSize:
+                                    WidgetStatePropertyAll(Size(44, 48)),
+                                visualDensity: VisualDensity.standard),
                             onPressed: () => _step(task, action),
                             icon: Icon(_adimIkonlari[action]),
                             label: Text(
@@ -754,7 +772,10 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
                           )
                         : OutlinedButton.icon(
                             key: Key('action-$id-$action'),
-                            style: const ButtonStyle(minimumSize: WidgetStatePropertyAll(Size(44, 48)), visualDensity: VisualDensity.standard),
+                            style: const ButtonStyle(
+                                minimumSize:
+                                    WidgetStatePropertyAll(Size(44, 48)),
+                                visualDensity: VisualDensity.standard),
                             onPressed: () => _step(task, action),
                             icon: Icon(_adimIkonlari[action]),
                             label: Text(kGorevAdimEtiketleri[action] ?? action),
@@ -762,7 +783,9 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
                   if (stage == 'in_progress')
                     FilledButton.icon(
                       key: Key('report-$id'),
-                      style: const ButtonStyle(minimumSize: WidgetStatePropertyAll(Size(44, 48)), visualDensity: VisualDensity.standard),
+                      style: const ButtonStyle(
+                          minimumSize: WidgetStatePropertyAll(Size(44, 48)),
+                          visualDensity: VisualDensity.standard),
                       onPressed: () => _openReport(task),
                       icon: const Icon(LucideIcons.filePenLine),
                       label: const Text('Rapora Devam Et'),
@@ -772,7 +795,9 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
                     OutlinedButton.icon(
                       key: Key('bulunamadi-$id'),
                       style: OutlinedButton.styleFrom(
-                          foregroundColor: context.renkler.metinIkincil, minimumSize: const Size(44, 48), visualDensity: VisualDensity.standard),
+                          foregroundColor: context.renkler.metinIkincil,
+                          minimumSize: const Size(44, 48),
+                          visualDensity: VisualDensity.standard),
                       onPressed: () => _aracYok(task),
                       icon: const Icon(LucideIcons.mapPinOff),
                       label: const Text('Araç adreste yok'),
@@ -822,13 +847,16 @@ class _PersonnelDashboardState extends State<PersonnelDashboard> {
                 key: Key('kontrol-ara-$id'),
                 onPressed: tel.isEmpty ? null : _kontrolMerkeziniAra,
                 icon: const Icon(LucideIcons.headset),
-                style: FilledButton.styleFrom(minimumSize: const Size(44, 48), visualDensity: VisualDensity.standard),
+                style: FilledButton.styleFrom(
+                    minimumSize: const Size(44, 48),
+                    visualDensity: VisualDensity.standard),
                 label: const Text('Kontrol merkezini ara'),
               ),
               OutlinedButton.icon(
                 key: Key('kontrol-not-$id'),
-                style:
-                    OutlinedButton.styleFrom(minimumSize: const Size(44, 48), visualDensity: VisualDensity.standard),
+                style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(44, 48),
+                    visualDensity: VisualDensity.standard),
                 onPressed: () => _kontrolNotu(task),
                 icon: const Icon(LucideIcons.filePenLine),
                 label: const Text('Kontrol merkezine not'),
@@ -968,12 +996,16 @@ class _KontrolNotuDialogState extends State<_KontrolNotuDialog> {
       ),
       actions: [
         TextButton(
-            style: const ButtonStyle(minimumSize: WidgetStatePropertyAll(Size(44, 48)), visualDensity: VisualDensity.standard),
+            style: const ButtonStyle(
+                minimumSize: WidgetStatePropertyAll(Size(44, 48)),
+                visualDensity: VisualDensity.standard),
             onPressed: () => Navigator.pop(context),
             child: const Text('Vazgeç')),
         FilledButton(
           key: const Key('kontrol-not-gonder'),
-          style: const ButtonStyle(minimumSize: WidgetStatePropertyAll(Size(44, 48)), visualDensity: VisualDensity.standard),
+          style: const ButtonStyle(
+              minimumSize: WidgetStatePropertyAll(Size(44, 48)),
+              visualDensity: VisualDensity.standard),
           onPressed: () {
             final not = _not.text.trim();
             if (not.length < 3) {
@@ -1044,12 +1076,17 @@ class _AracYokDialogState extends State<_AracYokDialog> {
       ),
       actions: [
         TextButton(
-            style: const ButtonStyle(minimumSize: WidgetStatePropertyAll(Size(44, 48)), visualDensity: VisualDensity.standard),
+            style: const ButtonStyle(
+                minimumSize: WidgetStatePropertyAll(Size(44, 48)),
+                visualDensity: VisualDensity.standard),
             onPressed: () => Navigator.pop(context),
             child: const Text('Vazgeç')),
         FilledButton(
           key: const Key('bulunamadi-gonder'),
-          style: FilledButton.styleFrom(backgroundColor: context.renkler.uyari, minimumSize: const Size(44, 48), visualDensity: VisualDensity.standard),
+          style: FilledButton.styleFrom(
+              backgroundColor: context.renkler.uyari,
+              minimumSize: const Size(44, 48),
+              visualDensity: VisualDensity.standard),
           onPressed: !_onay
               ? null
               : () {

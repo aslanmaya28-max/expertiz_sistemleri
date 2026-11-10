@@ -372,9 +372,7 @@ class _PersonelBolgePaneliState extends State<PersonelBolgePaneli> {
                             child: Row(
                               children: [
                                 Icon(LucideIcons.map,
-                                    size: 16,
-                                    color:
-                                        context.renkler.birincil),
+                                    size: 16, color: context.renkler.birincil),
                                 const SizedBox(width: 6),
                                 Text(
                                     'Bölge: ${_locationMapper.getBolgeAdi(bolgeId)}'),
@@ -681,22 +679,21 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        const Expanded(
-          child: Text('Personel ve Bölge Yönetimi',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-        ),
+        const Text('Personel ve Bölge Yönetimi',
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
         IconButton(
             tooltip: 'Yenile',
             onPressed: onRefresh,
             icon: const Icon(LucideIcons.refreshCw)),
-        const SizedBox(width: 8),
         FilledButton.icon(
-          onPressed: onAdd,
-          icon: const Icon(LucideIcons.userPlus),
-          label: const Text('Personel Ekle'),
-        ),
+            onPressed: onAdd,
+            icon: const Icon(LucideIcons.userPlus),
+            label: const Text('Personel Ekle')),
       ],
     );
   }
@@ -731,22 +728,33 @@ class _MetricCard extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
-  const _MetricCard({required this.label, required this.value, required this.color});
+  const _MetricCard(
+      {required this.label, required this.value, required this.color});
   @override
   Widget build(BuildContext context) => YbKart(
-    padding: const EdgeInsets.all(16),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 8),
-        Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: context.renkler.metinIkincil, fontSize: 13))),
-      ]),
-      const SizedBox(height: 12),
-      Text(value, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w600,
-          fontFeatures: const [FontFeature.tabularFigures()], color: context.renkler.metin)),
-    ]),
-  );
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(
+                width: 8,
+                height: 8,
+                decoration:
+                    BoxDecoration(color: color, shape: BoxShape.circle)),
+            const SizedBox(width: 8),
+            Expanded(
+                child: Text(label,
+                    style: TextStyle(
+                        color: context.renkler.metinIkincil, fontSize: 13))),
+          ]),
+          const SizedBox(height: 12),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  color: context.renkler.metin)),
+        ]),
+      );
 }
 
 /// Sayaç kartları eşit genişlik ve yükseklikte: geniş ekranda tek satır, darda 3 ya da 2 sütun.
@@ -755,12 +763,16 @@ class _MetricGrid extends StatelessWidget {
   const _MetricGrid({required this.children});
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, c) {
-    final columns = c.maxWidth >= 1100 ? children.length : c.maxWidth >= 640 ? 3 : 2;
-    final width = (c.maxWidth - (columns - 1) * 12) / columns;
-    return Wrap(spacing: 12, runSpacing: 12, children: [
-      for (final child in children) SizedBox(width: width, child: child),
-    ]);
-  });
+        final columns = c.maxWidth >= 1100
+            ? children.length
+            : c.maxWidth >= 640
+                ? 3
+                : 2;
+        final width = (c.maxWidth - (columns - 1) * 12) / columns;
+        return Wrap(spacing: 12, runSpacing: 12, children: [
+          for (final child in children) SizedBox(width: width, child: child),
+        ]);
+      });
 }
 
 class _RegionGrid extends StatelessWidget {
@@ -860,8 +872,6 @@ class _RegionGrid extends StatelessWidget {
                           'Personelsiz talepli: ${critical.join(', ')}',
                           style: TextStyle(
                               fontSize: 13, color: context.renkler.tehlike),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
                         ),
                     ],
                   ),
@@ -886,30 +896,29 @@ class _RiskLists extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: _RiskBox(
-            title: 'Talep var, personel yok',
-            items: critical,
-            emptyText: 'Talebi olup personeli olmayan il yok',
-            color: context.renkler.tehlike,
-            loading: loading,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _RiskBox(
-            title: 'Hedefin altında (büyükşehir min. 3)',
-            items: understaffed,
-            emptyText: 'Hedefin altında il yok',
-            color: context.renkler.uyari,
-            loading: loading,
-          ),
-        ),
-      ],
-    );
+    return LayoutBuilder(builder: (context, constraints) {
+      final width = constraints.maxWidth < 640
+          ? constraints.maxWidth
+          : (constraints.maxWidth - 12) / 2;
+      return Wrap(spacing: 12, runSpacing: 12, children: [
+        SizedBox(
+            width: width,
+            child: _RiskBox(
+                title: 'Talep var, personel yok',
+                items: critical,
+                emptyText: 'Talebi olup personeli olmayan il yok',
+                color: context.renkler.tehlike,
+                loading: loading)),
+        SizedBox(
+            width: width,
+            child: _RiskBox(
+                title: 'Hedefin altında (büyükşehir min. 3)',
+                items: understaffed,
+                emptyText: 'Hedefin altında il yok',
+                color: context.renkler.uyari,
+                loading: loading)),
+      ]);
+    });
   }
 }
 
@@ -1244,17 +1253,46 @@ class _PersonnelTable extends StatelessWidget {
   }
 }
 
-/// Tablo kartın tamamını kaplar; dar ekranda yatay kayar.
+/// Dar ekranda her kaydın alanlarını ve işlemlerini aynı kartta gösterir.
 class _TamGenislikTablo extends StatelessWidget {
   final Widget child;
   const _TamGenislikTablo({required this.child});
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-      builder: (context, c) => YbKart(
-          padding: EdgeInsets.zero,
-          child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: ConstrainedBox(
-                  constraints: BoxConstraints(minWidth: c.maxWidth),
-                  child: child))));
+  Widget build(BuildContext context) =>
+      LayoutBuilder(builder: (context, constraints) {
+        final table = child;
+        if (constraints.maxWidth < 1100 && table is DataTable) {
+          return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final row in table.rows)
+                  YbKart(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                        for (var i = 0; i < row.cells.length; i++)
+                          Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 5),
+                              child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    DefaultTextStyle.merge(
+                                        style: TextStyle(
+                                            color: context.renkler.metinIkincil,
+                                            fontSize: 13),
+                                        child: table.columns[i].label),
+                                    const SizedBox(height: 3),
+                                    row.cells[i].child,
+                                  ])),
+                      ])),
+              ]);
+        }
+        return YbKart(
+            padding: EdgeInsets.zero,
+            child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                    child: child)));
+      });
 }

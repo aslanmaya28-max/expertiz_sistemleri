@@ -131,14 +131,16 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
     return BaseScaffold(
       role: UserRole.customer,
       appBar: AppBar(
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            YerimeBakLogo(height: 32, onDark: true),
-            SizedBox(width: 12),
-            Text('Müşteri Paneli'),
-          ],
-        ),
+        title: MediaQuery.sizeOf(context).width < 600
+            ? const Text('Müşteri Paneli')
+            : const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  YerimeBakLogo(height: 32, onDark: true),
+                  SizedBox(width: 12),
+                  Text('Müşteri Paneli'),
+                ],
+              ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
@@ -356,7 +358,10 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
             const SizedBox(height: 32),
 
             // FAZ-3.0: YAYINLANAN RAPORLARIM BÖLÜMÜ
-            Row(
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Text(
                   'Yayınlanan Raporlarım',
@@ -366,7 +371,6 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                     color: context.renkler.metin,
                   ),
                 ),
-                const Spacer(),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -376,6 +380,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                     border: Border.all(color: context.renkler.birincil),
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(LucideIcons.badgeCheck,
                           color: context.renkler.birincil, size: 16),
@@ -469,8 +474,10 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  Wrap(
+                    alignment: WrapAlignment.spaceAround,
+                    spacing: 20,
+                    runSpacing: 16,
                     children: [
                       _buildQuickAction(
                         LucideIcons.history,
@@ -541,39 +548,45 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
 
   Widget _buildIslemCard(String plaka, String detay, String durum, Color renk) {
     return YbKart(
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: renk.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(LucideIcons.wrench, color: renk, size: 24),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  plaka,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: context.renkler.metin,
-                  ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: renk.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                Text(
-                  detay,
-                  style: TextStyle(
-                    color: context.renkler.metinIkincil,
-                    fontSize: 13,
-                  ),
+                child: Icon(LucideIcons.wrench, color: renk, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      plaka,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: context.renkler.metin,
+                      ),
+                    ),
+                    Text(
+                      detay,
+                      style: TextStyle(
+                        color: context.renkler.metinIkincil,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+          const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(

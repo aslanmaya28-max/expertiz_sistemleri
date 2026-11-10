@@ -98,7 +98,8 @@ class _AdminShellState extends State<AdminShell> {
         3 => const PersonelBolgePaneli(),
         4 => const MusteriYonetimiModule(),
         5 => const RaporIncelemeModule(),
-        6 => FinansYonetimi(key: ValueKey('finans:$_filter'), initialFilter: _filter),
+        6 => FinansYonetimi(
+            key: ValueKey('finans:$_filter'), initialFilter: _filter),
         7 => const FiyatlandirmaModule(),
         8 => const AyarlarModule(),
         _ => const PiyasaTakibiModule(),
@@ -159,7 +160,15 @@ class _AdminShellState extends State<AdminShell> {
                                     fontSize: 12))),
                         if (MediaQuery.sizeOf(context).width >= 1100) ...[
                           const SizedBox(width: 8),
-                          Text(label, style: const TextStyle(fontSize: 13))
+                          Tooltip(
+                              message: label,
+                              child: ConstrainedBox(
+                                  constraints:
+                                      const BoxConstraints(maxWidth: 180),
+                                  child: Text(label,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 13))))
                         ],
                         const SizedBox(width: 6),
                         const Icon(LucideIcons.chevronDown, size: 14)

@@ -783,14 +783,16 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
       body: LayoutBuilder(builder: (context, constraints) {
         if (constraints.maxWidth < 1000) {
           if (_selectedReport == null) return _buildReportList();
-          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            TextButton.icon(
-              onPressed: () => setState(() => _selectedReport = null),
-              icon: const Icon(LucideIcons.arrowLeft),
-              label: const Text('Raporlara dön'),
-            ),
-            Expanded(child: _buildReportDetail()),
-          ]);
+          return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextButton.icon(
+                  onPressed: () => setState(() => _selectedReport = null),
+                  icon: const Icon(LucideIcons.arrowLeft),
+                  label: const Text('Raporlara dön'),
+                ),
+                Expanded(child: _buildReportDetail()),
+              ]);
         }
         return Row(children: [
           SizedBox(width: 380, child: _buildReportList()),
@@ -836,7 +838,15 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
         ),
         Expanded(
           child: _isLoading
-              ? const Padding(padding: EdgeInsets.all(24), child: Column(children: [YbIskelet(height: 80), SizedBox(height: 16), YbIskelet(height: 80), SizedBox(height: 16), YbIskelet(height: 80)]))
+              ? const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Column(children: [
+                    YbIskelet(height: 80),
+                    SizedBox(height: 16),
+                    YbIskelet(height: 80),
+                    SizedBox(height: 16),
+                    YbIskelet(height: 80)
+                  ]))
               : _allReports.isEmpty
                   ? Center(
                       child: Column(
@@ -888,18 +898,19 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 6,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
-                                    Expanded(
-                                      child: Text(
-                                        plaka,
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: isSelected
-                                              ? context.renkler.birincil
-                                              : context.renkler.metin,
-                                        ),
+                                    Text(
+                                      plaka,
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: isSelected
+                                            ? context.renkler.birincil
+                                            : context.renkler.metin,
                                       ),
                                     ),
                                     Container(
@@ -1027,51 +1038,61 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
             bottom: BorderSide(
                 color: context.renkler.birincil.withValues(alpha: 0.2))),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Rapor #${(report['id']?.toString() ?? '').substring(0, report['id'].toString().length > 8 ? 8 : report['id'].toString().length)}',
-                  style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: context.renkler.metin),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Plaka: ${report['plaka'] ?? '-'} | Şehir: ${report['sehir'] ?? '-'}',
-                  style: TextStyle(
-                      fontSize: 13, color: context.renkler.metinIkincil),
-                ),
-                if (_tamRapor != null)
-                  Text(
-                    'Araç: ${_tamRapor!.adim1.marka} ${_tamRapor!.adim1.model} | KM: ${_tamRapor!.adim1.guncelKm}',
-                    style: TextStyle(
-                        fontSize: 13, color: context.renkler.metinIkincil),
-                  ),
-              ],
+      child: LayoutBuilder(builder: (context, constraints) {
+        final information = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Rapor #${(report['id']?.toString() ?? '').substring(0, report['id'].toString().length > 8 ? 8 : report['id'].toString().length)}',
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: context.renkler.metin),
             ),
+            const SizedBox(height: 4),
+            Text(
+                'Plaka: ${report['plaka'] ?? '-'} | Şehir: ${report['sehir'] ?? '-'}',
+                style: TextStyle(
+                    fontSize: 13, color: context.renkler.metinIkincil)),
+            if (_tamRapor != null)
+              Text(
+                  'Araç: ${_tamRapor!.adim1.marka} ${_tamRapor!.adim1.model} | KM: ${_tamRapor!.adim1.guncelKm}',
+                  style: TextStyle(
+                      fontSize: 13, color: context.renkler.metinIkincil)),
+          ],
+        );
+        final statusBadge = Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: statusColor.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: statusColor, width: 2),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: statusColor, width: 2),
-            ),
-            child: Text(
-              _getStatusLabel(status),
+          child: Text(_getStatusLabel(status),
               style: TextStyle(
                   color: statusColor,
                   fontWeight: FontWeight.bold,
-                  fontSize: 13),
-            ),
-          ),
-        ],
-      ),
+                  fontSize: 13)),
+        );
+        // Dar alanda rozetin doğal genişliği araç bilgilerini tek harflik
+        // sütuna sıkıştırmasın; iki bölüm de ekranın tamamını kullanabilsin.
+        if (constraints.maxWidth < 600) {
+          return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                information,
+                const SizedBox(height: 8),
+                Align(alignment: Alignment.centerLeft, child: statusBadge),
+              ]);
+        }
+        return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: information),
+          const SizedBox(width: 12),
+          Flexible(child: statusBadge),
+        ]);
+      }),
     );
   }
 
@@ -1985,11 +2006,12 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
             children: [
               Icon(icon, color: accent, size: 20),
               const SizedBox(width: 8),
-              Text(title,
-                  style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: accent)),
+              Expanded(
+                  child: Text(title,
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: accent))),
             ],
           ),
           const SizedBox(height: 12),
@@ -2001,26 +2023,30 @@ class _RaporIncelemeModuleState extends State<RaporIncelemeModule>
 
   Widget _buildInfoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 140,
-            child: Text(label,
-                style: TextStyle(
-                    color: context.renkler.metinIkincil, fontSize: 13)),
-          ),
-          Expanded(
-            child: Text(value,
-                style: TextStyle(
-                    color: context.renkler.metin,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500)),
-          ),
-        ],
-      ),
-    );
+        padding: const EdgeInsets.only(bottom: 8),
+        child: LayoutBuilder(builder: (context, constraints) {
+          final labelWidget = Text(label,
+              style:
+                  TextStyle(color: context.renkler.metinIkincil, fontSize: 13));
+          final valueWidget = Text(value,
+              style: TextStyle(
+                  color: context.renkler.metin,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500));
+          if (constraints.maxWidth < 420) {
+            return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  labelWidget,
+                  const SizedBox(height: 3),
+                  valueWidget
+                ]);
+          }
+          return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            SizedBox(width: 140, child: labelWidget),
+            Expanded(child: valueWidget),
+          ]);
+        }));
   }
 
   Widget _buildDurumRow(String label, String? durum) {
