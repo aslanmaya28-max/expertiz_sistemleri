@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:yerimebak/api/api_client.dart';
+import 'package:yerimebak/api/repositories.dart';
 import 'package:yerimebak/oturum/token_store.dart';
 
 class MemoryTokens implements TokenStore {
@@ -23,6 +24,28 @@ class MemoryTokens implements TokenStore {
 }
 
 void main() {
+  test('eski API token döndürmeden şifre değişikliğini tamamlayabilir', () async {
+    final store = MemoryTokens('eski');
+    final api = ApiClient(store: store, client: MockClient((_) async {
+      return http.Response('{"success":true}', 200);
+    }));
+    await AccountRepository(api).changePassword('Eski123!', 'Yeni456!');
+    expect(store.token, 'eski');
+  });
+  test('şifre değişikliği yeni tokenı saklar ve sonraki istekte kullanır', () async {
+    final store = MemoryTokens('eski');
+    final api = ApiClient(store: store, client: MockClient((request) async {
+      if (request.url.path.endsWith('/change-password')) {
+        expect(request.headers['Authorization'], 'Bearer eski');
+        return http.Response('{"success":true,"token":"yeni"}', 200);
+      }
+      expect(request.headers['Authorization'], 'Bearer yeni');
+      return http.Response('{}', 200);
+    }));
+    await AccountRepository(api).changePassword('Eski123!', 'Yeni456!');
+    expect(store.token, 'yeni');
+    await api.get('/auth/me');
+  });
   test(
     'belirteç okuması beklerken değişen oturum eski profil isteğini göndermez',
     () async {

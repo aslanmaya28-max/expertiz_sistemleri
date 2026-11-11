@@ -10,7 +10,7 @@ BASE_DIR = Path(__file__).resolve().parent
 if str(BASE_DIR.parent) not in sys.path:
     sys.path.append(str(BASE_DIR.parent))
 
-from fastapi import FastAPI, WebSocket, Request, Response
+from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -96,10 +96,13 @@ def _veritabani_semasini_kur() -> None:
     from yerimebak_ai_v5.services import control_center
     _conn = DatabaseConfig.get_connection()
     try:
+        _conn.cursor().execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0")
         service_area.ensure_schema(_conn.cursor())
         control_center.ensure_schema(_conn.cursor())
         from yerimebak_ai_v5.services import giris_korumasi
         giris_korumasi.ensure_schema(_conn.cursor())
+        from yerimebak_ai_v5.services import eposta_korumasi
+        eposta_korumasi.ensure_schema(_conn.cursor())
         _conn.commit()
     finally:
         DatabaseConfig.return_connection(_conn)
@@ -203,6 +206,9 @@ app = FastAPI(
     description="Antigravity v8.1 Forensic Evidence Orchestrator",
     version="8.1.0",
     lifespan=lifespan,
+    docs_url="/docs" if os.getenv("ENABLE_API_DOCS", "false").lower() in ("1", "true", "yes") else None,
+    redoc_url="/redoc" if os.getenv("ENABLE_API_DOCS", "false").lower() in ("1", "true", "yes") else None,
+    openapi_url="/openapi.json" if os.getenv("ENABLE_API_DOCS", "false").lower() in ("1", "true", "yes") else None,
 )
 
 
@@ -236,8 +242,8 @@ app.add_middleware(
         "yerimebak.com.tr",
         "app.yerimebak.com.tr",
         "api.yerimebak.com.tr",
-        # Render'in verdigi adres (saglik kontrolu, ilk kurulum)
-        "*.onrender.com",
+        # Render HTTP sağlık kontrolü doğrulanmış özel domain'i Host olarak kullanır.
+        # onrender.com doğrudan erişimine varsayılan izin verilmez.
         # Ek alan adlari: EXTRA_ALLOWED_HOSTS=ornek.com,*.ornek.com
         *[h.strip() for h in os.getenv("EXTRA_ALLOWED_HOSTS", "").split(",") if h.strip()],
     ],
@@ -297,36 +303,6 @@ if static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 app.include_router(api_router, prefix="/api/v1")
-
-from yerimebak_ai_v5.core.broadcaster import broadcaster
-
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, token: str = None):
-    if not token:
-        query_params = dict(websocket.query_params)
-        token = query_params.get("token")
-    if not token:
-        await websocket.close(code=4001, reason="Authentication required")
-        return
-    try:
-        from yerimebak_ai_v5.services.auth_service import get_auth_service
-        auth = get_auth_service()
-        user = auth.verify_token(token)
-        if not user:
-            await websocket.close(code=4001, reason="Invalid credentials")
-            return
-    except Exception:
-        await websocket.close(code=4001, reason="Auth verification failed")
-        return
-
-    await broadcaster.connect(websocket)
-    try:
-        while True:
-            await websocket.receive_text()
-    except Exception:
-        broadcaster.disconnect(websocket)
-
 
 @app.get("/health")
 async def health_check():

@@ -304,7 +304,7 @@ def reset_password(token: str, new_password: str) -> Dict[str, Any]:
             conn.rollback()
             return _error("Şifre sıfırlama bağlantısı geçersiz veya süresi dolmuş", 400)
         cursor.execute(
-            "UPDATE users SET password = %s, must_change_password = FALSE WHERE id = %s",
+            "UPDATE users SET password = %s, must_change_password = FALSE, token_version = token_version + 1 WHERE id = %s",
             (_hash_password(new_password), user_id),
         )
         conn.commit()
@@ -345,7 +345,7 @@ def delete_account(user_id: Any, password: str) -> Dict[str, Any]:
                            'tax_number', 'tax_office', 'invoice_address')
         assignments = ','.join(f'{field}=NULL' for field in personal_fields if field in user)
         cursor.execute(f'''UPDATE users SET email=%s,password=%s,is_active=0,credits=0,
-                            deleted_at=NOW(),{assignments} WHERE id=%s''',
+                            deleted_at=NOW(),token_version=token_version+1,{assignments} WHERE id=%s''',
                        (email, _hash_password(secrets.token_urlsafe(48)), uid))
         cursor.execute('UPDATE account_tokens SET used_at=NOW() WHERE user_id=%s AND used_at IS NULL', (uid,))
         cursor.execute('UPDATE legal_consents SET ip=NULL WHERE user_id=%s', (uid,))

@@ -28,7 +28,7 @@ class YerimebakExpertizApiService {
 
   final String baseUrl;
   final http.Client _client;
-  final String? _accessToken;
+  String? _accessToken;
   final SupabaseClient? _supabase;
 
   Future<Map<String, dynamic>> getMarketGaps({int limit = 50}) {
@@ -247,11 +247,17 @@ class YerimebakExpertizApiService {
   }
 
   /// Giriş yapmış kullanıcının şifresini değiştirir (merkezi hesap).
-  Future<Map<String, dynamic>> changePassword({required String currentPassword, required String newPassword}) {
-    return _post(
+  Future<Map<String, dynamic>> changePassword({required String currentPassword, required String newPassword}) async {
+    final result = await _post(
       '/auth/change-password',
       body: {'current_password': currentPassword, 'new_password': newPassword},
     );
+    final token = result['token'];
+    if (token is String && token.isNotEmpty) {
+      if (_accessToken != null) _accessToken = token;
+      CentralAuthTokenStore.accessToken = token;
+    }
+    return result;
   }
 
   /// Admin müşteri listesi (arama: e-posta, ad veya telefon).

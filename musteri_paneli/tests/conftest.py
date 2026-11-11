@@ -3,6 +3,15 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
+def _eposta_kotasi_test_ortami(monkeypatch):
+    # Aynı localhost IP'sinden yüzlerce bağımsız hesap kuran testler birbirini
+    # kilitlemesin. Güvenlik senaryoları kendi gerçek sınırlarını ayrıca kurar.
+    monkeypatch.setenv('KAYIT_IP_SINIRI', '10000')
+    monkeypatch.setenv('EPOSTA_IP_SINIRI', '10000')
+    monkeypatch.setenv('EPOSTA_HESAP_SINIRI', '10000')
+
+
+@pytest.fixture(autouse=True)
 def _ek_masraf_aramasi_kapali(monkeypatch):
     # Yeni ağ sınırı varsayılan testlerde kapalı; davranış testleri açıkça açar.
     monkeypatch.setenv('RISK_COST_SEARCH_LIMIT', '0')

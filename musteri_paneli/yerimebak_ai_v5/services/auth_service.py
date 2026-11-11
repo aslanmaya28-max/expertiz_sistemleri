@@ -126,7 +126,7 @@ class AuthService:
             """, (email, hashed_pw, full_name, phone))
             conn.commit()
 
-            cursor.execute(f"SELECT id, email, full_name, phone, credits, role FROM users WHERE email = {self._p}", (email,))
+            cursor.execute(f"SELECT id, email, full_name, phone, credits, role, token_version FROM users WHERE email = {self._p}", (email,))
             user = dict(cursor.fetchone())
             user["email_verified"] = False
 
@@ -163,7 +163,11 @@ class AuthService:
             user = dict(row)
             if not user.get('is_active', 1) or user.get('deleted_at'):
                 return None
+            token_version = payload.get('tv', 0)
+            if type(token_version) is not int or token_version < 0 or token_version != user['token_version']:
+                return None
             return {
+                "token_version": user['token_version'],
                 "id": user['id'],
                 "email": user['email'],
                 "full_name": user.get('full_name'),
@@ -174,18 +178,20 @@ class AuthService:
         finally:
             DatabaseConfig.return_connection(conn)  # 🔒 DÜZELTİLDİ: conn.close() -> pool'a geri ver
 
-    def refresh_token(self, user_id: int) -> Optional[str]:
+    def refresh_token(self, user_id: int, expected_token_version: int) -> Optional[str]:
         conn = DatabaseConfig.get_connection()
         try:
             cursor = conn.cursor()
             cursor.execute(
-                f"SELECT id, email, full_name, phone, credits, role FROM users WHERE id = {self._p} AND is_active=1 AND deleted_at IS NULL",
+                f"SELECT id, email, full_name, phone, credits, role, token_version FROM users WHERE id = {self._p} AND is_active=1 AND deleted_at IS NULL",
                 (user_id,),
             )
             row = cursor.fetchone()
             if not row:
                 return None
             user = dict(row)
+            if type(expected_token_version) is not int or expected_token_version != user['token_version']:
+                return None
             return _create_user_jwt(user)
         finally:
             DatabaseConfig.return_connection(conn)  # 🔒 DÜZELTİLDİ: conn.close() -> pool'a geri ver
@@ -223,6 +229,7 @@ class AuthService:
                     "role": user['role'],
                     "email_verified": user.get('email_verified') is not False,
                     "must_change_password": bool(user.get('must_change_password')),
+                    "token_version": user["token_version"],
                 }
             }
         finally:
@@ -241,7 +248,7 @@ class AuthService:
         conn = DatabaseConfig.get_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute(f"SELECT id, password FROM users WHERE id = {self._p}", (user_id,))
+            cursor.execute(f"SELECT * FROM users WHERE id = {self._p} AND is_active=1 AND deleted_at IS NULL FOR UPDATE", (user_id,))
             row = cursor.fetchone()
             if not row:
                 return {"error": "Kullanıcı bulunamadı", "http_status": 404}
@@ -251,11 +258,13 @@ class AuthService:
 
             # Gecici sifre ile giren personel sifresini degistirince zorunluluk kalkar
             cursor.execute(
-                f"UPDATE users SET password = {self._p}, must_change_password = FALSE WHERE id = {self._p}",
+                f"UPDATE users SET password = {self._p}, must_change_password = FALSE, token_version = token_version + 1 WHERE id = {self._p} RETURNING *",
                 (_hash_password(new_password), user['id']),
             )
+            updated_user = dict(cursor.fetchone())
+            token = _create_user_jwt(updated_user)
             conn.commit()
-            return {"success": True}
+            return {"success": True, "token": token, "token_type": "bearer"}
         finally:
             DatabaseConfig.return_connection(conn)
 
@@ -335,4 +344,5 @@ def _create_user_jwt(user: Dict[str, Any]) -> str:
         "phone": user.get("phone"),
         "credits": user.get("credits", 0),
         "role": user.get("role", "user"),
+        "tv": user["token_version"],
     })

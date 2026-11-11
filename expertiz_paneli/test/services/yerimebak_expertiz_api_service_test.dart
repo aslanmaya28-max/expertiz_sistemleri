@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:yerimebak_sistemleri/services/yerimebak_expertiz_api_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +8,36 @@ import 'package:http/testing.dart';
 import 'package:yerimebak_sistemleri/services/central_auth_client.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  SharedPreferences.setMockInitialValues({});
+  test('paylaşılan oturumla çalışan servis sonraki tokenı da izler', () async {
+    CentralAuthTokenStore.accessToken = 'eski';
+    final service = YerimebakExpertizApiService(client: MockClient((request) async {
+      if (request.url.path.endsWith('/change-password')) {
+        return http.Response('{"token":"yeni"}', 200);
+      }
+      expect(request.headers['Authorization'], 'Bearer son');
+      return http.Response('{}', 200);
+    }));
+    await service.changePassword(currentPassword: 'Eski123!', newPassword: 'Yeni456!');
+    CentralAuthTokenStore.accessToken = 'son';
+    await service.publishReport('r1');
+  });
+  test('şifre değişikliğinin yeni tokenı sonraki isteğe ve depoya aktarılır', () async {
+    final client = MockClient((request) async {
+      if (request.url.path.endsWith('/change-password')) {
+        expect(request.headers['Authorization'], 'Bearer eski');
+        return http.Response(jsonEncode({'success': true, 'token': 'yeni'}), 200);
+      }
+      expect(request.headers['Authorization'], 'Bearer yeni');
+      return http.Response(jsonEncode({'success': true}), 200);
+    });
+    final service = YerimebakExpertizApiService(client: client, accessToken: 'eski');
+    await service.changePassword(currentPassword: 'Eski123!', newPassword: 'Yeni456!');
+    expect(CentralAuthTokenStore.accessToken, 'yeni');
+    await service.publishReport('r1');
+  });
+
   tearDown(() {
     CentralAuthTokenStore.accessToken = null;
   });

@@ -1,11 +1,12 @@
 import asyncio
+import logging
 import re
 from fastapi import APIRouter, HTTPException, Header, Depends, Request
 from typing import Dict, Any, Optional
 from pydantic import BaseModel, field_validator
 
 from yerimebak_ai_v5.core.database_config import DatabaseConfig
-from yerimebak_ai_v5.services.auth_service import get_auth_service, _create_jwt
+from yerimebak_ai_v5.services.auth_service import get_auth_service, _create_jwt, _verify_jwt
 from yerimebak_ai_v5.core.supabase_auth import validate_supabase_jwt
 from yerimebak_ai_v5.core.client_ip import client_ip as _client_ip
 
@@ -166,6 +167,10 @@ def get_current_user(
         if user:
             return user
 
+        # Yerel imzası geçerli olup sürüm/etkinlik denetiminden kalan JWT,
+        # ortak imza anahtarı kullanılan kurulumlarda ikinci doğrulayıcıdan geçemez.
+        if _verify_jwt(token) is not None:
+            raise HTTPException(status_code=401, detail="Oturum geçerli değil; yeniden giriş yapın")
         supabase_user = validate_supabase_jwt(token)
         if supabase_user:
             return supabase_user
@@ -197,6 +202,8 @@ def get_authenticated_user(
         if user:
             return user
 
+        if _verify_jwt(token) is not None:
+            raise HTTPException(status_code=401, detail="Oturum geçerli değil; yeniden giriş yapın")
         supabase_user = validate_supabase_jwt(token)
         if supabase_user:
             return supabase_user
@@ -285,6 +292,7 @@ def _create_token_payload(user: Dict[str, Any]) -> str:
         "phone": user.get("phone"),
         "credits": user.get("credits", 0),
         "role": _public_role(user.get("role", "user")),
+        "tv": user.get("token_version", 0),
     })
 
 
@@ -353,10 +361,25 @@ async def update_profile(
         DatabaseConfig.return_connection(conn)
 
 
+async def _eposta_kotasini_kontrol_et(action: str, email: str, request: Request) -> None:
+    from yerimebak_ai_v5.services import eposta_korumasi
+    ip = _client_ip(request.headers, request.client.host if request.client else None)
+    try:
+        bekle = await asyncio.get_running_loop().run_in_executor(None, eposta_korumasi.tuket, action, email, ip)
+    except Exception as exc:
+        logging.getLogger(__name__).warning('E-posta kotası kontrol edilemedi: %s', type(exc).__name__)
+        raise HTTPException(status_code=503, detail="İşlem şu anda tamamlanamıyor. Lütfen daha sonra tekrar deneyin.") from None
+    if bekle:
+        raise HTTPException(status_code=429,
+            detail="Çok fazla istek gönderdiniz. Lütfen daha sonra tekrar deneyin.",
+            headers={'Retry-After': str(bekle)})
+
+
 @router.post("/register")
 async def register(request: RegisterRequest, http_request: Request) -> Dict[str, Any]:
     if not request.terms_accepted:
         raise HTTPException(status_code=400, detail="Kullanım Koşulları ve KVKK Aydınlatma Metni onaylanmalıdır")
+    await _eposta_kotasini_kontrol_et('register', request.email, http_request)
     auth = get_auth_service()
     result = auth.register(email=request.email, password=request.password, full_name=request.full_name, phone=request.phone)
     if "error" in result:
@@ -421,10 +444,11 @@ def delete_account(payload: DeleteAccountRequest, user: Dict[str, Any] = Depends
 
 
 @router.post("/forgot-password")
-async def forgot_password(request: ForgotPasswordRequest) -> Dict[str, Any]:
+async def forgot_password(request: ForgotPasswordRequest, http_request: Request) -> Dict[str, Any]:
     """Sifremi unuttum: kayitli e-postaya tek kullanimlik baglanti gonderir."""
     from yerimebak_ai_v5.services import account_service
 
+    await _eposta_kotasini_kontrol_et('forgot', request.email, http_request)
     return account_service.request_password_reset(request.email)
 
 
@@ -450,9 +474,10 @@ async def verify_email(request: VerifyEmailRequest) -> Dict[str, Any]:
 
 
 @router.post("/resend-verification")
-async def resend_verification(user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+async def resend_verification(http_request: Request, user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     from yerimebak_ai_v5.services import account_service
 
+    await _eposta_kotasini_kontrol_et('resend', user.get('email', ''), http_request)
     result = account_service.resend_verification(user)
     if "error" in result:
         raise HTTPException(status_code=int(result.get("http_status") or 400), detail=result["error"])
@@ -467,7 +492,7 @@ async def get_me(user: Dict[str, Any] = Depends(get_authenticated_user)) -> Dict
 @router.post("/refresh-token")
 async def refresh_token(user: Dict[str, Any] = Depends(get_authenticated_user)) -> Dict[str, Any]:
     auth = get_auth_service()
-    new_token = auth.refresh_token(user["id"])
+    new_token = auth.refresh_token(user["id"], user.get("token_version", 0))
     if not new_token:
         raise HTTPException(status_code=401, detail="Token yenileme başarısız")
     return {"success": True, "token": new_token}

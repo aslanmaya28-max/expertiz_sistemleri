@@ -625,7 +625,7 @@ def reset_personnel_password(personnel_id: str, new_password: str, admin: Dict[s
         user_id = personnel["id"]
         email = personnel.get("email")
         cursor.execute(
-            "UPDATE users SET password = %s, must_change_password = TRUE WHERE id = %s",
+            "UPDATE users SET password = %s, must_change_password = TRUE, token_version = token_version + 1 WHERE id = %s",
             (_hash_password(new_password), user_id),
         )
         cursor.execute(
