@@ -98,6 +98,8 @@ def _veritabani_semasini_kur() -> None:
     try:
         service_area.ensure_schema(_conn.cursor())
         control_center.ensure_schema(_conn.cursor())
+        from yerimebak_ai_v5.services import giris_korumasi
+        giris_korumasi.ensure_schema(_conn.cursor())
         _conn.commit()
     finally:
         DatabaseConfig.return_connection(_conn)

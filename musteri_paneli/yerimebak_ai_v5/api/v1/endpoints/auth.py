@@ -1,3 +1,4 @@
+import asyncio
 import re
 from fastapi import APIRouter, HTTPException, Header, Depends, Request
 from typing import Dict, Any, Optional
@@ -369,12 +370,26 @@ async def register(request: RegisterRequest, http_request: Request) -> Dict[str,
     return result
 
 
+GIRIS_KILIT_MESAJI = "Çok fazla hatalı giriş denemesi. Lütfen {dk} dakika sonra tekrar deneyin ya da şifrenizi sıfırlayın."
+
+
 @router.post("/login")
-async def login(request: LoginRequest) -> Dict[str, Any]:
+async def login(request: LoginRequest, http_request: Request) -> Dict[str, Any]:
+    from yerimebak_ai_v5.services import giris_korumasi
+
+    ip = _client_ip(http_request.headers, http_request.client.host if http_request.client else None)
+    loop = asyncio.get_event_loop()
+    # Kaba kuvvet koruması (11.11.2026): sınır aşıldıysa doğru şifre de beklemek zorunda.
+    if await loop.run_in_executor(None, giris_korumasi.kilitli_mi, request.email, ip):
+        raise HTTPException(status_code=429, detail=GIRIS_KILIT_MESAJI.format(dk=giris_korumasi.pencere_dk()),
+                            headers={"Retry-After": str(giris_korumasi.pencere_dk() * 60)})
     auth = get_auth_service()
-    result = auth.login(email=request.email, password=request.password)
+    result = await loop.run_in_executor(None, lambda: auth.login(email=request.email, password=request.password))
     if "error" in result:
+        if result["error"] == "Geçersiz email veya şifre":
+            await loop.run_in_executor(None, giris_korumasi.basarisiz, request.email, ip)
         raise HTTPException(status_code=401, detail=result["error"])
+    await loop.run_in_executor(None, giris_korumasi.basarili, request.email)
 
     token = _create_token_payload(result["user"])
     result["token"] = token
