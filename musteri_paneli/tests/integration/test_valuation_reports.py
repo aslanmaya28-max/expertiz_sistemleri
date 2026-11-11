@@ -15,6 +15,12 @@ from yerimebak_ai_v5.services import valuation_service
 pytestmark = pytest.mark.skipif(not TEST_DB, reason='TEST_DATABASE_URL tanımlı değil')
 
 
+def test_snapshot_fonksiyonu_public_arama_yoluna_sabitlenir(client):
+    rows = sql("SELECT proconfig FROM pg_proc "
+               "WHERE oid='public.protect_valuation_snapshot()'::regprocedure", fetch=True)
+    assert rows[0]['proconfig'] == ['search_path=public']
+
+
 @pytest.fixture
 def scenario(client, customer_token, monkeypatch):
     uid = client.get('/api/v1/auth/me', headers=_auth(customer_token)).json()['user']['id']

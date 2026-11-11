@@ -72,7 +72,7 @@ def ensure_schema(cursor):
             END IF;
             IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
             RETURN NEW;
-        END; $$ LANGUAGE plpgsql''')
+        END; $$ LANGUAGE plpgsql SET search_path = public''')
     cursor.execute('''DO $$ BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname='valuation_snapshot_immutable'
                        AND tgrelid='analysis_history'::regclass) THEN
