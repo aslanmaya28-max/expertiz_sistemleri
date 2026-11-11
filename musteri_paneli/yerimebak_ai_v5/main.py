@@ -96,7 +96,13 @@ def _veritabani_semasini_kur() -> None:
     from yerimebak_ai_v5.services import control_center
     _conn = DatabaseConfig.get_connection()
     try:
-        _conn.cursor().execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0")
+        # ADD COLUMN IF NOT EXISTS sütun varken de tabloyu tümden kilitler; yalnız eksikse ve kısa kilit süresiyle.
+        _cur = _conn.cursor()
+        _cur.execute("SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() "
+                     "AND table_name = 'users' AND column_name = 'token_version'")
+        if not _cur.fetchone():
+            _cur.execute("SET LOCAL lock_timeout = '10s'")
+            _cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0")
         service_area.ensure_schema(_conn.cursor())
         control_center.ensure_schema(_conn.cursor())
         from yerimebak_ai_v5.services import giris_korumasi
@@ -231,8 +237,19 @@ app.add_middleware(
 
 # 🔒 DÜZELTİLDİ (Domain): *.yerimebak.com → *.yerimebak.com.tr
 # Gerçek production domain .com.tr, .com değil.
+class _SaglikIzinliTrustedHost(TrustedHostMiddleware):
+    """Render'ın sağlık kontrolü hangi Host ile gelirse gelsin /health yanıtlanır (yalnız GET, veri yok);
+    onrender.com üzerinden diğer bütün uçlar reddedilir (042, Cloudflare'i atlayan doğrudan erişim)."""
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http" and scope.get("path") == "/health" and scope.get("method") in ("GET", "HEAD"):
+            await self.app(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
+
+
 app.add_middleware(
-    TrustedHostMiddleware,
+    _SaglikIzinliTrustedHost,
     allowed_hosts=[
         "localhost",
         "127.0.0.1",
