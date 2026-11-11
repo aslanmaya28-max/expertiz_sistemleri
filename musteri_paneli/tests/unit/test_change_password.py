@@ -37,9 +37,12 @@ class ChangePasswordTests(unittest.TestCase):
             return get_auth_service().change_password(7, current, new), conn
 
     def test_changes_password_when_current_matches(self):
-        result, conn = self._run([{"id": 7, "password": _hash_password("EskiSifre1")}], "EskiSifre1", "YeniSifre2")
+        result, conn = self._run([{
+            "id": 7, "password": _hash_password("EskiSifre1"), "token_version": 0,
+        }, {"id": 7, "email": "test@example.test", "token_version": 1}], "EskiSifre1", "YeniSifre2")
 
         self.assertTrue(result["success"])
+        self.assertEqual(auth_service._verify_jwt(result["token"])["tv"], 1)
         query, params = conn.cursor_instance.executed[-1]
         self.assertTrue(query.startswith("UPDATE users SET password"))
         self.assertTrue(_verify_password("YeniSifre2", params[0]))

@@ -46,7 +46,6 @@ class AuthResult {
 class AuthRepository {
   final SupabaseClient _supabase;
   final CentralAuthClient _centralAuthClient;
-  String? _centralAccessToken;
 
   AuthRepository({
     required SupabaseClient supabase,
@@ -54,7 +53,7 @@ class AuthRepository {
   })  : _supabase = supabase,
         _centralAuthClient = centralAuthClient ?? CentralAuthClient();
 
-  String? get centralAccessToken => _centralAccessToken ?? CentralAuthTokenStore.accessToken;
+  String? get centralAccessToken => CentralAuthTokenStore.accessToken;
 
   /// =====================================================
   // SIGN IN
@@ -75,7 +74,6 @@ class AuthRepository {
         email: email,
         password: password,
       );
-      _centralAccessToken = centralSession.token;
       CentralAuthTokenStore.accessToken = centralSession.token;
       return AuthResult.success(centralSession.user);
 
@@ -96,7 +94,6 @@ class AuthRepository {
   Future<void> signOut() async {
     try {
       debugPrint('🔄 Sign out başlatılıyor...');
-      _centralAccessToken = null;
       CentralAuthTokenStore.accessToken = null;
       await _supabase.auth.signOut();
       debugPrint('✅ Sign out başarılı');
@@ -115,23 +112,32 @@ class AuthRepository {
   /// Fetches from profiles table using auth session
   Future<AuthResult> getCurrentUser() async {
     try {
-      final centralToken = _centralAccessToken ?? CentralAuthTokenStore.accessToken;
+      final centralToken = CentralAuthTokenStore.accessToken;
       if (centralToken != null) {
-        _centralAccessToken = centralToken;
-        try {
-          final user = await _centralAuthClient.me(centralToken);
-          return AuthResult.success(user);
-        } on CentralAuthException catch (e) {
-          if (e.statusCode != 401) {
+        var requestToken = centralToken;
+        for (var attempt = 0; attempt < 2; attempt++) {
+          try {
+            final user = await _centralAuthClient.me(requestToken);
+            return AuthResult.success(user);
+          } on CentralAuthException catch (e) {
+            if (e.statusCode != 401) {
+              return AuthResult.failure('Oturum bilgileri alınamadı: $e');
+            }
+            final currentToken = CentralAuthTokenStore.accessToken;
+            if (currentToken != requestToken) {
+              if (currentToken != null && attempt == 0) {
+                requestToken = currentToken;
+                continue;
+              }
+              return AuthResult.failure('Oturum değişti, lütfen tekrar deneyin');
+            }
+            CentralAuthTokenStore.clear();
+            return AuthResult.failure('Oturumunuzun süresi doldu, lütfen tekrar giriş yapın');
+          } catch (e) {
             return AuthResult.failure('Oturum bilgileri alınamadı: $e');
           }
-          // Suresi dolmus / gecersiz oturum: saklanan anahtar silinir, giris ekranina donulur
-          _centralAccessToken = null;
-          CentralAuthTokenStore.clear();
-          return AuthResult.failure('Oturumunuzun süresi doldu, lütfen tekrar giriş yapın');
-        } catch (e) {
-          return AuthResult.failure('Oturum bilgileri alınamadı: $e');
         }
+        return AuthResult.failure('Oturum bilgileri alınamadı, lütfen tekrar deneyin');
       }
 
       // 1. Check if user is logged in
@@ -184,8 +190,7 @@ class AuthRepository {
 
   /// Check if user is authenticated
   bool isAuthenticated() {
-    return _centralAccessToken != null ||
-        CentralAuthTokenStore.accessToken != null ||
+    return CentralAuthTokenStore.accessToken != null ||
         _supabase.auth.currentUser != null;
   }
 
@@ -214,7 +219,6 @@ class AuthRepository {
         termsAccepted: termsAccepted,
         phone: phone,
       );
-      _centralAccessToken = centralSession.token;
       CentralAuthTokenStore.accessToken = centralSession.token;
       return AuthResult.success(centralSession.user);
     } catch (e) {
@@ -413,7 +417,6 @@ class AuthRepository {
 
       // 2. Supabase Auth logout
       debugPrint('🚪 Supabase auth signOut...');
-      _centralAccessToken = null;
       CentralAuthTokenStore.accessToken = null;
       await _supabase.auth.signOut();
 

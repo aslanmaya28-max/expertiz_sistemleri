@@ -50,11 +50,13 @@ def test_legacy_api_key_cannot_authenticate(client, customer_token):
     assert client.post("/api/v1/valuation/analyze", headers={"X-API-Key": key},
                        json={"brand": "Seat", "model": "Ibiza", "year": 2024, "km": 30000,
                              "listed_price": 960000}).status_code == 401
+    # Vitrin WebSocket ucu kaldırıldı; artık kimlik doğrulamaya da açılmaz.
+    assert not any(getattr(route, 'path', '') == '/ws' for route in client.app.routes)
     for query in (f"api_key={key}", f"token={key}"):
         with pytest.raises(WebSocketDisconnect) as exc:
             with client.websocket_connect(f"ws://localhost/ws?{query}"):
                 pass
-        assert exc.value.code == 4001
+        assert exc.value.code == 1000
     assert client.post("/api/v1/analyze", headers=_auth(customer_token), json={}).status_code in (404, 405)
 
 

@@ -1,8 +1,13 @@
+import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:yerimebak_sistemleri/models/user_model.dart';
 import 'package:yerimebak_sistemleri/repositories/auth_repository.dart';
 import 'package:yerimebak_sistemleri/services/central_auth_client.dart';
+import 'package:yerimebak_sistemleri/services/yerimebak_expertiz_api_service.dart';
 
 class FakeCentralAuthClient extends CentralAuthClient {
   String? loginEmail;
@@ -14,6 +19,8 @@ class FakeCentralAuthClient extends CentralAuthClient {
   bool? registerTermsAccepted;
   String? lastMeToken;
   Object? meError;
+  String? expectedMeToken;
+  Future<UserModel> Function(String)? meHandler;
 
   FakeCentralAuthClient();
 
@@ -52,6 +59,10 @@ class FakeCentralAuthClient extends CentralAuthClient {
   @override
   Future<UserModel> me(String token) async {
     lastMeToken = token;
+    if (meHandler != null) return meHandler!(token);
+    if (expectedMeToken != null && token != expectedMeToken) {
+      throw const CentralAuthException(401, 'Eski oturum');
+    }
     if (meError != null) throw meError!;
     return _user(email: 'ali@yerimebak.com', fullName: 'Ali Veli');
   }
@@ -73,15 +84,58 @@ class FakeCentralAuthClient extends CentralAuthClient {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  SharedPreferences.setMockInitialValues({});
   late FakeCentralAuthClient centralAuth;
   late AuthRepository repository;
 
   setUp(() {
+    CentralAuthTokenStore.clear();
     centralAuth = FakeCentralAuthClient();
     repository = AuthRepository(
       supabase: SupabaseClient('http://localhost', 'anon-key'),
       centralAuthClient: centralAuth,
     );
+  });
+
+  test('şifre değişikliğinden sonra profil yenileme yeni oturumu korur', () async {
+    await repository.signIn(email: 'ali@yerimebak.com', password: 'secret-123');
+    final service = YerimebakExpertizApiService(client: MockClient((_) async {
+      return http.Response('{"success":true,"token":"changed-token"}', 200);
+    }));
+    await service.changePassword(currentPassword: 'Eski123!', newPassword: 'Yeni456!');
+    centralAuth.expectedMeToken = 'changed-token';
+    final result = await repository.getCurrentUser();
+    expect(result.isSuccess, isTrue);
+    expect(centralAuth.lastMeToken, 'changed-token');
+    expect(repository.centralAccessToken, 'changed-token');
+    expect(CentralAuthTokenStore.accessToken, 'changed-token');
+  });
+
+  test('bekleyen eski profilin 401 yanıtı yeni şifre oturumunu silemez', () async {
+    await repository.signIn(email: 'ali@yerimebak.com', password: 'secret-123');
+    final entered = Completer<void>();
+    final oldProfile = Completer<UserModel>();
+    final requested = <String>[];
+    centralAuth.meHandler = (token) {
+      requested.add(token);
+      if (token == 'central-token') {
+        entered.complete();
+        return oldProfile.future;
+      }
+      return Future.value(centralAuth._user(email: 'ali@yerimebak.com', fullName: 'Ali Veli'));
+    };
+    final pending = repository.getCurrentUser();
+    await entered.future;
+    final service = YerimebakExpertizApiService(client: MockClient((_) async {
+      return http.Response('{"token":"changed-token"}', 200);
+    }));
+    await service.changePassword(currentPassword: 'Eski123!', newPassword: 'Yeni456!');
+    oldProfile.completeError(const CentralAuthException(401, 'Eski oturum'));
+    final result = await pending;
+    expect(result.isSuccess, isTrue);
+    expect(requested, ['central-token', 'changed-token']);
+    expect(CentralAuthTokenStore.accessToken, 'changed-token');
   });
 
   test('signIn delegates credentials to central auth client', () async {

@@ -48,10 +48,13 @@ class AccountRepository {
         ),
       );
   Future<void> changePassword(String oldPassword, String newPassword) async {
-    await api.post('/auth/change-password', {
+    final response = await api.post('/auth/change-password', {
       'current_password': oldPassword,
       'new_password': newPassword,
     });
+    if (response.containsKey('token')) {
+      await api.saveSession(_token(response));
+    }
   }
 
   Future<String> resendVerification() async {
