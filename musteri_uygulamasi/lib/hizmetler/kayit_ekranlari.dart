@@ -376,66 +376,112 @@ class EkspertizRaporEkrani extends ConsumerWidget {
   );
 }
 
-class BildirimEkrani extends ConsumerWidget {
+class BildirimEkrani extends ConsumerStatefulWidget {
   const BildirimEkrani({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
-    appBar: AppBar(title: const Text('Bildirimler')),
-    body: RefreshIndicator(
-      onRefresh: () async {
-        ref.invalidate(bildirimlerProvider);
-        await ref.read(bildirimlerProvider.future);
-      },
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          PageBody(
-            child: ref
-                .watch(bildirimlerProvider)
-                .when(
-                  loading: () => const LoadingView(),
-                  error: (e, _) =>
-                      FailureView(e, () => ref.invalidate(bildirimlerProvider)),
-                  data: (data) {
-                    final items = objects(data['notifications']);
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (items.isEmpty)
-                          const BosDurum(
-                            'Yeni bildiriminiz yok',
-                            'Talep ve rapor güncellemelerini burada görebilirsiniz.',
-                          ),
-                        for (final item in items)
-                          Panel(text(item['title']), [
-                            Text(text(item['body'])),
-                            const SizedBox(height: Olcu.s8),
-                            Text(
-                              _tarih(item['created_at']),
-                              style: Yazilar.etiket,
+  ConsumerState<BildirimEkrani> createState() => _BildirimEkraniState();
+}
+
+class _BildirimEkraniState extends ConsumerState<BildirimEkrani> {
+  final _denenen = <int>{}, _okunan = <int>{}, _bekleyen = <int>{};
+
+  void _okumayiPlanla(List<Json> items) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      final ids = items
+          .where((b) => b['read'] != true)
+          .map((b) => integer(b['id']))
+          .where((id) => id > 0 && !_denenen.contains(id))
+          .toSet()
+          .toList();
+      _denenen.addAll(ids);
+      if (ids.isNotEmpty) _oku(ids);
+    });
+  }
+
+  Future<void> _oku(List<int> ids) async {
+    final yeni = ids.where((id) => !_bekleyen.contains(id)).toList();
+    if (yeni.isEmpty) return;
+    setState(() => _bekleyen.addAll(yeni));
+    try {
+      await ref.read(hizmetRepositoryProvider).bildirimleriOku(yeni);
+      if (!mounted) return;
+      setState(() => _okunan.addAll(yeni));
+    } catch (_) {
+      if (mounted) {
+        showMessage(
+          context,
+          'Bildirimler okundu işaretlenemedi. Tekrar deneyebilirsiniz.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _bekleyen.removeAll(yeni));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Üstteki rapordan geri dönülmesi de görünürlüğe bağlı yeniden kurar.
+    final gorunur = ModalRoute.of(context)?.isCurrent == true;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Bildirimler')),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(bildirimlerProvider);
+          await ref.read(bildirimlerProvider.future);
+        },
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            PageBody(
+              child: ref
+                  .watch(bildirimlerProvider)
+                  .when(
+                    loading: () => const LoadingView(),
+                    error: (e, _) => FailureView(
+                      e,
+                      () => ref.invalidate(bildirimlerProvider),
+                    ),
+                    data: (data) {
+                      final items = objects(data['notifications']);
+                      if (gorunur) _okumayiPlanla(items);
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (items.isEmpty)
+                            const BosDurum(
+                              'Yeni bildiriminiz yok',
+                              'Talep ve rapor güncellemelerini burada görebilirsiniz.',
                             ),
-                            if (item['read'] != true)
-                              IkincilButon('Okundu işaretle', () async {
-                                await ref
-                                    .read(hizmetRepositoryProvider)
-                                    .okundu(integer(item['id']));
-                                ref.invalidate(bildirimlerProvider);
-                              }),
-                            if (text(item['report_id']).isNotEmpty)
-                              TextButton(
-                                onPressed: () => context.push(
-                                  '/ekspertiz-raporlari/${Uri.encodeComponent(text(item['report_id']))}',
-                                ),
-                                child: const Text('İlgili ekspertiz raporu'),
+                          for (final item in items)
+                            Panel(text(item['title']), [
+                              Text(text(item['body'])),
+                              const SizedBox(height: Olcu.s8),
+                              Text(
+                                _tarih(item['created_at']),
+                                style: Yazilar.etiket,
                               ),
-                          ]),
-                      ],
-                    );
-                  },
-                ),
-          ),
-        ],
+                              if (item['read'] != true &&
+                                  !_okunan.contains(integer(item['id'])))
+                                IkincilButon('Okundu işaretle', () async {
+                                  await _oku([integer(item['id'])]);
+                                }),
+                              if (text(item['report_id']).isNotEmpty)
+                                TextButton(
+                                  onPressed: () => context.push(
+                                    '/ekspertiz-raporlari/${Uri.encodeComponent(text(item['report_id']))}',
+                                  ),
+                                  child: const Text('İlgili ekspertiz raporu'),
+                                ),
+                            ]),
+                        ],
+                      );
+                    },
+                  ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }

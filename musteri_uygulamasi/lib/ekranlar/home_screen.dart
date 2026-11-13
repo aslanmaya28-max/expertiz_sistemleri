@@ -9,27 +9,70 @@ import '../bilesenler/ortak.dart';
 import '../tema/olculer.dart';
 import '../tema/yazi.dart';
 import '../hizmetler/hizmet_tanitim.dart';
+import '../hizmetler/hizmet_api.dart';
 import '../hizmetler/kesfet.dart';
 import '../tema/renkler.dart';
 import '../bilesenler/marka.dart';
 import '../bilesenler/kart.dart';
 import '../analiz/analiz_ekranlari.dart';
+import '../rehber/ilk_kullanim_rehberi.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final goster = await ref.read(rehberDeposuProvider).ilkAcilis();
+      if (goster && mounted && ModalRoute.of(context)?.isCurrent == true) {
+        await ilkKullanimRehberiniAc(context, ref);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(okunmamisBildirimSayisiProvider);
+    }
+  }
+
+  Future<void> _bildirimleriAc() async {
+    await context.push('/bildirimler');
+    if (mounted) ref.invalidate(okunmamisBildirimSayisiProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider),
         balance = ref.watch(balanceProvider),
         recent = ref.watch(recentReportsProvider);
+    final bildirimler = ref.watch(okunmamisBildirimSayisiProvider);
     Future<void> refresh() async {
       ref.invalidate(balanceProvider);
       ref.invalidate(recentReportsProvider);
+      ref.invalidate(okunmamisBildirimSayisiProvider);
       await ref.read(sessionProvider).refreshProfile();
       await Future.wait([
         ref.read(balanceProvider.future),
         ref.read(recentReportsProvider.future),
+        // Sayaç isteği başarısızsa diğer ana sayfa verileri yine yenilenir.
+        ref.read(okunmamisBildirimSayisiProvider.future).catchError((_) => 0),
       ]);
     }
 
@@ -52,11 +95,27 @@ class HomeScreen extends ConsumerWidget {
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: [
-                  _AnaBaslik(balance: balance),
+                  _AnaBaslik(
+                    balance: balance,
+                    bildirimler: bildirimler,
+                    bildirimleriAc: _bildirimleriAc,
+                  ),
                   PageBody(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: () =>
+                                ilkKullanimRehberiniAc(context, ref),
+                            icon: const Icon(
+                              LucideIcons.circleHelp,
+                              size: Olcu.ikonInce,
+                            ),
+                            label: const Text('Nasıl kullanılır?'),
+                          ),
+                        ),
                         if (session.user?.emailVerified == false)
                           Panel('E-posta adresinizi doğrulayın', [
                             Text(
@@ -167,11 +226,24 @@ class ReportTile extends StatelessWidget {
 
 class _AnaBaslik extends StatelessWidget {
   final AsyncValue<int> balance;
-  const _AnaBaslik({required this.balance});
+  final AsyncValue<int> bildirimler;
+  final VoidCallback bildirimleriAc;
+  const _AnaBaslik({
+    required this.balance,
+    required this.bildirimler,
+    required this.bildirimleriAc,
+  });
   @override
   Widget build(BuildContext context) {
     final r = YbRenkler.of(context),
         light = Theme.of(context).brightness == Brightness.light;
+    final bildirimEtiketi = bildirimler.when(
+      data: (n) => n > 0
+          ? 'Bildirimler, $n okunmamış'
+          : 'Bildirimler, okunmamış bildirim yok',
+      error: (_, _) => 'Bildirimler, sayı alınamadı',
+      loading: () => 'Bildirimler',
+    );
     return Container(
       color: light ? r.markaBandi : r.zemin,
       child: SafeArea(
@@ -186,6 +258,32 @@ class _AnaBaslik extends StatelessWidget {
                 spacing: Olcu.s12,
                 children: [
                   Marka(bant: light),
+                  Semantics(
+                    container: true,
+                    button: true,
+                    label: bildirimEtiketi,
+                    child: Tooltip(
+                      message: bildirimEtiketi,
+                      excludeFromSemantics: true,
+                      child: IconButton(
+                        onPressed: bildirimleriAc,
+                        color: light ? r.beyaz : r.metin,
+                        icon: Badge(
+                          isLabelVisible:
+                              (bildirimler.valueOrNull ?? 0) > 0 &&
+                              !bildirimler.hasError,
+                          label: ExcludeSemantics(
+                            child: Text(
+                              (bildirimler.valueOrNull ?? 0) > 99
+                                  ? '99+'
+                                  : '${bildirimler.valueOrNull ?? 0}',
+                            ),
+                          ),
+                          child: const Icon(LucideIcons.bell, size: Olcu.ikon),
+                        ),
+                      ),
+                    ),
+                  ),
                   if (!light)
                     balance.when(
                       data: (v) => TextButton.icon(
@@ -222,9 +320,7 @@ class _AnaBaslik extends StatelessWidget {
                     children: [
                       Text(
                         '$v kredi',
-                        style: Yazilar.bolumBaslik.copyWith(
-                          color: r.vurguBant,
-                        ),
+                        style: Yazilar.bolumBaslik.copyWith(color: r.vurguBant),
                       ),
                       TextButton(
                         onPressed: () => context.go('/kredi'),

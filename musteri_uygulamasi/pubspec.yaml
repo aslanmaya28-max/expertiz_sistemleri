@@ -27,6 +27,8 @@ dependencies:
   in_app_purchase: 3.3.1
   image_picker: ^1.2.3
 dev_dependencies:
+  integration_test:
+    sdk: flutter
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0

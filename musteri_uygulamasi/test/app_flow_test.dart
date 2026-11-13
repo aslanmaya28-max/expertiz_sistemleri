@@ -11,8 +11,14 @@ import 'package:yerimebak/api/providers.dart';
 import 'package:yerimebak/api/repositories.dart';
 import 'package:yerimebak/app.dart';
 import 'package:yerimebak/bilesenler/pazarlik_uclusu.dart';
+import 'package:yerimebak/rehber/ilk_kullanim_rehberi.dart';
 import 'api_client_test.dart' show MemoryTokens;
 import 'report_view_test.dart' show fixture;
+
+class GorulmusRehber extends RehberDeposu {
+  @override
+  Future<bool> ilkAcilis() async => false;
+}
 
 class FakePlatform implements PlatformServices {
   final opened = <String>[];
@@ -40,6 +46,7 @@ class AppFixture {
   final Json? report;
   final Map<String, Json> responses;
   final Map<String, int> statuses;
+  final Future<http.Response>? Function(http.Request)? intercept;
   late final ApiClient api;
   AppFixture({
     this.configStatus = 200,
@@ -47,11 +54,14 @@ class AppFixture {
     this.report,
     this.responses = const {},
     this.statuses = const {},
+    this.intercept,
   }) {
     api = ApiClient(
       store: store,
       client: MockClient((r) async {
         calls.add(r);
+        final intercepted = intercept?.call(r);
+        if (intercepted != null) return intercepted;
         final path = r.url.path;
         Json body = {};
         int status = 200;
@@ -131,12 +141,15 @@ class AppFixture {
   Future<ProviderContainer> pump(
     WidgetTester tester, {
     List<Override> overrides = const [],
+    bool rehberiGoster = false,
   }) async {
     await initializeDateFormatting('tr_TR');
     final container = ProviderContainer(
       overrides: [
         apiProvider.overrideWithValue(api),
         platformProvider.overrideWithValue(platform),
+        if (!rehberiGoster)
+          rehberDeposuProvider.overrideWithValue(GorulmusRehber()),
         ...overrides,
       ],
     );
