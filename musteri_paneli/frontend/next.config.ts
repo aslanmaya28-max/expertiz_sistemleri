@@ -2,22 +2,8 @@ import type { NextConfig } from "next";
 
 const apiBackend = process.env.API_BACKEND_URL || "http://localhost:8000";
 
-// Önce rapor modu: statik Next sayfalarının satır içi betikleri ve JSON-LD
-// henüz nonce/hash taşımıyor. Uygulamaya almadan önce bunlar uyarlanmalı;
-// report-uri/report-to alıcısı yokken ihlaller yalnız tarayıcı konsolunda görülür.
-const cspReportOnly = [
-  "default-src 'self'",
-  "script-src 'self'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data: blob: https:",
-  "connect-src 'self' https://api.yerimebak.com.tr",
-  "frame-src 'self' https://www.paytr.com",
-  "form-action 'self' https://www.paytr.com",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "frame-ancestors 'none'",
-].join("; ");
+// İçerik güvenliği politikası (CSP) istek başına nonce gerektirdiği için
+// src/proxy.ts içinde üretilir (src/lib/guvenlikPolitikasi.ts).
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -48,7 +34,6 @@ const nextConfig: NextConfig = {
         { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
         // Fotoğraf yükleme dosya seçici kullanır; getUserMedia/capture gerekmez.
         { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
-        { key: "Content-Security-Policy-Report-Only", value: cspReportOnly },
       ],
     }, {
       // PayTR bu sayfayı sitenin ödeme iframe'ine döndürür; sayfa üst
@@ -56,7 +41,6 @@ const nextConfig: NextConfig = {
       source: "/odeme/sonuc",
       headers: [
         { key: "X-Frame-Options", value: "SAMEORIGIN" },
-        { key: "Content-Security-Policy-Report-Only", value: cspReportOnly.replace("frame-ancestors 'none'", "frame-ancestors 'self'") },
       ],
     }];
   },

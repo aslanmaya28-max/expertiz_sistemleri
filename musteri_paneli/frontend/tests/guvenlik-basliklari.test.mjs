@@ -8,6 +8,21 @@ import { get } from 'node:http';
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
 const filename = new URL('../next.config.ts', import.meta.url);
+const politikaDosyasi = new URL('../src/lib/guvenlikPolitikasi.ts', import.meta.url);
+const proxyDosyasi = new URL('../src/proxy.ts', import.meta.url);
+
+function politikaModulu() {
+  const module = { exports: {} };
+  const source = ts.transpileModule(readFileSync(politikaDosyasi, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  vm.runInNewContext(source, { module, exports: module.exports, crypto: globalThis.crypto, btoa, Uint8Array, String });
+  return module.exports;
+}
+
+function yonergeler(policy) {
+  return new Map(policy.split(';').map(part => part.trim().split(/\s+/)).filter(parts => parts[0]).map(([key, ...values]) => [key, values]));
+}
 
 async function kurallar(env = {}) {
   const module = { exports: {} };
@@ -35,7 +50,7 @@ test('site yanıtları çerçevelemeyi, MIME tahminini ve cihaz izinlerini kıs�
   assert.equal(headers.get('permissions-policy'), 'camera=(), microphone=(), geolocation=()');
 });
 
-test('PayTR dönüşü yalnız kendi sitesinin iframe içinde açılıp üst pencereye geçebilir', async () => {
+test('PayTR dönüşü yalnız kendi sitesinin iframe içinde açılabilir', async () => {
   const rules = await kurallar();
   const headers = new Map();
   for (const rule of rules) {
@@ -44,31 +59,46 @@ test('PayTR dönüşü yalnız kendi sitesinin iframe içinde açılıp üst pen
     }
   }
   assert.equal(headers.get('x-frame-options'), 'SAMEORIGIN');
-  assert.match(headers.get('content-security-policy-report-only'), /frame-src 'self' https:\/\/www.paytr.com/);
-  assert.match(headers.get('content-security-policy-report-only'), /frame-ancestors 'self'/);
+  const { guvenlikPolitikasi, nonceUret } = politikaModulu();
+  const d = yonergeler(guvenlikPolitikasi({ nonce: nonceUret(), ayniKokenCerceve: true }));
+  assert.deepEqual(d.get('frame-ancestors'), ["'self'"]);
+  assert.ok(d.get('frame-src').includes('https://www.paytr.com'));
 });
 
-test('CSP yalnız rapor modunda, dar betik kaynakları ve mevcut ödeme/font izinleriyle gönderilir', async () => {
+test('next.config artık rapor modu CSP göndermez; CSP proxy tarafından zorunlu gönderilir', async () => {
   const headers = await basliklar();
-  assert.equal(headers.has('content-security-policy'), false, 'Satır içi Next/JSON-LD henüz nonce taşımıyor');
-  const policy = headers.get('content-security-policy-report-only');
-  assert.ok(policy);
-  const directives = new Map(policy.split(';').map(part => part.trim().split(/\s+/)).filter(parts => parts[0]).map(([key, ...values]) => [key, values]));
-  assert.deepEqual(directives.get('default-src'), ["'self'"]);
-  assert.deepEqual(directives.get('script-src'), ["'self'"]);
-  assert.deepEqual(directives.get('object-src'), ["'none'"]);
-  assert.deepEqual(directives.get('base-uri'), ["'self'"]);
-  assert.deepEqual(directives.get('frame-ancestors'), ["'none'"]);
-  assert.ok(directives.get('frame-src').includes('https://www.paytr.com'));
-  assert.ok(directives.get('form-action').includes('https://www.paytr.com'));
-  assert.ok(directives.get('style-src').includes('https://fonts.googleapis.com'));
-  assert.ok(directives.get('font-src').includes('https://fonts.gstatic.com'));
-  assert.ok(directives.get('connect-src').includes('https://api.yerimebak.com.tr'));
-  assert.ok(directives.get('img-src').includes('blob:'));
+  assert.equal(headers.has('content-security-policy-report-only'), false);
+  const proxy = readFileSync(proxyDosyasi, 'utf8');
+  assert.match(proxy, /export function proxy/);
+  assert.match(proxy, /x-nonce/);
+  assert.match(proxy, /yanit\.headers\.set\("Content-Security-Policy"/);
+  assert.match(proxy, /_next\/static/);
+});
+
+test('zorunlu CSP: betikler yalnız nonce ile, eval yalnız geliştirmede', () => {
+  const { guvenlikPolitikasi, nonceUret } = politikaModulu();
+  const n1 = nonceUret(); const n2 = nonceUret();
+  assert.notEqual(n1, n2, 'her istekte yeni nonce');
+  assert.ok(n1.length >= 22);
+  const d = yonergeler(guvenlikPolitikasi({ nonce: n1 }));
+  assert.deepEqual(d.get('default-src'), ["'self'"]);
+  assert.deepEqual(d.get('script-src'), ["'self'", `'nonce-${n1}'`, "'strict-dynamic'"]);
+  assert.ok(!d.get('script-src').includes("'unsafe-inline'"));
+  assert.deepEqual(d.get('object-src'), ["'none'"]);
+  assert.deepEqual(d.get('base-uri'), ["'self'"]);
+  assert.deepEqual(d.get('frame-ancestors'), ["'none'"]);
+  assert.ok(d.get('form-action').includes('https://www.paytr.com'));
+  assert.ok(d.get('style-src').includes('https://fonts.googleapis.com'));
+  assert.ok(d.get('font-src').includes('https://fonts.gstatic.com'));
+  assert.ok(d.get('connect-src').includes('https://api.yerimebak.com.tr'));
+  assert.ok(d.get('img-src').includes('blob:'));
+  const gelistirme = yonergeler(guvenlikPolitikasi({ nonce: n1, gelistirme: true }));
+  assert.ok(gelistirme.get('script-src').includes("'unsafe-eval'"));
+  assert.throws(() => guvenlikPolitikasi({ nonce: "x'; script-src *" }));
 });
 
 // Üretim derlemesi next start ile açıldığında çalıştırılır; canlıya istek atmaz.
-test('yerel üretim HTTP yanıtları tek çerçeve başlığı taşır ve Next/JSON-LD betiklerini engellemez', {
+test('yerel üretim HTTP yanıtları zorunlu CSP taşır ve her betik isteğin nonce değerini taşır', {
   skip: !process.env.SITE_SECURITY_TEST_PORT,
 }, async () => {
   const port = Number(process.env.SITE_SECURITY_TEST_PORT);
@@ -93,8 +123,18 @@ test('yerel üretim HTTP yanıtları tek çerçeve başlığı taşır ve Next/J
     assert.equal(response.headers['x-content-type-options'], 'nosniff', path);
     assert.equal(response.headers['referrer-policy'], 'strict-origin-when-cross-origin', path);
     assert.equal(response.headers['permissions-policy'], 'camera=(), microphone=(), geolocation=()', path);
-    assert.equal(response.headers['content-security-policy'], undefined, path);
-    assert.ok(response.headers['content-security-policy-report-only'], path);
+    assert.equal(response.headers['content-security-policy-report-only'], undefined, path);
+    const csp = response.headers['content-security-policy'];
+    assert.ok(csp, path);
+    const nonce = csp.match(/'nonce-([^']+)'/)?.[1];
+    assert.ok(nonce, path);
+    if (status === 200) {
+      // Çalıştırılabilir her satır içi/dış betik bu isteğin nonce'unu taşımalı.
+      for (const tag of response.body.match(/<script[^>]*>/g) ?? []) {
+        if (/type="application\/(ld\+)?json"/.test(tag)) continue;
+        assert.ok(tag.includes(`nonce="${nonce}"`), `${path}: ${tag.slice(0, 120)}`);
+      }
+    }
     if (path === '/') {
       assert.match(response.body, /application\/ld\+json/);
       assert.match(response.body, /self\.__next_f/);
@@ -104,6 +144,6 @@ test('yerel üretim HTTP yanıtları tek çerçeve başlığı taşır ve Next/J
       assert.equal(script.statusCode, 200);
       assert.equal(script.headers['x-content-type-options'], 'nosniff');
     }
-    if (frame === 'SAMEORIGIN') assert.match(response.headers['content-security-policy-report-only'], /frame-ancestors 'self'/);
+    if (frame === 'SAMEORIGIN') assert.match(csp, /frame-ancestors 'self'/);
   }
 });

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import "./kurumsal.css";
 import "./scroll-deneyimi.css";
@@ -42,7 +43,9 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // proxy.ts her istekte nonce üretir; okumak sayfaları dinamik yapar (zorunlu CSP için gerekli).
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html lang="tr" className="h-full antialiased">
       <head>
@@ -62,6 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
         <script
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: `
               if ('serviceWorker' in navigator) {
