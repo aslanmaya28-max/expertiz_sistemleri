@@ -29,7 +29,7 @@ git checkout arsiv/docker-surum
 ```sh
 cd musteri_paneli
 cp .env.example .env            # DATABASE_URL, SECRET_KEY, OPENROUTER_API_KEY
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # üretim imajı requirements.lock kurar
 python -m uvicorn yerimebak_ai_v5.main:app --port 8000
 ```
 

@@ -8,8 +8,9 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends curl fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Kilitli tam liste (tüm alt bağımlılıklar sabit); pip check uyumsuzlukta derlemeyi durdurur.
+COPY requirements.txt requirements.lock ./
+RUN pip install --no-cache-dir -r requirements.lock && pip check
 
 COPY yerimebak_ai_v5/ /app/yerimebak_ai_v5/
 COPY sql/ /app/sql/

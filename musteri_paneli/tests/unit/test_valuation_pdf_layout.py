@@ -110,7 +110,8 @@ def test_normal_and_long_report_keep_all_text_inside_page_and_footer(risk_count)
     content = build_pdf(tucson_report(risk_count))
     assert content.startswith(b'%PDF')
     with pdfplumber.open(io.BytesIO(content)) as document:
-        combined = '\n'.join(page.extract_text() or '' for page in document.pages)
+        # Satır kırılımı yazı tipine bağlı (yerelde Arial, canlı imajda DejaVu); boşluklar tekleştirilir.
+        combined = ' '.join('\n'.join(page.extract_text() or '' for page in document.pages).split())
         assert 'Satıcıya gönderilecek mesaj' in combined and 'Pazarlık planı' in combined  # ayrı bölüm (09.11.2026)
         assert 'Şasi ve bakım belgelerini paylaşır mısınız?' in combined
         assert 'Açılış teklifi:' in combined and '1.875.000 TL' in combined

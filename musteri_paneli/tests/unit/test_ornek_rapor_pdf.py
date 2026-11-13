@@ -27,6 +27,14 @@ def texts(content):
         return [page.extract_text() for page in document.pages]
 
 
+def content_words(content):
+    """Yazı tipinden bağımsız içerik: çapraz filigran harfleri çıkarılır, satır kırılımları yok sayılır.
+    Yayındaki örnek PDF Windows'ta (Arial), canlı imaj DejaVu ile üretir; satırlar farklı yerden kırılır."""
+    with pdfplumber.open(io.BytesIO(content)) as document:
+        return [' '.join((page.filter(lambda o: o.get('object_type') != 'char' or abs(o['matrix'][1]) < 1e-3)
+                          .extract_text() or '').split()) for page in document.pages]
+
+
 def test_sample_has_diagonal_watermark_on_every_page_and_no_identity_or_seal(monkeypatch):
     report = source_report()
     report['rapor'].update(verification_code='YD-SECRET-1234', report_no='CANLI-RAPOR-1234')
@@ -120,7 +128,9 @@ def test_cli_does_not_open_network_connections(tmp_path, monkeypatch):
 def test_public_pdf_matches_current_json_and_contains_no_verification_identity():
     artifact = ROOT / 'frontend/public/ornek-rapor/degerleme-ornek.pdf'
     pages = texts(artifact.read_bytes())
-    assert pages == texts(renderer.build_pdf(source_report(), ornek=True))
+    assert len(pages) == len(texts(renderer.build_pdf(source_report(), ornek=True)))
+    assert sorted(' '.join(content_words(artifact.read_bytes())).split()) == sorted(
+        ' '.join(content_words(renderer.build_pdf(source_report(), ornek=True))).split())
     text = '\n'.join(pages)
     for hidden in ('YD-', 'Dijital doğrulama', '/dogrula/'):
         assert hidden not in text

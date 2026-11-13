@@ -1,38 +1,36 @@
-# YerimeBak API - calisma bagimliliklari
+# YerimeBak API - doğrudan çalışma bağımlılıkları (tam sürüm).
+# Docker imajı bunların tüm alt bağımlılıklarıyla kilitli listeyi kurar: requirements.lock
+# Güncelleme: musteri_paneli/docs/BAGIMLILIK_GUNCELLEME.md
 # Kaziyici (Selenium, Playwright, Chromium) kaldirildi; piyasa verisi web aramasiyla gelir.
-# Eski hal: git tag arsiv/docker-surum
 
 # API
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
-python-multipart>=0.0.6
-pydantic>=2.5.0
+fastapi==0.162.6
+uvicorn[standard]==0.54.0
+python-multipart==0.0.33
+pydantic==2.14.3
 
 # Veritabani
-psycopg2-binary>=2.9.0
+psycopg2-binary==2.9.13
 
 # Guvenlik
-bcrypt>=4.1.0
-pyjwt>=2.8.0
+bcrypt==5.0.0
+pyjwt==2.15.1
 
-# Dis servisler (OpenRouter / DeepSeek, PayTR)
-httpx>=0.25.0
-requests>=2.31.0
-google-auth>=2.38.0,<3
-openai>=1.0.0
+# Dis servisler (OpenRouter / DeepSeek, PayTR, Google Play)
+httpx==0.28.1
+requests==2.34.2
+google-auth==2.62.2
+openai==3.50.0
 
-# Kurumsal rapor PDF metni
-pdfplumber>=0.10.3
-fpdf2>=2.7
-Pillow>=10.1
-pillow-heif>=0.18
+# Kurumsal rapor PDF metni ve rapor PDF'i
+pdfplumber==0.11.10
+fpdf2==2.9.0
+Pillow==13.0.0
+pillow-heif==1.8.1
 
 # Yardimcilar
-python-dotenv>=1.0.0
-tzdata>=2023.3
+python-dotenv==1.2.4
+tzdata==2026.6
 
 # Hata izleme
-sentry-sdk[fastapi]>=2.19.2
-
-# Test
-pytest>=7.4.0
+sentry-sdk[fastapi]==2.75.0

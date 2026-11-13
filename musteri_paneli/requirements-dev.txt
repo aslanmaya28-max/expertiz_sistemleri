@@ -1,0 +1,3 @@
+# Test bağımlılıkları (üretim imajına girmez).
+-r requirements.txt
+pytest==9.2.0
