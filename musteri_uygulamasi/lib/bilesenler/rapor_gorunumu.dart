@@ -10,6 +10,7 @@ import 'rapor_kaynaklar.dart';
 import 'rapor_basligi.dart';
 import 'rapor_karti.dart';
 import 'enflasyon_karti.dart';
+import 'ekspertiz_bulgulari.dart';
 import '../tema/olculer.dart';
 import '../tema/renkler.dart';
 import '../tema/yazi.dart';
@@ -48,6 +49,7 @@ class ReportView extends StatelessWidget {
           if (text(snapshot.plan['saticiMesaji']).isNotEmpty)
             SaticiMesaji(text(snapshot.plan['saticiMesaji']), onLink: onLink),
           InflationSection(object(snapshot.raw['getiri'])),
+          EkspertizBulgulari(snapshot.raw['ekspertizRaporu']),
           NextActionSection(snapshot.summary),
           ModelFindings(snapshot, onLink),
           MarketSection(snapshot.market, onLink),

@@ -5,7 +5,8 @@ import '../api/providers.dart';
 
 class HizmetRepository {
   final ApiClient api;
-  HizmetRepository(this.api);
+  final void Function()? bildirimOkundu;
+  HizmetRepository(this.api, {this.bildirimOkundu});
   Future<HizmetBolgesi> hizmetBolgesi() async =>
       HizmetBolgesi.fromJson(await api.get('/expertiz/service-area'));
   Future<Json> katalog() => api.get('/expertiz/packages');
@@ -68,11 +69,13 @@ class HizmetRepository {
   Future<Json> rapor(String id) async => object(
     (await api.get('/expertiz/reports/${Uri.encodeComponent(id)}'))['report'],
   );
-  Future<Json> bildirimler() => api.get('/expertiz/notifications');
-  Future<void> okundu(int id) async {
-    await api.post('/expertiz/notifications/read', {
-      'ids': [id],
-    });
+  Future<Json> bildirimler({bool okunmamis = false}) =>
+      api.get('/expertiz/notifications${okunmamis ? '?unread_only=true' : ''}');
+  Future<void> okundu(int id) => bildirimleriOku([id]);
+  Future<void> bildirimleriOku(List<int> ids) async {
+    if (ids.isEmpty) return;
+    await api.post('/expertiz/notifications/read', {'ids': ids});
+    bildirimOkundu?.call();
   }
 }
 
@@ -106,9 +109,20 @@ bool guvenliPaytr(String raw) {
       uri.path.startsWith('/odeme/guvenli/');
 }
 
-final hizmetRepositoryProvider = Provider(
-  (ref) => HizmetRepository(ref.watch(apiProvider)),
-);
+final _bildirimDegisikligiProvider = StateProvider<int>((ref) => 0);
+
+final Provider<HizmetRepository> hizmetRepositoryProvider =
+    Provider<HizmetRepository>((ref) {
+      var etkin = true;
+      ref.onDispose(() => etkin = false);
+      return HizmetRepository(
+        ref.watch(apiProvider),
+        // Sunucu işlemi ekran kapandıktan sonra da tamamlanabilir.
+        bildirimOkundu: () {
+          if (etkin) ref.read(_bildirimDegisikligiProvider.notifier).state++;
+        },
+      );
+    });
 final hizmetKatalogProvider = FutureProvider.autoDispose<Json>((ref) {
   ref.watch(sessionProvider.select((s) => s.user?.id));
   return ref.watch(hizmetRepositoryProvider).katalog();
@@ -131,6 +145,18 @@ final hizmetRaporProvider = FutureProvider.autoDispose.family<Json, String>((
 final bildirimlerProvider = FutureProvider.autoDispose<Json>((ref) {
   ref.watch(sessionProvider.select((s) => s.user?.id));
   return ref.watch(hizmetRepositoryProvider).bildirimler();
+});
+
+final okunmamisBildirimSayisiProvider = FutureProvider.autoDispose<int>((
+  ref,
+) async {
+  ref.watch(_bildirimDegisikligiProvider);
+  final user = ref.watch(sessionProvider.select((s) => s.user?.id));
+  if (user == null) return 0;
+  final data = await ref
+      .watch(hizmetRepositoryProvider)
+      .bildirimler(okunmamis: true);
+  return integer(data['unread']).clamp(0, 0x7fffffff);
 });
 
 const istanbulIlceleri = [

@@ -12,6 +12,7 @@ import '../bilesenler/ana_buton.dart';
 import '../bilesenler/ikincil_buton.dart';
 import 'package:image_picker/image_picker.dart';
 import '../bilesenler/kart.dart';
+import '../bilesenler/bilgi_dugmesi.dart';
 import '../tema/yazi.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../tema/olculer.dart';
@@ -710,7 +711,10 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
         final konum = kaydirma.position;
         if (konum.pixels >= konum.maxScrollExtent) break;
         kaydirma.jumpTo(
-          (konum.pixels + konum.viewportDimension * .8).clamp(0, konum.maxScrollExtent),
+          (konum.pixels + konum.viewportDimension * .8).clamp(
+            0,
+            konum.maxScrollExtent,
+          ),
         );
         await WidgetsBinding.instance.endOfFrame;
       }
@@ -884,6 +888,9 @@ class _AracFormuEkraniState extends ConsumerState<AracFormuEkrani> {
           labelText: etiket,
           hintText: ipucu,
           suffixText: sonEk,
+          suffixIcon: aracAlaniBilgileri.containsKey(anahtar)
+              ? BilgiDugmesi(etiket, aracAlaniBilgileri[anahtar]!)
+              : null,
           errorText: _alanHatasi(anahtar),
           helperText: f.ilandanOkunan.contains(anahtar)
               ? 'İlandan okundu · kontrol edin'
